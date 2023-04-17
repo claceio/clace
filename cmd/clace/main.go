@@ -3,7 +3,7 @@
 
 package main
 
-import "github.com/claceio/cmd/clace/cmd"
+import "clace.io/cmd/clace/cmd"
 
 func main() {
 	cmd.Execute()
