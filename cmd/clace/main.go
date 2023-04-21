@@ -10,6 +10,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
+
+	"github.com/claceio/clace/pkg/api"
 )
 
 const configFileFlagName = "config_file"
@@ -18,16 +20,10 @@ type GlobalConfig struct {
 	ConfigFile string
 }
 
-type ServerConfig struct {
-	Host     string
-	Port     int
-	LogLevel string
-}
-
 type ClientConfig struct {
 }
 
-func allCommands(serverConfig *ServerConfig, clientConfig *ClientConfig) []*cli.Command {
+func allCommands(serverConfig *api.ServerConfig, clientConfig *ClientConfig) []*cli.Command {
 	var commands []*cli.Command
 	for _, v := range [][]*cli.Command{
 		serverCommands(serverConfig),
@@ -74,7 +70,7 @@ func newIntFlag(name, alias, usage string, value int, destionation *int) *altsrc
 	})
 }
 
-func serverCommands(serverConfig *ServerConfig) []*cli.Command {
+func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 	flags := []cli.Flag{
 		newStringFlag("listen_host", "i", "The interface to listen on", "127.0.01", &serverConfig.Host),
 		newIntFlag("listen_port", "p", "The port to listen on", 25223, &serverConfig.Port),
@@ -115,7 +111,7 @@ func globalFlags(globalConfig *GlobalConfig) []cli.Flag {
 
 func main() {
 	globalConfig := GlobalConfig{}
-	serverConfig := ServerConfig{}
+	serverConfig := api.ServerConfig{}
 	clientConfig := ClientConfig{}
 	globalFlags := globalFlags(&globalConfig)
 
