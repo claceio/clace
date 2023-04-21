@@ -10,16 +10,16 @@ tidy: ## Run go mod tidy
 	go mod tidy
 
 buildwindows: ## Build clace CLI for windows/amd64
-	GOOS=windows GOARCH=amd64 go install clace.io/cmd/clace clace.io/cmd/claced
+	GOOS=windows GOARCH=amd64 go install github.com/claceio/clace/cmd/clace 
 
 build386: ## Build clace CLI for linux/386
-	GOOS=linux GOARCH=386 go install clace.io/cmd/clace clace.io/cmd/claced
+	GOOS=linux GOARCH=386 go install github.com/claceio/clace/cmd/clace 
 
 buildlinuxarm: ## Build clace CLI for linux/arm
-	GOOS=linux GOARCH=arm go install clace.io/cmd/clace clace.io/cmd/claced
+	GOOS=linux GOARCH=arm go install github.com/claceio/clace/cmd/clace 
 
 buildlinuxloong64: ## Build clace CLI for linux/loong64
-	GOOS=linux GOARCH=loong64 go install clace.io/cmd/clace clace.io/cmd/claced
+	GOOS=linux GOARCH=loong64 go install github.com/claceio/clace/cmd/clace 
 
 check: staticcheck vet depaware buildwindows build386 buildlinuxarm ## Perform basic checks and compilation tests
 

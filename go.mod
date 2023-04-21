@@ -1,7 +1,7 @@
 // Copyright (c) Clace Inc
 // SPDX-License-Identifier: Apache-2.0
 
-module clace.io
+module github.com/claceio/clace
 
 go 1.19
 
