@@ -10,6 +10,11 @@ type ServerConfig struct {
 	*clserver.ServerConfig
 }
 
+func NewServerConfig() *ServerConfig {
+	config := ServerConfig{ServerConfig: clserver.NewServerConfig()}
+	return &config
+}
+
 // Server is the instance of the Clace Server
 type Server struct {
 	config *ServerConfig

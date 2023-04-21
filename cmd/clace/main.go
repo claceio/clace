@@ -70,11 +70,29 @@ func newIntFlag(name, alias, usage string, value int, destionation *int) *altsrc
 	})
 }
 
+func newBoolFlag(name, alias, usage string, value bool, destination *bool) *altsrc.BoolFlag {
+	envString := fmt.Sprintf("CL_%s", strings.ToUpper(name))
+	var aliases []string
+	if alias != "" {
+		aliases = []string{alias}
+	}
+	return altsrc.NewBoolFlag(&cli.BoolFlag{
+		Name:        name,
+		Aliases:     aliases,
+		Usage:       usage,
+		Value:       value,
+		EnvVars:     []string{envString},
+		Destination: destination,
+	})
+}
+
 func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
+
 	flags := []cli.Flag{
-		newStringFlag("listen_host", "i", "The interface to listen on", "127.0.01", &serverConfig.Host),
-		newIntFlag("listen_port", "p", "The port to listen on", 25223, &serverConfig.Port),
-		newStringFlag("log_level", "l", "The logging level to use", "INFO", &serverConfig.LogLevel),
+		newStringFlag("listen_host", "i", "The interface to listen on", serverConfig.Host, &serverConfig.Host),
+		newIntFlag("listen_port", "p", "The port to listen on", serverConfig.Port, &serverConfig.Port),
+		newStringFlag("log_level", "l", "The logging level to use", serverConfig.LogLevel, &serverConfig.LogLevel),
+		newBoolFlag("console_logging", "", "Enable console logging", serverConfig.ConsoleLogging, &serverConfig.ConsoleLogging),
 	}
 
 	return []*cli.Command{
@@ -87,8 +105,12 @@ func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 					Flags:  flags,
 					Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 					Action: func(cCtx *cli.Context) error {
-						fmt.Printf("Starting server, addr %s port %d log_level  %s\n",
-							serverConfig.Host, serverConfig.Port, serverConfig.LogLevel)
+						server := api.NewServer(serverConfig)
+						err := server.Start()
+						if err != nil {
+							fmt.Printf("Error starting server: %s\n", err)
+							os.Exit(1)
+						}
 						return nil
 					},
 				},
@@ -111,7 +133,7 @@ func globalFlags(globalConfig *GlobalConfig) []cli.Flag {
 
 func main() {
 	globalConfig := GlobalConfig{}
-	serverConfig := api.ServerConfig{}
+	serverConfig := api.NewServerConfig()
 	clientConfig := ClientConfig{}
 	globalFlags := globalFlags(&globalConfig)
 
@@ -122,7 +144,7 @@ func main() {
 		Suggest:              true,
 		Flags:                globalFlags,
 		Before:               altsrc.InitInputSourceWithContext(globalFlags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		Commands:             allCommands(&serverConfig, &clientConfig),
+		Commands:             allCommands(serverConfig, &clientConfig),
 	}
 
 	if err := app.Run(os.Args); err != nil {

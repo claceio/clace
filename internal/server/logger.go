@@ -24,17 +24,22 @@ func NewLogger(config *LogConfig) *Logger {
 		writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 	if config.FileLogging {
-		writers = append(writers, rollingFileLogger(config))
+		fileWriter := rollingFileLogger(config)
+		if fileWriter != nil {
+			writers = append(writers, fileWriter)
+		}
 	}
 	mw := io.MultiWriter(writers...)
 
 	level := strings.ToUpper(config.LogLevel)
 	logLevel := zerolog.InfoLevel
 	switch level {
-	case "DEBUG":
-		logLevel = zerolog.DebugLevel
 	case "WARN":
 		logLevel = zerolog.WarnLevel
+	case "INFO":
+		logLevel = zerolog.InfoLevel
+	case "DEBUG":
+		logLevel = zerolog.DebugLevel
 	case "TRACE":
 		logLevel = zerolog.TraceLevel
 	default:

@@ -3,23 +3,12 @@
 
 package server
 
-import "os"
+import (
+	"fmt"
+	"os"
 
-// ServerConfig is the configuration for the Clace Server
-type ServerConfig struct {
-	Host string
-	Port int
-	LogConfig
-}
-
-// LogConfig is the configuration for the Logger
-type LogConfig struct {
-	LogLevel       string
-	MaxBackups     int
-	MaxSizeMB      int
-	ConsoleLogging bool
-	FileLogging    bool
-}
+	"github.com/rs/zerolog/log"
+)
 
 // CL_ROOT is the root directory for Clace logs and temp files
 var CL_ROOT = os.ExpandEnv("$CL_ROOT")
@@ -27,8 +16,25 @@ var CL_ROOT = os.ExpandEnv("$CL_ROOT")
 func init() {
 	if len(CL_ROOT) == 0 {
 		// Default to current directory if CL_ROOT is not set
-		CL_ROOT = "./"
+		CL_ROOT = fmt.Sprintf(".%s", string(os.PathSeparator))
+		os.Setenv("CL_ROOT", CL_ROOT)
 	}
+}
+
+// ServerConfig is the configuration for the Clace Server
+type ServerConfig struct {
+	Host string `toml:"host"`
+	Port int    `toml:"port"`
+	LogConfig
+}
+
+// LogConfig is the configuration for the Logger
+type LogConfig struct {
+	LogLevel       string `toml:"log_level"`
+	MaxBackups     int    `toml:"max_backups"`
+	MaxSizeMB      int    `toml:"max_size_mb"`
+	ConsoleLogging bool   `toml:"console_logging"`
+	FileLogging    bool   `toml:"file_logging"`
 }
 
 type Server struct {
@@ -47,6 +53,7 @@ func NewServer(config *ServerConfig) *Server {
 
 // Start starts the Clace Server
 func (s *Server) Start() error {
+	log.Info().Msg("Starting server")
 	return nil
 }
 
