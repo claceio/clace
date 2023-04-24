@@ -89,8 +89,8 @@ func newBoolFlag(name, alias, usage string, value bool, destination *bool) *alts
 func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 
 	flags := []cli.Flag{
-		newStringFlag("listen_host", "i", "The interface to listen on", serverConfig.Host, &serverConfig.Host),
-		newIntFlag("listen_port", "p", "The port to listen on", serverConfig.Port, &serverConfig.Port),
+		newStringFlag("http_host", "i", "The interface to bind on for HTTP", serverConfig.HttpHost, &serverConfig.HttpHost),
+		newIntFlag("http_port", "p", "The port to listen on for HTTP", serverConfig.HttpPort, &serverConfig.HttpPort),
 		newStringFlag("log_level", "l", "The logging level to use", serverConfig.LogLevel, &serverConfig.LogLevel),
 		newBoolFlag("console_logging", "", "Enable console logging", serverConfig.ConsoleLogging, &serverConfig.ConsoleLogging),
 	}
@@ -105,8 +105,12 @@ func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 					Flags:  flags,
 					Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 					Action: func(cCtx *cli.Context) error {
-						server := api.NewServer(serverConfig)
-						err := server.Start()
+						server, err := api.NewServer(serverConfig)
+						if err != nil {
+							fmt.Printf("Error initializing server: %s\n", err)
+							os.Exit(1)
+						}
+						err = server.Start()
 						if err != nil {
 							fmt.Printf("Error starting server: %s\n", err)
 							os.Exit(1)

@@ -3,15 +3,18 @@
 
 package api
 
-import clserver "github.com/claceio/clace/internal/server"
+import (
+	clserver "github.com/claceio/clace/internal/server"
+	"github.com/claceio/clace/internal/utils"
+)
 
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
-	*clserver.ServerConfig
+	*utils.ServerConfig
 }
 
 func NewServerConfig() *ServerConfig {
-	config := ServerConfig{ServerConfig: clserver.NewServerConfig()}
+	config := ServerConfig{ServerConfig: utils.NewServerConfig()}
 	return &config
 }
 
@@ -22,11 +25,16 @@ type Server struct {
 }
 
 // NewServer creates a new instance of the Clace Server
-func NewServer(config *ServerConfig) *Server {
+func NewServer(config *ServerConfig) (*Server, error) {
+	server, err := clserver.NewServer(config.ServerConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		config: config,
-		server: clserver.NewServer(config.ServerConfig),
-	}
+		server: server,
+	}, nil
 }
 
 // Start starts the Clace Server

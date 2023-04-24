@@ -1,12 +1,19 @@
 # The default configuration used by the Clace server and APIs
 
-# Service listen Config
+# HTTP port binding related Config
+[http]
 host = "127.0.0.1"
 port = 25223
 
 # Logging related Config
+[logging]
 log_level = "INFO"
 max_backups = 10
 max_size_mb = 50
 console_logging = false
 file_logging = true
+
+# Metadata Storage Config
+[metadata]
+db_connection = "sqlite:$CL_ROOT/clace.db"
+auto_upgrade = true
