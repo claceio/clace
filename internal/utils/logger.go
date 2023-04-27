@@ -31,7 +31,7 @@ func NewLogger(config *LogConfig) *Logger {
 	}
 	mw := io.MultiWriter(writers...)
 
-	level := strings.ToUpper(config.LogLevel)
+	level := strings.ToUpper(config.Level)
 	logLevel := zerolog.InfoLevel
 	switch level {
 	case "WARN":
@@ -54,7 +54,7 @@ func NewLogger(config *LogConfig) *Logger {
 }
 
 func rollingFileLogger(config *LogConfig) io.Writer {
-	dir := os.ExpandEnv("$CL_ROOT/logs")
+	dir := os.ExpandEnv("$CL_HOME/logs")
 	if err := os.MkdirAll(dir, 0744); err != nil {
 		log.Error().Err(err).Str("path", dir).Msg("cannot create logging directory")
 		return nil

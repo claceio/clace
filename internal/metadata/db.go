@@ -36,7 +36,7 @@ func checkConnectString(connStr string) (string, error) {
 
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, error) {
-	dbPath, err := checkConnectString(config.DBConnection)
+	dbPath, err := checkConnectString(config.Metadata.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (m *Metadata) VersionUpgrade() error {
 	var dt time.Time
 	row.Scan(&version, &dt)
 
-	if version < CURRENT_DB_VERSION && !m.config.AutoUpgrade {
+	if version < CURRENT_DB_VERSION && !m.config.Metadata.AutoUpgrade {
 		return fmt.Errorf("DB autoupgrade is disabled, exiting. Server %d, DB %d", CURRENT_DB_VERSION, version)
 	}
 

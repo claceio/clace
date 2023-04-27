@@ -4,6 +4,8 @@
 package api
 
 import (
+	"context"
+
 	clserver "github.com/claceio/clace/internal/server"
 	"github.com/claceio/clace/internal/utils"
 )
@@ -43,6 +45,6 @@ func (s *Server) Start() error {
 }
 
 // Stop stops the Clace Server
-func (s *Server) Stop() error {
-	return s.server.Stop()
+func (s *Server) Stop(ctx context.Context) error {
+	return s.server.Stop(ctx)
 }

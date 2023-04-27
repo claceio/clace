@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,14 +14,14 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-// CL_ROOT is the root directory for Clace logs and temp files
-var CL_ROOT = os.ExpandEnv("$CL_ROOT")
+// CL_HOME is the root directory for Clace logs and temp files
+var CL_HOME = os.ExpandEnv("$CL_HOME")
 
 func init() {
-	if len(CL_ROOT) == 0 {
-		// Default to current directory if CL_ROOT is not set
-		CL_ROOT = "."
-		os.Setenv("CL_ROOT", CL_ROOT)
+	if len(CL_HOME) == 0 {
+		// Default to current directory if CL_HOME is not set
+		CL_HOME = "."
+		os.Setenv("CL_HOME", CL_HOME)
 	}
 }
 
@@ -33,7 +34,7 @@ type Server struct {
 
 // NewServer creates a new instance of the Clace Server
 func NewServer(config *utils.ServerConfig) (*Server, error) {
-	logger := utils.NewLogger(&config.LogConfig)
+	logger := utils.NewLogger(&config.Log)
 	db, err := metadata.NewMetadata(logger, config)
 	if err != nil {
 		return nil, err
@@ -48,23 +49,24 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 
 // Start starts the Clace Server
 func (s *Server) Start() error {
-	s.Info().Str("host", s.config.HttpHost).Int("port", s.config.HttpPort).Msg("Starting HTTP server")
+	s.Info().Str("host", s.config.Http.Host).Int("port", s.config.Http.Port).Msg("Starting HTTP server")
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", s.config.HttpHost, s.config.HttpPort),
+		Addr:         fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port),
 		WriteTimeout: 180 * time.Second,
 		ReadTimeout:  180 * time.Second,
 		IdleTimeout:  30 * time.Second,
-		//Handler:      NewRouter(*staticDir),
+		Handler:      NewHandler(s.Logger, s.config),
 	}
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil {
-			s.Error().Err(err).Msg("Error starting server")
+			s.Trace().Err(err).Msg("server")
 		}
 	}()
 	return nil
 }
 
 // Stop stops the Clace Server
-func (s *Server) Stop() error {
-	return nil
+func (s *Server) Stop(ctx context.Context) error {
+	s.Info().Msg("Stopping service")
+	return s.httpServer.Shutdown(ctx)
 }

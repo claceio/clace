@@ -12,18 +12,21 @@ import (
 func TestConfig(t *testing.T) {
 	c := NewServerConfig()
 
+	// The default value are read from the embedded clace.default.toml file,
+	// verify if the expected values are read correctly
+
 	// HTTP listen related settings
-	testutil.AssertEqualsString(t, "http host", "127.0.0.1", c.HttpHost)
-	testutil.AssertEqualsInt(t, "http port", 25223, c.HttpPort)
+	testutil.AssertEqualsString(t, "http host", "127.0.0.1", c.Http.Host)
+	testutil.AssertEqualsInt(t, "http port", 25223, c.Http.Port)
 
 	// Logging related settings
-	testutil.AssertEqualsString(t, "log level", "INFO", c.LogLevel)
-	testutil.AssertEqualsBool(t, "console logging", false, c.ConsoleLogging)
-	testutil.AssertEqualsBool(t, "file logging", true, c.FileLogging)
-	testutil.AssertEqualsInt(t, "max backups", 10, c.MaxBackups)
-	testutil.AssertEqualsInt(t, "max size MB", 50, c.MaxSizeMB)
+	testutil.AssertEqualsString(t, "log level", "INFO", c.Log.Level)
+	testutil.AssertEqualsBool(t, "console logging", false, c.Log.ConsoleLogging)
+	testutil.AssertEqualsBool(t, "file logging", true, c.Log.FileLogging)
+	testutil.AssertEqualsInt(t, "max backups", 10, c.Log.MaxBackups)
+	testutil.AssertEqualsInt(t, "max size MB", 50, c.Log.MaxSizeMB)
 
 	// Metadata related settings
-	testutil.AssertEqualsString(t, "db connection", "sqlite:$CL_ROOT/clace.db", c.DBConnection)
-	testutil.AssertEqualsBool(t, "auto upgrade", true, c.AutoUpgrade)
+	testutil.AssertEqualsString(t, "db connection", "sqlite:$CL_HOME/clace.db", c.Metadata.DBConnection)
+	testutil.AssertEqualsBool(t, "auto upgrade", true, c.Metadata.AutoUpgrade)
 }

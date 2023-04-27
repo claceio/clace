@@ -7,7 +7,7 @@ port = 25223
 
 # Logging related Config
 [logging]
-log_level = "INFO"
+level = "INFO"
 max_backups = 10
 max_size_mb = 50
 console_logging = false
@@ -15,5 +15,5 @@ file_logging = true
 
 # Metadata Storage Config
 [metadata]
-db_connection = "sqlite:$CL_ROOT/clace.db"
+db_connection = "sqlite:$CL_HOME/clace.db"
 auto_upgrade = true

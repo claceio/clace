@@ -4,8 +4,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -89,10 +91,10 @@ func newBoolFlag(name, alias, usage string, value bool, destination *bool) *alts
 func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 
 	flags := []cli.Flag{
-		newStringFlag("http_host", "i", "The interface to bind on for HTTP", serverConfig.HttpHost, &serverConfig.HttpHost),
-		newIntFlag("http_port", "p", "The port to listen on for HTTP", serverConfig.HttpPort, &serverConfig.HttpPort),
-		newStringFlag("log_level", "l", "The logging level to use", serverConfig.LogLevel, &serverConfig.LogLevel),
-		newBoolFlag("console_logging", "", "Enable console logging", serverConfig.ConsoleLogging, &serverConfig.ConsoleLogging),
+		newStringFlag("http_host", "i", "The interface to bind on for HTTP", serverConfig.Http.Host, &serverConfig.Http.Host),
+		newIntFlag("http_port", "p", "The port to listen on for HTTP", serverConfig.Http.Port, &serverConfig.Http.Port),
+		newStringFlag("log_level", "l", "The logging level to use", serverConfig.Log.Level, &serverConfig.Log.Level),
+		newBoolFlag("console_logging", "", "Enable console logging", serverConfig.Log.ConsoleLogging, &serverConfig.Log.ConsoleLogging),
 	}
 
 	return []*cli.Command{
@@ -115,6 +117,19 @@ func serverCommands(serverConfig *api.ServerConfig) []*cli.Command {
 							fmt.Printf("Error starting server: %s\n", err)
 							os.Exit(1)
 						}
+
+						c := make(chan os.Signal, 1)
+						// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
+						signal.Notify(c, os.Interrupt)
+
+						// Block until we receive our signal.
+						<-c
+
+						// Create a deadline to wait for.
+						ctxTimeout, cancel := context.WithTimeout(context.Background(), 30)
+						defer cancel()
+						server.Stop(ctxTimeout)
+
 						return nil
 					},
 				},
