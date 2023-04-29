@@ -1,2 +1,5 @@
 dist/
 .vscode
+clace
+clace.db
+logs/

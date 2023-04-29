@@ -30,6 +30,7 @@ type Server struct {
 	config     *utils.ServerConfig
 	db         *metadata.Metadata
 	httpServer *http.Server
+	handler    *Handler
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -50,12 +51,13 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 // Start starts the Clace Server
 func (s *Server) Start() error {
 	s.Info().Str("host", s.config.Http.Host).Int("port", s.config.Http.Port).Msg("Starting HTTP server")
+	s.handler = NewHandler(s.Logger, s.config, s)
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port),
 		WriteTimeout: 180 * time.Second,
 		ReadTimeout:  180 * time.Second,
 		IdleTimeout:  30 * time.Second,
-		Handler:      NewHandler(s.Logger, s.config),
+		Handler:      s.handler.router,
 	}
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil {

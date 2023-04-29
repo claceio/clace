@@ -36,12 +36,13 @@ type LogConfig struct {
 // App is the application configuration
 type App struct {
 	*Logger
-	Path       string
-	Domain     string
-	CodeUrl    string
-	UserID     string
-	CreateTime *time.Time
-	UpdateTime *time.Time
-	Rules      string
-	Metadata   string
+	Id         string     `json:"id"`
+	Path       string     `json:"path"`
+	Domain     string     `json:"domain"`
+	CodeUrl    string     `json:"code_url"`
+	UserID     string     `json:"user_id"`
+	CreateTime *time.Time `json:"create_time"`
+	UpdateTime *time.Time `json:"update_time"`
+	Rules      string     `json:"rules"`
+	Metadata   string     `json:"metadata"`
 }
