@@ -33,10 +33,25 @@ type LogConfig struct {
 	FileLogging    bool   `toml:"file_logging"`
 }
 
-// App is the application configuration
-type App struct {
-	*Logger
-	Id         string     `json:"id"`
+// AppId is the identifier uuid for an App
+type AppId string
+
+// AppPathDomain is a unique identifier for an app, consisting of the path and domain
+type AppPathDomain struct {
+	Path   string
+	Domain string
+}
+
+func CreateAppPathDomain(path, domain string) AppPathDomain {
+	return AppPathDomain{
+		Path:   path,
+		Domain: domain,
+	}
+}
+
+// App is the application configuration in the DB
+type AppEntry struct {
+	Id         AppId      `json:"id"`
 	Path       string     `json:"path"`
 	Domain     string     `json:"domain"`
 	CodeUrl    string     `json:"code_url"`

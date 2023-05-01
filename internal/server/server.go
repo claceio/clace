@@ -10,8 +10,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
+	"github.com/google/uuid"
 )
 
 // CL_HOME is the root directory for Clace logs and temp files
@@ -31,6 +33,7 @@ type Server struct {
 	db         *metadata.Metadata
 	httpServer *http.Server
 	handler    *Handler
+	apps       *AppStore
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -41,11 +44,13 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{
+	server := &Server{
 		Logger: logger,
 		config: config,
 		db:     db,
-	}, nil
+	}
+	server.apps = NewAppStore(logger, server)
+	return server, nil
 }
 
 // Start starts the Clace Server
@@ -71,4 +76,54 @@ func (s *Server) Start() error {
 func (s *Server) Stop(ctx context.Context) error {
 	s.Info().Msg("Stopping service")
 	return s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
+	appEntry.Id = utils.AppId(uuid.New().String())
+	err := s.db.AddApp(appEntry)
+	if err != nil {
+		return nil, fmt.Errorf("error adding app: %s", err)
+	}
+
+	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
+	appLogger := utils.Logger{Logger: &subLogger}
+	application := app.NewApp(&appLogger, appEntry)
+	s.apps.AddApp(application)
+	s.Debug().Msgf("Created app %s %s", appEntry.Path, appEntry.Id)
+
+	return application, nil
+}
+
+func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
+	application, err := s.apps.GetApp(pathDomain)
+	if err != nil {
+		// App not found in cache, get from DB
+		appEntry, err := s.db.GetApp(pathDomain)
+		if err != nil {
+			return nil, fmt.Errorf("error getting app: %w", err)
+		}
+
+		subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
+		appLogger := utils.Logger{Logger: &subLogger}
+		application = app.NewApp(&appLogger, appEntry)
+		s.apps.AddApp(application)
+	}
+	err = application.Intilialize()
+	if err != nil {
+		return nil, fmt.Errorf("error initializing app: %w", err)
+	}
+	return application, nil
+
+}
+
+func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
+	err := s.db.DeleteApp(pathDomain)
+	if err != nil {
+		return fmt.Errorf("error removing app: %s", err)
+	}
+	s.apps.DeleteApp(pathDomain)
+	if err != nil {
+		return fmt.Errorf("error deleting app: %s", err)
+	}
+	return nil
 }

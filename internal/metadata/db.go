@@ -86,7 +86,7 @@ func (m *Metadata) VersionUpgrade() error {
 	return nil
 }
 
-func (m *Metadata) AddApp(app *utils.App) error {
+func (m *Metadata) AddApp(app *utils.AppEntry) error {
 	stmt, err := m.db.Prepare(`INSERT into apps(id, path, domain, code_url, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
@@ -98,26 +98,27 @@ func (m *Metadata) AddApp(app *utils.App) error {
 	return nil
 }
 
-func (m *Metadata) GetApp(path, domain string) (*utils.App, error) {
+func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
 	stmt, err := m.db.Prepare(`select id, path, domain, code_url, user_id, create_time, update_time, rules, metadata from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
-	row := stmt.QueryRow(path, domain)
-	var app utils.App
+	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
+	var app utils.AppEntry
 	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.CodeUrl, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("error getting app: %w", err)
+		m.Error().Err(err).Msgf("query %s %s", pathDomain.Path, pathDomain.Domain)
+		return nil, fmt.Errorf("error querying app: %w", err)
 	}
 	return &app, nil
 }
 
-func (m *Metadata) DeleteApp(path, domain string) error {
+func (m *Metadata) DeleteApp(pathDomain utils.AppPathDomain) error {
 	stmt, err := m.db.Prepare(`delete from apps where path = ? and domain = ?`)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
-	_, err = stmt.Exec(path, domain)
+	_, err = stmt.Exec(pathDomain.Path, pathDomain.Domain)
 	if err != nil {
 		return fmt.Errorf("error deleting app: %w", err)
 	}
