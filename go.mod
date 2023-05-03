@@ -20,6 +20,7 @@ require (
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
+	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254 // indirect
 	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

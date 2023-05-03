@@ -108,12 +108,13 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 		application = app.NewApp(&appLogger, appEntry)
 		s.apps.AddApp(application)
 	}
-	err = application.Intilialize()
+	err = application.Initialize()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
-	return application, nil
 
+	application.PrintGlobals()
+	return application, nil
 }
 
 func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
