@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/utils"
-	"github.com/claceio/clace/internal/utils/chi"
+	"github.com/go-chi/chi"
 )
 
 // The url prefix for internal API calls

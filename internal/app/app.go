@@ -15,7 +15,7 @@ import (
 
 	"github.com/claceio/clace/internal/stardefs"
 	"github.com/claceio/clace/internal/utils"
-	"github.com/claceio/clace/internal/utils/chi"
+	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
