@@ -124,3 +124,24 @@ func (m *Metadata) DeleteApp(pathDomain utils.AppPathDomain) error {
 	}
 	return nil
 }
+
+func (m *Metadata) GetAllApps(domain string) ([]string, error) {
+	stmt, err := m.db.Prepare(`select path from apps where domain = ?`)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := stmt.Query(domain)
+	if err != nil {
+		return nil, fmt.Errorf("error querying apps: %w", err)
+	}
+	paths := make([]string, 0)
+	for rows.Next() {
+		var path string
+		err = rows.Scan(&path)
+		if err != nil {
+			return nil, fmt.Errorf("error querying apps: %w", err)
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}

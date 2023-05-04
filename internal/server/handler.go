@@ -6,6 +6,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/claceio/clace/internal/utils/chi"
@@ -31,13 +32,42 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 		router: router,
 	}
 	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
-	router.Get("/test", handler.test)
+	router.Get("/*", handler.matchApp)
 	return handler
 
 }
 
-func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
-	h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("Received request")
+func (h *Handler) matchApp(w http.ResponseWriter, r *http.Request) {
+	h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
+
+	// TODO : handle domain based routing
+	domain := ""
+	paths, err := h.server.db.GetAllApps(domain)
+	if err != nil {
+		h.Error().Err(err).Msg("Error getting apps")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	requestPath := strings.TrimRight(r.URL.Path, "/")
+	matchedPath := ""
+	for _, path := range paths {
+		if strings.HasPrefix(requestPath, path) {
+			if len(path) == len(requestPath) || requestPath[len(path)] == '/' {
+				h.Info().Str("path", path).Msg("Matched app")
+				matchedPath = path
+				break
+			}
+		}
+	}
+
+	if matchedPath == "" {
+		h.Error().Msg("No app matched request")
+		http.Error(w, "No matching app found", http.StatusNotFound)
+		return
+	}
+
+	h.server.serveApp(w, r, matchedPath, domain)
+
 }
 
 func (h *Handler) serveInternal() http.Handler {

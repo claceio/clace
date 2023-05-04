@@ -128,3 +128,14 @@ func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
 	}
 	return nil
 }
+
+func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, path, domain string) {
+	app, err := s.GetApp(utils.CreateAppPathDomain(path, domain))
+	if err != nil {
+		s.Error().Err(err).Msg("error getting App")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	app.ServeHTTP(w, r)
+}

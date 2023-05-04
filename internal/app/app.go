@@ -9,11 +9,20 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"sync"
 
+	"github.com/claceio/clace/internal/stardefs"
 	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/utils/chi"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
+)
+
+const (
+	DEFAULT_HANDLER   = "handler"
+	METHODS_DELIMITER = ","
 )
 
 type App struct {
@@ -23,6 +32,8 @@ type App struct {
 	mu          sync.Mutex
 	initialized bool
 	globals     starlark.StringDict
+	appDef      *starlarkstruct.Struct
+	appRouter   *chi.Mux
 }
 
 func NewApp(logger *utils.Logger, app *utils.AppEntry) *App {
@@ -64,13 +75,15 @@ func (a *App) load() error {
 
 	// The Thread defines the behavior of the built-in 'print' function.
 	thread := &starlark.Thread{
-		Name:  "app",
+		Name:  a.Path,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
 
 	// This dictionary defines the pre-declared environment.
 	predeclared := starlark.StringDict{
-		"greeting": starlark.String("hello"),
+		"App":      starlark.NewBuiltin("App", stardefs.CreateAppBuiltin),
+		"Page":     starlark.NewBuiltin("Page", stardefs.CreatePageBuiltin),
+		"Fragment": starlark.NewBuiltin("Fragment", stardefs.CreateFragmentBuiltin),
 	}
 
 	// Execute a program.
@@ -81,7 +94,92 @@ func (a *App) load() error {
 		}
 		log.Fatal(err)
 	}
+	err = a.initRouter()
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func (a *App) initRouter() error {
+	a.appDef = a.globals["app"].(*starlarkstruct.Struct)
+
+	if a.appDef == nil {
+		return fmt.Errorf("App not defined, check clace.star, add 'app = App(...)'")
+	}
+	defaultHandler, _ := a.globals[DEFAULT_HANDLER].(starlark.Callable)
+	router := chi.NewRouter()
+	// Iterate through all the pages
+	pages, err := a.appDef.Attr("pages")
+	if err != nil {
+		return err
+	}
+
+	iter := pages.(*starlark.List).Iterate()
+	var val starlark.Value
+	for iter.Next(&val) {
+		pageDef := val.(*starlarkstruct.Struct)
+		path, err := pageDef.Attr("path")
+		if err != nil {
+			return err
+		}
+		pathStr := path.(starlark.String).GoString()
+
+		html, err := pageDef.Attr("html")
+		if err != nil {
+			return err
+		}
+		htmlStr := html.(starlark.String).GoString()
+
+		method, err := pageDef.Attr("method")
+		if err != nil {
+			return err
+		}
+		methodStr := method.(starlark.String).GoString()
+
+		handler, _ := pageDef.Attr("handler")
+		/*
+			if err != nil {
+				return err
+			}
+		*/
+		if handler == nil {
+			handler = defaultHandler
+		}
+		if handler == nil {
+			return fmt.Errorf("page %s has no handler, and no app level default handler function is specified", path)
+		}
+		handlerCallable := handler.(starlark.Callable)
+
+		routeHandler := a.createRouteHandler(pathStr, htmlStr, methodStr, handlerCallable)
+		router.Route(pathStr, routeHandler)
+	}
+
+	a.appRouter = chi.NewRouter()
+	a.appRouter.Mount(a.Path, router)
+	return nil
+}
+
+func (a *App) createRouteHandler(path, html, method string, handler starlark.Callable) func(r chi.Router) {
+	goHandler := func(w http.ResponseWriter, r *http.Request) {
+		thread := &starlark.Thread{
+			Name:  a.Path,
+			Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
+		}
+
+		_, err := starlark.Call(thread, handler, starlark.Tuple{starlark.None}, nil)
+		if err != nil {
+			a.Error().Err(err).Msg("error getting App")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		a.Info().Msgf("gohandler called %s %s", path, html)
+	}
+
+	retFunc := func(r chi.Router) {
+		r.Method(method, path, http.HandlerFunc(goHandler))
+	}
+	return retFunc
 }
 
 func (a *App) PrintGlobals() {
@@ -90,4 +188,9 @@ func (a *App) PrintGlobals() {
 		v := a.globals[name]
 		fmt.Printf("%s (%s) = %s\n", name, v.Type(), v.String())
 	}
+}
+
+func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.Info().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
+	a.appRouter.ServeHTTP(w, r)
 }
