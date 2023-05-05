@@ -166,6 +166,12 @@ func main() {
 		Commands:             allCommands(serverConfig, &clientConfig),
 	}
 
+	defer func() {
+		if rvr := recover(); rvr != nil {
+			fmt.Printf("Recovered from panic %s\n", rvr)
+		}
+	}()
+
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println("error: ", err)
 	}

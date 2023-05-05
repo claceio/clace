@@ -9,7 +9,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-func starlarkValueToGo(value starlark.Value) (interface{}, error) {
+func Convert(value starlark.Value) (interface{}, error) {
 	switch v := value.(type) {
 	case starlark.String:
 		return string(v), nil
@@ -29,7 +29,7 @@ func starlarkValueToGo(value starlark.Value) (interface{}, error) {
 
 		for i := 0; i < length; i++ {
 			item := v.Index(i)
-			goItem, err := starlarkValueToGo(item)
+			goItem, err := Convert(item)
 			if err != nil {
 				return nil, fmt.Errorf("error converting list item: %w", err)
 			}
@@ -42,7 +42,7 @@ func starlarkValueToGo(value starlark.Value) (interface{}, error) {
 
 		for i := 0; i < length; i++ {
 			item := v.Index(i)
-			goItem, err := starlarkValueToGo(item)
+			goItem, err := Convert(item)
 			if err != nil {
 				return nil, fmt.Errorf("error converting tuple item: %w", err)
 			}
@@ -63,12 +63,12 @@ func dictToGoMap(d *starlark.Dict) (map[string]interface{}, error) {
 	for _, k := range d.Keys() {
 		v, _, _ := d.Get(k)
 
-		goKey, err := starlarkValueToGo(k)
+		goKey, err := Convert(k)
 		if err != nil {
 			return nil, fmt.Errorf("error converting key: %w", err)
 		}
 
-		goValue, err := starlarkValueToGo(v)
+		goValue, err := Convert(v)
 		if err != nil {
 			return nil, fmt.Errorf("error converting value for key '%v': %w", goKey, err)
 		}

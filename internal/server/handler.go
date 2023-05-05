@@ -5,6 +5,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -25,6 +26,21 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
+					msg := fmt.Sprint(rvr)
+					logger.Error().Str("recover", msg).Msg("Recovered from panic")
+					http.Error(w, msg, http.StatusInternalServerError)
+				}
+			}()
+
+			next.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
+	})
+
 	handler := &Handler{
 		Logger: logger,
 		config: config,

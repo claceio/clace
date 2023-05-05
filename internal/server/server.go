@@ -108,7 +108,7 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 		application = app.NewApp(&appLogger, appEntry)
 		s.apps.AddApp(application)
 	}
-	err = application.Initialize()
+	err = application.Initialize(app.FileRead{Dir: application.CodeUrl})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
 	}

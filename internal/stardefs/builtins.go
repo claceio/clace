@@ -9,13 +9,19 @@ import (
 )
 
 const (
-	DEFAULT_LAYOUT = "default"
+	DEFAULT_LAYOUT        = "default"
+	APP                   = "APP"
+	PAGE                  = "PAGE"
+	FRAGMENT              = "FRAGMENT"
+	REDIRECT              = "REDIRECT"
+	RENDER                = "RENDER"
+	DEFAULT_REDIRECT_CODE = 302
 )
 
-func CreateAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name, layout starlark.String
 	var pages *starlark.List
-	if err := starlark.UnpackArgs("App", args, kwargs, "name", &name, "layout?", &layout, "pages?", &pages); err != nil {
+	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "layout?", &layout, "pages?", &pages); err != nil {
 		return nil, err
 	}
 
@@ -31,15 +37,15 @@ func CreateAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		"layout": layout,
 		"pages":  pages,
 	}
-	return starlarkstruct.FromStringDict(starlark.String("App"), fields), nil
+	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
 
-func CreatePageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, html starlark.String
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
-	if err := starlark.UnpackArgs("Page", args, kwargs, "path", &path, "html", &html, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html", &html, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -59,14 +65,14 @@ func CreatePageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 	if handler != nil {
 		fields["handler"] = handler
 	}
-	return starlarkstruct.FromStringDict(starlark.String("Page"), fields), nil
+	return starlarkstruct.FromStringDict(starlark.String(PAGE), fields), nil
 }
 
-func CreateFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, block, html starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs("Fragment", args, kwargs, "path", &path, "block", &block, "handler?", &handler, "html?", &html, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block", &block, "handler?", &handler, "html?", &html, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -82,5 +88,34 @@ func CreateFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	if method == "" {
 		method = "GET"
 	}
-	return starlarkstruct.FromStringDict(starlark.String("Fragment"), fields), nil
+	return starlarkstruct.FromStringDict(starlark.String(FRAGMENT), fields), nil
+}
+
+func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var url starlark.String
+	var code starlark.Int
+	if err := starlark.UnpackArgs(REDIRECT, args, kwargs, "url", &url, "code?", &code); err != nil {
+		return nil, err
+	}
+
+	if code == starlark.MakeInt(0) {
+		code = starlark.MakeInt(DEFAULT_REDIRECT_CODE)
+	}
+
+	fields := starlark.StringDict{
+		"url":  url,
+		"code": code,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
+}
+
+func MakeLoadBuiltins() starlark.StringDict {
+	builtins := starlark.StringDict{
+		APP:      starlark.NewBuiltin(APP, createAppBuiltin),
+		PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
+		FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
+		REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+	}
+
+	return builtins
 }

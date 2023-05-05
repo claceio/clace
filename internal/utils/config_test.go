@@ -1,16 +1,17 @@
 // Copyright (c) Clace Inc
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package utils_test
 
 import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/utils"
 )
 
 func TestConfig(t *testing.T) {
-	c := NewServerConfig()
+	c := utils.NewServerConfig()
 
 	// The default value are read from the embedded clace.default.toml file,
 	// verify if the expected values are read correctly
