@@ -11,11 +11,11 @@ import (
 const (
 	DEFAULT_LAYOUT        = "default"
 	DEFAULT_TMPL_FILE     = "index.go.html"
-	APP                   = "cl_app"
-	PAGE                  = "cl_page"
-	FRAGMENT              = "cl_fragment"
-	REDIRECT              = "cl_redirect"
-	RENDER                = "cl_render"
+	APP                   = "app"
+	PAGE                  = "page"
+	FRAGMENT              = "fragment"
+	REDIRECT              = "redirect"
+	RENDER                = "render"
 	DEFAULT_REDIRECT_CODE = 302
 )
 

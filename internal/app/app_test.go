@@ -29,7 +29,6 @@ type AppTestFS struct {
 }
 
 var _ AppFS = (*AppTestFS)(nil)
-var _ fs.ReadFileFS = (*AppTestFS)(nil)
 
 func (f *AppTestFS) Open(name string) (fs.File, error) {
 	return nil, nil // no-op
@@ -61,52 +60,54 @@ func (f *AppTestFS) ParseFS(patterns ...string) (*template.Template, error) {
 
 func TestAppLoadError(t *testing.T) {
 	logger := testutil.TestLogger()
-	a := NewApp(logger, createAppEntry("/test"))
 
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star":      ``,
 		"index.go.html": `{{.}}`,
 	}}
-	err := a.Initialize(testFS)
-	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	err := a.Initialize()
+	testutil.AssertErrorContains(t, err, "config not defined, check app.star")
 
 	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star":      `app = 1`,
+		"app.star":      `config = 1`,
 		"index.go.html": `{{.}}`,
 	}}
-	err = a.Initialize(testFS)
-	testutil.AssertErrorContains(t, err, "app not of type APP in app.star")
+	a = NewApp(testFS, logger, createAppEntry("/test"))
+	err = a.Initialize()
+	testutil.AssertErrorContains(t, err, "config not of type app in app.star")
 
 	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star":      `app = cl_app()`,
+		"app.star":      `config = app()`,
 		"index.go.html": `{{.}}`,
 	}}
-	err = a.Initialize(testFS)
+	a = NewApp(testFS, logger, createAppEntry("/test"))
+	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
 	testFS = &AppTestFS{fileData: map[string]string{
 		"app.star": `
-app = cl_app("testApp", pages = [cl_page("/")])`,
+config = app("testApp", pages = [page("/")])`,
 		"index.go.html": `{{.}}`,
 	}}
-	err = a.Initialize(testFS)
+	a = NewApp(testFS, logger, createAppEntry("/test"))
+	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")
 }
 
 func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
-	a := NewApp(logger, createAppEntry("/test"))
-
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-app = cl_app("testApp", pages = [cl_page("/")])
+config = app("testApp", pages = [page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
 		`,
 		"index.go.html": `Template got {{ .key }}.`,
 	}}
-	err := a.Initialize(testFS)
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	err := a.Initialize()
 	if err != nil {
 		t.Errorf("Error %s", err)
 	}

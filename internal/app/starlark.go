@@ -45,13 +45,13 @@ func (a *App) loadStarlark() error {
 }
 
 func (a *App) initRouter() error {
-	if !a.globals.Has(APP_KEY) {
-		return fmt.Errorf("app not defined, check %s, add 'app = cl_app(...)'", APP_FILE)
+	if !a.globals.Has(APP_CONFIG_KEY) {
+		return fmt.Errorf("%s not defined, check %s, add '%s = app(...)'", APP_CONFIG_KEY, APP_FILE, APP_CONFIG_KEY)
 	}
 	var ok bool
-	a.appDef, ok = a.globals["app"].(*starlarkstruct.Struct)
+	a.appDef, ok = a.globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
 	if !ok {
-		return fmt.Errorf("app not of type APP in %s", APP_FILE)
+		return fmt.Errorf("%s not of type app in %s", APP_CONFIG_KEY, APP_FILE)
 	}
 
 	defaultHandler, _ := a.globals[DEFAULT_HANDLER].(starlark.Callable)
@@ -119,7 +119,6 @@ func (a *App) createRouteHandler(path, html, method string, handler starlark.Cal
 		}
 		// TODO : handle redirects and renders
 
-		fmt.Printf("ret = %s %s %v\n", ret.String(), ret.Type(), ret)
 		value, err := stardefs.Convert(ret)
 		if err != nil {
 			a.Error().Err(err).Msg("error converting response")
@@ -127,7 +126,6 @@ func (a *App) createRouteHandler(path, html, method string, handler starlark.Cal
 			return
 		}
 
-		fmt.Printf("value = %s %T %v\n", value, value, value)
 		a.template.ExecuteTemplate(w, html, value)
 	}
 

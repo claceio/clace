@@ -84,7 +84,6 @@ func (h *Handler) matchApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.server.serveApp(w, r, matchedPath, domain)
-
 }
 
 func (h *Handler) serveInternal() http.Handler {
@@ -122,7 +121,6 @@ func (h *Handler) getApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createApp(w http.ResponseWriter, r *http.Request) {
-	h.Trace().Msgf("Create app called %s", r.URL.String())
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 

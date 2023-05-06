@@ -85,12 +85,29 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 		return nil, fmt.Errorf("error adding app: %s", err)
 	}
 
-	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
-	appLogger := utils.Logger{Logger: &subLogger}
-	application := app.NewApp(&appLogger, appEntry)
+	application, err := s.createApp(appEntry)
+	if err != nil {
+		return nil, err
+	}
+
 	s.apps.AddApp(application)
 	s.Debug().Msgf("Created app %s %s", appEntry.Path, appEntry.Id)
+	return application, nil
+}
 
+func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
+	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
+	appLogger := utils.Logger{Logger: &subLogger}
+
+	fs := app.NewAppFSImpl(appEntry.FsPath)
+	application := app.NewApp(fs, &appLogger, appEntry)
+
+	// Initialize the app
+	s.Trace().Msg("Initializing app")
+	if err := application.Initialize(); err != nil {
+		return nil, fmt.Errorf("error initializing app: %w", err)
+	}
+	s.Info().Msg("Initialized app")
 	return application, nil
 }
 
@@ -103,16 +120,11 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 			return nil, fmt.Errorf("error getting app: %w", err)
 		}
 
-		subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
-		appLogger := utils.Logger{Logger: &subLogger}
-		application = app.NewApp(&appLogger, appEntry)
+		application, err = s.createApp(appEntry)
+		if err != nil {
+			return nil, err
+		}
 		s.apps.AddApp(application)
-	}
-	fileReader := &app.AppFSImpl{}
-	fileReader.Open(application.FsPath)
-	err = application.Initialize(fileReader)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
 
 	return application, nil

@@ -22,15 +22,15 @@ import (
 
 const (
 	APP_FILE              = "app.star"
-	APP_KEY               = "app"
+	APP_CONFIG_KEY        = "config"
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	TEMPLATE_FILE_PATTERN = "*.go.html"
 )
 
 type AppFS interface {
-	Open(dir string) (fs.File, error)
-	ReadFile(name string) ([]byte, error)
+	fs.ReadFileFS
+	fs.GlobFS
 	ParseFS(patterns ...string) (*template.Template, error)
 }
 
@@ -40,13 +40,20 @@ type AppFSImpl struct {
 
 var _ AppFS = (*AppFSImpl)(nil)
 
-func (f *AppFSImpl) Open(dir string) (fs.File, error) {
-	f.dir = os.DirFS(dir)
-	return nil, nil
+func NewAppFSImpl(dir string) *AppFSImpl {
+	return &AppFSImpl{dir: os.DirFS(dir)}
+}
+
+func (f *AppFSImpl) Open(file string) (fs.File, error) {
+	return f.dir.Open(file)
 }
 
 func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
-	file, err := f.dir.Open(name)
+	if dir, ok := f.dir.(fs.ReadFileFS); ok {
+		return dir.ReadFile(name)
+	}
+
+	file, err := f.Open(name)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +65,10 @@ func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func (f *AppFSImpl) Glob(pattern string) ([]string, error) {
+	return fs.Glob(f.dir, pattern)
 }
 
 func (f *AppFSImpl) ParseFS(patterns ...string) (*template.Template, error) {
@@ -77,20 +88,22 @@ type App struct {
 	watcher     *fsnotify.Watcher
 }
 
-func NewApp(logger *utils.Logger, app *utils.AppEntry) *App {
+func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
 	return &App{
+		fs:       fs,
 		Logger:   logger,
 		AppEntry: app,
 	}
 }
 
-func (a *App) Initialize(fs AppFS) error {
-	a.fs = fs
-	if err := a.reload(false); err != nil {
+func (a *App) Initialize() error {
+	var reloaded bool
+	var err error
+	if reloaded, err = a.reload(false); err != nil {
 		return err
 	}
 
-	if a.FsRefresh && a.FsPath != "" {
+	if reloaded && a.FsRefresh && a.FsPath != "" {
 		if err := a.startWatcher(); err != nil {
 			a.Info().Msgf("error starting watcher: %s", err)
 			return err
@@ -111,11 +124,11 @@ func (a *App) Close() error {
 	return nil
 }
 
-func (a *App) reload(force bool) error {
+func (a *App) reload(force bool) (bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.initialized && !force {
-		return nil
+		return false, nil
 	}
 	var err error
 	a.Info().Msg("Reloading app definition")
@@ -123,15 +136,15 @@ func (a *App) reload(force bool) error {
 	// Parse templates
 	a.template, err = a.fs.ParseFS(TEMPLATE_FILE_PATTERN)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	err = a.loadStarlark()
 	if err != nil {
-		return err
+		return false, err
 	}
 	a.initialized = true
-	return nil
+	return true, nil
 }
 
 func (a *App) PrintGlobals() {
@@ -161,6 +174,7 @@ func (a *App) startWatcher() error {
 	}
 
 	// Start listening for events.
+	a.Trace().Msg("Start Waiting for file changes")
 	go func() {
 		for {
 			a.Trace().Msg("Waiting for file changes")
@@ -179,6 +193,8 @@ func (a *App) startWatcher() error {
 					return
 				}
 			}
+
+			a.Trace().Msg("loop for file changes")
 		}
 	}()
 
