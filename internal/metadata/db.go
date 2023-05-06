@@ -78,7 +78,7 @@ func (m *Metadata) VersionUpgrade() error {
 		if _, err := m.db.Exec(`insert into version values (1, datetime('now'))`); err != nil {
 			return err
 		}
-		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, code_url text, user_id text, create_time datetime, update_time datetime, rules text, metadata text, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, source_url text, fs_path text, fs_refresh bool, user_id text, create_time datetime, update_time datetime, rules text, metadata text, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
 			return err
 		}
 	}
@@ -87,11 +87,11 @@ func (m *Metadata) VersionUpgrade() error {
 }
 
 func (m *Metadata) AddApp(app *utils.AppEntry) error {
-	stmt, err := m.db.Prepare(`INSERT into apps(id, path, domain, code_url, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`)
+	stmt, err := m.db.Prepare(`INSERT into apps(id, path, domain, source_url, fs_path, fs_refresh, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
-	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.CodeUrl, app.UserID, app.Rules, app.Metadata)
+	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.SourceUrl, app.FsPath, app.FsRefresh, app.UserID, app.Rules, app.Metadata)
 	if err != nil {
 		return fmt.Errorf("error inserting app: %w", err)
 	}
@@ -99,13 +99,13 @@ func (m *Metadata) AddApp(app *utils.AppEntry) error {
 }
 
 func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
-	stmt, err := m.db.Prepare(`select id, path, domain, code_url, user_id, create_time, update_time, rules, metadata from apps where path = ? and domain = ?`)
+	stmt, err := m.db.Prepare(`select id, path, domain, source_url, fs_path, fs_refresh, user_id, create_time, update_time, rules, metadata from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
 	var app utils.AppEntry
-	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.CodeUrl, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata)
+	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.FsRefresh, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata)
 	if err != nil {
 		m.Error().Err(err).Msgf("query %s %s", pathDomain.Path, pathDomain.Domain)
 		return nil, fmt.Errorf("error querying app: %w", err)

@@ -108,12 +108,13 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 		application = app.NewApp(&appLogger, appEntry)
 		s.apps.AddApp(application)
 	}
-	err = application.Initialize(app.FileRead{Dir: application.CodeUrl})
+	fileReader := &app.AppFSImpl{}
+	fileReader.Open(application.FsPath)
+	err = application.Initialize(fileReader)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
 
-	application.PrintGlobals()
 	return application, nil
 }
 

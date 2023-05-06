@@ -5,57 +5,117 @@ package app
 
 import (
 	"fmt"
-	"io"
-	"strings"
+	"html/template"
+	"io/fs"
+	"net/http/httptest"
+	"path"
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
 	"github.com/claceio/clace/internal/utils"
 )
 
-func createAppEntry() *utils.AppEntry {
+func createAppEntry(path string) *utils.AppEntry {
 	return &utils.AppEntry{
-		Id:      "testApp",
-		Path:    "/test",
-		Domain:  "",
-		CodeUrl: ".",
+		Id:     "testApp",
+		Path:   path,
+		Domain: "",
+		FsPath: ".",
 	}
 }
 
-type TestFileRead struct {
+type AppTestFS struct {
 	fileData map[string]string
 }
 
-var _ AppFileReader = (*TestFileRead)(nil)
+var _ AppFS = (*AppTestFS)(nil)
+var _ fs.ReadFileFS = (*AppTestFS)(nil)
 
-func (f TestFileRead) Read(name string) (io.Reader, error) {
+func (f *AppTestFS) Open(name string) (fs.File, error) {
+	return nil, nil // no-op
+}
+
+func (f *AppTestFS) ReadFile(name string) ([]byte, error) {
 	data, ok := f.fileData[name]
 	if !ok {
 		return nil, fmt.Errorf("test data not found: %s", name)
 	}
-	return strings.NewReader(data), nil
+	return []byte(data), nil
+}
+
+func (f *AppTestFS) Glob(pattern string) ([]string, error) {
+	matchedFiles := []string{}
+	for name := range f.fileData {
+		if matched, _ := path.Match(pattern, name); matched {
+			matchedFiles = append(matchedFiles, name)
+			break
+		}
+	}
+
+	return matchedFiles, nil
+}
+
+func (f *AppTestFS) ParseFS(patterns ...string) (*template.Template, error) {
+	return template.ParseFS(f, patterns...)
 }
 
 func TestAppLoadError(t *testing.T) {
 	logger := testutil.TestLogger()
-	a := NewApp(logger, createAppEntry())
+	a := NewApp(logger, createAppEntry("/test"))
 
-	fileRead := TestFileRead{fileData: map[string]string{
-		"clace.star": ``,
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star":      ``,
+		"index.go.html": `{{.}}`,
 	}}
-	err := a.Initialize(fileRead)
-	testutil.AssertErrorContains(t, err, "app not defined, check clace.star")
+	err := a.Initialize(testFS)
+	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
 
-	fileRead = TestFileRead{fileData: map[string]string{
-		"clace.star": `app = 1`,
+	testFS = &AppTestFS{fileData: map[string]string{
+		"app.star":      `app = 1`,
+		"index.go.html": `{{.}}`,
 	}}
-	err = a.Initialize(fileRead)
-	testutil.AssertErrorContains(t, err, "app not of type APP in clace.star")
+	err = a.Initialize(testFS)
+	testutil.AssertErrorContains(t, err, "app not of type APP in app.star")
 
-	fileRead = TestFileRead{fileData: map[string]string{
-		"clace.star": `app = APP()`,
+	testFS = &AppTestFS{fileData: map[string]string{
+		"app.star":      `app = cl_app()`,
+		"index.go.html": `{{.}}`,
 	}}
-	err = a.Initialize(fileRead)
-	logger.Info().Msg(err.Error())
+	err = a.Initialize(testFS)
 	testutil.AssertErrorContains(t, err, "missing argument for name")
+
+	testFS = &AppTestFS{fileData: map[string]string{
+		"app.star": `
+app = cl_app("testApp", pages = [cl_page("/")])`,
+		"index.go.html": `{{.}}`,
+	}}
+	err = a.Initialize(testFS)
+	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")
+}
+
+func TestAppLoadSuccess(t *testing.T) {
+	logger := testutil.TestLogger()
+	a := NewApp(logger, createAppEntry("/test"))
+
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+app = cl_app("testApp", pages = [cl_page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}
+		`,
+		"index.go.html": `Template got {{ .key }}.`,
+	}}
+	err := a.Initialize(testFS)
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
 }

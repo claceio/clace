@@ -10,11 +10,12 @@ import (
 
 const (
 	DEFAULT_LAYOUT        = "default"
-	APP                   = "APP"
-	PAGE                  = "PAGE"
-	FRAGMENT              = "FRAGMENT"
-	REDIRECT              = "REDIRECT"
-	RENDER                = "RENDER"
+	DEFAULT_TMPL_FILE     = "index.go.html"
+	APP                   = "cl_app"
+	PAGE                  = "cl_page"
+	FRAGMENT              = "cl_fragment"
+	REDIRECT              = "cl_redirect"
+	RENDER                = "cl_render"
 	DEFAULT_REDIRECT_CODE = 302
 )
 
@@ -45,12 +46,15 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
-	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html", &html, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html?", &html, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
 		return nil, err
 	}
 
 	if method == "" {
 		method = "GET"
+	}
+	if html == "" {
+		html = DEFAULT_TMPL_FILE
 	}
 	if fragments == nil {
 		fragments = starlark.NewList([]starlark.Value{})

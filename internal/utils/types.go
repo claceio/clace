@@ -54,7 +54,9 @@ type AppEntry struct {
 	Id         AppId      `json:"id"`
 	Path       string     `json:"path"`
 	Domain     string     `json:"domain"`
-	CodeUrl    string     `json:"code_url"`
+	SourceUrl  string     `json:"source_url"`
+	FsPath     string     `json:"fs_path"`
+	FsRefresh  bool       `json:"fs_refresh"`
 	UserID     string     `json:"user_id"`
 	CreateTime *time.Time `json:"create_time"`
 	UpdateTime *time.Time `json:"update_time"`

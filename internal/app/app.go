@@ -6,38 +6,47 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"sync"
 
-	"github.com/claceio/clace/internal/stardefs"
 	"github.com/claceio/clace/internal/utils"
+	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
 const (
-	APP_KEY           = "app"
-	DEFAULT_HANDLER   = "handler"
-	METHODS_DELIMITER = ","
-	MAIN_FILE         = "clace.star"
+	APP_FILE              = "app.star"
+	APP_KEY               = "app"
+	DEFAULT_HANDLER       = "handler"
+	METHODS_DELIMITER     = ","
+	TEMPLATE_FILE_PATTERN = "*.go.html"
 )
 
-type AppFileReader interface {
-	Read(name string) (io.Reader, error)
+type AppFS interface {
+	Open(dir string) (fs.File, error)
+	ReadFile(name string) ([]byte, error)
+	ParseFS(patterns ...string) (*template.Template, error)
 }
 
-type FileRead struct {
-	Dir string
+type AppFSImpl struct {
+	dir fs.FS
 }
 
-var _ AppFileReader = (*FileRead)(nil)
+var _ AppFS = (*AppFSImpl)(nil)
 
-func (f FileRead) Read(name string) (io.Reader, error) {
-	osDir := os.DirFS(f.Dir)
-	file, err := osDir.Open(name)
+func (f *AppFSImpl) Open(dir string) (fs.File, error) {
+	f.dir = os.DirFS(dir)
+	return nil, nil
+}
+
+func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
+	file, err := f.dir.Open(name)
 	if err != nil {
 		return nil, err
 	}
@@ -48,18 +57,24 @@ func (f FileRead) Read(name string) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buf, nil
+	return buf.Bytes(), nil
+}
+
+func (f *AppFSImpl) ParseFS(patterns ...string) (*template.Template, error) {
+	return template.ParseFS(f.dir, patterns...)
 }
 
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	fileReader  AppFileReader
+	fs          AppFS
 	mu          sync.Mutex
 	initialized bool
 	globals     starlark.StringDict
 	appDef      *starlarkstruct.Struct
 	appRouter   *chi.Mux
+	template    *template.Template
+	watcher     *fsnotify.Watcher
 }
 
 func NewApp(logger *utils.Logger, app *utils.AppEntry) *App {
@@ -69,159 +84,54 @@ func NewApp(logger *utils.Logger, app *utils.AppEntry) *App {
 	}
 }
 
-func (a *App) Initialize(fileReader AppFileReader) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.initialized {
-		return nil
+func (a *App) Initialize(fs AppFS) error {
+	a.fs = fs
+	if err := a.reload(false); err != nil {
+		return err
 	}
 
-	a.fileReader = fileReader
-	err := a.load()
+	if a.FsRefresh && a.FsPath != "" {
+		if err := a.startWatcher(); err != nil {
+			a.Info().Msgf("error starting watcher: %s", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *App) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.watcher != nil {
+		if err := a.watcher.Close(); err != nil {
+			return err
+		}
+
+	}
+	return nil
+}
+
+func (a *App) reload(force bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.initialized && !force {
+		return nil
+	}
+	var err error
+	a.Info().Msg("Reloading app definition")
+
+	// Parse templates
+	a.template, err = a.fs.ParseFS(TEMPLATE_FILE_PATTERN)
+	if err != nil {
+		return err
+	}
+
+	err = a.loadStarlark()
 	if err != nil {
 		return err
 	}
 	a.initialized = true
 	return nil
-}
-
-func (a *App) load() error {
-	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
-
-	buf, err := a.fileReader.Read(MAIN_FILE)
-	if err != nil {
-		return err
-	}
-
-	// The Thread defines the behavior of the built-in 'print' function.
-	thread := &starlark.Thread{
-		Name:  a.Path,
-		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
-	}
-
-	predeclared := stardefs.MakeLoadBuiltins()
-	a.globals, err = starlark.ExecFile(thread, MAIN_FILE, buf, predeclared)
-	if err != nil {
-		if evalErr, ok := err.(*starlark.EvalError); ok {
-			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")
-		} else {
-			a.Error().Err(err).Msg("Error loading app")
-		}
-		return err
-	}
-	err = a.initRouter()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *App) initRouter() error {
-	if !a.globals.Has(APP_KEY) {
-		return fmt.Errorf("app not defined, check %s, add 'app = APP(...)'", MAIN_FILE)
-	}
-	var ok bool
-	a.appDef, ok = a.globals["app"].(*starlarkstruct.Struct)
-	if !ok {
-		return fmt.Errorf("app not of type APP in %s", MAIN_FILE)
-	}
-
-	defaultHandler, _ := a.globals[DEFAULT_HANDLER].(starlark.Callable)
-	router := chi.NewRouter()
-
-	router.Use(func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
-					msg := fmt.Sprint(rvr)
-					a.Error().Str("recover", msg).Msg("Recovered from panic")
-					http.Error(w, msg, http.StatusInternalServerError)
-				}
-			}()
-
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	})
-
-	// Iterate through all the pages
-	pages, err := a.appDef.Attr("pages")
-	if err != nil {
-		return err
-	}
-
-	iter := pages.(*starlark.List).Iterate()
-	var val starlark.Value
-	for iter.Next(&val) {
-		pageDef := val.(*starlarkstruct.Struct)
-		path, err := pageDef.Attr("path")
-		if err != nil {
-			return err
-		}
-		pathStr := path.(starlark.String).GoString()
-
-		html, err := pageDef.Attr("html")
-		if err != nil {
-			return err
-		}
-		htmlStr := html.(starlark.String).GoString()
-
-		method, err := pageDef.Attr("method")
-		if err != nil {
-			return err
-		}
-		methodStr := method.(starlark.String).GoString()
-
-		handler, _ := pageDef.Attr("handler")
-		if handler == nil {
-			// Use app level default handler if configured
-			handler = defaultHandler
-		}
-		if handler == nil {
-			return fmt.Errorf("page %s has no handler, and no app level default handler function is specified", path)
-		}
-		handlerCallable := handler.(starlark.Callable)
-
-		routeHandler := a.createRouteHandler(pathStr, htmlStr, methodStr, handlerCallable)
-		router.Route(pathStr, routeHandler)
-	}
-
-	a.appRouter = chi.NewRouter()
-	a.appRouter.Mount(a.Path, router)
-	return nil
-}
-
-func (a *App) createRouteHandler(path, html, method string, handler starlark.Callable) func(r chi.Router) {
-	goHandler := func(w http.ResponseWriter, r *http.Request) {
-		thread := &starlark.Thread{
-			Name:  a.Path,
-			Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
-		}
-
-		ret, err := starlark.Call(thread, handler, starlark.Tuple{starlark.None}, nil)
-		if err != nil {
-			a.Error().Err(err).Msg("error calling handler")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// TODO : handle redirects and renders
-
-		fmt.Printf("ret = %s %s %v\n", ret.String(), ret.Type(), ret)
-		value, err := stardefs.Convert(ret)
-		if err != nil {
-			a.Error().Err(err).Msg("error converting response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Printf("value = %s %T %v\n", value, value, value)
-
-	}
-
-	retFunc := func(r chi.Router) {
-		r.Method(method, path, http.HandlerFunc(goHandler))
-	}
-	return retFunc
 }
 
 func (a *App) PrintGlobals() {
@@ -235,4 +145,48 @@ func (a *App) PrintGlobals() {
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Info().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
 	a.appRouter.ServeHTTP(w, r)
+}
+
+func (a *App) startWatcher() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.watcher != nil {
+		a.watcher.Close()
+	}
+
+	var err error
+	a.watcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	// Start listening for events.
+	go func() {
+		for {
+			a.Trace().Msg("Waiting for file changes")
+			select {
+			case event, ok := <-a.watcher.Events:
+				if !ok {
+					return
+				}
+				a.Trace().Str("event", fmt.Sprint(event)).Msg("Received event")
+				if event.Has(fsnotify.Write) {
+					a.reload(true)
+				}
+			case err, ok := <-a.watcher.Errors:
+				a.Error().Err(err).Msgf("Error in watcher error receiver")
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+
+	// Add watcher path.
+	err = a.watcher.Add(a.FsPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

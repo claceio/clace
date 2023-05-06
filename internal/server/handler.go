@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/claceio/clace/internal/utils"
@@ -31,7 +32,7 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 			defer func() {
 				if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
 					msg := fmt.Sprint(rvr)
-					logger.Error().Str("recover", msg).Msg("Recovered from panic")
+					logger.Error().Str("recover", msg).Str("trace", string(debug.Stack())).Msg("Error during request processing")
 					http.Error(w, msg, http.StatusInternalServerError)
 				}
 			}()
@@ -94,14 +95,18 @@ func (h *Handler) serveInternal() http.Handler {
 	return r
 }
 
+func normalizePath(path string) string {
+	if len(path) == 0 || path[0] != '/' {
+		path = "/" + path
+	}
+	return path
+}
+
 func (h *Handler) getApp(w http.ResponseWriter, r *http.Request) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 
-	if len(appPath) == 0 || appPath[0] != '/' {
-		appPath = "/" + appPath
-	}
-
+	appPath = normalizePath(appPath)
 	app, err := h.server.GetApp(utils.CreateAppPathDomain(appPath, domain))
 	if err != nil {
 		h.Error().Err(err).Msg("error getting App")
@@ -121,9 +126,7 @@ func (h *Handler) createApp(w http.ResponseWriter, r *http.Request) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 
-	if len(appPath) == 0 || appPath[0] != '/' {
-		appPath = "/" + appPath
-	}
+	appPath = normalizePath(appPath)
 	var app utils.AppEntry
 	err := json.NewDecoder(r.Body).Decode(&app)
 	if err != nil {
@@ -144,9 +147,7 @@ func (h *Handler) deleteApp(w http.ResponseWriter, r *http.Request) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 
-	if len(appPath) == 0 || appPath[0] != '/' {
-		appPath = "/" + appPath
-	}
+	appPath = normalizePath(appPath)
 	err := h.server.DeleteApp(utils.CreateAppPathDomain(appPath, domain))
 	if err != nil {
 		h.Error().Err(err).Msg("Error deleting App")
