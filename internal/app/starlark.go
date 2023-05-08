@@ -54,7 +54,10 @@ func (a *App) initRouter() error {
 		return fmt.Errorf("%s not of type app in %s", APP_CONFIG_KEY, APP_FILE)
 	}
 
-	defaultHandler, _ := a.globals[DEFAULT_HANDLER].(starlark.Callable)
+	var defaultHandler starlark.Callable
+	if a.globals.Has(DEFAULT_HANDLER) {
+		defaultHandler, _ = a.globals[DEFAULT_HANDLER].(starlark.Callable)
+	}
 	router := chi.NewRouter()
 
 	// Iterate through all the pages

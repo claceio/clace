@@ -26,11 +26,21 @@ type MetadataConfig struct {
 
 // LogConfig is the configuration for the Logger
 type LogConfig struct {
-	Level          string `toml:"level"`
-	MaxBackups     int    `toml:"max_backups"`
-	MaxSizeMB      int    `toml:"max_size_mb"`
-	ConsoleLogging bool   `toml:"console_logging"`
-	FileLogging    bool   `toml:"file_logging"`
+	Level      string `toml:"level"`
+	MaxBackups int    `toml:"max_backups"`
+	MaxSizeMB  int    `toml:"max_size_mb"`
+	Console    bool   `toml:"console"`
+	File       bool   `toml:"file"`
+}
+
+// ClientConfig is the configuration for the Clace Client
+type ClientConfig struct {
+	Conn ClientConnConfig `toml:"client"`
+}
+
+// ClientConnConfig is the configuration for the Clace connection to server
+type ClientConnConfig struct {
+	ServerUrl string `toml:"server_url"`
 }
 
 // AppId is the identifier uuid for an App

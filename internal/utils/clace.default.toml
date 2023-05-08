@@ -10,10 +10,14 @@ port = 25223
 level = "INFO"
 max_backups = 10
 max_size_mb = 50
-console_logging = false
-file_logging = true
+console = false
+file = true
 
 # Metadata Storage Config
 [metadata]
 db_connection = "sqlite:$CL_HOME/clace.db"
 auto_upgrade = true
+
+
+[client]
+server_url = "http://localhost:25223"

@@ -20,10 +20,10 @@ type Logger struct {
 
 func NewLogger(config *LogConfig) *Logger {
 	var writers []io.Writer
-	if config.ConsoleLogging {
+	if config.Console {
 		writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr})
 	}
-	if config.FileLogging {
+	if config.File {
 		fileWriter := rollingFileLogger(config)
 		if fileWriter != nil {
 			writers = append(writers, fileWriter)

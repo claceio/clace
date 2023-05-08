@@ -22,8 +22,8 @@ func TestConfig(t *testing.T) {
 
 	// Logging related settings
 	testutil.AssertEqualsString(t, "log level", "INFO", c.Log.Level)
-	testutil.AssertEqualsBool(t, "console logging", false, c.Log.ConsoleLogging)
-	testutil.AssertEqualsBool(t, "file logging", true, c.Log.FileLogging)
+	testutil.AssertEqualsBool(t, "console logging", false, c.Log.Console)
+	testutil.AssertEqualsBool(t, "file logging", true, c.Log.File)
 	testutil.AssertEqualsInt(t, "max backups", 10, c.Log.MaxBackups)
 	testutil.AssertEqualsInt(t, "max size MB", 50, c.Log.MaxSizeMB)
 

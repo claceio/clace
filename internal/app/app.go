@@ -35,21 +35,21 @@ type AppFS interface {
 }
 
 type AppFSImpl struct {
-	dir fs.FS
+	fs fs.FS
 }
 
 var _ AppFS = (*AppFSImpl)(nil)
 
 func NewAppFSImpl(dir string) *AppFSImpl {
-	return &AppFSImpl{dir: os.DirFS(dir)}
+	return &AppFSImpl{fs: os.DirFS(dir)}
 }
 
 func (f *AppFSImpl) Open(file string) (fs.File, error) {
-	return f.dir.Open(file)
+	return f.fs.Open(file)
 }
 
 func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
-	if dir, ok := f.dir.(fs.ReadFileFS); ok {
+	if dir, ok := f.fs.(fs.ReadFileFS); ok {
 		return dir.ReadFile(name)
 	}
 
@@ -68,11 +68,11 @@ func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
 }
 
 func (f *AppFSImpl) Glob(pattern string) ([]string, error) {
-	return fs.Glob(f.dir, pattern)
+	return fs.Glob(f.fs, pattern)
 }
 
 func (f *AppFSImpl) ParseFS(patterns ...string) (*template.Template, error) {
-	return template.ParseFS(f.dir, patterns...)
+	return template.ParseFS(f.fs, patterns...)
 }
 
 type App struct {
@@ -119,7 +119,6 @@ func (a *App) Close() error {
 		if err := a.watcher.Close(); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
@@ -177,7 +176,6 @@ func (a *App) startWatcher() error {
 	a.Trace().Msg("Start Waiting for file changes")
 	go func() {
 		for {
-			a.Trace().Msg("Waiting for file changes")
 			select {
 			case event, ok := <-a.watcher.Events:
 				if !ok {
@@ -193,8 +191,6 @@ func (a *App) startWatcher() error {
 					return
 				}
 			}
-
-			a.Trace().Msg("loop for file changes")
 		}
 	}()
 
