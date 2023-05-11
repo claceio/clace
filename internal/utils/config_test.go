@@ -11,7 +11,10 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	c := utils.NewServerConfig()
+	c, err := utils.NewServerConfigEmbedded()
+	if err != nil {
+		t.Fatalf("failed to load embedded config: %v", err)
+	}
 
 	// The default value are read from the embedded clace.default.toml file,
 	// verify if the expected values are read correctly

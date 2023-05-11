@@ -4,6 +4,7 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,10 +13,13 @@ import (
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
+	"golang.org/x/crypto/bcrypt"
 )
 
-// The url prefix for internal API calls
-const INTERNAL_URL_PREFIX = "/_clace"
+const (
+	REALM               = "clace"
+	INTERNAL_URL_PREFIX = "/_clace"
+)
 
 type Handler struct {
 	*utils.Logger
@@ -48,10 +52,47 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 		server: server,
 		router: router,
 	}
+
+	router.Use(handler.createAuthMiddleware)
 	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
 	router.Get("/*", handler.matchApp)
 	return handler
+}
 
+func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			h.basicAuthFailed(w)
+			return
+		}
+
+		if h.config.AdminUser == "" {
+			h.Warn().Msg("No admin username specified, basic auth not available")
+			h.basicAuthFailed(w)
+			return
+		}
+
+		if subtle.ConstantTimeCompare([]byte(h.config.AdminUser), []byte(user)) != 1 {
+			h.Warn().Msg("Admin username does not match")
+			h.basicAuthFailed(w)
+			return
+		}
+
+		err := bcrypt.CompareHashAndPassword([]byte(h.config.AdminPasswordBcrypt), []byte(pass))
+		if err != nil {
+			h.Warn().Err(err).Msg("Password match failed")
+			h.basicAuthFailed(w)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (h *Handler) basicAuthFailed(w http.ResponseWriter) {
+	w.Header().Add("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, REALM))
+	w.WriteHeader(http.StatusUnauthorized)
 }
 
 func (h *Handler) matchApp(w http.ResponseWriter, r *http.Request) {

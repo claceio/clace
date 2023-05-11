@@ -14,6 +14,7 @@ import (
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // CL_HOME is the root directory for Clace logs and temp files
@@ -27,6 +28,7 @@ func init() {
 	}
 }
 
+// Server is the instance of the Clace Server
 type Server struct {
 	*utils.Logger
 	config     *utils.ServerConfig
@@ -53,20 +55,78 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 	return server, nil
 }
 
+// setupAdminAccount sets up the basic auth password for admin account if not specified
+// in the configuration. If admin user is unset, tat means admin account is not enabled.
+// If admin password is set, it will be used as the password for the admin account.
+// If admin password hash is set, it will be used as the password hash for the admin account.
+// If neither is set, a random password will be generated for the server session and used as
+// the password for the admin account. The generated password will be printed to stdout.
+func (s *Server) setupAdminAccount() (string, error) {
+	if s.config.AdminUser == "" {
+		s.Warn().Msg("No admin username specified, skipping admin account setup")
+		return "", nil
+	}
+
+	password := ""
+	if s.config.AdminPassword != "" {
+		s.Info().Msg("Using admin password from configuration")
+		password = s.config.AdminPassword
+	} else {
+		if s.config.AdminPasswordBcrypt != "" {
+			s.Info().Msg("Using admin password bcrypt hash from configuration")
+			return "", nil
+		}
+	}
+
+	if password == "" {
+		s.Debug().Msg("Generating admin password")
+		var err error
+		password, err = utils.GenerateRandomPassword()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	bcryptHash, err := bcrypt.GenerateFromPassword([]byte(password), utils.BCRYPT_COST)
+	if err != nil {
+		return "", err
+	}
+
+	s.config.AdminPasswordBcrypt = string(bcryptHash)
+
+	if s.config.AdminPassword != "" {
+		return "", nil
+	} else {
+		return password, nil
+	}
+}
+
 // Start starts the Clace Server
 func (s *Server) Start() error {
-	s.Info().Str("host", s.config.Http.Host).Int("port", s.config.Http.Port).Msg("Starting HTTP server")
+	addr := fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
+	s.Info().Str("address", addr).Msg("Starting HTTP server")
 	s.handler = NewHandler(s.Logger, s.config, s)
 	s.httpServer = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port),
+		Addr:         addr,
 		WriteTimeout: 180 * time.Second,
 		ReadTimeout:  180 * time.Second,
 		IdleTimeout:  30 * time.Second,
 		Handler:      s.handler.router,
 	}
+
+	generatedPass, err := s.setupAdminAccount()
+	if err != nil {
+		return err
+	}
+	if generatedPass != "" {
+		fmt.Printf("Admin user    : %s\n", s.config.AdminUser)
+		fmt.Printf("Admin password: %s\n", generatedPass)
+	}
+
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil {
-			s.Trace().Err(err).Msg("server")
+			s.Error().Err(err).Msg("server error")
+			os.Exit(1)
 		}
 	}()
 	return nil

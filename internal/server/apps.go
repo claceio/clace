@@ -11,7 +11,8 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-// AppStore is a store of apps
+// AppStore is a store of apps. Apps are initialized lazily, the first GetApp call on each app
+// will load the app from the database.
 type AppStore struct {
 	*utils.Logger
 	server *Server

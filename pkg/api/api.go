@@ -15,9 +15,12 @@ type ServerConfig struct {
 	*utils.ServerConfig
 }
 
-func NewServerConfig() *ServerConfig {
-	config := ServerConfig{ServerConfig: utils.NewServerConfig()}
-	return &config
+func NewServerConfig() (*ServerConfig, error) {
+	embedConfig, err := utils.NewServerConfigEmbedded()
+	if err != nil {
+		return nil, err
+	}
+	return &ServerConfig{embedConfig}, nil
 }
 
 // Server is the instance of the Clace Server

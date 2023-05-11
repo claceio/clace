@@ -5,8 +5,17 @@ package utils
 
 import "time"
 
+// Config entries shared between client and server
+type GlobalConfig struct {
+	ConfigFile          string `toml:"config_file"`
+	AdminUser           string `toml:"admin_user"`
+	AdminPassword       string `toml:"admin_password"`
+	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
+}
+
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
+	GlobalConfig
 	Http     HttpConfig     `toml:"http"`
 	Metadata MetadataConfig `toml:"metadata"`
 	Log      LogConfig      `toml:"logging"`
@@ -35,11 +44,7 @@ type LogConfig struct {
 
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
-	Conn ClientConnConfig `toml:"client"`
-}
-
-// ClientConnConfig is the configuration for the Clace connection to server
-type ClientConnConfig struct {
+	GlobalConfig
 	ServerUrl string `toml:"server_url"`
 }
 

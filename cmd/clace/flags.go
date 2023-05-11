@@ -15,7 +15,7 @@ func envString(name string) string {
 	return fmt.Sprintf("CL_%s", strings.ToUpper(name))
 }
 
-func newStringFlag(name, alias, usage, value string, destionation *string) *altsrc.StringFlag {
+func newAltStringFlag(name, alias, usage, value string, destionation *string) *altsrc.StringFlag {
 	var aliases []string
 	if alias != "" {
 		aliases = []string{alias}
@@ -30,7 +30,7 @@ func newStringFlag(name, alias, usage, value string, destionation *string) *alts
 	})
 }
 
-func newIntFlag(name, alias, usage string, value int, destionation *int) *altsrc.IntFlag {
+func newAltIntFlag(name, alias, usage string, value int, destionation *int) *altsrc.IntFlag {
 	var aliases []string
 	if alias != "" {
 		aliases = []string{alias}
@@ -45,7 +45,7 @@ func newIntFlag(name, alias, usage string, value int, destionation *int) *altsrc
 	})
 }
 
-func newBoolFlag(name, alias, usage string, value bool, destination *bool) *altsrc.BoolFlag {
+func newAltBoolFlag(name, alias, usage string, value bool, destination *bool) *altsrc.BoolFlag {
 	var aliases []string
 	if alias != "" {
 		aliases = []string{alias}
@@ -58,4 +58,43 @@ func newBoolFlag(name, alias, usage string, value bool, destination *bool) *alts
 		EnvVars:     []string{envString(name)},
 		Destination: destination,
 	})
+}
+
+func newStringFlag(name, alias, usage, value string) *cli.StringFlag {
+	var aliases []string
+	if alias != "" {
+		aliases = []string{alias}
+	}
+	return &cli.StringFlag{
+		Name:    name,
+		Aliases: aliases,
+		Usage:   usage,
+		Value:   value,
+	}
+}
+
+func newIntFlag(name, alias, usage string, value int) *cli.IntFlag {
+	var aliases []string
+	if alias != "" {
+		aliases = []string{alias}
+	}
+	return &cli.IntFlag{
+		Name:    name,
+		Aliases: aliases,
+		Usage:   usage,
+		Value:   value,
+	}
+}
+
+func newBoolFlag(name, alias, usage string, value bool) *cli.BoolFlag {
+	var aliases []string
+	if alias != "" {
+		aliases = []string{alias}
+	}
+	return &cli.BoolFlag{
+		Name:    name,
+		Aliases: aliases,
+		Usage:   usage,
+		Value:   value,
+	}
 }

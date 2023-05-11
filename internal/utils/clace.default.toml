@@ -1,5 +1,10 @@
 # The default configuration used by the Clace server and APIs
 
+server_url = "http://127.0.0.1:25223"
+admin_user = "admin"
+#admin_password = 
+#admin_password_bcrypt = 
+
 # HTTP port binding related Config
 [http]
 host = "127.0.0.1"
@@ -18,6 +23,3 @@ file = true
 db_connection = "sqlite:$CL_HOME/clace.db"
 auto_upgrade = true
 
-
-[client]
-server_url = "http://localhost:25223"
