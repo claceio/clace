@@ -33,4 +33,5 @@ rm -rf logs/ clace.toml  server.stdout
 set +e
 ps -ax | grep "clace server start" | grep -v grep | cut -c1-6 | xargs kill -9
 
+# Github Actions does not seem to allow kill, the last echo is to allow the exit code to be zero
 echo "Done with CLI test"
