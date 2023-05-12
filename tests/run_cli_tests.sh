@@ -1,10 +1,10 @@
 set -xe
-cd $CL_ROOT
+cd $CL_HOME
 go build ./cmd/clace
 cd tests
 rm -rf clace.db
 
-export CL_ROOT=.
+export CL_HOME=.
 unset CL_CONFIG_FILE
 
 # Test error messages
@@ -17,7 +17,6 @@ rm -rf clace.db
 ../clace server start --http.port=9998 > server.stdout &
 sleep 2
 grep "Admin password" server.stdout
-
 
 # Run all other automated tests
 echo "admin_password = \"qwerty\"" > clace.toml
