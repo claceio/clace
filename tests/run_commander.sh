@@ -32,3 +32,5 @@ rm -rf logs/ clace.toml  server.stdout
 
 set +e
 ps -ax | grep "clace server start" | grep -v grep | cut -c1-6 | xargs kill -9
+
+echo "Done with CLI test"
