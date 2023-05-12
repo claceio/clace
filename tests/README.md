@@ -10,6 +10,6 @@ and then run
 
 `$CL_HOME/tests/run_cli_tests.sh`
 
-The CLI tests are run as part of the Github Actions [workflow](https://github.com/claceio/clace/blob/4ac5958977dc03134eb4e8dae6ad419440c6b5c0/.github/workflows/test.yml#L44)
+The CLI tests are run as part of the Github Actions [workflow](https://github.com/claceio/clace/blob/e1c2d85b5a8139fd16f7ccaf227d8521187f8974/.github/workflows/test.yml#L44)
 
 
