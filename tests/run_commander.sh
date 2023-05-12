@@ -31,4 +31,4 @@ sleep 2
 commander test --dir ./commander/
 ps -ax | grep "server start" | grep -v grep | cut -c1-6 | xargs kill -9
 rm -rf clace.db
-rm -rf logs/ clace.toml  server.stdou
+rm -rf logs/ clace.toml  server.stdout
