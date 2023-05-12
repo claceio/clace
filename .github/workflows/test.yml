@@ -39,7 +39,7 @@ jobs:
         run: go test -json ./... > TestResults-${{ matrix.go-version }}.json
       - name: Test CLI
         run: |
-          export CL_ROOT=.
+          export CL_HOME=`pwd`
           go install github.com/commander-cli/commander/v2/cmd/commander@latest
           tests/run_cli_tests.sh
 
