@@ -1,4 +1,4 @@
-set -e
+set -xe
 cd $CL_ROOT
 go build ./cmd/clace
 cd tests
@@ -11,6 +11,7 @@ unset CL_CONFIG_FILE
 ../clace server start --admin_password=abcd --http.port=9999 &
 sleep 2
 commander test test_errors.yaml
+ps -ax | grep clace | grep 9999 | grep -v grep | cut -c1-6
 ps -ax | grep clace | grep 9999 | grep -v grep | cut -c1-6 | xargs kill -9
 rm -rf clace.db
 
