@@ -65,7 +65,7 @@ func startServer(cCtx *cli.Context, serverConfig *utils.ServerConfig) error {
 	}
 
 	addr := fmt.Sprintf("http://%s:%d", serverConfig.Http.Host, serverConfig.Http.Port)
-	fmt.Fprintf(os.Stderr, "Servering listening on %s\n", addr)
+	fmt.Fprintf(os.Stderr, "Server listening on %s\n", addr)
 
 	c := make(chan os.Signal, 1)
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)

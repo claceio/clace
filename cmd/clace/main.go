@@ -96,6 +96,12 @@ func main() {
 		Before: func(ctx *cli.Context) error {
 			return parseConfig(ctx, globalConfig, clientConfig, serverConfig)
 		},
+		ExitErrHandler: func(c *cli.Context, err error) {
+			if err != nil {
+				fmt.Fprintf(cli.ErrWriter, "error: %s\n", err)
+				os.Exit(1)
+			}
+		},
 		Commands: allComms,
 	}
 

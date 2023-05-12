@@ -129,9 +129,15 @@ func (h *Handler) matchApp(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) serveInternal() http.Handler {
 	r := chi.NewRouter()
-	r.Get("/app/*", h.getApp)
-	r.Post("/app/*", h.createApp)
-	r.Delete("/app/*", h.deleteApp)
+	r.Get("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.getApp)
+	}))
+	r.Post("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.createApp)
+	}))
+	r.Delete("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.deleteApp)
+	}))
 	return r
 }
 
@@ -142,54 +148,80 @@ func normalizePath(path string) string {
 	return path
 }
 
-func (h *Handler) getApp(w http.ResponseWriter, r *http.Request) {
-	appPath := chi.URLParam(r, "*")
-	domain := r.URL.Query().Get("domain")
-
-	appPath = normalizePath(appPath)
-	app, err := h.server.GetApp(utils.CreateAppPathDomain(appPath, domain))
+func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, apiFunc func(r *http.Request) (any, error)) {
+	resp, err := apiFunc(r)
+	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Interface("resp", resp).Err(err).Msg("API Received request")
 	if err != nil {
-		h.Error().Err(err).Msg("error getting App")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		if reqError, ok := err.(utils.RequestError); ok {
+			w.Header().Add("Content-Type", "application/json")
+			errStr, _ := json.Marshal(reqError)
+			http.Error(w, string(errStr), reqError.Code)
+			return
+		}
+		h.Error().Err(err).Msg("error in api func call")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = json.NewEncoder(w).Encode(app.AppEntry)
+
+	if resp == nil {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	h.Info().Msgf("response: %+v", resp)
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		h.Error().Err(err).Msg("error enoding app")
+		h.Error().Err(err).Msg("error encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h *Handler) createApp(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getApp(r *http.Request) (any, error) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 
 	appPath = normalizePath(appPath)
-	var app utils.AppEntry
-	err := json.NewDecoder(r.Body).Decode(&app)
+	app, err := h.server.GetApp(utils.CreateAppPathDomain(appPath, domain), false)
 	if err != nil {
-		h.Error().Err(err).Msg("Error parsing App body")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, utils.CreateRequestError(err.Error(), http.StatusNotFound)
 	}
-	app.Path = appPath
-	app.Domain = domain
-	_, err = h.server.AddApp(&app)
-	if err != nil {
-		h.Error().Err(err).Msg("Error adding App")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
+
+	return app.AppEntry, nil
 }
 
-func (h *Handler) deleteApp(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) createApp(r *http.Request) (any, error) {
+	appPath := chi.URLParam(r, "*")
+	domain := r.URL.Query().Get("domain")
+
+	appPath = normalizePath(appPath)
+	var appRequest utils.CreateAppRequest
+	err := json.NewDecoder(r.Body).Decode(&appRequest)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+	var appEntry utils.AppEntry
+	appEntry.Path = appPath
+	appEntry.Domain = domain
+	appEntry.SourceUrl = appRequest.SourceUrl
+	appEntry.FsRefresh = appRequest.FsRefresh
+
+	_, err = h.server.AddApp(&appEntry)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+	return appEntry, nil
+}
+
+func (h *Handler) deleteApp(r *http.Request) (any, error) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
 
 	appPath = normalizePath(appPath)
 	err := h.server.DeleteApp(utils.CreateAppPathDomain(appPath, domain))
 	if err != nil {
-		h.Error().Err(err).Msg("Error deleting App")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
+	h.Trace().Str("appPath", appPath).Msg("Deleted app successfully")
+	return nil, nil
 }

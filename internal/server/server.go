@@ -142,10 +142,10 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 	appEntry.Id = utils.AppId(uuid.New().String())
 	err := s.db.AddApp(appEntry)
 	if err != nil {
-		return nil, fmt.Errorf("error adding app: %s", err)
+		return nil, err
 	}
 
-	application, err := s.createApp(appEntry)
+	application, err := s.createApp(appEntry, false)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 	return application, nil
 }
 
-func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
+func (s *Server) createApp(appEntry *utils.AppEntry, init bool) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 
@@ -163,24 +163,25 @@ func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
 	application := app.NewApp(fs, &appLogger, appEntry)
 
 	// Initialize the app
-	s.Trace().Msg("Initializing app")
-	if err := application.Initialize(); err != nil {
-		return nil, fmt.Errorf("error initializing app: %w", err)
+	if init {
+		s.Trace().Msg("Initializing app")
+		if err := application.Initialize(); err != nil {
+			return nil, fmt.Errorf("error initializing app: %w", err)
+		}
 	}
-	s.Info().Msg("Initialized app")
 	return application, nil
 }
 
-func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
+func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, error) {
 	application, err := s.apps.GetApp(pathDomain)
 	if err != nil {
 		// App not found in cache, get from DB
 		appEntry, err := s.db.GetApp(pathDomain)
 		if err != nil {
-			return nil, fmt.Errorf("error getting app: %w", err)
+			return nil, err
 		}
 
-		application, err = s.createApp(appEntry)
+		application, err = s.createApp(appEntry, init)
 		if err != nil {
 			return nil, err
 		}
@@ -193,9 +194,9 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
 	err := s.db.DeleteApp(pathDomain)
 	if err != nil {
-		return fmt.Errorf("error removing app: %s", err)
+		return err
 	}
-	s.apps.DeleteApp(pathDomain)
+	err = s.apps.DeleteApp(pathDomain)
 	if err != nil {
 		return fmt.Errorf("error deleting app: %s", err)
 	}
@@ -203,10 +204,10 @@ func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
 }
 
 func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, path, domain string) {
-	app, err := s.GetApp(utils.CreateAppPathDomain(path, domain))
+	app, err := s.GetApp(utils.CreateAppPathDomain(path, domain), true)
 	if err != nil {
 		s.Error().Err(err).Msg("error getting App")
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 

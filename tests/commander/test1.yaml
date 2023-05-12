@@ -1,0 +1,6 @@
+tests:
+  ../clace app list --admin_password=abcd /invalid: # Wrong password
+    stderr: 
+      exactly: "error: status code 401"
+    exit-code: 1
+

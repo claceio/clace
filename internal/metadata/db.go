@@ -5,6 +5,7 @@ package metadata
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -107,6 +108,9 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 	var app utils.AppEntry
 	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.FsRefresh, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("app not found")
+		}
 		m.Error().Err(err).Msgf("query %s %s", pathDomain.Path, pathDomain.Domain)
 		return nil, fmt.Errorf("error querying app: %w", err)
 	}

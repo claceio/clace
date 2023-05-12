@@ -21,6 +21,6 @@ func getClientCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.Cli
 	}
 
 	commands := make([]*cli.Command, 0, 6)
-	commands = append(commands, createAppCommand(flags, globalConfig, clientConfig))
+	commands = append(commands, initAppCommand(flags, globalConfig, clientConfig))
 	return commands, nil
 }

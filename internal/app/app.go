@@ -173,7 +173,7 @@ func (a *App) startWatcher() error {
 	}
 
 	// Start listening for events.
-	a.Trace().Msg("Start Waiting for file changes")
+	a.Trace().Msg("Start waiting for file changes")
 	go func() {
 		for {
 			select {
