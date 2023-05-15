@@ -4,7 +4,7 @@
 package app
 
 import (
-	"fmt"
+	"encoding/json"
 	"html/template"
 	"io/fs"
 	"net/http/httptest"
@@ -37,7 +37,7 @@ func (f *AppTestFS) Open(name string) (fs.File, error) {
 func (f *AppTestFS) ReadFile(name string) ([]byte, error) {
 	data, ok := f.fileData[name]
 	if !ok {
-		return nil, fmt.Errorf("test data not found: %s", name)
+		return nil, fs.ErrNotExist
 	}
 	return []byte(data), nil
 }
@@ -56,6 +56,11 @@ func (f *AppTestFS) Glob(pattern string) ([]string, error) {
 
 func (f *AppTestFS) ParseFS(patterns ...string) (*template.Template, error) {
 	return template.ParseFS(f, patterns...)
+}
+
+func (f *AppTestFS) Write(name string, bytes []byte) error {
+	f.fileData[name] = string(bytes)
+	return nil
 }
 
 func TestAppLoadError(t *testing.T) {
@@ -119,4 +124,70 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
+	var config AppConfig
+
+	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
+}
+
+func TestAppLoadWithLockfile(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+config = app("testApp", pages = [page("/", html="t1.tmpl")]
+	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"./templates/t1.tmpl": `Template got {{ .key }}.`,
+		CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+	}}
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	err := a.Initialize()
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
+	var config AppConfig
+
+	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
+}
+
+func TestAppLoadWrongTemplate(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+config = app("testApp", pages = [page("/", html="t12.tmpl")]
+	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"./templates/t1.tmpl": `Template got {{ .key }}.`,
+		CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+	}}
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	err := a.Initialize()
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
+	var config AppConfig
+
+	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }

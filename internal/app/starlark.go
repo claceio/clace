@@ -4,6 +4,9 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -16,19 +19,18 @@ import (
 func (a *App) loadStarlark() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
-	buf, err := a.fs.ReadFile(APP_FILE)
+	buf, err := a.fs.ReadFile(APP_FILE_NAME)
 	if err != nil {
 		return err
 	}
 
-	// The Thread defines the behavior of the built-in 'print' function.
 	thread := &starlark.Thread{
 		Name:  a.Path,
-		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
+		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) }, // TODO use logger
 	}
 
-	predeclared := stardefs.MakeLoadBuiltins()
-	a.globals, err = starlark.ExecFile(thread, APP_FILE, buf, predeclared)
+	predeclared := stardefs.CreateBuiltins()
+	a.globals, err = starlark.ExecFile(thread, APP_FILE_NAME, buf, predeclared)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")
@@ -37,6 +39,55 @@ func (a *App) loadStarlark() error {
 		}
 		return err
 	}
+
+	if !a.globals.Has(APP_CONFIG_KEY) {
+		return fmt.Errorf("%s not defined, check %s, add '%s = app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
+	}
+	var ok bool
+	a.appDef, ok = a.globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
+	if !ok {
+		return fmt.Errorf("%s not of type app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
+	}
+
+	a.name, err = getStringAttr(a.appDef, "name")
+	if err != nil {
+		return err
+	}
+
+	a.layout, err = getStringAttr(a.appDef, "layout")
+	if err != nil {
+		return err
+	}
+
+	var settingsMap map[string]interface{}
+	settings, err := a.appDef.Attr("settings")
+	if err == nil {
+		var dict *starlark.Dict
+		var ok bool
+		if dict, ok = settings.(*starlark.Dict); !ok {
+			return errors.New("settings is not a starlark dict")
+		}
+		var converted any
+		if converted, err = stardefs.Convert(dict); err != nil {
+			return err
+		}
+		if settingsMap, ok = converted.(map[string]interface{}); !ok {
+			return errors.New("settings is not a map")
+		}
+	} else {
+		settingsMap = make(map[string]interface{})
+	}
+
+	// Update the app config with entries loaded from the settings map
+	var jsonBuf bytes.Buffer
+	if err = json.NewEncoder(&jsonBuf).Encode(settingsMap); err != nil {
+		return err
+	}
+	if err = json.Unmarshal(jsonBuf.Bytes(), a.config); err != nil {
+		return err
+	}
+
+	// Initialize the router configuration
 	err = a.initRouter()
 	if err != nil {
 		return err
@@ -44,15 +95,20 @@ func (a *App) loadStarlark() error {
 	return nil
 }
 
-func (a *App) initRouter() error {
-	if !a.globals.Has(APP_CONFIG_KEY) {
-		return fmt.Errorf("%s not defined, check %s, add '%s = app(...)'", APP_CONFIG_KEY, APP_FILE, APP_CONFIG_KEY)
+func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return "", fmt.Errorf("error getting %s: %s", key, err)
 	}
+	var vs starlark.String
 	var ok bool
-	a.appDef, ok = a.globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
-	if !ok {
-		return fmt.Errorf("%s not of type app in %s", APP_CONFIG_KEY, APP_FILE)
+	if vs, ok = v.(starlark.String); !ok {
+		return "", fmt.Errorf("%s is not a string", key)
 	}
+	return vs.GoString(), nil
+}
+
+func (a *App) initRouter() error {
 
 	var defaultHandler starlark.Callable
 	if a.globals.Has(DEFAULT_HANDLER) {
@@ -129,7 +185,11 @@ func (a *App) createRouteHandler(path, html, method string, handler starlark.Cal
 			return
 		}
 
-		a.template.ExecuteTemplate(w, html, value)
+		err = a.template.ExecuteTemplate(w, html, value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	retFunc := func(r chi.Router) {

@@ -22,7 +22,8 @@ const (
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name, layout starlark.String
 	var pages *starlark.List
-	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "layout?", &layout, "pages?", &pages); err != nil {
+	var settings *starlark.Dict
+	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "layout?", &layout, "pages?", &pages, "settings?", &settings); err != nil {
 		return nil, err
 	}
 
@@ -32,11 +33,15 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	if pages == nil {
 		pages = starlark.NewList([]starlark.Value{})
 	}
+	if settings == nil {
+		settings = starlark.NewDict(0)
+	}
 
 	fields := starlark.StringDict{
-		"name":   name,
-		"layout": layout,
-		"pages":  pages,
+		"name":     name,
+		"layout":   layout,
+		"pages":    pages,
+		"settings": settings,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
@@ -113,7 +118,7 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
-func MakeLoadBuiltins() starlark.StringDict {
+func CreateBuiltins() starlark.StringDict {
 	builtins := starlark.StringDict{
 		APP:      starlark.NewBuiltin(APP, createAppBuiltin),
 		PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),

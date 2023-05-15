@@ -5,10 +5,9 @@ package app
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
-	"io/fs"
 	"net/http"
 	"os"
 	"sync"
@@ -21,71 +20,26 @@ import (
 )
 
 const (
-	APP_FILE              = "app.star"
+	APP_FILE_NAME         = "app.star"
 	APP_CONFIG_KEY        = "config"
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
-	TEMPLATE_FILE_PATTERN = "*.go.html"
+	CONFIG_LOCK_FILE_NAME = "config.lock"
 )
-
-type AppFS interface {
-	fs.ReadFileFS
-	fs.GlobFS
-	ParseFS(patterns ...string) (*template.Template, error)
-}
-
-type AppFSImpl struct {
-	fs fs.FS
-}
-
-var _ AppFS = (*AppFSImpl)(nil)
-
-func NewAppFSImpl(dir string) *AppFSImpl {
-	return &AppFSImpl{fs: os.DirFS(dir)}
-}
-
-func (f *AppFSImpl) Open(file string) (fs.File, error) {
-	return f.fs.Open(file)
-}
-
-func (f *AppFSImpl) ReadFile(name string) ([]byte, error) {
-	if dir, ok := f.fs.(fs.ReadFileFS); ok {
-		return dir.ReadFile(name)
-	}
-
-	file, err := f.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, file)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func (f *AppFSImpl) Glob(pattern string) ([]string, error) {
-	return fs.Glob(f.fs, pattern)
-}
-
-func (f *AppFSImpl) ParseFS(patterns ...string) (*template.Template, error) {
-	return template.ParseFS(f.fs, patterns...)
-}
 
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	fs          AppFS
-	mu          sync.Mutex
-	initialized bool
-	globals     starlark.StringDict
-	appDef      *starlarkstruct.Struct
-	appRouter   *chi.Mux
-	template    *template.Template
-	watcher     *fsnotify.Watcher
+	name, layout string
+	config       *AppConfig
+	fs           AppFS
+	mu           sync.Mutex
+	initialized  bool
+	globals      starlark.StringDict
+	appDef       *starlarkstruct.Struct
+	appRouter    *chi.Mux
+	template     *template.Template
+	watcher      *fsnotify.Watcher
 }
 
 func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
@@ -132,13 +86,31 @@ func (a *App) reload(force bool) (bool, error) {
 	var err error
 	a.Info().Msg("Reloading app definition")
 
-	// Parse templates
-	a.template, err = a.fs.ParseFS(TEMPLATE_FILE_PATTERN)
+	configData, err := a.fs.ReadFile(CONFIG_LOCK_FILE_NAME)
+	if err != nil {
+		if err != os.ErrNotExist {
+			return false, err
+		}
+
+		// Config lock is not present, use default config
+		a.Debug().Msg("No config lock file found, using default config")
+		a.config = NewAppConfig()
+		a.saveLockFile()
+	} else {
+		// Config lock file is present, read defaults from that
+		a.Debug().Msg("Config lock file found, using config from lock file")
+		a.config = NewCompatibleAppConfig()
+		json.Unmarshal(configData, a.config)
+	}
+
+	// Load Starlark config, AppConfig is updated with the settings contents
+	err = a.loadStarlark()
 	if err != nil {
 		return false, err
 	}
 
-	err = a.loadStarlark()
+	// Parse HTML templates
+	a.template, err = a.fs.ParseFS(a.config.Routing.TemplateLocations...)
 	if err != nil {
 		return false, err
 	}
@@ -146,12 +118,13 @@ func (a *App) reload(force bool) (bool, error) {
 	return true, nil
 }
 
-func (a *App) PrintGlobals() {
-	fmt.Println("\nGlobals:")
-	for _, name := range a.globals.Keys() {
-		v := a.globals[name]
-		fmt.Printf("%s (%s) = %s\n", name, v.Type(), v.String())
+func (a *App) saveLockFile() error {
+	var jsonBuf bytes.Buffer
+	if err := json.NewEncoder(&jsonBuf).Encode(a.config); err != nil {
+		return err
 	}
+	err := a.fs.Write(CONFIG_LOCK_FILE_NAME, jsonBuf.Bytes())
+	return err
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
