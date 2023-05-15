@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/http/httptest"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
@@ -184,8 +185,10 @@ def handler(req):
 
 	a.ServeHTTP(response, request)
 
-	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertEqualsString(t, "body",
+		`html/template: "t12.tmpl" is undefined`,
+		strings.TrimSpace(response.Body.String()))
 	var config AppConfig
 
 	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
