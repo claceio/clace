@@ -52,7 +52,7 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 				FsRefresh: cCtx.Bool("refresh"),
 			}
 			resp := make(map[string]any)
-			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, resp)
+			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &resp)
 			if err != nil {
 				return err
 			}
