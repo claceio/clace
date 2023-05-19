@@ -4,10 +4,11 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
 	"os"
 	"sync"
@@ -21,7 +22,7 @@ import (
 
 const (
 	APP_FILE_NAME         = "app.star"
-	APP_CONFIG_KEY        = "config"
+	APP_CONFIG_KEY        = "app"
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config.lock"
@@ -88,7 +89,7 @@ func (a *App) reload(force bool) (bool, error) {
 
 	configData, err := a.fs.ReadFile(CONFIG_LOCK_FILE_NAME)
 	if err != nil {
-		if err != os.ErrNotExist {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
 			return false, err
 		}
 
@@ -119,11 +120,11 @@ func (a *App) reload(force bool) (bool, error) {
 }
 
 func (a *App) saveLockFile() error {
-	var jsonBuf bytes.Buffer
-	if err := json.NewEncoder(&jsonBuf).Encode(a.config); err != nil {
+	buf, err := json.MarshalIndent(a.config, "", "  ")
+	if err != nil {
 		return err
 	}
-	err := a.fs.Write(CONFIG_LOCK_FILE_NAME, jsonBuf.Bytes())
+	err = a.fs.Write(CONFIG_LOCK_FILE_NAME, buf)
 	return err
 }
 

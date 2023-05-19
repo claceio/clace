@@ -73,18 +73,18 @@ func TestAppLoadError(t *testing.T) {
 	}}
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
-	testutil.AssertErrorContains(t, err, "config not defined, check app.star")
+	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
 
 	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star":      `config = 1`,
+		"app.star":      `app = 1`,
 		"index.go.html": `{{.}}`,
 	}}
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
-	testutil.AssertErrorContains(t, err, "config not of type app in app.star")
+	testutil.AssertErrorContains(t, err, "app not of type clace.app in app.star")
 
 	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star":      `config = app()`,
+		"app.star":      `app = clace.app()`,
 		"index.go.html": `{{.}}`,
 	}}
 	a = NewApp(testFS, logger, createAppEntry("/test"))
@@ -93,7 +93,7 @@ func TestAppLoadError(t *testing.T) {
 
 	testFS = &AppTestFS{fileData: map[string]string{
 		"app.star": `
-config = app("testApp", pages = [page("/")])`,
+app = clace.app("testApp", pages = [clace.page("/")])`,
 		"index.go.html": `{{.}}`,
 	}}
 	a = NewApp(testFS, logger, createAppEntry("/test"))
@@ -105,7 +105,7 @@ func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-config = app("testApp", pages = [page("/")])
+app = clace.app("testApp", pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -135,7 +135,7 @@ func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-config = app("testApp", pages = [page("/", html="t1.tmpl")]
+app = clace.app("testApp", pages = [clace.page("/", html="t1.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -166,7 +166,7 @@ func TestAppLoadWrongTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-config = app("testApp", pages = [page("/", html="t12.tmpl")]
+app = clace.app("testApp", pages = [clace.page("/", html="t12.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):

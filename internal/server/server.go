@@ -159,7 +159,11 @@ func (s *Server) createApp(appEntry *utils.AppEntry, init bool) (*app.App, error
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 
-	fs := app.NewAppFSImpl(appEntry.FsPath)
+	path := appEntry.SourceUrl
+	if path == "" {
+		path = appEntry.FsPath
+	}
+	fs := app.NewAppFSImpl(path)
 	application := app.NewApp(fs, &appLogger, appEntry)
 
 	// Initialize the app

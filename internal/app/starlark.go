@@ -41,12 +41,12 @@ func (a *App) loadStarlark() error {
 	}
 
 	if !a.globals.Has(APP_CONFIG_KEY) {
-		return fmt.Errorf("%s not defined, check %s, add '%s = app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
+		return fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
 	}
 	var ok bool
 	a.appDef, ok = a.globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
 	if !ok {
-		return fmt.Errorf("%s not of type app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
+		return fmt.Errorf("%s not of type clace.app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
 	}
 
 	a.name, err = getStringAttr(a.appDef, "name")

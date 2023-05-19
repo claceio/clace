@@ -11,6 +11,7 @@ import (
 const (
 	DEFAULT_LAYOUT        = "default"
 	DEFAULT_TMPL_FILE     = "index.go.html"
+	DEFAULT_MODULE        = "clace"
 	APP                   = "app"
 	PAGE                  = "page"
 	FRAGMENT              = "fragment"
@@ -120,10 +121,15 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 
 func CreateBuiltins() starlark.StringDict {
 	builtins := starlark.StringDict{
-		APP:      starlark.NewBuiltin(APP, createAppBuiltin),
-		PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
-		FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
-		REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+		DEFAULT_MODULE: &starlarkstruct.Module{
+			Name: DEFAULT_MODULE,
+			Members: starlark.StringDict{
+				APP:      starlark.NewBuiltin(APP, createAppBuiltin),
+				PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
+				FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
+				REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+			},
+		},
 	}
 
 	return builtins
