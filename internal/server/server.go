@@ -15,6 +15,8 @@ import (
 	"github.com/claceio/clace/internal/utils"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+
+	_ "github.com/claceio/clace/plugins" // Register builtin plugins
 )
 
 // CL_HOME is the root directory for Clace logs and temp files
@@ -159,9 +161,9 @@ func (s *Server) createApp(appEntry *utils.AppEntry, init bool) (*app.App, error
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 
-	path := appEntry.SourceUrl
+	path := appEntry.FsPath
 	if path == "" {
-		path = appEntry.FsPath
+		path = appEntry.SourceUrl
 	}
 	fs := app.NewAppFSImpl(path)
 	application := app.NewApp(fs, &appLogger, appEntry)

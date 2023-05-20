@@ -4,6 +4,8 @@
 package stardefs
 
 import (
+	"sync"
+
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -18,6 +20,11 @@ const (
 	REDIRECT              = "redirect"
 	RENDER                = "render"
 	DEFAULT_REDIRECT_CODE = 302
+)
+
+var (
+	once    sync.Once
+	builtin starlark.StringDict
 )
 
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -119,18 +126,20 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
-func CreateBuiltins() starlark.StringDict {
-	builtins := starlark.StringDict{
-		DEFAULT_MODULE: &starlarkstruct.Module{
-			Name: DEFAULT_MODULE,
-			Members: starlark.StringDict{
-				APP:      starlark.NewBuiltin(APP, createAppBuiltin),
-				PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
-				FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
-				REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+func CreateBuiltin() starlark.StringDict {
+	once.Do(func() {
+		builtin = starlark.StringDict{
+			DEFAULT_MODULE: &starlarkstruct.Module{
+				Name: DEFAULT_MODULE,
+				Members: starlark.StringDict{
+					APP:      starlark.NewBuiltin(APP, createAppBuiltin),
+					PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
+					FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
+					REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+				},
 			},
-		},
-	}
+		}
+	})
 
-	return builtins
+	return builtin
 }

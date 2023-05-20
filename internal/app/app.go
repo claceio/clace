@@ -26,6 +26,7 @@ const (
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config.lock"
+	BUILTIN_PLUGINS       = "plugin"
 )
 
 type App struct {
@@ -58,7 +59,7 @@ func (a *App) Initialize() error {
 		return err
 	}
 
-	if reloaded && a.FsRefresh && a.FsPath != "" {
+	if reloaded && a.FsRefresh {
 		if err := a.startWatcher(); err != nil {
 			a.Info().Msgf("error starting watcher: %s", err)
 			return err
@@ -169,7 +170,12 @@ func (a *App) startWatcher() error {
 	}()
 
 	// Add watcher path.
-	err = a.watcher.Add(a.FsPath)
+	path := a.FsPath
+	if path == "" {
+		path = a.SourceUrl
+	}
+
+	err = a.watcher.Add(path)
 	if err != nil {
 		return err
 	}

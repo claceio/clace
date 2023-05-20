@@ -20,6 +20,10 @@ type HtmxConfig struct {
 type StylingConfig struct {
 }
 
+// NewAppConfig creates an AppConfig with default values. This config is used when lock
+// file is not present. The config file load order is
+//
+//	DefaultAppConfig -> StarlarkAppConfig
 func NewAppConfig() *AppConfig {
 	templateDefault := []string{"*.go.html"}
 
@@ -36,7 +40,7 @@ func NewAppConfig() *AppConfig {
 
 // NewCompatibleAppConfig creates an AppConfig focused on maintaining backward compatibility.
 // This is used when the app is created from a source url where the source has the config lock file
-// present. The settings are read in the order
+// present. The configs are read in the order
 //
 // CompatibleAppConfig -> LockFile -> StarlarkAppConfig
 //

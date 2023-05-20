@@ -9,12 +9,37 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/claceio/clace/internal/stardefs"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
+
+var (
+	loaderInitMutex sync.Mutex
+	builtInPlugins  starlark.StringDict
+)
+
+func init() {
+	builtInPlugins = make(starlark.StringDict)
+}
+
+func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
+	loaderInitMutex.Lock()
+	defer loaderInitMutex.Unlock()
+
+	builtInPlugins[name] = plugin
+}
+
+// loader is the starlark loader function
+func (a *App) loader(_ *starlark.Thread, module string) (starlark.StringDict, error) {
+	if module == BUILTIN_PLUGINS {
+		return builtInPlugins, nil
+	}
+	return nil, fmt.Errorf("module %s not found", module) // TODO extend loading
+}
 
 func (a *App) loadStarlark() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
@@ -27,10 +52,14 @@ func (a *App) loadStarlark() error {
 	thread := &starlark.Thread{
 		Name:  a.Path,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) }, // TODO use logger
+		Load:  a.loader,
 	}
 
-	predeclared := stardefs.CreateBuiltins()
-	a.globals, err = starlark.ExecFile(thread, APP_FILE_NAME, buf, predeclared)
+	builtin := stardefs.CreateBuiltin()
+	if builtin == nil {
+		return errors.New("error creating builtin")
+	}
+	a.globals, err = starlark.ExecFile(thread, APP_FILE_NAME, buf, builtin)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")
@@ -68,7 +97,7 @@ func (a *App) loadStarlark() error {
 			return errors.New("settings is not a starlark dict")
 		}
 		var converted any
-		if converted, err = stardefs.Convert(dict); err != nil {
+		if converted, err = stardefs.Unmarshal(dict); err != nil {
 			return err
 		}
 		if settingsMap, ok = converted.(map[string]interface{}); !ok {
@@ -178,7 +207,7 @@ func (a *App) createRouteHandler(path, html, method string, handler starlark.Cal
 		}
 		// TODO : handle redirects and renders
 
-		value, err := stardefs.Convert(ret)
+		value, err := stardefs.Unmarshal(ret)
 		if err != nil {
 			a.Error().Err(err).Msg("error converting response")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
