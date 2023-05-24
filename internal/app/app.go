@@ -26,7 +26,7 @@ const (
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config.lock"
-	BUILTIN_PLUGINS       = "plugin"
+	PLUGIN_SUFFIX         = "plugin"
 )
 
 type App struct {

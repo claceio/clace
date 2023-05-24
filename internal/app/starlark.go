@@ -19,26 +19,31 @@ import (
 
 var (
 	loaderInitMutex sync.Mutex
-	builtInPlugins  starlark.StringDict
+	builtInPlugins  map[string]starlark.StringDict
 )
 
 func init() {
-	builtInPlugins = make(starlark.StringDict)
+	builtInPlugins = make(map[string]starlark.StringDict)
 }
 
 func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
-	builtInPlugins[name] = plugin
+	pluginName := fmt.Sprintf("%s.%s", name, PLUGIN_SUFFIX)
+	pluginDict := make(starlark.StringDict)
+	pluginDict[name] = plugin
+	builtInPlugins[pluginName] = pluginDict
 }
 
 // loader is the starlark loader function
 func (a *App) loader(_ *starlark.Thread, module string) (starlark.StringDict, error) {
-	if module == BUILTIN_PLUGINS {
-		return builtInPlugins, nil
+	pluginDict, ok := builtInPlugins[module]
+	if !ok {
+		return nil, fmt.Errorf("module %s not found", module) // TODO extend loading
 	}
-	return nil, fmt.Errorf("module %s not found", module) // TODO extend loading
+
+	return pluginDict, nil
 }
 
 func (a *App) loadStarlark() error {

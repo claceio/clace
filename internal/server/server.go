@@ -58,7 +58,7 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 }
 
 // setupAdminAccount sets up the basic auth password for admin account if not specified
-// in the configuration. If admin user is unset, tat means admin account is not enabled.
+// in the configuration. If admin user is unset, that means admin account is not enabled.
 // If admin password is set, it will be used as the password for the admin account.
 // If admin password hash is set, it will be used as the password hash for the admin account.
 // If neither is set, a random password will be generated for the server session and used as
