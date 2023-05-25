@@ -138,38 +138,43 @@ func (a *App) reload(force bool) (bool, error) {
 }
 
 func (a *App) generateHeaderFragment() error {
-	headerContents := `
-		<script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
-	`
+	var headerContents, outputBuffer bytes.Buffer
+	headerContents.WriteString("\n")
+	headerContents.WriteString(
+		`<script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>`)
+	headerContents.WriteString("\n")
 
 	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
-		headerContents += `
-		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-		`
+		// Add the SSE htmx extension
+		headerContents.WriteString(
+			`<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>`)
+		headerContents.WriteString("\n")
 	}
 
 	if a.IsDev || a.AutoReload {
-		headerContents += `
-		<div id="reload_listener" hx-ext="sse" sse-connect="{{ print .Path "/_clace/sse"}}" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
+		// Add an event listener looking for the clace_reload event
+		headerContents.WriteString("\n")
+		headerContents.WriteString(
+			`<div id="cl_reload_listener" hx-ext="sse" sse-connect="{{ print .Path "/_clace/sse"}}" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
 		<script>
-		document.getElementById('reload_listener').addEventListener('sse:clace_reload', function (event) {
-			location.reload();
-		});
+		    document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+				function (event) {
+					location.reload();
+		        });
 		</script>
-		`
+		`)
 	}
 
-	tmpl, err := template.New("header").Parse(headerContents)
+	tmpl, err := template.New("header").Parse(headerContents.String())
 	if err != nil {
 		return err
 	}
 
-	buf := &bytes.Buffer{}
-	if err = tmpl.Execute(buf, a); err != nil {
+	if err = tmpl.Execute(&outputBuffer, a); err != nil {
 		return err
 	}
 
-	newHeader := buf.Bytes()
+	newHeader := outputBuffer.Bytes()
 	if !bytes.Equal(newHeader, a.headerFileContents) {
 		// The header contents have changed, recreate it. Since reload creates the header file,
 		// and updating the file causes the FS watcher to call reload, we have to make sure the
@@ -263,18 +268,19 @@ func (a *App) removeSSEClient(newChan chan SSEMessage) {
 }
 
 func (a *App) notifyClients() {
+	reloadMessage := SSEMessage{
+		event: "clace_reload",
+		data:  "App reloaded after file change",
+	}
 	for _, ch := range a.sseListeners {
-		ch <- SSEMessage{
-			event: "clace_reload",
-			data:  "App reloaded after file change",
-		}
+		ch <- reloadMessage
 	}
 }
 
 func (a *App) sseHandler(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "SSE not unsupported", http.StatusInternalServerError)
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
 		return
 	}
 
@@ -293,6 +299,7 @@ func (a *App) sseHandler(w http.ResponseWriter, r *http.Request) {
 	//listen to signal to close and unregister
 	go func() {
 		<-notify
+		a.Trace().Msg("Closing SSE connection")
 		a.removeSSEClient(messageChan)
 		keepAliveTickler.Stop()
 	}()
@@ -304,6 +311,7 @@ func (a *App) sseHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n\n", appMessage.data)
 			flusher.Flush()
 		case <-keepAliveTickler.C:
+			a.Trace().Msg("Sending keepalive")
 			fmt.Fprintf(w, "event:keepalive\n\n")
 			flusher.Flush()
 		}

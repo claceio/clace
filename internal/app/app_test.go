@@ -219,20 +219,22 @@ def handler(req):
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	want := `Template contents 
 	<script src="https://unpkg.com/htmx.org@1.9.2"></script>
-
 	<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
 	
-	<div id="reload_listener" hx-ext="sse" sse-connect="/test/_clace/sse" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
-	<script>
-	document.getElementById('reload_listener').addEventListener('sse:clace_reload', function (event) {
-		location.reload();
-	});
-	</script>
-	.`
+	<div id="cl_reload_listener" hx-ext="sse" sse-connect="/test/_clace/sse" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
+	 <script>
+	   document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+	     function (event) {
+	        location.reload();
+	     });
+	 </script>
+	 .`
 	want = strings.ReplaceAll(want, "\r", "")
 	want = strings.ReplaceAll(want, "\t", "")
+	want = strings.ReplaceAll(want, " ", "")
 
 	got := strings.ReplaceAll(response.Body.String(), "\r", "")
 	got = strings.ReplaceAll(got, "\t", "")
+	got = strings.ReplaceAll(got, " ", "")
 	testutil.AssertEqualsString(t, "body", want, got)
 }
