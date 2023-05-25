@@ -117,7 +117,7 @@ func (a *App) loadStarlark() error {
 	if err = json.NewEncoder(&jsonBuf).Encode(settingsMap); err != nil {
 		return err
 	}
-	if err = json.Unmarshal(jsonBuf.Bytes(), a.config); err != nil {
+	if err = json.Unmarshal(jsonBuf.Bytes(), a.Config); err != nil {
 		return err
 	}
 
@@ -192,8 +192,20 @@ func (a *App) initRouter() error {
 		router.Route(pathStr, routeHandler)
 	}
 
+	if err = a.createInternalRoutes(router); err != nil {
+		return err
+	}
+
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
+	return nil
+}
+
+func (a *App) createInternalRoutes(router *chi.Mux) error {
+	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
+		router.Get("/_clace/sse", a.sseHandler)
+	}
+
 	return nil
 }
 

@@ -4,6 +4,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
@@ -26,22 +28,30 @@ const (
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config.lock"
+	HEADER_FILE_NAME      = "clace_header.go.html"
 	PLUGIN_SUFFIX         = "plugin"
 )
 
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	name, layout string
-	config       *AppConfig
-	fs           AppFS
-	mu           sync.Mutex
-	initialized  bool
-	globals      starlark.StringDict
-	appDef       *starlarkstruct.Struct
-	appRouter    *chi.Mux
-	template     *template.Template
-	watcher      *fsnotify.Watcher
+	name, layout       string
+	Config             *AppConfig
+	fs                 AppFS
+	mu                 sync.Mutex
+	initialized        bool
+	globals            starlark.StringDict
+	appDef             *starlarkstruct.Struct
+	appRouter          *chi.Mux
+	template           *template.Template
+	watcher            *fsnotify.Watcher
+	sseListeners       []chan SSEMessage
+	headerFileContents []byte
+}
+
+type SSEMessage struct {
+	event string
+	data  string
 }
 
 func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
@@ -59,7 +69,7 @@ func (a *App) Initialize() error {
 		return err
 	}
 
-	if reloaded && a.FsRefresh {
+	if reloaded && (a.IsDev || a.AutoSync || a.AutoReload) {
 		if err := a.startWatcher(); err != nil {
 			a.Info().Msgf("error starting watcher: %s", err)
 			return err
@@ -96,32 +106,84 @@ func (a *App) reload(force bool) (bool, error) {
 
 		// Config lock is not present, use default config
 		a.Debug().Msg("No config lock file found, using default config")
-		a.config = NewAppConfig()
+		a.Config = NewAppConfig()
 		a.saveLockFile()
 	} else {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
-		a.config = NewCompatibleAppConfig()
-		json.Unmarshal(configData, a.config)
+		a.Config = NewCompatibleAppConfig()
+		json.Unmarshal(configData, a.Config)
+	}
+
+	// Generate the HTML header file clace.go.html
+	if err = a.generateHeaderFragment(); err != nil {
+		return false, err
 	}
 
 	// Load Starlark config, AppConfig is updated with the settings contents
-	err = a.loadStarlark()
-	if err != nil {
+	if err = a.loadStarlark(); err != nil {
 		return false, err
 	}
 
 	// Parse HTML templates
-	a.template, err = a.fs.ParseFS(a.config.Routing.TemplateLocations...)
-	if err != nil {
+	if a.template, err = a.fs.ParseFS(a.Config.Routing.TemplateLocations...); err != nil {
 		return false, err
 	}
 	a.initialized = true
+
+	if a.IsDev || a.AutoReload {
+		a.notifyClients()
+	}
 	return true, nil
 }
 
+func (a *App) generateHeaderFragment() error {
+	headerContents := `
+		<script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
+	`
+
+	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
+		headerContents += `
+		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+		`
+	}
+
+	if a.IsDev || a.AutoReload {
+		headerContents += `
+		<div id="reload_listener" hx-ext="sse" sse-connect="{{ print .Path "/_clace/sse"}}" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
+		<script>
+		document.getElementById('reload_listener').addEventListener('sse:clace_reload', function (event) {
+			location.reload();
+		});
+		</script>
+		`
+	}
+
+	tmpl, err := template.New("header").Parse(headerContents)
+	if err != nil {
+		return err
+	}
+
+	buf := &bytes.Buffer{}
+	if err = tmpl.Execute(buf, a); err != nil {
+		return err
+	}
+
+	newHeader := buf.Bytes()
+	if !bytes.Equal(newHeader, a.headerFileContents) {
+		// The header contents have changed, recreate it. Since reload creates the header file,
+		// and updating the file causes the FS watcher to call reload, we have to make sure the
+		// file is updated only if there is an actual content change
+		if err := a.fs.Write(HEADER_FILE_NAME, newHeader); err != nil {
+			return err
+		}
+		a.headerFileContents = newHeader
+	}
+	return nil
+}
+
 func (a *App) saveLockFile() error {
-	buf, err := json.MarshalIndent(a.config, "", "  ")
+	buf, err := json.MarshalIndent(a.Config, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -181,4 +243,69 @@ func (a *App) startWatcher() error {
 	}
 
 	return nil
+}
+
+func (a *App) addSSEClient(newChan chan SSEMessage) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sseListeners = append(a.sseListeners, newChan)
+}
+
+func (a *App) removeSSEClient(newChan chan SSEMessage) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i, ch := range a.sseListeners {
+		if ch == newChan {
+			a.sseListeners = append(a.sseListeners[:i], a.sseListeners[i+1:]...)
+			break
+		}
+	}
+}
+
+func (a *App) notifyClients() {
+	for _, ch := range a.sseListeners {
+		ch <- SSEMessage{
+			event: "clace_reload",
+			data:  "App reloaded after file change",
+		}
+	}
+}
+
+func (a *App) sseHandler(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	messageChan := make(chan SSEMessage)
+	a.addSSEClient(messageChan)
+
+	//keeping the connection alive with keep-alive protocol
+	keepAliveTickler := time.NewTicker(15 * time.Second)
+	notify := r.Context().Done()
+
+	//listen to signal to close and unregister
+	go func() {
+		<-notify
+		a.removeSSEClient(messageChan)
+		keepAliveTickler.Stop()
+	}()
+
+	for {
+		select {
+		case appMessage := <-messageChan:
+			fmt.Fprintf(w, "event: %s\n", appMessage.event)
+			fmt.Fprintf(w, "data: %s\n\n", appMessage.data)
+			flusher.Flush()
+		case <-keepAliveTickler.C:
+			fmt.Fprintf(w, "event:keepalive\n\n")
+			flusher.Flush()
+		}
+	}
 }

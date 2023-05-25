@@ -71,7 +71,9 @@ type AppEntry struct {
 	Domain     string     `json:"domain"`
 	SourceUrl  string     `json:"source_url"`
 	FsPath     string     `json:"fs_path"`
-	FsRefresh  bool       `json:"fs_refresh"`
+	IsDev      bool       `json:"is_dev"`
+	AutoSync   bool       `json:"auto_sync"`
+	AutoReload bool       `json:"auto_reload"`
 	UserID     string     `json:"user_id"`
 	CreateTime *time.Time `json:"create_time"`
 	UpdateTime *time.Time `json:"update_time"`

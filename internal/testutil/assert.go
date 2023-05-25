@@ -11,7 +11,8 @@ import (
 func AssertEqualsString(tb testing.TB, msg, want, got string) {
 	tb.Helper()
 	if want != got {
-		tb.Errorf("%s want <%s> got <%s>", msg, want, got)
+		tb.Errorf("%s want <%s> length %d, got <%s> length %d",
+			msg, want, len(want), got, len(got))
 	}
 }
 

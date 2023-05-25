@@ -204,7 +204,9 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	appEntry.Path = appPath
 	appEntry.Domain = domain
 	appEntry.SourceUrl = appRequest.SourceUrl
-	appEntry.FsRefresh = appRequest.FsRefresh
+	appEntry.IsDev = appRequest.IsDev
+	appEntry.AutoSync = appRequest.AutoSync
+	appEntry.AutoReload = appRequest.AutoReload
 
 	_, err = h.server.AddApp(&appEntry)
 	if err != nil {

@@ -11,6 +11,7 @@ type AppConfig struct {
 
 type RouteConfig struct {
 	TemplateLocations []string `json:"template_locations"`
+	PushEvents        bool     `json:"push_events"`
 }
 
 type HtmxConfig struct {
@@ -30,6 +31,7 @@ func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Routing: RouteConfig{
 			TemplateLocations: templateDefault,
+			PushEvents:        false,
 		},
 		Htmx: HtmxConfig{
 			Version: "1.9.2",

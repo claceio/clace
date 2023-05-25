@@ -27,7 +27,9 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain to add the app to", ""))
-	flags = append(flags, newBoolFlag("refresh", "", "Whether to auto refresh the app", true))
+	flags = append(flags, newBoolFlag("is_dev", "", "Is the application in development mode", false))
+	flags = append(flags, newBoolFlag("auto_sync", "", "Whether to automatically sync the application code", false))
+	flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
 
 	return &cli.Command{
 		Name:      "create",
@@ -48,8 +50,10 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 			}
 
 			body := utils.CreateAppRequest{
-				SourceUrl: cCtx.Args().Get(1),
-				FsRefresh: cCtx.Bool("refresh"),
+				SourceUrl:  cCtx.Args().Get(1),
+				IsDev:      cCtx.Bool("is_dev"),
+				AutoSync:   cCtx.Bool("auto_sync"),
+				AutoReload: cCtx.Bool("auto_reload"),
 			}
 			resp := make(map[string]any)
 			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &resp)

@@ -48,7 +48,6 @@ func (f *AppTestFS) Glob(pattern string) ([]string, error) {
 	for name := range f.fileData {
 		if matched, _ := path.Match(pattern, name); matched {
 			matchedFiles = append(matchedFiles, name)
-			break
 		}
 	}
 
@@ -193,4 +192,47 @@ def handler(req):
 
 	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
+}
+
+func TestAppHeader(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+app = clace.app("testApp", pages = [clace.page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html": `Template contents {{template "clace_header.go.html"}}.`,
+	}}
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	a.IsDev = true
+	err := a.Initialize()
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `Template contents 
+	<script src="https://unpkg.com/htmx.org@1.9.2"></script>
+
+	<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+	
+	<div id="reload_listener" hx-ext="sse" sse-connect="/test/_clace/sse" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
+	<script>
+	document.getElementById('reload_listener').addEventListener('sse:clace_reload', function (event) {
+		location.reload();
+	});
+	</script>
+	.`
+	want = strings.ReplaceAll(want, "\r", "")
+	want = strings.ReplaceAll(want, "\t", "")
+
+	got := strings.ReplaceAll(response.Body.String(), "\r", "")
+	got = strings.ReplaceAll(got, "\t", "")
+	testutil.AssertEqualsString(t, "body", want, got)
 }
