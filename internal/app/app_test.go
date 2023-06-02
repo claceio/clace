@@ -100,11 +100,36 @@ app = clace.app("testApp", pages = [clace.page("/")])`,
 	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")
 }
 
+func TestAppPages(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `app = clace.app("testApp")`,
+	}}
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	err := a.Initialize()
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+	testFS = &AppTestFS{fileData: map[string]string{
+		"app.star": `app = clace.app("testApp", pages = 2)`,
+	}}
+	a = NewApp(testFS, logger, createAppEntry("/test"))
+	err = a.Initialize()
+	testutil.AssertErrorContains(t, err, "got int, want list")
+
+	testFS = &AppTestFS{fileData: map[string]string{
+		"app.star": `app = clace.app("testApp", pages = ["abc"])`,
+	}}
+	a = NewApp(testFS, logger, createAppEntry("/test"))
+	err = a.Initialize()
+	testutil.AssertErrorContains(t, err, "pages entry 0 is not a struct")
+}
+
 func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -194,15 +219,15 @@ def handler(req):
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
-func TestAppHeader(t *testing.T) {
+func TestAppHeaderCustom(t *testing.T) {
 	logger := testutil.TestLogger()
 	testFS := &AppTestFS{fileData: map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"index.go.html": `Template contents {{template "clace_header.go.html"}}.`,
+		"index.go.html": `Template contents {{template "clace_gen.go.html"}}.`,
 	}}
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	a.IsDev = true
@@ -217,24 +242,83 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents 
+	want := `Template contents
 	<script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    
 	<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-	
-	<div id="cl_reload_listener" hx-ext="sse" sse-connect="/test/_clace/sse" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
-	 <script>
-	   document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
-	     function (event) {
-	        location.reload();
-	     });
-	 </script>
-	 .`
-	want = strings.ReplaceAll(want, "\r", "")
-	want = strings.ReplaceAll(want, "\t", "")
-	want = strings.ReplaceAll(want, " ", "")
 
-	got := strings.ReplaceAll(response.Body.String(), "\r", "")
-	got = strings.ReplaceAll(got, "\t", "")
-	got = strings.ReplaceAll(got, " ", "")
+
+
+	<div id="cl_reload_listener" hx-ext="sse" 
+		 sse-connect="/test/_clace/sse" sse-swap="clace_reload"
+		 hx-trigger="sse:clace_reload"></div>
+	<script>
+		document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+			function (event) {
+				location.reload();
+			});
+	</script>
+
+    .`
+	// remove all spaces before comparing
+	want = strings.Join(strings.Fields(want), "")
+	got := strings.Join(strings.Fields(response.Body.String()), "")
+	testutil.AssertEqualsString(t, "body", want, got)
+}
+
+func TestAppHeaderDefault(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+app = clace.app("testApp", pages = [clace.page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+	}}
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	a.IsDev = true
+	err := a.Initialize()
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+
+<body>
+  
+        <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    
+        <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    
+
+    
+        <div id="cl_reload_listener" hx-ext="sse" 
+             sse-connect="/test/_clace/sse" sse-swap="clace_reload"
+             hx-trigger="sse:clace_reload"></div>
+        <script>
+            document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+                function (event) {
+                    location.reload();
+                });
+        </script>
+    
+  <h1>Clace : testApp</h1>
+  </body>`
+	// remove all spaces before comparing
+	want = strings.Join(strings.Fields(want), "")
+	got := strings.Join(strings.Fields(response.Body.String()), "")
 	testutil.AssertEqualsString(t, "body", want, got)
 }

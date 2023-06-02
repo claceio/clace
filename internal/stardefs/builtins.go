@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	DEFAULT_LAYOUT        = "default"
-	DEFAULT_TMPL_FILE     = "index.go.html"
 	DEFAULT_MODULE        = "clace"
 	APP                   = "app"
 	PAGE                  = "page"
@@ -28,16 +26,14 @@ var (
 )
 
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var name, layout starlark.String
+	var customLayout starlark.Bool
+	var name starlark.String
 	var pages *starlark.List
 	var settings *starlark.Dict
-	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "layout?", &layout, "pages?", &pages, "settings?", &settings); err != nil {
+	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "custom_layout?", &customLayout, "pages?", &pages, "settings?", &settings); err != nil {
 		return nil, err
 	}
 
-	if layout == "" {
-		layout = DEFAULT_LAYOUT
-	}
 	if pages == nil {
 		pages = starlark.NewList([]starlark.Value{})
 	}
@@ -46,10 +42,10 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	}
 
 	fields := starlark.StringDict{
-		"name":     name,
-		"layout":   layout,
-		"pages":    pages,
-		"settings": settings,
+		"name":          name,
+		"custom_layout": customLayout,
+		"pages":         pages,
+		"settings":      settings,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
@@ -65,9 +61,6 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 
 	if method == "" {
 		method = "GET"
-	}
-	if html == "" {
-		html = DEFAULT_TMPL_FILE
 	}
 	if fragments == nil {
 		fragments = starlark.NewList([]starlark.Value{})
@@ -93,6 +86,10 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		return nil, err
 	}
 
+	if method == "" {
+		method = "GET"
+	}
+
 	fields := starlark.StringDict{
 		"path":   path,
 		"block":  block,
@@ -101,9 +98,6 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	}
 	if handler != nil {
 		fields["handler"] = handler
-	}
-	if method == "" {
-		method = "GET"
 	}
 	return starlarkstruct.FromStringDict(starlark.String(FRAGMENT), fields), nil
 }

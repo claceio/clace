@@ -5,6 +5,7 @@ package app
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,30 +24,35 @@ import (
 )
 
 const (
-	APP_FILE_NAME         = "app.star"
-	APP_CONFIG_KEY        = "app"
-	DEFAULT_HANDLER       = "handler"
-	METHODS_DELIMITER     = ","
-	CONFIG_LOCK_FILE_NAME = "config.lock"
-	HEADER_FILE_NAME      = "clace_header.go.html"
-	PLUGIN_SUFFIX         = "plugin"
+	APP_FILE_NAME                   = "app.star"
+	APP_CONFIG_KEY                  = "app"
+	DEFAULT_HANDLER                 = "handler"
+	METHODS_DELIMITER               = ","
+	CONFIG_LOCK_FILE_NAME           = "config.lock"
+	PLUGIN_SUFFIX                   = "plugin"
+	DEFAULT_INDEX_TEMPLATE_FILE     = "index.go.html"
+	DEFAULT_GEN_INDEX_TEMPLATE_FILE = "index_gen.go.html"
+	GENERATED_IMPORT_FILE           = "clace_gen.go.html"
 )
 
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	name, layout       string
-	Config             *AppConfig
-	fs                 AppFS
-	mu                 sync.Mutex
-	initialized        bool
-	globals            starlark.StringDict
-	appDef             *starlarkstruct.Struct
-	appRouter          *chi.Mux
-	template           *template.Template
-	watcher            *fsnotify.Watcher
-	sseListeners       []chan SSEMessage
-	headerFileContents []byte
+	Name                  string
+	customLayout          bool
+	Config                *AppConfig
+	fs                    AppFS
+	mu                    sync.Mutex
+	initialized           bool
+	reloadError           error
+	globals               starlark.StringDict
+	appDef                *starlarkstruct.Struct
+	appRouter             *chi.Mux
+	template              *template.Template
+	watcher               *fsnotify.Watcher
+	sseListeners          []chan SSEMessage
+	generatedFileName     string
+	generatedFileContents []byte
 }
 
 type SSEMessage struct {
@@ -115,13 +121,13 @@ func (a *App) reload(force bool) (bool, error) {
 		json.Unmarshal(configData, a.Config)
 	}
 
-	// Generate the HTML header file clace.go.html
-	if err = a.generateHeaderFragment(); err != nil {
+	// Load Starlark config, AppConfig is updated with the settings contents
+	if err = a.loadStarlarkConfig(); err != nil {
 		return false, err
 	}
 
-	// Load Starlark config, AppConfig is updated with the settings contents
-	if err = a.loadStarlark(); err != nil {
+	// Create the generated HTML
+	if err = a.generateHTML(); err != nil {
 		return false, err
 	}
 
@@ -137,52 +143,39 @@ func (a *App) reload(force bool) (bool, error) {
 	return true, nil
 }
 
-func (a *App) generateHeaderFragment() error {
-	var headerContents, outputBuffer bytes.Buffer
-	headerContents.WriteString("\n")
-	headerContents.WriteString(
-		`<script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>`)
-	headerContents.WriteString("\n")
+//go:embed "clace.go.html"
+var embedHtml embed.FS
 
-	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
-		// Add the SSE htmx extension
-		headerContents.WriteString(
-			`<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>`)
-		headerContents.WriteString("\n")
-	}
-
-	if a.IsDev || a.AutoReload {
-		// Add an event listener looking for the clace_reload event
-		headerContents.WriteString("\n")
-		headerContents.WriteString(
-			`<div id="cl_reload_listener" hx-ext="sse" sse-connect="{{ print .Path "/_clace/sse"}}" sse-swap="clace_reload" hx-trigger="sse:clace_reload"></div>
-		<script>
-		    document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
-				function (event) {
-					location.reload();
-		        });
-		</script>
-		`)
-	}
-
-	tmpl, err := template.New("header").Parse(headerContents.String())
+func (a *App) generateHTML() error {
+	tmpl, err := template.New("header").ParseFS(embedHtml, "clace.go.html")
 	if err != nil {
 		return err
 	}
 
-	if err = tmpl.Execute(&outputBuffer, a); err != nil {
-		return err
-	}
-
-	newHeader := outputBuffer.Bytes()
-	if !bytes.Equal(newHeader, a.headerFileContents) {
-		// The header contents have changed, recreate it. Since reload creates the header file,
-		// and updating the file causes the FS watcher to call reload, we have to make sure the
-		// file is updated only if there is an actual content change
-		if err := a.fs.Write(HEADER_FILE_NAME, newHeader); err != nil {
+	var outputBuffer bytes.Buffer
+	var outputFile string
+	if a.customLayout {
+		if err = tmpl.ExecuteTemplate(&outputBuffer, "clace_gen_import", a); err != nil {
 			return err
 		}
-		a.headerFileContents = newHeader
+		outputFile = GENERATED_IMPORT_FILE
+	} else {
+		if err = tmpl.ExecuteTemplate(&outputBuffer, "clace.go.html", a); err != nil {
+			return err
+		}
+		outputFile = DEFAULT_GEN_INDEX_TEMPLATE_FILE
+	}
+
+	newContents := outputBuffer.Bytes()
+	if a.generatedFileName != outputFile || !bytes.Equal(newContents, a.generatedFileContents) {
+		// The header name of contents have changed, recreate it. Since reload creates the header
+		// file and updating the file causes the FS watcher to call reload, we have to make sure the
+		// file is updated only if there is an actual content change
+		if err := a.fs.Write(outputFile, newContents); err != nil {
+			return err
+		}
+		a.generatedFileName = outputFile
+		a.generatedFileContents = newContents
 	}
 	return nil
 }
@@ -198,6 +191,11 @@ func (a *App) saveLockFile() error {
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Info().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
+	if a.reloadError != nil {
+		a.Warn().Err(a.reloadError).Msg("Last reload had failed")
+		http.Error(w, a.reloadError.Error(), http.StatusInternalServerError)
+		return
+	}
 	a.appRouter.ServeHTTP(w, r)
 }
 
@@ -224,9 +222,12 @@ func (a *App) startWatcher() error {
 					return
 				}
 				a.Trace().Str("event", fmt.Sprint(event)).Msg("Received event")
-				if event.Has(fsnotify.Write) {
-					a.reload(true)
+				_, err := a.reload(true)
+				if err != nil {
+					a.Error().Err(err).Msg("Error reloading app")
 				}
+				a.reloadError = err
+				a.notifyClients()
 			case err, ok := <-a.watcher.Errors:
 				a.Error().Err(err).Msgf("Error in watcher error receiver")
 				if !ok {
@@ -256,11 +257,11 @@ func (a *App) addSSEClient(newChan chan SSEMessage) {
 	a.sseListeners = append(a.sseListeners, newChan)
 }
 
-func (a *App) removeSSEClient(newChan chan SSEMessage) {
+func (a *App) removeSSEClient(chanRemove chan SSEMessage) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for i, ch := range a.sseListeners {
-		if ch == newChan {
+		if ch == chanRemove {
 			a.sseListeners = append(a.sseListeners[:i], a.sseListeners[i+1:]...)
 			break
 		}
@@ -268,9 +269,10 @@ func (a *App) removeSSEClient(newChan chan SSEMessage) {
 }
 
 func (a *App) notifyClients() {
+	a.Trace().Msg("Notifying clients for reload")
 	reloadMessage := SSEMessage{
 		event: "clace_reload",
-		data:  "App reloaded after file change",
+		data:  "App reloaded after file updates",
 	}
 	for _, ch := range a.sseListeners {
 		ch <- reloadMessage

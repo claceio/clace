@@ -141,7 +141,7 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
-	appEntry.Id = utils.AppId(uuid.New().String())
+	appEntry.Id = "app_" + utils.AppId(uuid.New().String())
 	err := s.db.AddApp(appEntry)
 	if err != nil {
 		return nil, err

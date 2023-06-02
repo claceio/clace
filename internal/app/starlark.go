@@ -46,7 +46,7 @@ func (a *App) loader(_ *starlark.Thread, module string) (starlark.StringDict, er
 	return pluginDict, nil
 }
 
-func (a *App) loadStarlark() error {
+func (a *App) loadStarlarkConfig() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
 	buf, err := a.fs.ReadFile(APP_FILE_NAME)
@@ -83,12 +83,12 @@ func (a *App) loadStarlark() error {
 		return fmt.Errorf("%s not of type clace.app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
 	}
 
-	a.name, err = getStringAttr(a.appDef, "name")
+	a.Name, err = getStringAttr(a.appDef, "name")
 	if err != nil {
 		return err
 	}
 
-	a.layout, err = getStringAttr(a.appDef, "layout")
+	a.customLayout, err = getBoolAttr(a.appDef, "custom_layout")
 	if err != nil {
 		return err
 	}
@@ -142,8 +142,20 @@ func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
 	return vs.GoString(), nil
 }
 
-func (a *App) initRouter() error {
+func getBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return false, fmt.Errorf("error getting %s: %s", key, err)
+	}
+	var vb starlark.Bool
+	var ok bool
+	if vb, ok = v.(starlark.Bool); !ok {
+		return false, fmt.Errorf("%s is not a bool", key)
+	}
+	return bool(vb), nil
+}
 
+func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
 	if a.globals.Has(DEFAULT_HANDLER) {
 		defaultHandler, _ = a.globals[DEFAULT_HANDLER].(starlark.Callable)
@@ -156,27 +168,38 @@ func (a *App) initRouter() error {
 		return err
 	}
 
-	iter := pages.(*starlark.List).Iterate()
+	var ok bool
+	var pageList *starlark.List
+	if pageList, ok = pages.(*starlark.List); !ok {
+		return fmt.Errorf("pages is not a list")
+	}
+	iter := pageList.Iterate()
 	var val starlark.Value
+	count := -1
 	for iter.Next(&val) {
-		pageDef := val.(*starlarkstruct.Struct)
-		path, err := pageDef.Attr("path")
-		if err != nil {
+		count++
+		var pageDef *starlarkstruct.Struct
+		if pageDef, ok = val.(*starlarkstruct.Struct); !ok {
+			return fmt.Errorf("pages entry %d is not a struct", count)
+		}
+		var pathStr, htmlStr, methodStr string
+		if pathStr, err = getStringAttr(pageDef, "path"); err != nil {
 			return err
 		}
-		pathStr := path.(starlark.String).GoString()
+		if methodStr, err = getStringAttr(pageDef, "method"); err != nil {
+			return err
+		}
+		if htmlStr, err = getStringAttr(pageDef, "html"); err != nil {
+			return err
+		}
 
-		html, err := pageDef.Attr("html")
-		if err != nil {
-			return err
+		if htmlStr == "" {
+			if a.customLayout {
+				htmlStr = DEFAULT_INDEX_TEMPLATE_FILE
+			} else {
+				htmlStr = DEFAULT_GEN_INDEX_TEMPLATE_FILE
+			}
 		}
-		htmlStr := html.(starlark.String).GoString()
-
-		method, err := pageDef.Attr("method")
-		if err != nil {
-			return err
-		}
-		methodStr := method.(starlark.String).GoString()
 
 		handler, _ := pageDef.Attr("handler")
 		if handler == nil {
@@ -184,11 +207,18 @@ func (a *App) initRouter() error {
 			handler = defaultHandler
 		}
 		if handler == nil {
-			return fmt.Errorf("page %s has no handler, and no app level default handler function is specified", path)
+			return fmt.Errorf("page %s has no handler, and no app level default handler function is specified", pathStr)
 		}
-		handlerCallable := handler.(starlark.Callable)
+		var handlerCallable starlark.Callable
+		if handlerCallable, ok = handler.(starlark.Callable); !ok {
+			return fmt.Errorf("handler for page %s is not a function", pathStr)
+		}
 
 		routeHandler := a.createRouteHandler(pathStr, htmlStr, methodStr, handlerCallable)
+
+		if err = a.handleFragments(pageDef); err != nil {
+			return err
+		}
 		router.Route(pathStr, routeHandler)
 	}
 
@@ -198,6 +228,11 @@ func (a *App) initRouter() error {
 
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
+	return nil
+}
+
+func (a *App) handleFragments(page *starlarkstruct.Struct) error {
+	// TODO add fragment support
 	return nil
 }
 
