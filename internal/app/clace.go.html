@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+
+<body>
+  {{ block "clace_gen_import" .}}
+        <script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
+    {{ if or .IsDev .AutoReload .Config.Routing.PushEvents }}
+        <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    {{ end }}
+
+    {{ if or .IsDev .AutoReload }}
+        <div id="cl_reload_listener" hx-ext="sse" 
+             sse-connect="{{ print .Path "/_clace/sse"}}" sse-swap="clace_reload"
+             hx-trigger="sse:clace_reload"></div>
+        <script>
+            document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+                function (event) {
+                    location.reload();
+                });
+        </script>
+    {{ end }}
+  {{ end -}}
+
+  <h1>Clace : {{ .Name }}</h1>
+
+  {{- block "clace_gen_body" .}}
+  {{ end -}}
+
+</body>
