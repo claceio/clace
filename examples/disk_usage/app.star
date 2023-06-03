@@ -11,13 +11,9 @@ app = clace.app("Disk Usage",
 
 
 def handler(req):
-    print("In handler")
-    print("In handler", req)
-    
     args = ["-m", "-d", "1"]
     folder = req["Query"].get("folder")
     if folder and folder[0]:
-        print("folder ", folder)
         args.extend(folder)
     ret = exec.run("du", args)
     print(ret)
@@ -29,7 +25,7 @@ def handler(req):
     folders = sorted(folders, key=lambda x: x["Size"], reverse=True)
     folders = folders[:MAX_ENTRIES]
 
-    data = {"Parent": "sss", "Folders": folders}
+    data = {"Parent": folder, "Folders": folders}
     return data
 
 
