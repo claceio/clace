@@ -1,0 +1,26 @@
+{{block "clace_body" .}}
+
+<link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css" type="text/css">
+
+{{block "du_table_block" .}}
+  <div id="du_table">
+    du path {{.Data.Parent}}
+
+    <table >
+        <thead>
+            <th>Name</th>
+            <th>Size (MB)</th>
+        </thead>
+
+        {{ range .Data.Folders }}
+            <tr style='cursor: hand;' hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?folder={{.Folder}}" >
+                <td>{{ .Folder }}</td>
+                <td>{{ .Size }}</td>
+            </tr>
+        {{ end }}
+
+    </table>
+  </div>
+{{end}}
+
+{{end}}
