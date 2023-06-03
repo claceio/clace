@@ -7,6 +7,7 @@ package stardefs
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -206,6 +207,12 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 			}
 		}
 		v = starlark.NewList(elems)
+	case []string:
+		var elems = make([]starlark.Value, len(x))
+		for i, val := range x {
+			elems[i] = starlark.String(val)
+		}
+		v = starlark.NewList(elems)
 	case map[interface{}]interface{}:
 		dict := &starlark.Dict{}
 		var elem starlark.Value
@@ -233,6 +240,30 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 			if err != nil {
 				return
 			}
+			if err = dict.SetKey(starlark.String(key), elem); err != nil {
+				return
+			}
+		}
+		v = dict
+	case map[string]string:
+		dict := &starlark.Dict{}
+		var elem starlark.Value
+		for key, val := range x {
+			elem = starlark.String(val)
+			if err = dict.SetKey(starlark.String(key), elem); err != nil {
+				return
+			}
+		}
+		v = dict
+	case url.Values:
+		dict := &starlark.Dict{}
+		var elem starlark.Value
+		for key, val := range x {
+			elem, err = Marshal(val)
+			if err != nil {
+				return
+			}
+
 			if err = dict.SetKey(starlark.String(key), elem); err != nil {
 				return
 			}

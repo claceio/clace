@@ -36,3 +36,10 @@ func AssertErrorContains(tb testing.TB, err error, want string) {
 		tb.Errorf("expected error containing msg `%s`, got: `%s`", want, err.Error())
 	}
 }
+
+func AssertStringContains(tb testing.TB, str string, want string) {
+	tb.Helper()
+	if !strings.Contains(str, want) {
+		tb.Errorf("expected string containing msg `%s`, got: `%s`", want, str)
+	}
+}

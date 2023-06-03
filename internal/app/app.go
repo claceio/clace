@@ -24,35 +24,47 @@ import (
 )
 
 const (
-	APP_FILE_NAME                   = "app.star"
-	APP_CONFIG_KEY                  = "app"
-	DEFAULT_HANDLER                 = "handler"
-	METHODS_DELIMITER               = ","
-	CONFIG_LOCK_FILE_NAME           = "config.lock"
-	PLUGIN_SUFFIX                   = "plugin"
-	DEFAULT_INDEX_TEMPLATE_FILE     = "index.go.html"
-	DEFAULT_GEN_INDEX_TEMPLATE_FILE = "index_gen.go.html"
-	GENERATED_IMPORT_FILE           = "clace_gen.go.html"
+	APP_FILE_NAME         = "app.star"
+	APP_CONFIG_KEY        = "app"
+	DEFAULT_HANDLER       = "handler"
+	METHODS_DELIMITER     = ","
+	CONFIG_LOCK_FILE_NAME = "config.lock"
+	PLUGIN_SUFFIX         = "plugin"
+	INDEX_FILE            = "index.go.html"
+	INDEX_GEN_FILE        = "index_gen.go.html"
+	CLACE_GEN_FILE        = "clace_gen.go.html"
 )
+
+//go:embed index_gen.go.html clace_gen.go.html
+var embedHtml embed.FS
+var indexEmbed, claceGenEmbed []byte
+
+func init() {
+	var err error
+	if indexEmbed, err = embedHtml.ReadFile(INDEX_GEN_FILE); err != nil {
+		panic(err)
+	}
+	if claceGenEmbed, err = embedHtml.ReadFile(CLACE_GEN_FILE); err != nil {
+		panic(err)
+	}
+}
 
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	Name                  string
-	customLayout          bool
-	Config                *AppConfig
-	fs                    AppFS
-	mu                    sync.Mutex
-	initialized           bool
-	reloadError           error
-	globals               starlark.StringDict
-	appDef                *starlarkstruct.Struct
-	appRouter             *chi.Mux
-	template              *template.Template
-	watcher               *fsnotify.Watcher
-	sseListeners          []chan SSEMessage
-	generatedFileName     string
-	generatedFileContents []byte
+	Name         string
+	customLayout bool
+	Config       *AppConfig
+	fs           AppFS
+	mu           sync.Mutex
+	initialized  bool
+	reloadError  error
+	globals      starlark.StringDict
+	appDef       *starlarkstruct.Struct
+	appRouter    *chi.Mux
+	template     *template.Template
+	watcher      *fsnotify.Watcher
+	sseListeners []chan SSEMessage
 }
 
 type SSEMessage struct {
@@ -143,40 +155,24 @@ func (a *App) reload(force bool) (bool, error) {
 	return true, nil
 }
 
-//go:embed "clace.go.html"
-var embedHtml embed.FS
-
 func (a *App) generateHTML() error {
-	tmpl, err := template.New("header").ParseFS(embedHtml, "clace.go.html")
-	if err != nil {
-		return err
+	// The header name of contents have changed, recreate it. Since reload creates the header
+	// file and updating the file causes the FS watcher to call reload, we have to make sure the
+	// file is updated only if there is an actual content change
+	indexData, err := a.fs.ReadFile(INDEX_GEN_FILE)
+	if err != nil || !bytes.Equal(indexData, indexEmbed) {
+		if err := a.fs.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
+			return err
+		}
 	}
 
-	var outputBuffer bytes.Buffer
-	var outputFile string
-	if a.customLayout {
-		if err = tmpl.ExecuteTemplate(&outputBuffer, "clace_gen_import", a); err != nil {
+	claceGenData, err := a.fs.ReadFile(CLACE_GEN_FILE)
+	if err != nil || !bytes.Equal(claceGenData, claceGenEmbed) {
+		if err := a.fs.Write(CLACE_GEN_FILE, claceGenEmbed); err != nil {
 			return err
 		}
-		outputFile = GENERATED_IMPORT_FILE
-	} else {
-		if err = tmpl.ExecuteTemplate(&outputBuffer, "clace.go.html", a); err != nil {
-			return err
-		}
-		outputFile = DEFAULT_GEN_INDEX_TEMPLATE_FILE
 	}
 
-	newContents := outputBuffer.Bytes()
-	if a.generatedFileName != outputFile || !bytes.Equal(newContents, a.generatedFileContents) {
-		// The header name of contents have changed, recreate it. Since reload creates the header
-		// file and updating the file causes the FS watcher to call reload, we have to make sure the
-		// file is updated only if there is an actual content change
-		if err := a.fs.Write(outputFile, newContents); err != nil {
-			return err
-		}
-		a.generatedFileName = outputFile
-		a.generatedFileContents = newContents
-	}
 	return nil
 }
 

@@ -134,7 +134,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 def handler(req):
 	return {"key": "myvalue"}
 		`,
-		"index.go.html": `Template got {{ .key }}.`,
+		"index.go.html": `Template got {{ .Data.key }}.`,
 	}}
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
@@ -164,7 +164,7 @@ app = clace.app("testApp", pages = [clace.page("/", html="t1.tmpl")]
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"./templates/t1.tmpl": `Template got {{ .key }}.`,
+		"./templates/t1.tmpl": `Template got {{ .Data.key }}.`,
 		CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}}
 	a := NewApp(testFS, logger, createAppEntry("/test"))
@@ -242,24 +242,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents
-	<script src="https://unpkg.com/htmx.org@1.9.2"></script>
-    
-	<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-
-
-
-	<div id="cl_reload_listener" hx-ext="sse" 
-		 sse-connect="/test/_clace/sse" sse-swap="clace_reload"
-		 hx-trigger="sse:clace_reload"></div>
-	<script>
-		document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
-			function (event) {
-				location.reload();
-			});
-	</script>
-
-    .`
+	want := `Template contents <scriptsrc="https://unpkg.com/htmx.org@"></script>.`
 	// remove all spaces before comparing
 	want = strings.Join(strings.Fields(want), "")
 	got := strings.Join(strings.Fields(response.Body.String()), "")
@@ -287,38 +270,69 @@ def handler(req):
 
 	a.ServeHTTP(response, request)
 
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "no such template \"clace_body\"")
+}
+
+func TestAppHeaderDefaultWithBody(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := &AppTestFS{fileData: map[string]string{
+		"app.star": `
+app = clace.app("testApp", pages = [clace.page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"app.go.html": `{{block "clace_body" .}}ABC{{end}}`}}
+
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	a.IsDev = true
+	err := a.Initialize()
+	if err != nil {
+		t.Errorf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `
-<!DOCTYPE html>
-<html lang="en">
+	want := `<!DOCTYPE html>
+	<html lang="en">
+	
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+	
+	<body>
+	  
+		<script src="https://unpkg.com/htmx.org@1.9.2"></script>
+		
+		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+		
+	
+		
+		<div id="cl_reload_listener" hx-ext="sse" 
+			sse-connect="/test/_clace/sse" sse-swap="clace_reload"
+			hx-trigger="sse:clace_reload"></div>
+		<script>
+			document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+				function (event) {
+					location.reload();
+				});
+		</script>
+		
+	
+	
+	  <h1> Clace: testApp</h1>
+	
+	  ABC
+	  
+	</body>`
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-
-<body>
-  
-        <script src="https://unpkg.com/htmx.org@1.9.2"></script>
-    
-        <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-    
-
-    
-        <div id="cl_reload_listener" hx-ext="sse" 
-             sse-connect="/test/_clace/sse" sse-swap="clace_reload"
-             hx-trigger="sse:clace_reload"></div>
-        <script>
-            document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
-                function (event) {
-                    location.reload();
-                });
-        </script>
-    
-  <h1>Clace : testApp</h1>
-  </body>`
-	// remove all spaces before comparing
-	want = strings.Join(strings.Fields(want), "")
-	got := strings.Join(strings.Fields(response.Body.String()), "")
+	// remove all extra spaces before comparing
+	want = strings.Join(strings.Fields(want), " ")
+	got := strings.Join(strings.Fields(response.Body.String()), " ")
 	testutil.AssertEqualsString(t, "body", want, got)
 }

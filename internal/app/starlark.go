@@ -161,6 +161,9 @@ func (a *App) initRouter() error {
 		defaultHandler, _ = a.globals[DEFAULT_HANDLER].(starlark.Callable)
 	}
 	router := chi.NewRouter()
+	if err := a.createInternalRoutes(router); err != nil {
+		return err
+	}
 
 	// Iterate through all the pages
 	pages, err := a.appDef.Attr("pages")
@@ -182,7 +185,7 @@ func (a *App) initRouter() error {
 		if pageDef, ok = val.(*starlarkstruct.Struct); !ok {
 			return fmt.Errorf("pages entry %d is not a struct", count)
 		}
-		var pathStr, htmlStr, methodStr string
+		var pathStr, htmlStr, blockStr, methodStr string
 		if pathStr, err = getStringAttr(pageDef, "path"); err != nil {
 			return err
 		}
@@ -192,12 +195,15 @@ func (a *App) initRouter() error {
 		if htmlStr, err = getStringAttr(pageDef, "html"); err != nil {
 			return err
 		}
+		if blockStr, err = getStringAttr(pageDef, "block"); err != nil {
+			return err
+		}
 
 		if htmlStr == "" {
 			if a.customLayout {
-				htmlStr = DEFAULT_INDEX_TEMPLATE_FILE
+				htmlStr = INDEX_FILE
 			} else {
-				htmlStr = DEFAULT_GEN_INDEX_TEMPLATE_FILE
+				htmlStr = INDEX_GEN_FILE
 			}
 		}
 
@@ -214,18 +220,15 @@ func (a *App) initRouter() error {
 			return fmt.Errorf("handler for page %s is not a function", pathStr)
 		}
 
-		routeHandler := a.createRouteHandler(pathStr, htmlStr, methodStr, handlerCallable)
-
+		routeHandler := a.createRouteHandler(htmlStr, blockStr, handlerCallable)
 		if err = a.handleFragments(pageDef); err != nil {
 			return err
 		}
-		router.Route(pathStr, routeHandler)
+		a.Trace().Msgf("Adding route <%s>", pathStr)
+		router.Method(methodStr, pathStr, routeHandler)
 	}
 
-	if err = a.createInternalRoutes(router); err != nil {
-		return err
-	}
-
+	a.Trace().Msgf("Mounting route %s", a.Path)
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
 	return nil
@@ -244,14 +247,46 @@ func (a *App) createInternalRoutes(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) createRouteHandler(path, html, method string, handler starlark.Callable) func(r chi.Router) {
+func (a *App) createRouteHandler(html, block string, handler starlark.Callable) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
 			Name:  a.Path,
 			Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 		}
 
-		ret, err := starlark.Call(thread, handler, starlark.Tuple{starlark.None}, nil)
+		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
+
+		requestData := map[string]interface{}{
+			"Name":       a.Name,
+			"Path":       a.Path,
+			"IsDev":      a.IsDev,
+			"AutoReload": a.AutoReload,
+			"IsHtmx":     isHtmxRequest,
+		}
+
+		chiContext := chi.RouteContext(r.Context())
+		params := map[string]string{}
+		if chiContext != nil && chiContext.URLParams.Keys != nil {
+			for i, k := range chiContext.URLParams.Keys {
+				params[k] = chiContext.URLParams.Values[i]
+			}
+		}
+		requestData["UrlParams"] = params
+
+		r.ParseForm()
+		requestData["Form"] = r.Form
+		requestData["Query"] = r.URL.Query()
+		requestData["PostForm"] = r.PostForm
+
+		dataStarlark, err := stardefs.Marshal(requestData)
+		if err != nil {
+			a.Error().Err(err).Msg("error converting request data")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		a.Trace().Msgf("Calling handler %s %s", handler.Name(), dataStarlark.String())
+
+		ret, err := starlark.Call(thread, handler, starlark.Tuple{dataStarlark}, nil)
 		if err != nil {
 			a.Error().Err(err).Msg("error calling handler")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -266,15 +301,20 @@ func (a *App) createRouteHandler(path, html, method string, handler starlark.Cal
 			return
 		}
 
-		err = a.template.ExecuteTemplate(w, html, value)
+		requestData["Data"] = value
+		requestData["Config"] = a.Config
+		if isHtmxRequest && block != "" {
+			a.Trace().Msgf("Rendering block %s", block)
+			err = a.template.ExecuteTemplate(w, block, requestData)
+		} else {
+			a.Trace().Msgf("Rendering page %s", html)
+			err = a.template.ExecuteTemplate(w, html, requestData)
+		}
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-
-	retFunc := func(r chi.Router) {
-		r.Method(method, path, http.HandlerFunc(goHandler))
-	}
-	return retFunc
+	return goHandler
 }
