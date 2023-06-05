@@ -147,7 +147,7 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 		return nil, err
 	}
 
-	application, err := s.createApp(appEntry, false)
+	application, err := s.createApp(appEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 	return application, nil
 }
 
-func (s *Server) createApp(appEntry *utils.AppEntry, init bool) (*app.App, error) {
+func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 
@@ -168,13 +168,6 @@ func (s *Server) createApp(appEntry *utils.AppEntry, init bool) (*app.App, error
 	fs := app.NewAppFSImpl(path)
 	application := app.NewApp(fs, &appLogger, appEntry)
 
-	// Initialize the app
-	if init {
-		s.Trace().Msg("Initializing app")
-		if err := application.Initialize(); err != nil {
-			return nil, fmt.Errorf("error initializing app: %w", err)
-		}
-	}
 	return application, nil
 }
 
@@ -187,11 +180,16 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 			return nil, err
 		}
 
-		application, err = s.createApp(appEntry, init)
+		application, err = s.createApp(appEntry)
 		if err != nil {
 			return nil, err
 		}
 		s.apps.AddApp(application)
+	}
+
+	// Initialize the app
+	if err := application.Initialize(); err != nil {
+		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
 
 	return application, nil

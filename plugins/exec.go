@@ -115,7 +115,6 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 
 	cmd := exec.Command(pathStr, argsList...)
 	cmd.Env = envList
-	cmd.Stderr = nil
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
