@@ -5,9 +5,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/claceio/clace/internal/app"
@@ -207,8 +209,8 @@ func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
 	return nil
 }
 
-func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, path, domain string) {
-	app, err := s.GetApp(utils.CreateAppPathDomain(path, domain), true)
+func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, pathDomain utils.AppPathDomain) {
+	app, err := s.GetApp(pathDomain, true)
 	if err != nil {
 		s.Error().Err(err).Msg("error getting App")
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -216,4 +218,76 @@ func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, path, domain s
 	}
 
 	app.ServeHTTP(w, r)
+}
+
+func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppPathDomain, error) {
+	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
+	var pathDomain utils.AppPathDomain
+	pathDomains, err := s.db.GetAllApps()
+	if err != nil {
+		return pathDomain, err
+	}
+	matchPath = normalizePath(matchPath)
+
+	// Find unique domains
+	domainMap := map[string]bool{}
+	for _, path := range pathDomains {
+		if !domainMap[path.Domain] {
+			domainMap[path.Domain] = true
+			// TODO : cache domain list
+		}
+	}
+
+	// Check if host header matches a known domain
+	checkDomain := false
+	if hostHeader != "" && domainMap[hostHeader] {
+		s.Trace().Msgf("Matched domain %s", hostHeader)
+		checkDomain = true
+	}
+
+	for _, entry := range pathDomains {
+		if checkDomain && entry.Domain != hostHeader {
+			continue
+		}
+
+		if strings.HasPrefix(matchPath, entry.Path) {
+			if len(entry.Path) == 1 || len(entry.Path) == len(matchPath) || matchPath[len(entry.Path)] == '/' {
+				s.Debug().Msgf("Matched app %s for path %s", entry, matchPath)
+				return entry, nil
+			}
+		}
+	}
+
+	return pathDomain, errors.New("no matching app found")
+}
+
+func (s *Server) MatchAppForDomain(domain, matchPath string) (string, error) {
+	paths, err := s.db.GetAppsForDomain(domain)
+	if err != nil {
+		return "", err
+	}
+	matchPath = normalizePath(matchPath)
+	matchedApp := ""
+	for _, path := range paths {
+		s.Trace().Msgf("MatchAppForDomain %s %s %t", path, matchPath, strings.HasPrefix(matchPath, path))
+		// If /test is in use, do not allow /test/other
+		if strings.HasPrefix(matchPath, path) {
+			if len(path) == 1 || len(path) == len(matchPath) || matchPath[len(path)] == '/' {
+				matchedApp = path
+				s.Debug().Msgf("Matched app %s for path %s", matchedApp, matchPath)
+				break
+			}
+		}
+
+		// If /test/other is in use, do not allow /test
+		if strings.HasPrefix(path, matchPath) {
+			if len(matchPath) == 1 || len(path) == len(matchPath) || path[len(matchPath)] == '/' {
+				matchedApp = path
+				s.Debug().Msgf("Matched app %s for path %s", matchedApp, matchPath)
+				break
+			}
+		}
+	}
+
+	return matchedApp, nil
 }

@@ -129,7 +129,7 @@ func (m *Metadata) DeleteApp(pathDomain utils.AppPathDomain) error {
 	return nil
 }
 
-func (m *Metadata) GetAllApps(domain string) ([]string, error) {
+func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 	stmt, err := m.db.Prepare(`select path from apps where domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
@@ -148,4 +148,25 @@ func (m *Metadata) GetAllApps(domain string) ([]string, error) {
 		paths = append(paths, path)
 	}
 	return paths, nil
+}
+
+func (m *Metadata) GetAllApps() ([]utils.AppPathDomain, error) {
+	stmt, err := m.db.Prepare(`select domain, path from apps`)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, fmt.Errorf("error querying apps: %w", err)
+	}
+	pathDomains := make([]utils.AppPathDomain, 0)
+	for rows.Next() {
+		var path, domain string
+		err = rows.Scan(&domain, &path)
+		if err != nil {
+			return nil, fmt.Errorf("error querying apps: %w", err)
+		}
+		pathDomains = append(pathDomains, utils.CreateAppPathDomain(path, domain))
+	}
+	return pathDomains, nil
 }

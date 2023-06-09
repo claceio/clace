@@ -55,7 +55,7 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 
 	router.Use(handler.createAuthMiddleware)
 	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
-	router.Get("/*", handler.matchApp)
+	router.Get("/*", handler.callApp)
 	return handler
 }
 
@@ -95,45 +95,39 @@ func (h *Handler) basicAuthFailed(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
-func (h *Handler) matchApp(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 	h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
 
-	// TODO : handle domain based routing
-	domain := ""
-	paths, err := h.server.db.GetAllApps(domain)
+	domain := r.Host
+	if strings.Contains(domain, ":") {
+		domain = strings.Split(domain, ":")[0]
+	}
+	matchedApp, err := h.server.MatchApp(domain, r.URL.Path)
 	if err != nil {
-		h.Error().Err(err).Msg("Error getting apps")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	requestPath := strings.TrimRight(r.URL.Path, "/")
-	matchedPath := ""
-	for _, path := range paths {
-		if strings.HasPrefix(requestPath, path) {
-			if len(path) == len(requestPath) || requestPath[len(path)] == '/' {
-				h.Info().Str("path", path).Msg("Matched app")
-				matchedPath = path
-				break
-			}
-		}
-	}
-
-	if matchedPath == "" {
-		h.Error().Msg("No app matched request")
+		h.Error().Err(err).Str("path", r.URL.Path).Msg("No app matched request")
 		http.Error(w, "No matching app found", http.StatusNotFound)
 		return
 	}
 
-	h.server.serveApp(w, r, matchedPath, domain)
+	h.server.serveApp(w, r, matchedApp)
 }
 
 func (h *Handler) serveInternal() http.Handler {
 	r := chi.NewRouter()
+	r.Get("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.getApp)
+	}))
 	r.Get("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.getApp)
 	}))
+	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.createApp)
+	}))
 	r.Post("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.createApp)
+	}))
+	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.deleteApp)
 	}))
 	r.Delete("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.deleteApp)
@@ -144,6 +138,9 @@ func (h *Handler) serveInternal() http.Handler {
 func normalizePath(path string) string {
 	if len(path) == 0 || path[0] != '/' {
 		path = "/" + path
+	}
+	if len(path) > 1 {
+		path = strings.TrimRight(path, "/")
 	}
 	return path
 }
@@ -195,8 +192,18 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	domain := r.URL.Query().Get("domain")
 
 	appPath = normalizePath(appPath)
+	matchedApp, err := h.server.MatchAppForDomain(domain, appPath)
+	if err != nil {
+		return nil, utils.CreateRequestError(
+			fmt.Sprintf("error matching app: %s", err), http.StatusInternalServerError)
+	}
+	if matchedApp != "" {
+		return nil, utils.CreateRequestError(
+			fmt.Sprintf("App already exists at %s", matchedApp), http.StatusBadRequest)
+	}
+
 	var appRequest utils.CreateAppRequest
-	err := json.NewDecoder(r.Body).Decode(&appRequest)
+	err = json.NewDecoder(r.Body).Decode(&appRequest)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

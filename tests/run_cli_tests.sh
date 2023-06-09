@@ -8,6 +8,8 @@ rm -rf clace.db
 export CL_HOME=.
 unset CL_CONFIG_FILE
 
+export VERBOSE="--verbose"
+
 trap "error_handler" ERR
 
 error_handler () {
@@ -43,9 +45,9 @@ echo "admin_password = \"qwerty\"" > clace.toml
 
 export CL_CONFIG_FILE=clace.toml
 
-../clace server start &
+../clace server start -l trace &
 sleep 2
-commander test --dir ./commander/
+commander test $VERBOSE --dir ./commander/
 
 echo $?
 
