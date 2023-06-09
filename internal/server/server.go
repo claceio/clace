@@ -247,6 +247,12 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppPathDomain, er
 
 	for _, entry := range pathDomains {
 		if checkDomain && entry.Domain != hostHeader {
+			// Request uses domain, but app is not for this domain
+			continue
+		}
+
+		if !checkDomain && entry.Domain != "" {
+			// Request does not use domain, but app is for a domain
 			continue
 		}
 

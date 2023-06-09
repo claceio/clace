@@ -16,37 +16,37 @@ tests:
       line-count: 0
     stderr: "App created /disk_usage_prod : app_"
     exit-code: 0
-  # test004: # test dev app 
-  #   command: curl -su "admin:qwerty" localhost:25223/disk_usage_devxxxx
-  #   stderr: 
-  #     line-count: 0
-  #   stdout: "Disk Usage"
-  #   exit-code: 0
-  # test005: # test prod app
-  #   command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
-  #   stderr: 
-  #     line-count: 0
-  #   stdout: "Disk Usage"
-  #   exit-code: 0
-  # test006: # Update app code
-  #   command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
-  # test007: # with --is_dev, changes are picked up immediately
-  #   command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
-  #   stderr: 
-  #     line-count: 0
-  #   stdout: "DiskTest Usage"
-  #   exit-code: 0
-  # test008: # without --is_dev, changes are not picked up
-  #   command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
-  #   stderr: 
-  #     line-count: 0
-  #   stdout: "Disk Usage"
-  #   exit-code: 0
-  # test009: # Create app with invalid path
-  #   command: ../clace app create /disk_usage_dev/ ./disk_usage
-  #   stdout: 
-  #     line-count: 0
-  #   stderr: "App created /disk_usage_prod : app_"
-  #   exit-code: 1
-  # test013: # cleanup
-  #   command: rm -rf ./disk_usage
+  test004: # test dev app 
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    stderr: 
+      line-count: 0
+    stdout: "Disk Usage"
+    exit-code: 0
+  test005: # test prod app
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
+    stderr: 
+      line-count: 0
+    stdout: "Disk Usage"
+    exit-code: 0
+  test006: # Update app code
+    command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
+  test007: # with --is_dev, changes are picked up immediately
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    stderr: 
+      line-count: 0
+    stdout: "DiskTest Usage"
+    exit-code: 0
+  test008: # without --is_dev, changes are not picked up
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
+    stderr: 
+      line-count: 0
+    stdout: "Disk Usage"
+    exit-code: 0
+  test009: # Create app with duplicate path
+    command: ../clace app create /disk_usage_dev/ ./disk_usage
+    stdout: 
+      line-count: 0
+    stderr: "error: App already exists at /disk_usage_dev"
+    exit-code: 1
+  test013: # cleanup
+    command: rm -rf ./disk_usage

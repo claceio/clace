@@ -18,7 +18,6 @@ def handler(req):
         parent = folder[0]
         args.extend(folder)
     ret = exec.run("du", args)
-    print(ret)
     if ret.exit_code != 0:
         print ("Failed to run du " + ret.stderr + ret.error)
         return {"Error": "Failed to run du " + ret.stderr + ret.error}
