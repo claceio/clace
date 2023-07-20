@@ -242,11 +242,8 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents <scriptsrc="https://unpkg.com/htmx.org@"></script>.`
-	// remove all spaces before comparing
-	want = strings.Join(strings.Fields(want), "")
-	got := strings.Join(strings.Fields(response.Body.String()), "")
-	testutil.AssertEqualsString(t, "body", want, got)
+	want := `Template contents <script src="https://unpkg.com/htmx.org@"></script> .`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
 
 func TestAppHeaderDefault(t *testing.T) {
@@ -303,15 +300,12 @@ def handler(req):
 	<head>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>testApp</title> 
 	</head>
 	
 	<body>
-	  
 		<script src="https://unpkg.com/htmx.org@1.9.2"></script>
-		
 		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-		
-	
 		
 		<div id="cl_reload_listener" hx-ext="sse" 
 			sse-connect="/test/_clace/sse" sse-swap="clace_reload"
@@ -322,17 +316,10 @@ def handler(req):
 					location.reload();
 				});
 		</script>
-		
-	
 	
 	  <h1> Clace: testApp</h1>
-	
 	  ABC
-	  
 	</body>`
 
-	// remove all extra spaces before comparing
-	want = strings.Join(strings.Fields(want), " ")
-	got := strings.Join(strings.Fields(response.Body.String()), " ")
-	testutil.AssertEqualsString(t, "body", want, got)
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }

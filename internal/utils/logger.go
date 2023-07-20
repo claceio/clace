@@ -48,8 +48,8 @@ func NewLogger(config *LogConfig) *Logger {
 	}
 
 	logger := zerolog.New(mw).Level(logLevel).With().Caller().Timestamp().Logger()
-	logger.Info().Str("level", logger.GetLevel().String()).Int("maxSizeMB",
-		config.MaxSizeMB).Int("backups", config.MaxBackups).Msg("Logger initialized")
+	logger.Info().Str("loglevel", logger.GetLevel().String()).Int("maxSizeMB",
+		config.MaxSizeMB).Int("backups", config.MaxBackups).Msg("Logger initialized ")
 	return &Logger{&logger}
 }
 

@@ -16,6 +16,18 @@ func AssertEqualsString(tb testing.TB, msg, want, got string) {
 	}
 }
 
+// AssertStringMatch matches strings after removing extra spaces
+func AssertStringMatch(tb testing.TB, msg, want, got string) {
+	want = strings.Join(strings.Fields(want), " ")
+	got = strings.Join(strings.Fields(got), " ")
+
+	tb.Helper()
+	if want != got {
+		tb.Errorf("%s want <%s> length %d, got <%s> length %d",
+			msg, want, len(want), got, len(got))
+	}
+}
+
 func AssertEqualsInt(tb testing.TB, msg string, want, got int) {
 	tb.Helper()
 	if want != got {
