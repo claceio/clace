@@ -15,7 +15,7 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
-	"github.com/google/uuid"
+	"github.com/segmentio/ksuid"
 	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/claceio/clace/plugins" // Register builtin plugins
@@ -143,8 +143,12 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
-	appEntry.Id = "app_" + utils.AppId(uuid.New().String())
-	err := s.db.AddApp(appEntry)
+	id, err := ksuid.NewRandom()
+	if err != nil {
+		return nil, err
+	}
+	appEntry.Id = utils.AppId("app" + id.String())
+	err = s.db.AddApp(appEntry)
 	if err != nil {
 		return nil, err
 	}

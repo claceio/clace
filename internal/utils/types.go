@@ -48,7 +48,7 @@ type ClientConfig struct {
 	ServerUrl string `toml:"server_url"`
 }
 
-// AppId is the identifier uuid for an App
+// AppId is the identifier for an App
 type AppId string
 
 // AppPathDomain is a unique identifier for an app, consisting of the path and domain

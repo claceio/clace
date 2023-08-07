@@ -67,7 +67,7 @@ func LoadClientConfig(contents string, config *ClientConfig) error {
 	return err
 }
 
-// LoadGlobalConfig load a GloibaConfig from the given contents
+// LoadGlobalConfig load a GlobalConfig from the given contents
 func LoadGlobalConfig(contents string, config *GlobalConfig) error {
 	_, err := toml.Decode(contents, &config)
 	return err
