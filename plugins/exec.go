@@ -58,32 +58,36 @@ func (r *execResponse) Struct() *starlarkstruct.Struct {
 	})
 }
 
-func createResponse(err error) *execResponse {
+func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execResponse {
 	lines := starlark.NewList([]starlark.Value{})
 	if exitErr, ok := err.(*exec.ExitError); ok {
+
+		fmt.Printf("createResponse %s %d '%s'\n", err.Error(), exitErr.ExitCode(), string(exitErr.Stderr))
 		return &execResponse{
 			exitCode: exitErr.ExitCode(),
 			error:    exitErr.Error(),
-			stderr:   string(exitErr.Stderr),
+			stderr:   stderr.String(),
 			lines:    lines,
 		}
 	}
+	fmt.Printf("createResponsedefault %s\n", err.Error())
 
 	return &execResponse{
 		exitCode: 127,
 		error:    err.Error(),
-		stderr:   err.Error(),
+		stderr:   stderr.String(),
 		lines:    lines,
 	}
 }
 
 func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
-		path    starlark.String
-		cmdArgs *starlark.List
-		env     *starlark.List
+		path           starlark.String
+		cmdArgs        *starlark.List
+		env            *starlark.List
+		processPartial starlark.Bool
 	)
-	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env); err != nil {
+	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env, "process_partial?", &processPartial); err != nil {
 		return nil, err
 	}
 	if cmdArgs == nil {
@@ -96,6 +100,7 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	pathStr := string(path)
 	argsList := make([]string, 0, cmdArgs.Len())
 	envList := make([]string, 0, env.Len())
+	processPartialBool := bool(processPartial)
 
 	for i := 0; i < cmdArgs.Len(); i++ {
 		value, ok := cmdArgs.Index(i).(starlark.String)
@@ -116,12 +121,14 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	cmd := exec.Command(pathStr, argsList...)
 	cmd.Env = envList
 	stdout, err := cmd.StdoutPipe()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	if err != nil {
 		return nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
-		ret := createResponse(err)
+		ret := createResponse(err, stdout, stderr)
 		return ret.Struct(), nil
 	}
 
@@ -131,9 +138,9 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 		return nil, err
 	}
 
-	err = cmd.Wait()
-	if err != nil {
-		ret := createResponse(err)
+	runErr := cmd.Wait()
+	if !processPartialBool && runErr != nil {
+		ret := createResponse(runErr, stdout, stderr)
 		return ret.Struct(), nil
 	}
 
@@ -141,6 +148,11 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
 	for scanner.Scan() {
 		lines.Append(starlark.String(scanner.Text()))
+	}
+
+	if lines.Len() == 0 && runErr != nil {
+		ret := createResponse(runErr, stdout, stderr)
+		return ret.Struct(), nil
 	}
 
 	if scanner.Err() != nil {

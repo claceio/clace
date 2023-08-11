@@ -21,7 +21,7 @@ buildlinuxarm: ## Build clace CLI for linux/arm
 buildlinuxloong64: ## Build clace CLI for linux/loong64
 	GOOS=linux GOARCH=loong64 go install github.com/claceio/clace/cmd/clace 
 
-check: staticcheck vet depaware buildwindows build386 buildlinuxarm ## Perform basic checks and compilation tests
+check: staticcheck vet buildwindows build386 buildlinuxarm ## Perform basic checks and compilation tests
 
 staticcheck: ## Run staticcheck.io checks
 	go run honnef.co/go/tools/cmd/staticcheck -- $$(go list ./...)

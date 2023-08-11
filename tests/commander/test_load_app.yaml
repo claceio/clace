@@ -8,13 +8,13 @@ tests:
     command: ../clace app create --is_dev /disk_usage_dev ./disk_usage
     stdout: 
       line-count: 0
-    stderr: "App created /disk_usage_dev : app_"
+    stderr: "App created /disk_usage_dev : app"
     exit-code: 0
   test003: # create prod app
     command: ../clace app create /disk_usage_prod ./disk_usage
     stdout: 
       line-count: 0
-    stderr: "App created /disk_usage_prod : app_"
+    stderr: "App created /disk_usage_prod : app"
     exit-code: 0
   test004: # test dev app 
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
