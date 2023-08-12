@@ -1,10 +1,8 @@
 load("exec.plugin", "exec")
 
 app = clace.app("Disk Usage",
-			custom_layout=False,
-			pages = [
-				clace.page("/", block="du_table_block"),
-			]
+                custom_layout=False,
+                pages = [clace.page("/", block="du_table_block")]
 )
 
 def handler(req):
@@ -14,10 +12,14 @@ def handler(req):
     if dir and dir[0]:
         parent = dir[0]
     args.append(parent)
+
+    # run the du command, allow for partial results to handle permission errors on some dirs
     ret = exec.run("du", args, process_partial=True)
     if ret.exit_code != 0:
         print ("Failed to run du stderr " + ret.stderr + "code" + ret.error)
         return {"Error": ret.error + ": " + ret.stderr}
+    
+    # Parse the results
     dirs = []
     for line in ret.lines:
         cols = line.split()
@@ -27,5 +29,3 @@ def handler(req):
     dirs = sorted(dirs, key=lambda d: d["Size"], reverse=True)[:20]
     data = {"Parent": parent, "Dirs": dirs, "Error": ""}
     return data
-
-
