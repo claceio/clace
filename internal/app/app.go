@@ -28,7 +28,7 @@ const (
 	APP_CONFIG_KEY        = "app"
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
-	CONFIG_LOCK_FILE_NAME = "config.lock"
+	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
 	PLUGIN_SUFFIX         = "plugin"
 	INDEX_FILE            = "index.go.html"
 	INDEX_GEN_FILE        = "index_gen.go.html"
