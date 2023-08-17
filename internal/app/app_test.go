@@ -90,11 +90,12 @@ func TestAppLoadError(t *testing.T) {
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
-	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star": `
+	testFS =
+		&AppTestFS{fileData: map[string]string{
+			"app.star": `
 app = clace.app("testApp", pages = [clace.page("/")])`,
-		"index.go.html": `{{.}}`,
-	}}
+			"index.go.html": `{{.}}`,
+		}}
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")

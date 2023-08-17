@@ -1,8 +1,8 @@
 load("exec.plugin", "exec")
 
 app = clace.app("Disk Usage",
-                custom_layout=False,
-                pages = [clace.page("/", block="du_table_block")]
+                pages = [clace.page("/", block="du_table_block")],
+                permissions = [clace.permission("exec", "run", ["du"])]
 )
 
 def handler(req):
@@ -27,5 +27,4 @@ def handler(req):
 
     # Descending sort on size, limit to 20 dirs
     dirs = sorted(dirs, key=lambda d: d["Size"], reverse=True)[:20]
-    data = {"Parent": parent, "Dirs": dirs, "Error": ""}
-    return data
+    return {"Parent": parent, "Dirs": dirs, "Error": ""}

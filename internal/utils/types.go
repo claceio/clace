@@ -3,7 +3,9 @@
 
 package utils
 
-import "time"
+import (
+	"time"
+)
 
 // Config entries shared between client and server
 type GlobalConfig struct {
@@ -64,19 +66,29 @@ func CreateAppPathDomain(path, domain string) AppPathDomain {
 	}
 }
 
-// App is the application configuration in the DB
+// Permission represents a permission granted to an app to run
+// a plugin method with the given arguments
+type Permission struct {
+	Plugin    string
+	Method    string
+	Arguments []string
+}
+
+// AppEntry is the application configuration in the DB
 type AppEntry struct {
-	Id         AppId      `json:"id"`
-	Path       string     `json:"path"`
-	Domain     string     `json:"domain"`
-	SourceUrl  string     `json:"source_url"`
-	FsPath     string     `json:"fs_path"`
-	IsDev      bool       `json:"is_dev"`
-	AutoSync   bool       `json:"auto_sync"`
-	AutoReload bool       `json:"auto_reload"`
-	UserID     string     `json:"user_id"`
-	CreateTime *time.Time `json:"create_time"`
-	UpdateTime *time.Time `json:"update_time"`
-	Rules      string     `json:"rules"`
-	Metadata   string     `json:"metadata"`
+	Id          AppId        `json:"id"`
+	Path        string       `json:"path"`
+	Domain      string       `json:"domain"`
+	SourceUrl   string       `json:"source_url"`
+	FsPath      string       `json:"fs_path"`
+	IsDev       bool         `json:"is_dev"`
+	AutoSync    bool         `json:"auto_sync"`
+	AutoReload  bool         `json:"auto_reload"`
+	UserID      string       `json:"user_id"`
+	CreateTime  *time.Time   `json:"create_time"`
+	UpdateTime  *time.Time   `json:"update_time"`
+	Rules       string       `json:"rules"`
+	Metadata    string       `json:"metadata"`
+	Loads       []string     `json:"loads"`
+	Permissions []Permission `json:"permissions"`
 }

@@ -193,6 +193,10 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 		s.apps.AddApp(application)
 	}
 
+	if !init {
+		return application, nil
+	}
+
 	// Initialize the app
 	if err := application.Initialize(); err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
@@ -300,4 +304,24 @@ func (s *Server) MatchAppForDomain(domain, matchPath string) (string, error) {
 	}
 
 	return matchedApp, nil
+}
+
+func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*app.AuditResult, error) {
+	app, err := s.GetApp(pathDomain, false)
+	if err != nil {
+		return nil, err
+	}
+
+	auditResult, err := app.Audit()
+	if err != nil {
+		return nil, err
+	}
+
+	if approve {
+		app.AppEntry.Loads = auditResult.Loads
+		app.AppEntry.Permissions = auditResult.Permissions
+		s.db.UpdateAppPermissions(app.AppEntry)
+		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.Loads, auditResult.Permissions)
+	}
+	return auditResult, nil
 }

@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -205,7 +205,7 @@ func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, f
 		if err != nil {
 			return err
 		}
-		req.Body = ioutil.NopCloser(strings.NewReader(uq))
+		req.Body = io.NopCloser(strings.NewReader(uq))
 		// Specifying the Content-Length ensures that https://go.dev/src/net/http/transfer.go doesnt specify Transfer-Encoding: chunked which is not supported by some endpoints.
 		// This is required when using ioutil.NopCloser method for the request body (see ShouldSendChunkedRequestBody() in the library mentioned above).
 		req.ContentLength = int64(len(uq))
@@ -224,7 +224,7 @@ func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, f
 		if err != nil {
 			return err
 		}
-		req.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+		req.Body = io.NopCloser(bytes.NewBuffer(data))
 		req.ContentLength = int64(len(data))
 	}
 
@@ -255,7 +255,7 @@ func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, f
 		switch formEncoding {
 		case formEncodingURL, "":
 			contentType = formEncodingURL
-			req.Body = ioutil.NopCloser(strings.NewReader(form.Encode()))
+			req.Body = io.NopCloser(strings.NewReader(form.Encode()))
 			req.ContentLength = int64(len(form.Encode()))
 
 		case formEncodingMultipart:
@@ -277,7 +277,7 @@ func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, f
 				}
 			}
 
-			req.Body = ioutil.NopCloser(&b)
+			req.Body = io.NopCloser(&b)
 
 		default:
 			return fmt.Errorf("unknown form encoding: %s", formEncoding)
@@ -323,13 +323,13 @@ func (r *Response) HeadersDict() *starlark.Dict {
 
 // Text returns the raw data as a string
 func (r *Response) Text(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
 	r.Body.Close()
 	// reset reader to allow multiple calls
-	r.Body = ioutil.NopCloser(bytes.NewReader(data))
+	r.Body = io.NopCloser(bytes.NewReader(data))
 
 	return starlark.String(string(data)), nil
 }
@@ -338,7 +338,7 @@ func (r *Response) Text(thread *starlark.Thread, _ *starlark.Builtin, args starl
 func (r *Response) JSON(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var data interface{}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -348,6 +348,6 @@ func (r *Response) JSON(thread *starlark.Thread, _ *starlark.Builtin, args starl
 	}
 	r.Body.Close()
 	// reset reader to allow multiple calls
-	r.Body = ioutil.NopCloser(bytes.NewReader(body))
+	r.Body = io.NopCloser(bytes.NewReader(body))
 	return stardefs.Marshal(data)
 }

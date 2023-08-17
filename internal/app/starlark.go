@@ -11,7 +11,10 @@ import (
 	"net/http"
 	"sync"
 
+	"slices"
+
 	"github.com/claceio/clace/internal/stardefs"
+	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -37,13 +40,145 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 }
 
 // loader is the starlark loader function
-func (a *App) loader(_ *starlark.Thread, module string) (starlark.StringDict, error) {
+func (a *App) loader(t *starlark.Thread, module string) (starlark.StringDict, error) {
+	if a.Loads == nil || !slices.Contains(a.Loads, module) {
+		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions requests", a.Path, module)
+	}
+
+	return a.loaderInternal(t, module)
+}
+
+// loaderInternal is the starlark loader function, with no audit checks
+func (a *App) loaderInternal(_ *starlark.Thread, module string) (starlark.StringDict, error) {
 	pluginDict, ok := builtInPlugins[module]
 	if !ok {
 		return nil, fmt.Errorf("module %s not found", module) // TODO extend loading
 	}
 
 	return pluginDict, nil
+}
+
+func (a *App) Audit() (*AuditResult, error) {
+	buf, err := a.fs.ReadFile(APP_FILE_NAME)
+	if err != nil {
+		return nil, err
+	}
+
+	auditLoader := func(t *starlark.Thread, module string) (starlark.StringDict, error) {
+		// The loader in audit mode is used to track the modules that are loaded.
+		// A copy of the real loader's response is returned, with builtins replaced with dummy methods,
+		// so that the audit can be run without any side effects
+		pluginDict, err := a.loaderInternal(t, module)
+		if err != nil {
+			return nil, err
+		}
+
+		// Replace all the builtins with dummy methods
+		dummyDict := make(starlark.StringDict)
+		for k, v := range pluginDict {
+			val := make(starlark.StringDict)
+			if s, ok := v.(*starlarkstruct.Struct); ok {
+				for _, attr := range s.AttrNames() {
+					val[attr] = starlark.NewBuiltin(k, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+						a.Info().Msgf("Plugin called during audit: %s.%s.%s", module, k, attr)
+						return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
+					})
+				}
+			}
+			dummyDict[k] = starlarkstruct.FromStringDict(starlarkstruct.Default, val)
+		}
+
+		return dummyDict, nil
+	}
+
+	thread := &starlark.Thread{
+		Name:  a.Path,
+		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) }, // TODO use logger
+		Load:  auditLoader,
+	}
+
+	builtin := stardefs.CreateBuiltin()
+	if builtin == nil {
+		return nil, errors.New("error creating builtin")
+	}
+
+	_, prog, err := starlark.SourceProgram(APP_FILE_NAME, buf, builtin.Has)
+	if err != nil {
+		return nil, fmt.Errorf("parsing source failed %v", err)
+	}
+
+	loads := []string{}
+	for i := 0; i < prog.NumLoads(); i++ {
+		p, _ := prog.Load(i)
+		if !slices.Contains(loads, p) {
+			loads = append(loads, p)
+		}
+	}
+
+	// This runs the starlark script, with dummy plugin methods
+	// The intent is to load the permissions from the app definition while trying
+	// to avoid any potential side effects from script
+	globals, err := prog.Init(thread, builtin)
+	if err != nil {
+		return nil, fmt.Errorf("source init failed %v", err)
+	}
+
+	return a.createAuditResponse(loads, globals)
+}
+
+func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (*AuditResult, error) {
+	// the App entry should not get updated during the audit call, since there
+	// can be audit calls when the app is running.
+	appDef, err := verifyConfig(globals)
+	if err != nil {
+		return nil, err
+	}
+
+	perms := []utils.Permission{}
+	results := AuditResult{
+		Loads:       loads,
+		Permissions: perms,
+	}
+	permissions, err := appDef.Attr("permissions")
+	if err != nil {
+		return &results, nil
+	}
+
+	var ok bool
+	var permList *starlark.List
+	if permList, ok = permissions.(*starlark.List); !ok {
+		return nil, fmt.Errorf("permissions is not a list")
+	}
+	iter := permList.Iterate()
+	var val starlark.Value
+	count := -1
+	for iter.Next(&val) {
+		count++
+		var perm *starlarkstruct.Struct
+		if perm, ok = val.(*starlarkstruct.Struct); !ok {
+			return nil, fmt.Errorf("permissions entry %d is not a struct", count)
+		}
+		a.Info().Msgf("perm: %+v", perm)
+		var pluginStr, methodStr string
+		var args []string
+		if pluginStr, err = getStringAttr(perm, "plugin"); err != nil {
+			return nil, err
+		}
+		if methodStr, err = getStringAttr(perm, "method"); err != nil {
+			return nil, err
+		}
+		if args, err = getListStringAttr(perm, "arguments", true); err != nil {
+			return nil, err
+		}
+		perms = append(perms, utils.Permission{
+			Plugin:    pluginStr,
+			Method:    methodStr,
+			Arguments: args,
+		})
+
+	}
+	results.Permissions = perms
+	return &results, nil
 }
 
 func (a *App) loadStarlarkConfig() error {
@@ -74,13 +209,9 @@ func (a *App) loadStarlarkConfig() error {
 		return err
 	}
 
-	if !a.globals.Has(APP_CONFIG_KEY) {
-		return fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
-	}
-	var ok bool
-	a.appDef, ok = a.globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
-	if !ok {
-		return fmt.Errorf("%s not of type clace.app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
+	a.appDef, err = verifyConfig(a.globals)
+	if err != nil {
+		return err
 	}
 
 	a.Name, err = getStringAttr(a.appDef, "name")
@@ -129,30 +260,15 @@ func (a *App) loadStarlarkConfig() error {
 	return nil
 }
 
-func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
-	v, err := s.Attr(key)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s: %s", key, err)
+func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
+	if !globals.Has(APP_CONFIG_KEY) {
+		return nil, fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
 	}
-	var vs starlark.String
-	var ok bool
-	if vs, ok = v.(starlark.String); !ok {
-		return "", fmt.Errorf("%s is not a string", key)
+	appDef, ok := globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
+	if !ok {
+		return nil, fmt.Errorf("%s not of type clace.app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
 	}
-	return vs.GoString(), nil
-}
-
-func getBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
-	v, err := s.Attr(key)
-	if err != nil {
-		return false, fmt.Errorf("error getting %s: %s", key, err)
-	}
-	var vb starlark.Bool
-	var ok bool
-	if vb, ok = v.(starlark.Bool); !ok {
-		return false, fmt.Errorf("%s is not a bool", key)
-	}
-	return bool(vb), nil
+	return appDef, nil
 }
 
 func (a *App) initRouter() error {

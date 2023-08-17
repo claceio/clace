@@ -3,20 +3,19 @@
 
 module github.com/claceio/clace
 
-go 1.19
+go 1.21
 
 require (
-	github.com/BurntSushi/toml v1.2.1
+	github.com/BurntSushi/toml v1.3.2
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-chi/chi v1.5.4
-	github.com/mattn/go-sqlite3 v1.14.16
-	github.com/rs/zerolog v1.29.1
-	github.com/urfave/cli/v2 v2.25.3
-	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254
+	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/rs/zerolog v1.30.0
+	github.com/segmentio/ksuid v1.0.4
+	github.com/urfave/cli/v2 v2.25.7
+	go.starlark.net v0.0.0-20230814145427-12f4cb8177e4
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-    github.com/segmentio/ksuid v1.0.4 
 )
-
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
@@ -25,7 +24,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
-	golang.org/x/crypto v0.9.0
-	golang.org/x/sys v0.8.0 // indirect
+	golang.org/x/crypto v0.12.0
+	golang.org/x/sys v0.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -17,6 +17,7 @@ const (
 	FRAGMENT              = "fragment"
 	REDIRECT              = "redirect"
 	RENDER                = "render"
+	PERMISSION            = "permission"
 	DEFAULT_REDIRECT_CODE = 302
 )
 
@@ -30,7 +31,10 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var name starlark.String
 	var pages *starlark.List
 	var settings *starlark.Dict
-	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name, "custom_layout?", &customLayout, "pages?", &pages, "settings?", &settings); err != nil {
+	var permissions *starlark.List
+	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
+		"custom_layout?", &customLayout, "pages?", &pages, "settings?",
+		&settings, "permissions?", &permissions); err != nil {
 		return nil, err
 	}
 
@@ -41,11 +45,16 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		settings = starlark.NewDict(0)
 	}
 
+	if permissions == nil {
+		permissions = starlark.NewList([]starlark.Value{})
+	}
+
 	fields := starlark.StringDict{
 		"name":          name,
 		"custom_layout": customLayout,
 		"pages":         pages,
 		"settings":      settings,
+		"permissions":   permissions,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
@@ -55,7 +64,8 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
-	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html?", &html, "block?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html?", &html,
+		"block?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -121,16 +131,37 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
+func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var plugin, method starlark.String
+	var arguments *starlark.List
+	if err := starlark.UnpackArgs(PERMISSION, args, kwargs, "plugin", &plugin, "method", &method,
+		"arguments?", &arguments); err != nil {
+		return nil, err
+	}
+
+	if arguments == nil {
+		arguments = starlark.NewList([]starlark.Value{})
+	}
+
+	fields := starlark.StringDict{
+		"plugin":    plugin,
+		"method":    method,
+		"arguments": arguments,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(PERMISSION), fields), nil
+}
+
 func CreateBuiltin() starlark.StringDict {
 	once.Do(func() {
 		builtin = starlark.StringDict{
 			DEFAULT_MODULE: &starlarkstruct.Module{
 				Name: DEFAULT_MODULE,
 				Members: starlark.StringDict{
-					APP:      starlark.NewBuiltin(APP, createAppBuiltin),
-					PAGE:     starlark.NewBuiltin(PAGE, createPageBuiltin),
-					FRAGMENT: starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
-					REDIRECT: starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+					APP:        starlark.NewBuiltin(APP, createAppBuiltin),
+					PAGE:       starlark.NewBuiltin(PAGE, createPageBuiltin),
+					FRAGMENT:   starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
+					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
+					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
 				},
 			},
 		}

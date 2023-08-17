@@ -5,6 +5,7 @@ package metadata
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -79,7 +80,7 @@ func (m *Metadata) VersionUpgrade() error {
 		if _, err := m.db.Exec(`insert into version values (1, datetime('now'))`); err != nil {
 			return err
 		}
-		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, source_url text, fs_path text, is_dev bool, auto_sync bool, auto_reload bool, user_id text, create_time datetime, update_time datetime, rules text, metadata text, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, source_url text, fs_path text, is_dev bool, auto_sync bool, auto_reload bool, user_id text, create_time datetime, update_time datetime, rules text, metadata text, loads json, permissions json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
 			return err
 		}
 	}
@@ -100,13 +101,14 @@ func (m *Metadata) AddApp(app *utils.AppEntry) error {
 }
 
 func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
-	stmt, err := m.db.Prepare(`select id, path, domain, source_url, fs_path, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata from apps where path = ? and domain = ?`)
+	stmt, err := m.db.Prepare(`select id, path, domain, source_url, fs_path, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata, loads, permissions from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
 	var app utils.AppEntry
-	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata)
+	var loads, permissions sql.NullString
+	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata, &loads, &permissions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("app not found")
@@ -114,6 +116,25 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 		m.Error().Err(err).Msgf("query %s %s", pathDomain.Path, pathDomain.Domain)
 		return nil, fmt.Errorf("error querying app: %w", err)
 	}
+
+	if loads.Valid {
+		err = json.Unmarshal([]byte(loads.String), &app.Loads)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling loads: %w", err)
+		}
+	} else {
+		app.Loads = []string{}
+	}
+
+	if permissions.Valid {
+		err = json.Unmarshal([]byte(permissions.String), &app.Permissions)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling permissions: %w", err)
+		}
+	} else {
+		app.Permissions = []utils.Permission{}
+	}
+
 	return &app, nil
 }
 
@@ -169,4 +190,26 @@ func (m *Metadata) GetAllApps() ([]utils.AppPathDomain, error) {
 		pathDomains = append(pathDomains, utils.CreateAppPathDomain(path, domain))
 	}
 	return pathDomains, nil
+}
+
+func (m *Metadata) UpdateAppPermissions(app *utils.AppEntry) error {
+	stmt, err := m.db.Prepare(`UPDATE apps set loads = ?, permissions = ? where path = ? and domain = ?`)
+	if err != nil {
+		return fmt.Errorf("error preparing statement: %w", err)
+	}
+
+	loadsJson, err := json.Marshal(app.Loads)
+	if err != nil {
+		return fmt.Errorf("error marshalling loads: %w", err)
+	}
+	permissionsJson, err := json.Marshal(app.Permissions)
+	if err != nil {
+		return fmt.Errorf("error marshalling permissions: %w", err)
+	}
+
+	_, err = stmt.Exec(string(loadsJson), string(permissionsJson), app.Path, app.Domain)
+	if err != nil {
+		return fmt.Errorf("error updating app: %w", err)
+	}
+	return nil
 }

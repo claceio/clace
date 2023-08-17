@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/claceio/clace/internal/utils"
@@ -113,25 +114,41 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveInternal() http.Handler {
+	// These API's are mounted at /_clace
 	r := chi.NewRouter()
+
+	// Get app
 	r.Get("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.getApp)
 	}))
 	r.Get("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.getApp)
 	}))
+
+	// Create app
 	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.createApp)
 	}))
 	r.Post("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.createApp)
 	}))
+
+	// Delete app
 	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.deleteApp)
 	}))
 	r.Delete("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, h.deleteApp)
 	}))
+
+	// API to audit the plugin usage and permissions for the app
+	r.Post("/audit", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.auditApp)
+	}))
+	r.Post("/audit/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, h.auditApp)
+	}))
+
 	return r
 }
 
@@ -233,4 +250,21 @@ func (h *Handler) deleteApp(r *http.Request) (any, error) {
 	}
 	h.Trace().Str("appPath", appPath).Msg("Deleted app successfully")
 	return nil, nil
+}
+
+func (h *Handler) auditApp(r *http.Request) (any, error) {
+	appPath := chi.URLParam(r, "*")
+	domain := r.URL.Query().Get("domain")
+	approve := r.URL.Query().Get("approve")
+	approveBool := false
+	if approve != "" {
+		var err error
+		if approveBool, err = strconv.ParseBool(r.URL.Query().Get("approve")); err != nil {
+			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		}
+	}
+
+	appPath = normalizePath(appPath)
+	auditResult, err := h.server.AuditApp(utils.CreateAppPathDomain(appPath, domain), approveBool)
+	return auditResult, err
 }

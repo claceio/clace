@@ -56,9 +56,10 @@ type App struct {
 	customLayout bool
 	Config       *AppConfig
 	fs           AppFS
-	mu           sync.Mutex
+	initMutex    sync.Mutex
 	initialized  bool
 	reloadError  error
+
 	globals      starlark.StringDict
 	appDef       *starlarkstruct.Struct
 	appRouter    *chi.Mux
@@ -70,6 +71,12 @@ type App struct {
 type SSEMessage struct {
 	event string
 	data  string
+}
+
+// AuditResult represents the result of an app audit
+type AuditResult struct {
+	Loads       []string
+	Permissions []utils.Permission
 }
 
 func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
@@ -97,8 +104,8 @@ func (a *App) Initialize() error {
 }
 
 func (a *App) Close() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.initMutex.Lock()
+	defer a.initMutex.Unlock()
 	if a.watcher != nil {
 		if err := a.watcher.Close(); err != nil {
 			return err
@@ -108,8 +115,8 @@ func (a *App) Close() error {
 }
 
 func (a *App) reload(force bool) (bool, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.initMutex.Lock()
+	defer a.initMutex.Unlock()
 	if a.initialized && !force {
 		return false, nil
 	}
@@ -125,7 +132,7 @@ func (a *App) reload(force bool) (bool, error) {
 		// Config lock is not present, use default config
 		a.Debug().Msg("No config lock file found, using default config")
 		a.Config = NewAppConfig()
-		a.saveLockFile()
+		a.saveConfigLockFile()
 	} else {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
@@ -176,7 +183,7 @@ func (a *App) generateHTML() error {
 	return nil
 }
 
-func (a *App) saveLockFile() error {
+func (a *App) saveConfigLockFile() error {
 	buf, err := json.MarshalIndent(a.Config, "", "  ")
 	if err != nil {
 		return err
@@ -196,8 +203,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) startWatcher() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.initMutex.Lock()
+	defer a.initMutex.Unlock()
 	if a.watcher != nil {
 		a.watcher.Close()
 	}
@@ -248,14 +255,14 @@ func (a *App) startWatcher() error {
 }
 
 func (a *App) addSSEClient(newChan chan SSEMessage) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.initMutex.Lock()
+	defer a.initMutex.Unlock()
 	a.sseListeners = append(a.sseListeners, newChan)
 }
 
 func (a *App) removeSSEClient(chanRemove chan SSEMessage) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.initMutex.Lock()
+	defer a.initMutex.Unlock()
 	for i, ch := range a.sseListeners {
 		if ch == chanRemove {
 			a.sseListeners = append(a.sseListeners[:i], a.sseListeners[i+1:]...)
