@@ -62,4 +62,4 @@ tests:
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1
   test0100: # cleanup
-    command: rm -rf ./disk_usage
+    command: rm -rf ./disk_usage || true
