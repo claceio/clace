@@ -22,44 +22,77 @@ tests:
   test0041: # check audit output
     command: ../clace app audit /disk_usage_dev
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions need to be approved...\n"
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\nApp permissions need to be approved...\n"
     exit-code: 0
   test0042: # approve audit
     command: ../clace app audit --approve /disk_usage_dev
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\nApp permissions have been approved.\n"
     exit-code: 0
   test0043: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
     stdout: "Disk Usage"
-  test0050: # audit prod app
+  test0044: # setup permission check, remove permissions entry from config
+    command: cp ./disk_usage/app.star ./disk_usage/app.star.bk && grep -v "permissions =" ./disk_usage/app.star > ./disk_usage/app.star.new && cp ./disk_usage/app.star.new ./disk_usage/app.star
+  test0045: # check curl, still works since the old approvals with run are in place
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    stdout: "Disk Usage"
+  test0046: # approve audit, no more run permissions
+    command: ../clace app audit --approve /disk_usage_dev
+    stdout:
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\nApp permissions have been approved.\n"
+    exit-code: 0
+  test0047: # check curl
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    stdout: "app /disk_usage_dev is not permitted to call exec.in.run. Audit the app and approve permissions"
+  test0048: # update config
+    command: cp ./disk_usage/app.star.bk ./disk_usage/app.star && perl -i -pe 's/\["du"\]/["cat"]/g' ./disk_usage/app.star
+  test0049: # approve audit, run permissions but for cat instead of du
+    command: ../clace app audit --approve /disk_usage_dev
+    stdout:
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\nApp permissions have been approved.\n"
+    exit-code: 0
+  test0050: # check curl
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    stdout: "app /disk_usage_dev is not permitted to call exec.in.run with argument 0 having value \"du\", expected \"cat\". Update the app or audit and approve permissions"
+  test0051: # update config
+    command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
+  test0052: # approve audit, run permissions but for du
+    command: ../clace app audit --approve /disk_usage_dev
+    stdout:
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\nApp permissions have been approved.\n"
+    exit-code: 0
+  test0053: # check curl after approval
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    stdout: "Disk Usage"
+  test0060: # audit prod app
     command: ../clace app audit --approve /disk_usage_prod
     stdout:
-      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\nApp permissions have been approved.\n"
     exit-code: 0
-  test0051: # test prod app
+  test0061: # test prod app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
     stderr: 
       line-count: 0
     stdout: "Disk Usage"
     exit-code: 0
-  test0060: # Update app code
+  test0070: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
-  test0070: # with --is_dev, changes are picked up immediately
+  test0080: # with --is_dev, changes are picked up immediately
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
     stderr: 
       line-count: 0
     stdout: "DiskTest Usage"
-  test0080: # without --is_dev, changes are not picked up
+  test0090: # without --is_dev, changes are not picked up
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
     stderr: 
       line-count: 0
     stdout: "Disk Usage"
-  test0090: # Create app with duplicate path
+  test0100: # Create app with duplicate path
     command: ../clace app create /disk_usage_dev/ ./disk_usage
     stdout: 
       line-count: 0
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1
-  test0100: # cleanup
+  test0101: # cleanup
     command: rm -rf ./disk_usage || true

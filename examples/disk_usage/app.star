@@ -1,8 +1,8 @@
 load("exec.in", "exec")
 
 app = clace.app("Disk Usage",
-                pages = [clace.page("/", block="du_table_block")],
-                permissions = [clace.permission("exec", "run", ["du"])]
+                pages = [clace.page("/", block="du_table_block")]
+                ,permissions = [clace.permission("exec.in", "run", ["du"])]
 )
 
 def handler(req):
