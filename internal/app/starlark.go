@@ -42,7 +42,7 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 // loader is the starlark loader function
 func (a *App) loader(t *starlark.Thread, module string) (starlark.StringDict, error) {
 	if a.Loads == nil || !slices.Contains(a.Loads, module) {
-		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions requests", a.Path, module)
+		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions.", a.Path, module)
 	}
 
 	return a.loaderInternal(t, module)
@@ -58,7 +58,7 @@ func (a *App) loaderInternal(_ *starlark.Thread, module string) (starlark.String
 	return pluginDict, nil
 }
 
-func (a *App) Audit() (*AuditResult, error) {
+func (a *App) Audit() (*utils.AuditResult, error) {
 	buf, err := a.fs.ReadFile(APP_FILE_NAME)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,25 @@ func (a *App) Audit() (*AuditResult, error) {
 	return a.createAuditResponse(loads, globals)
 }
 
-func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (*AuditResult, error) {
+func needsApproval(a *utils.AuditResult) bool {
+	if !slices.Equal(a.NewLoads, a.ApprovedLoads) {
+		return true
+	}
+
+	permEquals := func(a, b utils.Permission) bool {
+		if a.Plugin != b.Plugin || a.Method != b.Method {
+			return false
+		}
+		if !slices.Equal(a.Arguments, b.Arguments) {
+			return false
+		}
+		return true
+	}
+
+	return !slices.EqualFunc(a.NewPermissions, a.ApprovedPermissions, permEquals)
+}
+
+func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (*utils.AuditResult, error) {
 	// the App entry should not get updated during the audit call, since there
 	// can be audit calls when the app is running.
 	appDef, err := verifyConfig(globals)
@@ -135,12 +153,16 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 	}
 
 	perms := []utils.Permission{}
-	results := AuditResult{
-		Loads:       loads,
-		Permissions: perms,
+	results := utils.AuditResult{
+		NewLoads:            loads,
+		NewPermissions:      perms,
+		ApprovedLoads:       a.Loads,
+		ApprovedPermissions: a.Permissions,
 	}
 	permissions, err := appDef.Attr("permissions")
 	if err != nil {
+		// permission order needs to match for now
+		results.NeedsApproval = needsApproval(&results)
 		return &results, nil
 	}
 
@@ -177,7 +199,8 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 		})
 
 	}
-	results.Permissions = perms
+	results.NewPermissions = perms
+	results.NeedsApproval = needsApproval(&results)
 	return &results, nil
 }
 

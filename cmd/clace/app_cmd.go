@@ -160,12 +160,32 @@ func appAuditCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, c
 			}
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 
-			resp := make(map[string]any)
-			err := client.Post("/_clace/audit"+cCtx.Args().First(), values, nil, &resp)
+			var auditResult utils.AuditResult
+			err := client.Post("/_clace/audit"+cCtx.Args().First(), values, nil, &auditResult)
 			if err != nil {
+				fmt.Println("in error")
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "App audit %s : %s\n", cCtx.Args().First(), resp)
+			fmt.Printf("App audit: %s\n", cCtx.Args().First())
+			fmt.Printf("  Plugins :\n")
+			for _, load := range auditResult.NewLoads {
+				fmt.Printf("    %s\n", load)
+			}
+			fmt.Printf("  Permissions:\n")
+			for _, perm := range auditResult.NewPermissions {
+				fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
+			}
+
+			if auditResult.NeedsApproval {
+				if cCtx.Bool("approve") {
+					fmt.Printf("App permissions have been approved.\n")
+				} else {
+					fmt.Printf("App permissions need to be approved...\n")
+				}
+			} else {
+				fmt.Printf("App permissions are current, no approval required.\n")
+			}
+
 			return nil
 		},
 	}

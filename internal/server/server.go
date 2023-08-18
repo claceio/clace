@@ -306,7 +306,7 @@ func (s *Server) MatchAppForDomain(domain, matchPath string) (string, error) {
 	return matchedApp, nil
 }
 
-func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*app.AuditResult, error) {
+func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.AuditResult, error) {
 	app, err := s.GetApp(pathDomain, false)
 	if err != nil {
 		return nil, err
@@ -318,10 +318,10 @@ func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*app.Au
 	}
 
 	if approve {
-		app.AppEntry.Loads = auditResult.Loads
-		app.AppEntry.Permissions = auditResult.Permissions
+		app.AppEntry.Loads = auditResult.NewLoads
+		app.AppEntry.Permissions = auditResult.NewPermissions
 		s.db.UpdateAppPermissions(app.AppEntry)
-		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.Loads, auditResult.Permissions)
+		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.NewLoads, auditResult.NewPermissions)
 	}
 	return auditResult, nil
 }

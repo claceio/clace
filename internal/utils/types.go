@@ -74,6 +74,15 @@ type Permission struct {
 	Arguments []string
 }
 
+// AuditResult represents the result of an app audit
+type AuditResult struct {
+	NewLoads            []string     `json:"new_loads"`
+	NewPermissions      []Permission `json:"new_permissions"`
+	ApprovedLoads       []string     `json:"approved_loads"`
+	ApprovedPermissions []Permission `json:"approved_permissions"`
+	NeedsApproval       bool         `json:"needs_approval"`
+}
+
 // AppEntry is the application configuration in the DB
 type AppEntry struct {
 	Id          AppId        `json:"id"`

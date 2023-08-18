@@ -73,12 +73,6 @@ type SSEMessage struct {
 	data  string
 }
 
-// AuditResult represents the result of an app audit
-type AuditResult struct {
-	Loads       []string
-	Permissions []utils.Permission
-}
-
 func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
 	return &App{
 		fs:       fs,

@@ -2,51 +2,64 @@ config:
   env:
     CL_CONFIG_FILE: clace.toml
 tests:
-  test001: # copy sample app
+  test0010: # copy sample app
     command: cp -r ../examples/disk_usage .
-  test002: ## create dev app
+  test0020: ## create dev app
     command: ../clace app create --is_dev /disk_usage_dev ./disk_usage
     stdout: 
       line-count: 0
     stderr: "App created /disk_usage_dev : app"
     exit-code: 0
-  test003: # create prod app
+  test0030: # create prod app
     command: ../clace app create /disk_usage_prod ./disk_usage
     stdout: 
       line-count: 0
     stderr: "App created /disk_usage_prod : app"
     exit-code: 0
-  test004: # test dev app 
+  test0040: # test dev app 
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
-    stderr: 
-      line-count: 0
-    stdout: "Disk Usage"
+    stdout: "app /disk_usage_dev is not permitted to load plugin exec.plugin. Audit the app and approve permissions"
+  test0041: # check audit output
+    command: ../clace app audit /disk_usage_dev
+    stdout:
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions need to be approved...\n"
     exit-code: 0
-  test005: # test prod app
+  test0042: # approve audit
+    command: ../clace app audit --approve /disk_usage_dev
+    stdout:
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+    exit-code: 0
+  test0043: # check curl after approval
+    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    stdout: "Disk Usage"
+  test0050: # audit prod app
+    command: ../clace app audit --approve /disk_usage_prod
+    stdout:
+      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+    exit-code: 0
+  test0051: # test prod app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
     stderr: 
       line-count: 0
     stdout: "Disk Usage"
     exit-code: 0
-  test006: # Update app code
+  test0060: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
-  test007: # with --is_dev, changes are picked up immediately
+  test0070: # with --is_dev, changes are picked up immediately
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
     stderr: 
       line-count: 0
     stdout: "DiskTest Usage"
-    exit-code: 0
-  test008: # without --is_dev, changes are not picked up
+  test0080: # without --is_dev, changes are not picked up
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
     stderr: 
       line-count: 0
     stdout: "Disk Usage"
-    exit-code: 0
-  test009: # Create app with duplicate path
+  test0090: # Create app with duplicate path
     command: ../clace app create /disk_usage_dev/ ./disk_usage
     stdout: 
       line-count: 0
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1
-  test013: # cleanup
+  test0100: # cleanup
     command: rm -rf ./disk_usage
