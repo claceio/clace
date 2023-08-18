@@ -29,7 +29,7 @@ const (
 	DEFAULT_HANDLER       = "handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
-	PLUGIN_SUFFIX         = "plugin"
+	BUILTIN_PLUGIN_SUFFIX = "in"
 	INDEX_FILE            = "index.go.html"
 	INDEX_GEN_FILE        = "index_gen.go.html"
 	CLACE_GEN_FILE        = "clace_gen.go.html"

@@ -62,7 +62,6 @@ func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execR
 	lines := starlark.NewList([]starlark.Value{})
 	if exitErr, ok := err.(*exec.ExitError); ok {
 
-		fmt.Printf("createResponse %s %d '%s'\n", err.Error(), exitErr.ExitCode(), string(exitErr.Stderr))
 		return &execResponse{
 			exitCode: exitErr.ExitCode(),
 			error:    exitErr.Error(),
@@ -70,7 +69,6 @@ func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execR
 			lines:    lines,
 		}
 	}
-	fmt.Printf("createResponsedefault %s\n", err.Error())
 
 	return &execResponse{
 		exitCode: 127,
@@ -151,6 +149,7 @@ func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	}
 
 	if lines.Len() == 0 && runErr != nil {
+		// if no lines in stdout and there was an error (processPartial case), return the error
 		ret := createResponse(runErr, stdout, stderr)
 		return ret.Struct(), nil
 	}

@@ -18,16 +18,16 @@ tests:
     exit-code: 0
   test0040: # test dev app 
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
-    stdout: "app /disk_usage_dev is not permitted to load plugin exec.plugin. Audit the app and approve permissions"
+    stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   test0041: # check audit output
     command: ../clace app audit /disk_usage_dev
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions need to be approved...\n"
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions need to be approved...\n"
     exit-code: 0
   test0042: # approve audit
     command: ../clace app audit --approve /disk_usage_dev
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
     exit-code: 0
   test0043: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
@@ -35,7 +35,7 @@ tests:
   test0050: # audit prod app
     command: ../clace app audit --approve /disk_usage_prod
     stdout:
-      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.plugin\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
+      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.run [du]\nApp permissions have been approved.\n"
     exit-code: 0
   test0051: # test prod app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/

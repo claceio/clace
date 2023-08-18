@@ -33,7 +33,7 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
-	pluginName := fmt.Sprintf("%s.%s", name, PLUGIN_SUFFIX)
+	pluginName := fmt.Sprintf("%s.%s", name, BUILTIN_PLUGIN_SUFFIX)
 	pluginDict := make(starlark.StringDict)
 	pluginDict[name] = plugin
 	builtInPlugins[pluginName] = pluginDict

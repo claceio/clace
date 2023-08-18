@@ -1,4 +1,4 @@
-load("exec.plugin", "exec")
+load("exec.in", "exec")
 
 app = clace.app("Disk Usage",
                 pages = [clace.page("/", block="du_table_block")],
