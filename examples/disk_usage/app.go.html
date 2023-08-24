@@ -13,8 +13,8 @@
                     <th>Size (MB)</th>
                 </thead>
                 {{ range .Data.Dirs }}
-                    <tr style='cursor: pointer;' hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?dir={{.Dir}}" >
-                        <td>{{ .Dir }}</td>
+                    <tr>
+                        <td><a href="{{$.Path}}?dir={{.Dir}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?dir={{.Dir}}">{{ .Dir }}</a></td>
                         <td>{{ .Size }}</td>
                     </tr>
                 {{ end }}
