@@ -11,6 +11,7 @@ type AppConfig struct {
 
 type RouteConfig struct {
 	TemplateLocations []string `json:"template_locations"`
+	StaticDir         string   `json:"static_dir"`
 	PushEvents        bool     `json:"push_events"`
 }
 
@@ -26,11 +27,10 @@ type StylingConfig struct {
 //
 //	DefaultAppConfig -> StarlarkAppConfig
 func NewAppConfig() *AppConfig {
-	templateDefault := []string{"*.go.html"}
-
 	return &AppConfig{
 		Routing: RouteConfig{
-			TemplateLocations: templateDefault,
+			TemplateLocations: []string{"*.go.html"},
+			StaticDir:         "/static",
 			PushEvents:        false,
 		},
 		Htmx: HtmxConfig{

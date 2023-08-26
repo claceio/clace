@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -55,7 +56,7 @@ type App struct {
 	Name         string
 	customLayout bool
 	Config       *AppConfig
-	fs           AppFS
+	fs           *AppFS
 	initMutex    sync.Mutex
 	initialized  bool
 	reloadError  error
@@ -66,6 +67,7 @@ type App struct {
 	template     *template.Template
 	watcher      *fsnotify.Watcher
 	sseListeners []chan SSEMessage
+	funcMap      template.FuncMap
 }
 
 type SSEMessage struct {
@@ -73,12 +75,21 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(fs AppFS, logger *utils.Logger, app *utils.AppEntry) *App {
-	return &App{
+func NewApp(fs *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
+	newApp := &App{
 		fs:       fs,
 		Logger:   logger,
-		AppEntry: app,
+		AppEntry: appEntry,
 	}
+	funcMap := template.FuncMap{
+		"static": func(name string) string {
+			staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
+			fullPath := path.Join(newApp.Path, fs.HashName(staticPath))
+			return fullPath
+		},
+	}
+	newApp.funcMap = funcMap
+	return newApp
 }
 
 func (a *App) Initialize() error {
@@ -145,7 +156,7 @@ func (a *App) reload(force bool) (bool, error) {
 	}
 
 	// Parse HTML templates
-	if a.template, err = a.fs.ParseFS(a.Config.Routing.TemplateLocations...); err != nil {
+	if a.template, err = a.fs.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
 		return false, err
 	}
 	a.initialized = true

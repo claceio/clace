@@ -11,7 +11,7 @@ import (
 )
 
 func TestLogger() *utils.Logger {
-	consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr}
-	logger := zerolog.New(consoleWriter).Level(zerolog.DebugLevel).With().Caller().Timestamp().Logger()
+	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
+	logger := zerolog.New(consoleWriter).Level(zerolog.TraceLevel).With().Caller().Timestamp().Logger()
 	return &utils.Logger{Logger: &logger}
 }

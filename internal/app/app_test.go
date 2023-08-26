@@ -6,11 +6,13 @@ package app
 import (
 	"encoding/json"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http/httptest"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/claceio/clace/internal/testutil"
 	"github.com/claceio/clace/internal/utils"
@@ -25,17 +27,70 @@ func createAppEntry(path string) *utils.AppEntry {
 	}
 }
 
-type AppTestFS struct {
+type TestFS struct {
 	fileData map[string]string
 }
 
-var _ AppFS = (*AppTestFS)(nil)
+var _ WritableFS = (*TestFS)(nil)
 
-func (f *AppTestFS) Open(name string) (fs.File, error) {
-	return nil, nil // no-op
+type TestFileInfo struct {
+	f *TestFile
 }
 
-func (f *AppTestFS) ReadFile(name string) ([]byte, error) {
+func (fi *TestFileInfo) Name() string {
+	return fi.f.name
+}
+
+func (fi *TestFileInfo) Size() int64 {
+	return int64(len(fi.f.data))
+}
+func (fi *TestFileInfo) Mode() fs.FileMode {
+	return 0
+}
+func (fi *TestFileInfo) ModTime() time.Time {
+	return time.Now()
+}
+func (fi *TestFileInfo) IsDir() bool {
+	return false
+}
+func (fi *TestFileInfo) Sys() any {
+	return nil
+}
+
+type TestFile struct {
+	name string
+	data string
+}
+
+func (f *TestFile) Stat() (fs.FileInfo, error) {
+	return &TestFileInfo{f}, nil
+}
+
+func (f *TestFile) Read(dst []byte) (int, error) {
+	cnt := copy(dst, f.data)
+
+	var err error
+	if cnt == len(f.data) {
+		err = io.EOF
+	}
+	return int(cnt), err
+}
+
+func (f *TestFile) Close() error {
+	return nil
+}
+
+func (f *TestFS) Open(name string) (fs.File, error) {
+	name = strings.TrimPrefix(name, "/")
+	if _, ok := f.fileData[name]; !ok {
+		return nil, fs.ErrNotExist
+	}
+
+	return &TestFile{name: name, data: f.fileData[name]}, nil
+}
+
+func (f *TestFS) ReadFile(name string) ([]byte, error) {
+	name = strings.TrimPrefix(name, "/")
 	data, ok := f.fileData[name]
 	if !ok {
 		return nil, fs.ErrNotExist
@@ -43,7 +98,7 @@ func (f *AppTestFS) ReadFile(name string) ([]byte, error) {
 	return []byte(data), nil
 }
 
-func (f *AppTestFS) Glob(pattern string) ([]string, error) {
+func (f *TestFS) Glob(pattern string) ([]string, error) {
 	matchedFiles := []string{}
 	for name := range f.fileData {
 		if matched, _ := path.Match(pattern, name); matched {
@@ -54,11 +109,12 @@ func (f *AppTestFS) Glob(pattern string) ([]string, error) {
 	return matchedFiles, nil
 }
 
-func (f *AppTestFS) ParseFS(patterns ...string) (*template.Template, error) {
-	return template.ParseFS(f, patterns...)
+func (f *TestFS) ParseFS(funcMap template.FuncMap, patterns ...string) (*template.Template, error) {
+	return template.New("clacetestapp").Funcs(funcMap).ParseFS(f, patterns...)
 }
 
-func (f *AppTestFS) Write(name string, bytes []byte) error {
+func (f *TestFS) Write(name string, bytes []byte) error {
+	name = strings.TrimPrefix(name, "/")
 	f.fileData[name] = string(bytes)
 	return nil
 }
@@ -66,36 +122,36 @@ func (f *AppTestFS) Write(name string, bytes []byte) error {
 func TestAppLoadError(t *testing.T) {
 	logger := testutil.TestLogger()
 
-	testFS := &AppTestFS{fileData: map[string]string{
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star":      ``,
 		"index.go.html": `{{.}}`,
-	}}
+	}})
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
 	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
 
-	testFS = &AppTestFS{fileData: map[string]string{
+	testFS = NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star":      `app = 1`,
 		"index.go.html": `{{.}}`,
-	}}
+	}})
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "app not of type clace.app in app.star")
 
-	testFS = &AppTestFS{fileData: map[string]string{
+	testFS = NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star":      `app = clace.app()`,
 		"index.go.html": `{{.}}`,
-	}}
+	}})
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
 	testFS =
-		&AppTestFS{fileData: map[string]string{
+		NewAppFS("", &TestFS{fileData: map[string]string{
 			"app.star": `
 app = clace.app("testApp", pages = [clace.page("/")])`,
 			"index.go.html": `{{.}}`,
-		}}
+		}})
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")
@@ -103,24 +159,17 @@ app = clace.app("testApp", pages = [clace.page("/")])`,
 
 func TestAppPages(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
-		"app.star": `app = clace.app("testApp")`,
-	}}
+
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
+		"app.star": `app = clace.app("testApp", pages = 2)`,
+	}})
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
-	if err != nil {
-		t.Errorf("Error %s", err)
-	}
-	testFS = &AppTestFS{fileData: map[string]string{
-		"app.star": `app = clace.app("testApp", pages = 2)`,
-	}}
-	a = NewApp(testFS, logger, createAppEntry("/test"))
-	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "got int, want list")
 
-	testFS = &AppTestFS{fileData: map[string]string{
+	testFS = NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star": `app = clace.app("testApp", pages = ["abc"])`,
-	}}
+	}})
 	a = NewApp(testFS, logger, createAppEntry("/test"))
 	err = a.Initialize()
 	testutil.AssertErrorContains(t, err, "pages entry 0 is not a struct")
@@ -128,7 +177,7 @@ func TestAppPages(t *testing.T) {
 
 func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	fs := &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
@@ -137,10 +186,11 @@ def handler(req):
 		`,
 		"index.go.html": `Template got {{ .Data.key }}.`,
 	}}
+	testFS := NewAppFS("", fs)
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
 	if err != nil {
-		t.Errorf("Error %s", err)
+		t.Fatalf("Error %s", err)
 	}
 
 	request := httptest.NewRequest("GET", "/test", nil)
@@ -152,13 +202,13 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
 	var config AppConfig
 
-	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fs.fileData[CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
 }
 
 func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	fs := &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", pages = [clace.page("/", html="t1.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
@@ -168,10 +218,11 @@ def handler(req):
 		"./templates/t1.tmpl": `Template got {{ .Data.key }}.`,
 		CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}}
+	testFS := NewAppFS("", fs)
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
 	if err != nil {
-		t.Errorf("Error %s", err)
+		t.Fatalf("Error %s", err)
 	}
 
 	request := httptest.NewRequest("GET", "/test", nil)
@@ -183,13 +234,13 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
 	var config AppConfig
 
-	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fs.fileData[CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
 func TestAppLoadWrongTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	fs := &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", pages = [clace.page("/", html="t12.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
@@ -199,6 +250,7 @@ def handler(req):
 		"./templates/t1.tmpl": `Template got {{ .key }}.`,
 		CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}}
+	testFS := NewAppFS("", fs)
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	err := a.Initialize()
 	if err != nil {
@@ -216,25 +268,25 @@ def handler(req):
 		strings.TrimSpace(response.Body.String()))
 	var config AppConfig
 
-	json.Unmarshal([]byte(testFS.fileData[CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fs.fileData[CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
 func TestAppHeaderCustom(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
 		"index.go.html": `Template contents {{template "clace_gen.go.html"}}.`,
-	}}
+	}})
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	a.IsDev = true
 	err := a.Initialize()
 	if err != nil {
-		t.Errorf("Error %s", err)
+		t.Fatalf("Error %s", err)
 	}
 
 	request := httptest.NewRequest("GET", "/test", nil)
@@ -249,18 +301,18 @@ def handler(req):
 
 func TestAppHeaderDefault(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
-	}}
+	}})
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	a.IsDev = true
 	err := a.Initialize()
 	if err != nil {
-		t.Errorf("Error %s", err)
+		t.Fatalf("Error %s", err)
 	}
 
 	request := httptest.NewRequest("GET", "/test", nil)
@@ -274,19 +326,19 @@ def handler(req):
 
 func TestAppHeaderDefaultWithBody(t *testing.T) {
 	logger := testutil.TestLogger()
-	testFS := &AppTestFS{fileData: map[string]string{
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
 		"app.star": `
 app = clace.app("testApp", pages = [clace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"app.go.html": `{{block "clace_body" .}}ABC{{end}}`}}
+		"app.go.html": `{{block "clace_body" .}}ABC{{end}}`}})
 
 	a := NewApp(testFS, logger, createAppEntry("/test"))
 	a.IsDev = true
 	err := a.Initialize()
 	if err != nil {
-		t.Errorf("Error %s", err)
+		t.Fatalf("Error %s", err)
 	}
 
 	request := httptest.NewRequest("GET", "/test", nil)
@@ -323,4 +375,52 @@ def handler(req):
 	</body>`
 
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+}
+
+func TestStaticLoad(t *testing.T) {
+	logger := testutil.TestLogger()
+	testFS := NewAppFS("", &TestFS{fileData: map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":    `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":     `file1data`,
+		"static/file2.txt": `file2data`}})
+
+	a := NewApp(testFS, logger, createAppEntry("/test"))
+	a.IsDev = true
+	err := a.Initialize()
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `abc /test/static/file1-ca9e40772ef9119c13100a8258bc38a665a0a1976bf81c96e69a353b6605f5a7 def /test/static/file2-d044e5b148745e322fe3e916e5f3bb9c9182892fdf99850baf4ed82c2864dd30.txt`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/file1-ca9e40772ef9119c13100a8258bc38a665a0a1976bf81c96e69a353b6605f5a7", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want = `file1data`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/file2-d044e5b148745e322fe3e916e5f3bb9c9182892fdf99850baf4ed82c2864dd30.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsString(t, "header cache", "public, max-age=31536000", response.Header().Get("Cache-Control"))
+	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") != "")
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want = `file2data`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+	testutil.AssertEqualsString(t, "header", "public, max-age=31536000", response.Header().Get("Cache-Control"))
+	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") != "")
 }

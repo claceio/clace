@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/claceio/clace/internal/stardefs"
 	"github.com/go-chi/chi"
@@ -179,9 +180,18 @@ func (a *App) initRouter() error {
 		router.Method(methodStr, pathStr, routeHandler)
 	}
 
-	a.Trace().Msgf("Mounting route %s", a.Path)
+	// Mount static dir
+	staticPattern := path.Join(a.Config.Routing.StaticDir, "*")
+	router.Handle(staticPattern, http.StripPrefix(a.Path, FileServer(a.fs)))
+
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
+
+	chi.Walk(a.appRouter, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		a.Trace().Msgf("Routes [%s]: '%s' has %d middlewares\n", method, route, len(middlewares))
+		return nil
+	})
+
 	return nil
 }
 

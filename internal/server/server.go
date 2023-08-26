@@ -171,7 +171,8 @@ func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
 	if path == "" {
 		path = appEntry.SourceUrl
 	}
-	fs := app.NewAppFSImpl(path)
+
+	fs := app.NewAppFS(path, os.DirFS(path))
 	application := app.NewApp(fs, &appLogger, appEntry)
 
 	return application, nil
