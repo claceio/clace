@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/stardefs"
+	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -200,7 +200,7 @@ func setHeaders(req *http.Request, headers *starlark.Dict) error {
 }
 
 func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, formEncoding starlark.String, jsondata starlark.Value) error {
-	if !stardefs.IsEmptyString(body) {
+	if !utils.IsEmptyStarlarkString(body) {
 		uq, err := strconv.Unquote(body.String())
 		if err != nil {
 			return err
@@ -216,7 +216,7 @@ func setBody(req *http.Request, body starlark.String, formData *starlark.Dict, f
 	if jsondata != nil && jsondata.String() != "" {
 		req.Header.Set("Content-Type", "application/json")
 
-		v, err := stardefs.Unmarshal(jsondata)
+		v, err := utils.UnmarshalStarlark(jsondata)
 		if err != nil {
 			return err
 		}
@@ -349,5 +349,5 @@ func (r *Response) JSON(thread *starlark.Thread, _ *starlark.Builtin, args starl
 	r.Body.Close()
 	// reset reader to allow multiple calls
 	r.Body = io.NopCloser(bytes.NewReader(body))
-	return stardefs.Marshal(data)
+	return utils.MarshalStarlark(data)
 }

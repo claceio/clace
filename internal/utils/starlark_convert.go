@@ -3,7 +3,7 @@
 
 // Copied from https://github.com/qri-io/starlib/blob/master/util/util.go
 
-package stardefs
+package utils
 
 import (
 	"fmt"
@@ -17,21 +17,21 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// asString unquotes a starlark string value
-func asString(x starlark.Value) (string, error) {
+// UnquoteStarlark unquotes a starlark string value
+func UnquoteStarlark(x starlark.Value) (string, error) {
 	return strconv.Unquote(x.String())
 }
 
-// IsEmptyString checks is a starlark string is empty ("" for a go string)
+// IsEmptyStarlarkString checks is a starlark string is empty ("" for a go string)
 // starlark.String.String performs repr-style quotation, which is necessary
 // for the starlark.Value contract but a frequent source of errors in API
 // clients. This helper method makes sure it'll work properly
-func IsEmptyString(s starlark.String) bool {
+func IsEmptyStarlarkString(s starlark.String) bool {
 	return s.String() == `""`
 }
 
-// Unmarshal decodes a starlark.Value into it's golang counterpart
-func Unmarshal(x starlark.Value) (val interface{}, err error) {
+// UnmarshalStarlark decodes a starlark.Value into it's golang counterpart
+func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 	switch v := x.(type) {
 	case starlark.NoneType:
 		val = nil
@@ -68,13 +68,13 @@ func Unmarshal(x starlark.Value) (val interface{}, err error) {
 				return
 			}
 
-			pval, err = Unmarshal(dictVal)
+			pval, err = UnmarshalStarlark(dictVal)
 			if err != nil {
 				err = fmt.Errorf("unmarshaling starlark value: %w", err)
 				return
 			}
 
-			kval, err = Unmarshal(k)
+			kval, err = UnmarshalStarlark(k)
 			if err != nil {
 				err = fmt.Errorf("unmarshaling starlark key: %w", err)
 				return
@@ -118,7 +118,7 @@ func Unmarshal(x starlark.Value) (val interface{}, err error) {
 
 		defer iter.Done()
 		for iter.Next(&listVal) {
-			value[i], err = Unmarshal(listVal)
+			value[i], err = UnmarshalStarlark(listVal)
 			if err != nil {
 				return
 			}
@@ -135,7 +135,7 @@ func Unmarshal(x starlark.Value) (val interface{}, err error) {
 
 		defer iter.Done()
 		for iter.Next(&tupleVal) {
-			value[i], err = Unmarshal(tupleVal)
+			value[i], err = UnmarshalStarlark(tupleVal)
 			if err != nil {
 				return
 			}
@@ -163,8 +163,8 @@ func Unmarshal(x starlark.Value) (val interface{}, err error) {
 	return
 }
 
-// Marshal turns go values into starlark types
-func Marshal(data interface{}) (v starlark.Value, err error) {
+// MarshalStarlark turns go values into starlark types
+func MarshalStarlark(data interface{}) (v starlark.Value, err error) {
 	switch x := data.(type) {
 	case nil:
 		v = starlark.None
@@ -201,7 +201,7 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 	case []interface{}:
 		var elems = make([]starlark.Value, len(x))
 		for i, val := range x {
-			elems[i], err = Marshal(val)
+			elems[i], err = MarshalStarlark(val)
 			if err != nil {
 				return
 			}
@@ -218,12 +218,12 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 		var elem starlark.Value
 		for ki, val := range x {
 			var key starlark.Value
-			key, err = Marshal(ki)
+			key, err = MarshalStarlark(ki)
 			if err != nil {
 				return
 			}
 
-			elem, err = Marshal(val)
+			elem, err = MarshalStarlark(val)
 			if err != nil {
 				return
 			}
@@ -236,7 +236,7 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 		dict := &starlark.Dict{}
 		var elem starlark.Value
 		for key, val := range x {
-			elem, err = Marshal(val)
+			elem, err = MarshalStarlark(val)
 			if err != nil {
 				return
 			}
@@ -259,7 +259,7 @@ func Marshal(data interface{}) (v starlark.Value, err error) {
 		dict := &starlark.Dict{}
 		var elem starlark.Value
 		for key, val := range x {
-			elem, err = Marshal(val)
+			elem, err = MarshalStarlark(val)
 			if err != nil {
 				return
 			}

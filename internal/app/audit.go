@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/claceio/clace/internal/stardefs"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -53,7 +52,7 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 		Load:  auditLoader,
 	}
 
-	builtin := stardefs.CreateBuiltin()
+	builtin := CreateBuiltin()
 	if builtin == nil {
 		return nil, errors.New("error creating builtin")
 	}
