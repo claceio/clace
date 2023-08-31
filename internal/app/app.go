@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
@@ -81,13 +82,17 @@ func NewApp(fs *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
 		Logger:   logger,
 		AppEntry: appEntry,
 	}
-	funcMap := template.FuncMap{
-		"static": func(name string) string {
-			staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
-			fullPath := path.Join(newApp.Path, fs.HashName(staticPath))
-			return fullPath
-		},
+	funcMap := sprig.FuncMap()
+
+	funcMap["static"] = func(name string) string {
+		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
+		fullPath := path.Join(newApp.Path, fs.HashName(staticPath))
+		return fullPath
 	}
+	// Remove the env functions from sprig, since they can leak system information
+	delete(funcMap, "env")
+	delete(funcMap, "expandenv")
+
 	newApp.funcMap = funcMap
 	return newApp
 }

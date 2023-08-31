@@ -285,6 +285,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			"IsDev":      a.IsDev,
 			"AutoReload": a.AutoReload,
 			"IsHtmx":     isHtmxRequest,
+			"Url":        r.URL.String(),
 		}
 
 		chiContext := chi.RouteContext(r.Context())

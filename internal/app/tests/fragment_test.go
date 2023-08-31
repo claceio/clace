@@ -127,7 +127,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}
-		{{ block "ff2" . }} {{if eq .Path "/test/abc/frag2"}}  frag2data {{ end }} {{end}}`,
+		{{ block "ff2" . }} {{if contains "frag2" .Url}} {{.Url}} frag2data {{ end }} {{end}}`,
 	}
 	a, err := createApp(logger, fileData)
 	if err != nil {
@@ -158,7 +158,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code) // GET instead of POST
-	testutil.AssertStringMatch(t, "body", fullHtml, response.Body.String())
+	testutil.AssertStringMatch(t, "body", fullHtml+"/test/abc/frag2 frag2data", response.Body.String())
 
 	request = httptest.NewRequest("GET", "/test/abc/frag", nil)
 	request.Header.Set("HX-Request", "true")
@@ -167,14 +167,12 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "body", " fragdata myvalue4 ", response.Body.String())
 
-	/*
-		request = httptest.NewRequest("POST", "/test/abc/frag2", nil)
-		request.Header.Set("HX-Request", "true")
-		response = httptest.NewRecorder()
-		a.ServeHTTP(response, request)
-		testutil.AssertEqualsInt(t, "code", 200, response.Code)
-		testutil.AssertStringMatch(t, "body", " frag2data ", response.Body.String())
-	*/
+	request = httptest.NewRequest("POST", "/test/abc/frag2", nil)
+	request.Header.Set("HX-Request", "true")
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "/test/abc/frag2 frag2data", response.Body.String())
 }
 
 func TestFragmentErrors(t *testing.T) {
