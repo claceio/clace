@@ -90,10 +90,10 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 }
 
 func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, block, html starlark.String
+	var path, block starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block", &block, "handler?", &handler, "html?", &html, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block", &block, "handler?", &handler, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +104,6 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	fields := starlark.StringDict{
 		"path":   path,
 		"block":  block,
-		"html":   html,
 		"method": method,
 	}
 	if handler != nil {

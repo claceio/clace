@@ -53,7 +53,7 @@ func TestAppPages(t *testing.T) {
 	_, err = createApp(logger, map[string]string{
 		"app.star": `app = clace.app("testApp", pages = ["abc"])`,
 	})
-	testutil.AssertErrorContains(t, err, "pages entry 0 is not a struct")
+	testutil.AssertErrorContains(t, err, "pages entry 1 is not a struct")
 }
 
 func TestAppLoadSuccess(t *testing.T) {

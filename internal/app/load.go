@@ -130,7 +130,7 @@ func (a *App) initRouter() error {
 	}
 	iter := pageList.Iterate()
 	var val starlark.Value
-	count := -1
+	count := 0
 	for iter.Next(&val) {
 		count++
 
@@ -197,39 +197,67 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return fmt.Errorf("handler for page %s is not a function", pathStr)
 	}
 
-	routeHandler := a.createRouteHandler(htmlFile, blockStr, handlerCallable)
-	if err = a.handleFragments(pageDef); err != nil {
+	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handlerCallable)
+	if err = a.handleFragments(router, pathStr, count, htmlFile, pageDef, handlerCallable); err != nil {
 		return err
 	}
-	a.Trace().Msgf("Adding route <%s>", pathStr)
-	router.Method(methodStr, pathStr, routeHandler)
+	a.Trace().Msgf("Adding page route <%s>", pathStr)
+	router.Method(methodStr, pathStr, handlerFunc)
 	return nil
 }
 
-func (a *App) handleFragments(page *starlarkstruct.Struct) error {
+func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, htmlFile string, page *starlarkstruct.Struct, handlerCallable starlark.Callable) error {
 	// Iterate through all the pages
-	/*
-		fragmentAttr, err := page.Attr("fragments")
-		if err != nil {
+	var err error
+	fragmentAttr, err := page.Attr("fragments")
+	if err != nil {
+		// No fragments defined
+		return nil
+	}
+
+	var ok bool
+	var fragmentList *starlark.List
+	if fragmentList, ok = fragmentAttr.(*starlark.List); !ok {
+		return fmt.Errorf("fragments attribute in page %d is not a list", pageCount)
+	}
+	iter := fragmentList.Iterate()
+	var val starlark.Value
+	count := 0
+	for iter.Next(&val) {
+		count++
+
+		var fragmentDef *starlarkstruct.Struct
+		if fragmentDef, ok = val.(*starlarkstruct.Struct); !ok {
+			return fmt.Errorf("page %d fragment %d is not a struct", pageCount, count)
+		}
+
+		var pathStr, blockStr, methodStr string
+		if pathStr, err = getStringAttr(fragmentDef, "path"); err != nil {
+			return err
+		}
+		if methodStr, err = getStringAttr(fragmentDef, "method"); err != nil {
+			return err
+		}
+		if blockStr, err = getStringAttr(fragmentDef, "block"); err != nil {
 			return err
 		}
 
-		var ok bool
-		var fragmentList *starlark.List
-		if fragmentList, ok = fragmentAttr.(*starlark.List); !ok {
-			return fmt.Errorf("fragments attribute is not a list")
-		}
-		iter := pageList.Iterate()
-		var val starlark.Value
-		count := -1
-		for iter.Next(&val) {
-			count++
-
-			if err = a.addPageRoute(count, router, val, defaultHandler); err != nil {
-				return err
+		handler, _ := fragmentDef.Attr("handler")
+		fragmentCallback := handlerCallable
+		if handler != nil {
+			// If new handler is defined at fragment level, that is verified. Otherwise the
+			// page level handler is used
+			if fragmentCallback, ok = handler.(starlark.Callable); !ok {
+				return fmt.Errorf("handler for page %d fragment %d is not a function", pageCount, count)
 			}
+
 		}
-	*/
+		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback)
+
+		fragmentPath := path.Join(pagePath, pathStr)
+		a.Trace().Msgf("Adding fragment route %s <%s>", methodStr, fragmentPath)
+		router.Method(methodStr, fragmentPath, handlerFunc)
+	}
 
 	return nil
 }
@@ -242,7 +270,7 @@ func (a *App) createInternalRoutes(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) createRouteHandler(html, block string, handler starlark.Callable) http.HandlerFunc {
+func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
 			Name:  a.Path,
