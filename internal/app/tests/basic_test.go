@@ -16,25 +16,25 @@ import (
 func TestAppLoadError(t *testing.T) {
 	logger := testutil.TestLogger()
 
-	_, err := createApp(logger, map[string]string{
+	_, _, err := createApp(logger, map[string]string{
 		"app.star":      ``,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
 
-	_, err = createApp(logger, map[string]string{
+	_, _, err = createApp(logger, map[string]string{
 		"app.star":      `app = 1`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "app not of type clace.app in app.star")
 
-	_, err = createApp(logger, map[string]string{
+	_, _, err = createApp(logger, map[string]string{
 		"app.star":      `app = clace.app()`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
-	_, err = createApp(logger, map[string]string{
+	_, _, err = createApp(logger, map[string]string{
 		"app.star": `
 app = clace.app("testApp", pages = [clace.page("/")])`,
 		"index.go.html": `{{.}}`,
@@ -45,12 +45,12 @@ app = clace.app("testApp", pages = [clace.page("/")])`,
 func TestAppPages(t *testing.T) {
 	logger := testutil.TestLogger()
 
-	_, err := createApp(logger, map[string]string{
+	_, _, err := createApp(logger, map[string]string{
 		"app.star": `app = clace.app("testApp", pages = 2)`,
 	})
 	testutil.AssertErrorContains(t, err, "got int, want list")
 
-	_, err = createApp(logger, map[string]string{
+	_, _, err = createApp(logger, map[string]string{
 		"app.star": `app = clace.app("testApp", pages = ["abc"])`,
 	})
 	testutil.AssertErrorContains(t, err, "pages entry 1 is not a struct")
@@ -67,7 +67,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template got {{ .Data.key }}.`,
 	}
-	a, err := createApp(logger, fileData)
+	a, _, err := createApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -97,7 +97,7 @@ def handler(req):
 		"./templates/t1.tmpl":     `Template got {{ .Data.key }}.`,
 		app.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
-	a, err := createApp(logger, fileData)
+	a, _, err := createApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -127,7 +127,7 @@ def handler(req):
 		"./templates/t1.tmpl":     `Template got {{ .key }}.`,
 		app.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
-	a, err := createApp(logger, fileData)
+	a, _, err := createApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -156,7 +156,7 @@ def handler(req):
 	return {"key": "myvalue"}`,
 		"index.go.html": `Template contents {{template "clace_gen.go.html"}}.`,
 	}
-	a, err := createDevModeApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -179,7 +179,7 @@ app = clace.app("testApp", pages = [clace.page("/")])
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
-	a, err := createDevModeApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -203,7 +203,7 @@ def handler(req):
 		"app.go.html": `{{block "clace_body" .}}ABC{{end}}`,
 	}
 
-	a, err := createDevModeApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

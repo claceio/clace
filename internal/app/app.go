@@ -57,10 +57,12 @@ type App struct {
 	Name         string
 	customLayout bool
 	Config       *AppConfig
-	fs           *AppFS
+	sourceFS     *AppFS
+	workFS       *AppFS
 	initMutex    sync.Mutex
 	initialized  bool
 	reloadError  error
+	appStyling   *AppStyle
 
 	globals      starlark.StringDict
 	appDef       *starlarkstruct.Struct
@@ -76,9 +78,10 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(fs *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
+func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
 	newApp := &App{
-		fs:       fs,
+		sourceFS: sourceFS,
+		workFS:   workFS,
 		Logger:   logger,
 		AppEntry: appEntry,
 	}
@@ -86,7 +89,7 @@ func NewApp(fs *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
 
 	funcMap["static"] = func(name string) string {
 		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
-		fullPath := path.Join(newApp.Path, fs.HashName(staticPath))
+		fullPath := path.Join(newApp.Path, sourceFS.HashName(staticPath))
 		return fullPath
 	}
 	// Remove the env functions from sprig, since they can leak system information
@@ -133,7 +136,7 @@ func (a *App) reload(force bool) (bool, error) {
 	var err error
 	a.Info().Msg("Reloading app definition")
 
-	configData, err := a.fs.ReadFile(CONFIG_LOCK_FILE_NAME)
+	configData, err := a.sourceFS.ReadFile(CONFIG_LOCK_FILE_NAME)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
 			return false, err
@@ -155,13 +158,22 @@ func (a *App) reload(force bool) (bool, error) {
 		return false, err
 	}
 
+	// Generate styling configuration
+	a.appStyling, err = NewAppStyle(a.Id, a.Config.Styling)
+	if err != nil {
+		return false, err
+	}
+	if err = a.appStyling.Setup(a.sourceFS, a.workFS); err != nil {
+		return false, err
+	}
+
 	// Create the generated HTML
 	if err = a.generateHTML(); err != nil {
 		return false, err
 	}
 
 	// Parse HTML templates
-	if a.template, err = a.fs.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
+	if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
 		return false, err
 	}
 	a.initialized = true
@@ -176,16 +188,16 @@ func (a *App) generateHTML() error {
 	// The header name of contents have changed, recreate it. Since reload creates the header
 	// file and updating the file causes the FS watcher to call reload, we have to make sure the
 	// file is updated only if there is an actual content change
-	indexData, err := a.fs.ReadFile(INDEX_GEN_FILE)
+	indexData, err := a.sourceFS.ReadFile(INDEX_GEN_FILE)
 	if err != nil || !bytes.Equal(indexData, indexEmbed) {
-		if err := a.fs.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
+		if err := a.sourceFS.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
 			return err
 		}
 	}
 
-	claceGenData, err := a.fs.ReadFile(CLACE_GEN_FILE)
+	claceGenData, err := a.sourceFS.ReadFile(CLACE_GEN_FILE)
 	if err != nil || !bytes.Equal(claceGenData, claceGenEmbed) {
-		if err := a.fs.Write(CLACE_GEN_FILE, claceGenEmbed); err != nil {
+		if err := a.sourceFS.Write(CLACE_GEN_FILE, claceGenEmbed); err != nil {
 			return err
 		}
 	}
@@ -198,7 +210,7 @@ func (a *App) saveConfigLockFile() error {
 	if err != nil {
 		return err
 	}
-	err = a.fs.Write(CONFIG_LOCK_FILE_NAME, buf)
+	err = a.sourceFS.Write(CONFIG_LOCK_FILE_NAME, buf)
 	return err
 }
 

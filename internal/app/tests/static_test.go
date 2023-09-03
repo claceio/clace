@@ -23,7 +23,7 @@ def handler(req):
 		"static/file2.txt": `file2data`,
 	}
 
-	a, err := createDevModeApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -70,7 +70,7 @@ def handler(req):
 		"static/file3.txt": `file3data`,
 	}
 
-	a, err := createDevModeApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

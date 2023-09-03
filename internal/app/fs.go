@@ -78,6 +78,10 @@ func (f *AppFS) Write(name string, bytes []byte) error {
 	if fs, ok := f.fs.(WritableFS); ok {
 		return fs.Write(target, bytes)
 	}
+	dirName := path.Dir(target)
+	if err := os.MkdirAll(dirName, 0755); err != nil {
+		return fmt.Errorf("error creating directory %s : %s", dirName, err)
+	}
 	return os.WriteFile(target, bytes, 0600)
 }
 

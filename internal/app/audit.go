@@ -14,7 +14,7 @@ import (
 )
 
 func (a *App) Audit() (*utils.AuditResult, error) {
-	buf, err := a.fs.ReadFile(APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(APP_FILE_NAME)
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ import (
 func (a *App) loadStarlarkConfig() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
-	buf, err := a.fs.ReadFile(APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(APP_FILE_NAME)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (a *App) initRouter() error {
 
 	// Mount static dir
 	staticPattern := path.Join(a.Config.Routing.StaticDir, "*")
-	router.Handle(staticPattern, http.StripPrefix(a.Path, FileServer(a.fs)))
+	router.Handle(staticPattern, http.StripPrefix(a.Path, FileServer(a.sourceFS)))
 
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)

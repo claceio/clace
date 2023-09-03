@@ -20,6 +20,9 @@ type HtmxConfig struct {
 }
 
 type StylingConfig struct {
+	Library        string   `json:"library"`
+	EnableBuilder  bool     `json:"enable_builder"`
+	BuilderCommand []string `json:"builder_command"`
 }
 
 // NewAppConfig creates an AppConfig with default values. This config is used when lock
