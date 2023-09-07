@@ -118,6 +118,7 @@ func (f *AppFS) HashName(name string) string {
 	// Read file contents. Return original filename if we receive an error.
 	buf, err := fs.ReadFile(f.fs, name)
 	if err != nil {
+		fmt.Printf("HashName readfile error: %s\n", err) //TODO: log
 		return name
 	}
 

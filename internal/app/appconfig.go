@@ -4,9 +4,8 @@
 package app
 
 type AppConfig struct {
-	Routing RouteConfig   `json:"routing"`
-	Htmx    HtmxConfig    `json:"htmx"`
-	Styling StylingConfig `json:"styling"`
+	Routing RouteConfig `json:"routing"`
+	Htmx    HtmxConfig  `json:"htmx"`
 }
 
 type RouteConfig struct {
@@ -19,12 +18,6 @@ type HtmxConfig struct {
 	Version string `json:"version"`
 }
 
-type StylingConfig struct {
-	Library        string   `json:"library"`
-	EnableBuilder  bool     `json:"enable_builder"`
-	BuilderCommand []string `json:"builder_command"`
-}
-
 // NewAppConfig creates an AppConfig with default values. This config is used when lock
 // file is not present. The config file load order is
 //
@@ -33,13 +26,12 @@ func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Routing: RouteConfig{
 			TemplateLocations: []string{"*.go.html"},
-			StaticDir:         "/static",
+			StaticDir:         "static",
 			PushEvents:        false,
 		},
 		Htmx: HtmxConfig{
 			Version: "1.9.2",
 		},
-		Styling: StylingConfig{},
 	}
 }
 

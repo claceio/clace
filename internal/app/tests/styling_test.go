@@ -13,18 +13,18 @@ import (
 	"github.com/claceio/clace/internal/testutil"
 )
 
-func TestStylingNone(t *testing.T) {
+func TestStyleNone(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"styling":{"library": ""}})
+settings={"style":{"library": ""}})
 
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	a, _, err := createApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -37,7 +37,7 @@ def handler(req):
 	testutil.AssertStringMatch(t, "body", "", response.Body.String())
 }
 
-func TestStylingOther(t *testing.T) {
+func TestStyleOther(t *testing.T) {
 	// Create a test server to serve the css file
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "mystyle contents")
@@ -48,14 +48,14 @@ func TestStylingOther(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"styling":{"library": "%s"}})
+			     style=clace.style("%s"))
 
 def handler(req):
 	return {"key": "myvalue"}`, testUrl),
 		"static/mystyle.css": `mystyle contents`,
 	}
 
-	a, _, err := createApp(logger, fileData)
+	a, _, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -68,18 +68,18 @@ def handler(req):
 	testutil.AssertStringMatch(t, "body", "mystyle contents", response.Body.String())
 }
 
-func TestStylingTailwindCSS(t *testing.T) {
+func TestStyleTailwindCSS(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"styling":{"library": "tailwindcss"}})
+		        style=clace.style(library="tailwindcss"))
 
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, workFS, err := createApp(logger, fileData)
+	_, workFS, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -90,21 +90,21 @@ def handler(req):
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `MODULE.EXPORTS = { CONTENT: ['*.HTML'], THEME: { EXTEND: {}, }, PLUGINS: [ REQUIRE('@TAILWINDCSS/FORMS'), REQUIRE('@TAILWINDCSS/TYPOGRAPHY') ], }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['*.go.html'], theme: { extend: {}, }, plugins: [ ], }`, string(data))
 }
 
-func TestStylingDaisyUI(t *testing.T) {
+func TestStyleDaisyUI(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"styling":{"library": "daisyui"}})
+				style=clace.style(library="daisyui"))
 
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, workFS, err := createApp(logger, fileData)
+	_, workFS, err := createDevModeApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -115,20 +115,20 @@ def handler(req):
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `MODULE.EXPORTS = { CONTENT: ['*.HTML'], THEME: { EXTEND: {}, }, PLUGINS: [ REQUIRE('@TAILWINDCSS/FORMS'), REQUIRE('@TAILWINDCSS/TYPOGRAPHY') , REQUIRE("daisyui") ], }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], }`, string(data))
 }
 
-func TestStylingError(t *testing.T) {
+func TestStyleError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"styling":{"library": "unknown"}})
+                style=clace.style(library="unknown"))
 
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, _, err := createApp(logger, fileData)
-	testutil.AssertErrorContains(t, err, "invalid styling library config : unknown")
+	_, _, err := createDevModeApp(logger, fileData)
+	testutil.AssertErrorContains(t, err, "invalid style library config : unknown")
 }

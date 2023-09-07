@@ -1,11 +1,9 @@
 {{block "clace_body" .}}
-    <link rel="stylesheet" href="https://unpkg.com/mvp.css@1.14.0/mvp.css">
 
     {{block "du_table_block" .}}
         <div id="du_table">
-            <h3> Disk usage for child directories of {{.Data.Parent}} </h3>
+            <h3> Disk usage for {{.Data.Parent}} </h3>
             <em>{{.Data.Error}}</em>
-            <p>Click on a directory to expand its children</p>
 
             <table >
                 <thead>

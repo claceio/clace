@@ -21,6 +21,7 @@ type ServerConfig struct {
 	Http     HttpConfig     `toml:"http"`
 	Metadata MetadataConfig `toml:"metadata"`
 	Log      LogConfig      `toml:"logging"`
+	System   SystemConfig   `toml:"system"`
 }
 
 // HttpConfig is the configuration for the HTTP server
@@ -42,6 +43,11 @@ type LogConfig struct {
 	MaxSizeMB  int    `toml:"max_size_mb"`
 	Console    bool   `toml:"console"`
 	File       bool   `toml:"file"`
+}
+
+// SystemConfig is the system level configuration
+type SystemConfig struct {
+	TailwindCSSCommand string `toml:"tailwindcss_command"`
 }
 
 // ClientConfig is the configuration for the Clace Client

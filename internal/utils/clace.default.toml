@@ -23,3 +23,6 @@ file = true
 db_connection = "sqlite:$CL_HOME/clace.db"
 auto_upgrade = true
 
+[system]
+tailwindcss_command = "npx tailwindcss"
+

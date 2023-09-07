@@ -140,14 +140,14 @@ func (a *App) initRouter() error {
 	}
 
 	// Mount static dir
-	staticPattern := path.Join(a.Config.Routing.StaticDir, "*")
+	staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
 	router.Handle(staticPattern, http.StripPrefix(a.Path, FileServer(a.sourceFS)))
 
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
 
 	chi.Walk(a.appRouter, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		a.Trace().Msgf("Routes: %s %s\n", method, route)
+		//a.Trace().Msgf("Routes: %s %s\n", method, route)
 		return nil
 	})
 

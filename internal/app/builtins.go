@@ -15,6 +15,7 @@ const (
 	APP                   = "app"
 	PAGE                  = "page"
 	FRAGMENT              = "fragment"
+	STYLE                 = "style"
 	REDIRECT              = "redirect"
 	RENDER                = "render"
 	PERMISSION            = "permission"
@@ -32,9 +33,10 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var pages *starlark.List
 	var settings *starlark.Dict
 	var permissions *starlark.List
+	var style *starlarkstruct.Struct
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
-		"custom_layout?", &customLayout, "pages?", &pages, "settings?",
-		&settings, "permissions?", &permissions); err != nil {
+		"pages?", &pages, "style?", &style, "permissions?", &permissions, "settings?",
+		&settings, "custom_layout?", &customLayout); err != nil {
 		return nil, err
 	}
 
@@ -55,6 +57,10 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		"pages":         pages,
 		"settings":      settings,
 		"permissions":   permissions,
+	}
+
+	if style != nil {
+		fields["style"] = style
 	}
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
@@ -112,6 +118,20 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(FRAGMENT), fields), nil
 }
 
+func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var library starlark.String
+	var disableWatcher starlark.Bool
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "disable_watcher?", &disableWatcher); err != nil {
+		return nil, err
+	}
+
+	fields := starlark.StringDict{
+		"library":         library,
+		"disable_watcher": disableWatcher,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(STYLE), fields), nil
+}
+
 func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var url starlark.String
 	var code starlark.Int
@@ -161,6 +181,7 @@ func CreateBuiltin() starlark.StringDict {
 					FRAGMENT:   starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
 					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
 					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
+					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
 				},
 			},
 		}

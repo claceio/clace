@@ -1,6 +1,8 @@
 
 
 {{ block "clace_gen_import" .}}
+    <link rel="stylesheet" href={{static "gen/css/style.css"}}>
+
     <script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
     {{ if or .IsDev .AutoReload .Config.Routing.PushEvents }}
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>

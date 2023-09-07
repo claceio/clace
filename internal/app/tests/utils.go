@@ -19,7 +19,8 @@ func createApp(logger *utils.Logger, fileData map[string]string) (*app.App, *app
 func createTestAppInt(logger *utils.Logger, fileData map[string]string, isDev bool) (*app.App, *app.AppFS, error) {
 	sourceFS := app.NewAppFS("", &TestFS{fileData: fileData})
 	workFS := app.NewAppFS("", &TestFS{fileData: map[string]string{}})
-	a := app.NewApp(sourceFS, workFS, logger, createTestAppEntry("/test"))
+	systemConfig := utils.SystemConfig{TailwindCSSCommand: "npx tailwindcss"}
+	a := app.NewApp(sourceFS, workFS, logger, createTestAppEntry("/test"), &systemConfig)
 	a.IsDev = isDev
 	err := a.Initialize()
 	return a, workFS, err

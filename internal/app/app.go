@@ -54,15 +54,17 @@ func init() {
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	Name         string
-	customLayout bool
-	Config       *AppConfig
-	sourceFS     *AppFS
-	workFS       *AppFS
-	initMutex    sync.Mutex
-	initialized  bool
-	reloadError  error
-	appStyling   *AppStyle
+	Name            string
+	customLayout    bool
+	Config          *AppConfig
+	sourceFS        *AppFS
+	workFS          *AppFS
+	initMutex       sync.Mutex
+	initialized     bool
+	reloadError     error
+	reloadStartTime time.Time
+	appStyle        *AppStyle
+	systemConfig    *utils.SystemConfig
 
 	globals      starlark.StringDict
 	appDef       *starlarkstruct.Struct
@@ -78,12 +80,14 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *utils.AppEntry) *App {
+func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
 	newApp := &App{
-		sourceFS: sourceFS,
-		workFS:   workFS,
-		Logger:   logger,
-		AppEntry: appEntry,
+		sourceFS:     sourceFS,
+		workFS:       workFS,
+		Logger:       logger,
+		AppEntry:     appEntry,
+		systemConfig: systemConfig,
+		appStyle:     &AppStyle{},
 	}
 	funcMap := sprig.FuncMap()
 
@@ -124,12 +128,30 @@ func (a *App) Close() error {
 			return err
 		}
 	}
+
+	if a.appStyle != nil {
+		if err := a.appStyle.StopWatcher(); err != nil {
+			a.Warn().Err(err).Msg("Error stopping watcher")
+		}
+	}
 	return nil
 }
 
 func (a *App) reload(force bool) (bool, error) {
+	requestTime := time.Now()
+
 	a.initMutex.Lock()
 	defer a.initMutex.Unlock()
+
+	if requestTime.Compare(a.reloadStartTime) == -1 {
+		// Current request is older than the last reloaded request, ignore
+		a.Info().Msg("Ignoring reload request since it is older than the last reload request")
+		return false, nil
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	a.reloadStartTime = time.Now()
+
 	if a.initialized && !force {
 		return false, nil
 	}
@@ -158,13 +180,25 @@ func (a *App) reload(force bool) (bool, error) {
 		return false, err
 	}
 
-	// Generate styling configuration
-	a.appStyling, err = NewAppStyle(a.Id, a.Config.Styling)
-	if err != nil {
+	// Initialize style configuration
+	if err := a.appStyle.Init(a.Id, a.appDef); err != nil {
 		return false, err
 	}
-	if err = a.appStyling.Setup(a.sourceFS, a.workFS); err != nil {
-		return false, err
+
+	if a.IsDev {
+		// Setup the CSS files
+		if err = a.appStyle.Setup(a.Config.Routing.TemplateLocations, a.sourceFS, a.workFS); err != nil {
+			return false, err
+		}
+
+		// Start the watcher for CSS files unless disabled
+		if !a.appStyle.disableWatcher {
+			if err = a.appStyle.StartWatcher(a.Config.Routing.TemplateLocations, a.sourceFS, a.workFS, a.systemConfig); err != nil {
+				return false, err
+			}
+		} else if err := a.appStyle.StopWatcher(); err != nil {
+			return false, err
+		}
 	}
 
 	// Create the generated HTML
@@ -247,6 +281,9 @@ func (a *App) startWatcher() error {
 					return
 				}
 				a.Trace().Str("event", fmt.Sprint(event)).Msg("Received event")
+				if event.Op == fsnotify.Chmod {
+					continue
+				}
 				_, err := a.reload(true)
 				if err != nil {
 					a.Error().Err(err).Msg("Error reloading app")
