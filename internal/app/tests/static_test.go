@@ -1,12 +1,13 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package apptests
+package app_test
 
 import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -23,7 +24,7 @@ def handler(req):
 		"static/file2.txt": `file2data`,
 	}
 
-	a, _, err := createDevModeApp(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -70,7 +71,7 @@ def handler(req):
 		"static/file3.txt": `file3data`,
 	}
 
-	a, _, err := createDevModeApp(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

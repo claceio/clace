@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package apptests
+package app_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -24,7 +25,7 @@ def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	a, _, err := createDevModeApp(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -55,7 +56,7 @@ def handler(req):
 		"static/mystyle.css": `mystyle contents`,
 	}
 
-	a, _, err := createDevModeApp(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -79,7 +80,7 @@ def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, workFS, err := createDevModeApp(logger, fileData)
+	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -104,7 +105,7 @@ def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, workFS, err := createDevModeApp(logger, fileData)
+	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -129,6 +130,6 @@ def handler(req):
 	return {"key": "myvalue"}`,
 	}
 
-	_, _, err := createDevModeApp(logger, fileData)
+	_, _, err := app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "invalid style library config : unknown")
 }

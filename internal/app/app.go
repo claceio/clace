@@ -96,6 +96,16 @@ func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *util
 		fullPath := path.Join(newApp.Path, sourceFS.HashName(staticPath))
 		return fullPath
 	}
+
+	funcMap["fileNonEmpty"] = func(name string) bool {
+		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
+		data, err := sourceFS.ReadFile(staticPath)
+		if err != nil {
+			return false
+		}
+		return len(data) > 0
+	}
+
 	// Remove the env functions from sprig, since they can leak system information
 	delete(funcMap, "env")
 	delete(funcMap, "expandenv")

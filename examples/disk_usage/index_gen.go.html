@@ -5,14 +5,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ .Name }}</title>
-    <link rel="stylesheet" href={{static "gen/css/style.css"}}>
+    {{template "clace_gen_import" .}}
 </head>
 
 <body>
-  {{template "clace_gen_import" .}}
-
   <h1> Clace: {{ .Name }}</h1>
 
   {{ template "clace_body" .}}
-  
 </body>

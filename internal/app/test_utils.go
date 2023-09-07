@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package apptests
+package app
 
 import (
 	"io"
@@ -11,14 +11,41 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/utils"
 )
+
+func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+	return CreateTestAppInt(logger, fileData, true)
+}
+
+func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+	return CreateTestAppInt(logger, fileData, false)
+}
+
+func CreateTestAppInt(logger *utils.Logger, fileData map[string]string, isDev bool) (*App, *AppFS, error) {
+	sourceFS := NewAppFS("", &TestFS{fileData: fileData})
+	workFS := NewAppFS("", &TestFS{fileData: map[string]string{}})
+	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
+	a := NewApp(sourceFS, workFS, logger, createTestAppEntry("/test"), &systemConfig)
+	a.IsDev = isDev
+	err := a.Initialize()
+	return a, workFS, err
+}
+
+func createTestAppEntry(path string) *utils.AppEntry {
+	return &utils.AppEntry{
+		Id:     "testApp",
+		Path:   path,
+		Domain: "",
+		FsPath: ".",
+	}
+}
 
 type TestFS struct {
 	fileData map[string]string
 }
 
-var _ app.WritableFS = (*TestFS)(nil)
+var _ WritableFS = (*TestFS)(nil)
 
 type TestFileInfo struct {
 	f *TestFile
