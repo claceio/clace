@@ -13,7 +13,7 @@
                 {{ range .Data.Dirs }}
                     <tr>
                         <td><a href="{{$.Path}}?dir={{.Dir}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?dir={{.Dir}}">{{ .Dir }}</a></td>
-                        <td>{{ .Size }}</td>
+                        <td><progress max="{{- $.Data.MaxSize -}}" value="{{- .Size -}}">{{ .Size }}</progress> {{ .Size }}</td>
                     </tr>
                 {{ end }}
 

@@ -1,4 +1,6 @@
 dist/
 .vscode
 clace.db
+clace.toml
+*.swp
 logs/

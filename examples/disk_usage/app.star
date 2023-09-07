@@ -28,4 +28,7 @@ def handler(req):
 
     # Descending sort on size, limit to 20 dirs
     dirs = sorted(dirs, key=lambda d: d["Size"], reverse=True)[:20]
-    return {"Parent": parent, "Dirs": dirs, "Error": ""}
+    max_size = 0
+    if dirs:
+        max_size = dirs[0]["Size"]
+    return {"Parent": parent, "Dirs": dirs, "Error": "", "MaxSize": max_size}
