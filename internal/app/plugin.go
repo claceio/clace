@@ -85,20 +85,29 @@ func (a *App) pluginHook(plugin string, function string, builtin *starlark.Built
 			return nil, fmt.Errorf("app %s has no permissions configured, plugin call %s.%s is blocked. Audit the app and approve permissions", a.Path, plugin, function)
 		}
 		approved := false
+		var lastError error
 		for _, p := range a.Permissions {
 			a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, plugin, function)
 			if p.Plugin == plugin && p.Method == function {
 				if len(p.Arguments) > 0 {
 					if len(p.Arguments) > len(args) {
-						return nil, fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required (permissions checks are not supported for kwargs). Audit the app and approve permissions", a.Path, plugin, function, len(args), len(p.Arguments))
+						lastError = fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required (permissions checks are not supported for kwargs). Audit the app and approve permissions", a.Path, plugin, function, len(args), len(p.Arguments))
+						continue
 					}
+					argMismatch := false
 					for i, arg := range p.Arguments {
 						expect := fmt.Sprintf("%q", arg)
 						if args[i].String() != fmt.Sprintf("%q", arg) {
-							return nil, fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value %s, expected %s. Update the app or audit and approve permissions", a.Path, plugin, function, i, args[i].String(), expect)
+							lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value %s, expected %s. Update the app or audit and approve permissions", a.Path, plugin, function, i, args[i].String(), expect)
+							argMismatch = true
+							break
 						}
 						// More arguments than approved are permitted. Also, using kwargs is not allowed for args which are approved
 						// Regex support is not implemented, the arguments have to match exactly as approved
+					}
+					if argMismatch {
+						// This permission is not approved, but there may be others which are
+						continue
 					}
 				}
 				approved = true
@@ -107,7 +116,11 @@ func (a *App) pluginHook(plugin string, function string, builtin *starlark.Built
 		}
 
 		if !approved {
-			return nil, fmt.Errorf("app %s is not permitted to call %s.%s. Audit the app and approve permissions", a.Path, plugin, function)
+			if lastError != nil {
+				return nil, lastError
+			} else {
+				return nil, fmt.Errorf("app %s is not permitted to call %s.%s. Audit the app and approve permissions", a.Path, plugin, function)
+			}
 		}
 
 		val, err := builtin.CallInternal(thread, args, kwargs)
