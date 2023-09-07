@@ -166,7 +166,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents <script src="https://unpkg.com/htmx.org@"></script> .`
+	want := `Template contents <link rel="stylesheet" href=/test/static/gen/css/style-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css> <script src="https://unpkg.com/htmx.org@"></script> .`
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
 
@@ -223,6 +223,7 @@ def handler(req):
 	</head>
 
 	<body>
+	    <link rel="stylesheet" href=/test/static/gen/css/style-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css>
 		<script src="https://unpkg.com/htmx.org@1.9.2"></script>
 		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
 
