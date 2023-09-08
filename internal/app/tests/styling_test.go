@@ -19,10 +19,7 @@ func TestStyleNone(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-settings={"style":{"library": ""}})
-
-def handler(req):
-	return {"key": "myvalue"}`,
+settings={"style":{"library": ""}})`,
 	}
 
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
@@ -49,10 +46,7 @@ func TestStyleOther(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     style=clace.style("%s"))
-
-def handler(req):
-	return {"key": "myvalue"}`, testUrl),
+			     style=clace.style("%s"))`, testUrl),
 		"static/mystyle.css": `mystyle contents`,
 	}
 
@@ -74,10 +68,7 @@ func TestStyleTailwindCSS(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-		        style=clace.style(library="tailwindcss"))
-
-def handler(req):
-	return {"key": "myvalue"}`,
+		        style=clace.style(library="tailwindcss"))`,
 	}
 
 	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
@@ -99,10 +90,7 @@ func TestStyleDaisyUI(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-				style=clace.style(library="daisyui"))
-
-def handler(req):
-	return {"key": "myvalue"}`,
+				style=clace.style(library="daisyui"))`,
 	}
 
 	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
@@ -124,10 +112,7 @@ func TestStyleError(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-                style=clace.style(library="unknown"))
-
-def handler(req):
-	return {"key": "myvalue"}`,
+                style=clace.style(library="unknown"))`,
 	}
 
 	_, _, err := app.CreateDevModeTestApp(logger, fileData)

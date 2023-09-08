@@ -1,6 +1,13 @@
 {{block "clace_body" .}}
 
     {{block "du_table_block" .}}
+        <style>
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        </style>
+
         <div id="du_table">
             <h3> Disk usage for {{.Data.Current}} 
             <img id="spinner" class="htmx-indicator" src="{{ static "images/spinner.svg" }}"/>

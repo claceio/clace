@@ -6,6 +6,7 @@ package app_test
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -36,10 +37,18 @@ func TestAppLoadError(t *testing.T) {
 
 	_, _, err = app.CreateTestApp(logger, map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])`,
+app = clace.app("testApp", pages = [clace.page("/")])
+handler = 10`,
 		"index.go.html": `{{.}}`,
 	})
-	testutil.AssertErrorContains(t, err, "has no handler, and no app level default handler function is specified")
+	testutil.AssertErrorContains(t, err, "handler is not a function")
+
+	_, _, err = app.CreateTestApp(logger, map[string]string{
+		"app.star": `
+app = clace.app("testApp", pages = [clace.page("/", handler=10)])`,
+		"index.go.html": `{{.}}`,
+	})
+	testutil.AssertErrorContains(t, err, "page: for parameter \"handler\": got int, want callable")
 }
 
 func TestAppPages(t *testing.T) {
@@ -190,6 +199,48 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
 	testutil.AssertStringContains(t, response.Body.String(), "no such template \"clace_body\"")
+}
+
+func TestNoHandler(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+		"index.go.html": `Template contents {{.Data}}.`,
+	}
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "Template contents map[]")
+}
+
+func TestFullData(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+		"index.go.html": `Template contents {{.}}.`,
+	}
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	configRegex := regexp.MustCompile(` Config:[^ ]+`)
+	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, replaced, "Template contents map[AutoReload:false CONFIG Data:map[] Form:map[] IsDev:true IsHtmx:false Name:testApp Path:/test PostForm:map[] Query:map[] Url:/test UrlParams:map[]]")
 }
 
 func TestAppHeaderDefaultWithBody(t *testing.T) {

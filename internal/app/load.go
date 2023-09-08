@@ -110,7 +110,11 @@ func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
 func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
 	if a.globals.Has(DEFAULT_HANDLER) {
-		defaultHandler, _ = a.globals[DEFAULT_HANDLER].(starlark.Callable)
+		var ok bool
+		defaultHandler, ok = a.globals[DEFAULT_HANDLER].(starlark.Callable)
+		if !ok {
+			return fmt.Errorf("%s is not a function", DEFAULT_HANDLER)
+		}
 	}
 	router := chi.NewRouter()
 	if err := a.createInternalRoutes(router); err != nil {
@@ -184,21 +188,16 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		}
 	}
 
-	handler, _ := pageDef.Attr("handler")
-	if handler == nil {
-		// Use app level default handler if configured
-		handler = defaultHandler
-	}
-	if handler == nil {
-		return fmt.Errorf("page %s has no handler, and no app level default handler function is specified", pathStr)
-	}
-	var handlerCallable starlark.Callable
-	if handlerCallable, ok = handler.(starlark.Callable); !ok {
-		return fmt.Errorf("handler for page %s is not a function", pathStr)
+	handler := defaultHandler // Use app level default handler, which could also be nil
+	handlerAttr, _ := pageDef.Attr("handler")
+	if handlerAttr != nil {
+		if handler, ok = handlerAttr.(starlark.Callable); !ok {
+			return fmt.Errorf("handler for page %s is not a function", pathStr)
+		}
 	}
 
-	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handlerCallable)
-	if err = a.handleFragments(router, pathStr, count, htmlFile, pageDef, handlerCallable); err != nil {
+	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler)
+	if err = a.handleFragments(router, pathStr, count, htmlFile, pageDef, handler); err != nil {
 		return err
 	}
 	a.Trace().Msgf("Adding page route <%s>", pathStr)
@@ -242,15 +241,14 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 			return err
 		}
 
-		handler, _ := fragmentDef.Attr("handler")
 		fragmentCallback := handlerCallable
+		handler, _ := fragmentDef.Attr("handler")
 		if handler != nil {
 			// If new handler is defined at fragment level, that is verified. Otherwise the
 			// page level handler is used
 			if fragmentCallback, ok = handler.(starlark.Callable); !ok {
 				return fmt.Errorf("handler for page %d fragment %d is not a function", pageCount, count)
 			}
-
 		}
 		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback)
 
@@ -278,7 +276,6 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 		}
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
-
 		requestData := map[string]interface{}{
 			"Name":       a.Name,
 			"Path":       a.Path,
@@ -302,31 +299,35 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 		requestData["Query"] = r.URL.Query()
 		requestData["PostForm"] = r.PostForm
 
-		dataStarlark, err := utils.MarshalStarlark(requestData)
-		if err != nil {
-			a.Error().Err(err).Msg("error converting request data")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		a.Trace().Msgf("Calling handler %s %s", handler.Name(), dataStarlark.String())
+		var value any = map[string]any{} // no handler means empty Data map is passed into template
+		if handler != nil {
+			dataStarlark, err := utils.MarshalStarlark(requestData)
+			if err != nil {
+				a.Error().Err(err).Msg("error converting request data")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			a.Trace().Msgf("Calling handler %s %s", handler.Name(), dataStarlark.String())
 
-		ret, err := starlark.Call(thread, handler, starlark.Tuple{dataStarlark}, nil)
-		if err != nil {
-			a.Error().Err(err).Msg("error calling handler")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// TODO : handle redirects and renders
+			ret, err := starlark.Call(thread, handler, starlark.Tuple{dataStarlark}, nil)
+			if err != nil {
+				a.Error().Err(err).Msg("error calling handler")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			// TODO : handle redirects and renders
 
-		value, err := utils.UnmarshalStarlark(ret)
-		if err != nil {
-			a.Error().Err(err).Msg("error converting response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			value, err = utils.UnmarshalStarlark(ret)
+			if err != nil {
+				a.Error().Err(err).Msg("error converting response")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		requestData["Data"] = value
 		requestData["Config"] = a.Config
+		var err error
 		if isHtmxRequest && block != "" {
 			a.Trace().Msgf("Rendering block %s", block)
 			err = a.template.ExecuteTemplate(w, block, requestData)

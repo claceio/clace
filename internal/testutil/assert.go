@@ -51,7 +51,9 @@ func AssertNoError(tb testing.TB, err error) {
 
 func AssertErrorContains(tb testing.TB, err error, want string) {
 	tb.Helper()
-	if !strings.Contains(err.Error(), want) {
+	if err == nil {
+		tb.Errorf("expected error containing msg `%s`, got nil", want)
+	} else if !strings.Contains(err.Error(), want) {
 		tb.Errorf("expected error containing msg `%s`, got: `%s`", want, err.Error())
 	}
 }

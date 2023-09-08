@@ -4,3 +4,4 @@ clace.db
 clace.toml
 *.swp
 logs/
+.DS_Store
