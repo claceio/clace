@@ -1,7 +1,10 @@
 dist/
 .vscode
+clace
 clace.db
 clace.toml
 *.swp
+.sw*
 logs/
 .DS_Store
+run/

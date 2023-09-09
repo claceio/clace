@@ -128,7 +128,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}
-		{{ block "ff2" . }} {{if contains "frag2" .Url}} {{.Url}} frag2data {{ end }} {{end}}`,
+		{{ block "ff2" . }} {{if contains "frag2" .PagePath}} {{.PagePath}} frag2data {{ end }} {{end}}`,
 	}
 	a, _, err := app.CreateTestApp(logger, fileData)
 	if err != nil {

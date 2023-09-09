@@ -240,7 +240,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 	configRegex := regexp.MustCompile(` Config:[^ ]+`)
 	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, replaced, "Template contents map[AutoReload:false CONFIG Data:map[] Form:map[] IsDev:true IsHtmx:false Name:testApp Path:/test PostForm:map[] Query:map[] Url:/test UrlParams:map[]]")
+	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath:/test AppUrl::////test AutoReload:false CONFIG Data:map[] Form:map[] IsDev:true IsHtmx:false PagePath:/test PageUrl::////test PostForm:map[] Query:map[] UrlParams:map[]].")
 }
 
 func TestAppHeaderDefaultWithBody(t *testing.T) {

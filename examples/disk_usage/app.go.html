@@ -22,7 +22,8 @@
                 </thead>
                 {{ range .Data.Dirs }}
                     <tr>
-                        <td><a href="{{$.Path}}?dir={{.Dir}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?dir={{.Dir}}" hx-indicator="#spinner">{{ .Dir }}</a></td>
+                        {{$dirUrl := printf "%s?dir=%s" $.AppPath .Dir }}
+                        <td><a href="{{$dirUrl}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$dirUrl}}" hx-indicator="#spinner">{{ .Dir }}</a></td>
                         <td><progress max="{{- $.Data.MaxSize -}}" value="{{- .Size -}}">{{ .Size }}</progress></td>
                         <td>{{ .Size }}</td>
                     </tr>
@@ -31,7 +32,10 @@
             </table>
 
             <h3>
-            Parent Directory : <a href="{{$.Path}}?dir={{.Data.Current}}/.." hx-target="#du_table" hx-push-url="true" hx-get="{{$.Path}}?dir={{.Data.Current}}/.." hx-indicator="#spinner">{{.Data.Current}}/..</a>
+            {{if ne .Data.Current "/"}}
+            {{$parentUrl := printf "%s?dir=%s/.." $.AppPath .Data.Current}}
+            Parent Directory : <a href="{{$parentUrl}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$parentUrl}}" hx-indicator="#spinner">{{.Data.Current}}/..</a>
+            {{end}}
             </h3>
         </div>
     {{end}}
