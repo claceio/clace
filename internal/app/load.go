@@ -200,7 +200,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	if err = a.handleFragments(router, pathStr, count, htmlFile, pageDef, handler); err != nil {
 		return err
 	}
-	a.Trace().Msgf("Adding page route <%s>", pathStr)
+	a.Trace().Msgf("Adding page route %s <%s>", methodStr, pathStr)
 	router.Method(methodStr, pathStr, handlerFunc)
 	return nil
 }

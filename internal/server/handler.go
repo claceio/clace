@@ -56,7 +56,7 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 
 	router.Use(handler.createAuthMiddleware)
 	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
-	router.Get("/*", handler.callApp)
+	router.HandleFunc("/*", handler.callApp)
 	return handler
 }
 

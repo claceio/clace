@@ -232,11 +232,15 @@ func (a *App) generateHTML() error {
 	// The header name of contents have changed, recreate it. Since reload creates the header
 	// file and updating the file causes the FS watcher to call reload, we have to make sure the
 	// file is updated only if there is an actual content change
-	indexData, err := a.sourceFS.ReadFile(INDEX_GEN_FILE)
-	if err != nil || !bytes.Equal(indexData, indexEmbed) {
-		if err := a.sourceFS.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
-			return err
+	if !a.customLayout {
+		indexData, err := a.sourceFS.ReadFile(INDEX_GEN_FILE)
+		if err != nil || !bytes.Equal(indexData, indexEmbed) {
+			if err := a.sourceFS.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
+				return err
+			}
 		}
+	} else {
+		// TODO : remove generated index file if custom layout is enabled
 	}
 
 	claceGenData, err := a.sourceFS.ReadFile(CLACE_GEN_FILE)

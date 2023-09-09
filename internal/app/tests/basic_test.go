@@ -332,3 +332,30 @@ def handler(req):
 	testutil.AssertEqualsInt(t, "code", 303, response.Code)
 	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
 }
+
+func TestPost(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/", method="POST")])
+def handler(req):
+	return clace.redirect("/new_url", code=302)`,
+	}
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 405, response.Code) // GET instead of POST
+
+	request = httptest.NewRequest("POST", "/test", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 302, response.Code)
+	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
+}
