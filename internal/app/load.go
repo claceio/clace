@@ -315,7 +315,20 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			// TODO : handle redirects and renders
+
+			retStruct, ok := ret.(*starlarkstruct.Struct)
+			if ok {
+				// Handle Redirect response
+				url, err := getStringAttr(retStruct, "url")
+				if err != nil {
+					http.Error(w, fmt.Sprintf("require url for redirect %s", err), http.StatusInternalServerError)
+					return
+				}
+				code, _ := getIntAttr(retStruct, "code")
+				a.Trace().Msgf("Redirecting to %s with code %d", url, code)
+				http.Redirect(w, r, url, int(code))
+				return
+			}
 
 			value, err = utils.UnmarshalStarlark(ret)
 			if err != nil {

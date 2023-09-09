@@ -17,9 +17,8 @@ const (
 	FRAGMENT              = "fragment"
 	STYLE                 = "style"
 	REDIRECT              = "redirect"
-	RENDER                = "render"
 	PERMISSION            = "permission"
-	DEFAULT_REDIRECT_CODE = 302
+	DEFAULT_REDIRECT_CODE = 303
 )
 
 var (
@@ -139,7 +138,8 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		return nil, err
 	}
 
-	if code == starlark.MakeInt(0) {
+	codeValue, _ := code.Int64()
+	if codeValue == 0 {
 		code = starlark.MakeInt(DEFAULT_REDIRECT_CODE)
 	}
 

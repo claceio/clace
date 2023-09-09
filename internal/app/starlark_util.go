@@ -23,6 +23,23 @@ func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
 	return vs.GoString(), nil
 }
 
+func getIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return 0, fmt.Errorf("error getting %s: %s", key, err)
+	}
+	var vi starlark.Int
+	var ok bool
+	if vi, ok = v.(starlark.Int); !ok {
+		return 0, fmt.Errorf("%s is not a integer", key)
+	}
+	intVal, ok := vi.Int64()
+	if !ok {
+		return 0, fmt.Errorf("%s is not a integer", key)
+	}
+	return intVal, nil
+}
+
 func getBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
 	v, err := s.Attr(key)
 	if err != nil {

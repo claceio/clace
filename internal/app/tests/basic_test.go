@@ -292,3 +292,43 @@ def handler(req):
 
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
+
+func TestRedirect(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+def handler(req):
+	return clace.redirect("/new_url", code=302)`,
+	}
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 302, response.Code)
+	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
+
+	// Test default code is 303
+	fileData = map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+def handler(req):
+	return clace.redirect("/new_url")`,
+	}
+	a, _, err = app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request = httptest.NewRequest("GET", "/test", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 303, response.Code)
+	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
+}
