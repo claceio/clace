@@ -197,7 +197,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	}
 
 	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler)
-	if err = a.handleFragments(router, pathStr, count, htmlFile, pageDef, handler); err != nil {
+	if err = a.handleFragments(router, pathStr, count, htmlFile, blockStr, pageDef, handler); err != nil {
 		return err
 	}
 	a.Trace().Msgf("Adding page route %s <%s>", methodStr, pathStr)
@@ -205,7 +205,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	return nil
 }
 
-func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, htmlFile string, page *starlarkstruct.Struct, handlerCallable starlark.Callable) error {
+func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, htmlFile string, block string, page *starlarkstruct.Struct, handlerCallable starlark.Callable) error {
 	// Iterate through all the pages
 	var err error
 	fragmentAttr, err := page.Attr("fragments")
@@ -239,6 +239,11 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 		}
 		if blockStr, err = getStringAttr(fragmentDef, "block"); err != nil {
 			return err
+		}
+
+		if blockStr == "" {
+			// Inherit page level block setting
+			blockStr = block
 		}
 
 		fragmentCallback := handlerCallable

@@ -11,7 +11,7 @@ import (
 	"github.com/claceio/clace/internal/testutil"
 )
 
-func TestFragmentSuccess(t *testing.T) {
+func TestFragmentBasics(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
@@ -51,6 +51,56 @@ def handler(req):
 	// With htmx request to main url, full html is returned
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", fullHtml, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/abc/frag", nil)
+	response = httptest.NewRecorder()
+	request.Header.Set("HX-Request", "true")
+	a.ServeHTTP(response, request)
+	// With htmx request to fragment url, partial html is returned
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", " fragdata myvalue2 ", response.Body.String())
+}
+
+func TestFragmentInherit(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc", block="ff",
+	fragments=[clace.fragment("frag")]
+)])
+
+def handler(req):
+	return {"key": "myvalue", "key2": "myvalue2"}
+		`,
+		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
+	}
+	a, _, err := app.CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/abc", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	fullHtml := `Template main myvalue.  fragdata myvalue2 `
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", fullHtml, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/abc/frag", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	// With default http request to fragment url (no htmx headers, full html is returned)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", fullHtml, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/abc", nil)
+	response = httptest.NewRecorder()
+	request.Header.Set("HX-Request", "true")
+	a.ServeHTTP(response, request)
+	// With htmx request to main url, partial html is returned
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", " fragdata myvalue2 ", response.Body.String())
 
 	request = httptest.NewRequest("GET", "/test/abc/frag", nil)
 	response = httptest.NewRecorder()

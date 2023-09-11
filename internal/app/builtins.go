@@ -98,7 +98,7 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	var path, block starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block", &block, "handler?", &handler, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block?", &block, "handler?", &handler, "method?", &method); err != nil {
 		return nil, err
 	}
 
