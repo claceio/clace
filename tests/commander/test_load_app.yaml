@@ -6,17 +6,17 @@ tests:
     command: cp -r ../examples/disk_usage .
   test0020: ## create dev app
     command: ../clace app create --is_dev /disk_usage_dev ./disk_usage
-    stdout: 
+    stdout:
       line-count: 0
     stderr: "App created /disk_usage_dev : app"
     exit-code: 0
   test0030: # create prod app
     command: ../clace app create /disk_usage_prod ./disk_usage
-    stdout: 
+    stdout:
       line-count: 0
     stderr: "App created /disk_usage_prod : app"
     exit-code: 0
-  test0040: # test dev app 
+  test0040: # test dev app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   test0041: # check audit output
@@ -54,7 +54,7 @@ tests:
     exit-code: 0
   test0050: # check curl
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
-    stdout: "app /disk_usage_dev is not permitted to call exec.in.run with argument 0 having value \"du\", expected \"readlink\". Update the app or audit and approve permissions"
+    stdout: 'app /disk_usage_dev is not permitted to call exec.in.run with argument 0 having value "du", expected "readlink". Update the app or audit and approve permissions'
   test0051: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
   test0052: # approve audit, run permissions but for du
@@ -65,6 +65,14 @@ tests:
   test0053: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
     stdout: "Disk Usage"
+  test0054: # check Vary header
+    command: curl -vsu "admin:qwerty" localhost:25223/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
+    stdout: "Vary: HX-Request"
+    exit-code: 0
+  test0055: # check Response compression header
+    command: curl -vsu "admin:qwerty" -H "Accept-Encoding:gzip" localhost:25223/disk_usage_dev/static/gen/css/style.css 2>&1 | grep "Content-Encoding"
+    stdout: "Content-Encoding: gzip"
+    exit-code: 0
   test0060: # audit prod app
     command: ../clace app audit --approve /disk_usage_prod
     stdout:
@@ -72,7 +80,7 @@ tests:
     exit-code: 0
   test0061: # test prod app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
-    stderr: 
+    stderr:
       line-count: 0
     stdout: "Disk Usage"
     exit-code: 0
@@ -80,17 +88,17 @@ tests:
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
   test0080: # with --is_dev, changes are picked up immediately
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
-    stderr: 
+    stderr:
       line-count: 0
     stdout: "DiskTest Usage"
   test0090: # without --is_dev, changes are not picked up
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
-    stderr: 
+    stderr:
       line-count: 0
     stdout: "Disk Usage"
   test0100: # Create app with duplicate path
     command: ../clace app create /disk_usage_dev/ ./disk_usage
-    stdout: 
+    stdout:
       line-count: 0
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1

@@ -14,7 +14,43 @@ import (
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	VARY_HEADER = "Vary"
+)
+
+var (
+	COMPRESSION_ENABLED_MIME_TYPES = []string{
+		"text/html",
+		"text/css",
+		"text/plain",
+		"text/xml",
+		"text/x-component",
+		"text/javascript",
+		"application/x-javascript",
+		"application/javascript",
+		"application/json",
+		"application/manifest+json",
+		"application/vnd.api+json",
+		"application/xml",
+		"application/xhtml+xml",
+		"application/rss+xml",
+		"application/atom+xml",
+		"application/vnd.ms-fontobject",
+		"application/x-font-ttf",
+		"application/x-font-opentype",
+		"application/x-font-truetype",
+		"image/svg+xml",
+		"image/x-icon",
+		"image/vnd.microsoft.icon",
+		"font/ttf",
+		"font/eot",
+		"font/otf",
+		"font/opentype",
+	}
 )
 
 const (
@@ -54,7 +90,11 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 		router: router,
 	}
 
+	router.Use(AddVaryHeader)
+	router.Use(middleware.CleanPath)
+	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
 	router.Use(handler.createAuthMiddleware)
+
 	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
 	router.HandleFunc("/*", handler.callApp)
 	return handler
@@ -267,4 +307,12 @@ func (h *Handler) auditApp(r *http.Request) (any, error) {
 	appPath = normalizePath(appPath)
 	auditResult, err := h.server.AuditApp(utils.CreateAppPathDomain(appPath, domain), approveBool)
 	return auditResult, err
+}
+
+func AddVaryHeader(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add(VARY_HEADER, "HX-Request")
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }
