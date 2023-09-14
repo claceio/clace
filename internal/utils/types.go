@@ -19,6 +19,7 @@ type GlobalConfig struct {
 type ServerConfig struct {
 	GlobalConfig
 	Http     HttpConfig     `toml:"http"`
+	Https    HttpsConfig    `toml:"https"`
 	Metadata MetadataConfig `toml:"metadata"`
 	Log      LogConfig      `toml:"logging"`
 	System   SystemConfig   `toml:"system"`
@@ -28,6 +29,17 @@ type ServerConfig struct {
 type HttpConfig struct {
 	Host string `toml:"host"`
 	Port int    `toml:"port"`
+}
+
+// HttpsConfig is the configuration for the HTTPs server
+type HttpsConfig struct {
+	Host             string `toml:"host"`
+	Port             int    `toml:"port"`
+	EnableCertLookup bool   `toml:"enable_cert_lookup"`
+	ServiceEmail     string `toml:"service_email"`
+	UseStaging       bool   `toml:"use_staging"`
+	StorageLocation  string `toml:"storage_location"`
+	CertLocation     string `toml:"cert_location"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer

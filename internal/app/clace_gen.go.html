@@ -1,24 +1,21 @@
-
-
 {{ block "clace_gen_import" .}}
-    {{ if fileNonEmpty "gen/css/style.css" }}
-    <link rel="stylesheet" href={{static "gen/css/style.css"}}>
-    {{ end }}
+{{ if fileNonEmpty "gen/css/style.css" }}
+<link rel="stylesheet" href={{static "gen/css/style.css" }}>
+{{ end }}
 
-    <script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
-    {{ if or .IsDev .AutoReload .Config.Routing.PushEvents }}
-    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-    {{ end }}
+<script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
+{{ if or .IsDev .AutoReload .Config.Routing.PushEvents }}
+<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+{{ end }}
 
-    {{ if or .IsDev .AutoReload }}
-    <div id="cl_reload_listener" hx-ext="sse" 
-        sse-connect="{{ print .AppPath "/_clace/sse"}}" sse-swap="clace_reload"
-        hx-trigger="sse:clace_reload"></div>
-    <script>
-        document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
-            function (event) {
-                location.reload();
-            });
-    </script>
-    {{ end }}
+{{ if or .IsDev .AutoReload }}
+<div id="cl_reload_listener" hx-ext="sse" sse-connect="{{ print .AppPath " /_clace/sse" }}" sse-swap="clace_reload"
+    hx-trigger="sse:clace_reload"></div>
+<script>
+    document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+        function (event) {
+            location.reload();
+        });
+</script>
+{{ end }}
 {{ end -}}

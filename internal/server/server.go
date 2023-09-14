@@ -5,13 +5,17 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/caddyserver/certmagic"
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
@@ -19,6 +23,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/claceio/clace/plugins" // Register builtin plugins
+)
+
+const (
+	DEFAULT_CERT_FILE = "default.crt"
+	DEFAULT_KEY_FILE  = "default.key"
 )
 
 // CL_HOME is the root directory for Clace logs and temp files
@@ -35,11 +44,12 @@ func init() {
 // Server is the instance of the Clace Server
 type Server struct {
 	*utils.Logger
-	config     *utils.ServerConfig
-	db         *metadata.Metadata
-	httpServer *http.Server
-	handler    *Handler
-	apps       *AppStore
+	config      *utils.ServerConfig
+	db          *metadata.Metadata
+	httpServer  *http.Server
+	httpsServer *http.Server
+	handler     *Handler
+	apps        *AppStore
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -107,15 +117,19 @@ func (s *Server) setupAdminAccount() (string, error) {
 
 // Start starts the Clace Server
 func (s *Server) Start() error {
-	addr := fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
-	s.Info().Str("address", addr).Msg("Starting HTTP server")
 	s.handler = NewHandler(s.Logger, s.config, s)
-	s.httpServer = &http.Server{
-		Addr:         addr,
-		WriteTimeout: 180 * time.Second,
-		ReadTimeout:  180 * time.Second,
-		IdleTimeout:  30 * time.Second,
-		Handler:      s.handler.router,
+
+	if s.config.Http.Port >= 0 {
+		s.httpServer = &http.Server{
+			WriteTimeout: 180 * time.Second,
+			ReadTimeout:  180 * time.Second,
+			IdleTimeout:  30 * time.Second,
+			Handler:      s.handler.router,
+		}
+	}
+
+	if s.config.Https.Port >= 0 {
+		s.httpsServer = s.setupHTTPSServer()
 	}
 
 	generatedPass, err := s.setupAdminAccount()
@@ -127,19 +141,135 @@ func (s *Server) Start() error {
 		fmt.Printf("Admin password: %s\n", generatedPass)
 	}
 
-	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil {
-			s.Error().Err(err).Msg("server error")
-			os.Exit(1)
+	if s.httpServer != nil {
+		addr := fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			return err
 		}
-	}()
+		s.config.Http.Port = listener.Addr().(*net.TCPAddr).Port
+		addr = fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
+		s.Info().Str("address", addr).Msg("Starting HTTP server")
+
+		go func() {
+			if err := s.httpServer.Serve(listener); err != nil {
+				s.Error().Err(err).Msg("HTTP server error")
+				os.Exit(1)
+			}
+		}()
+	}
+
+	if s.httpsServer != nil {
+		addr := fmt.Sprintf("%s:%d", s.config.Https.Host, s.config.Https.Port)
+		listener, err := tls.Listen("tcp", addr, s.httpsServer.TLSConfig)
+		if err != nil {
+			return err
+		}
+		s.config.Https.Port = listener.Addr().(*net.TCPAddr).Port
+		addr = fmt.Sprintf("%s:%d", s.config.Https.Host, s.config.Https.Port)
+		s.Info().Str("address", addr).Msg("Starting HTTPS server")
+		go func() {
+			if err := s.httpsServer.Serve(listener); err != nil {
+				s.Error().Err(err).Msg("HTTPS server error")
+				os.Exit(1)
+			}
+		}()
+	}
 	return nil
+}
+
+func (s *Server) setupHTTPSServer() *http.Server {
+	// Use Let's Encrypt staging server
+	if s.config.Https.UseStaging {
+		certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+	}
+
+	certmagic.DefaultACME.Agreed = true
+	certmagic.DefaultACME.Email = s.config.Https.ServiceEmail
+
+	// Customize the storage directory
+	customStorageDir := os.ExpandEnv(s.config.Https.StorageLocation)
+	certmagic.Default.Storage = &certmagic.FileStorage{Path: customStorageDir}
+
+	server := &http.Server{
+		WriteTimeout: 180 * time.Second,
+		ReadTimeout:  180 * time.Second,
+		IdleTimeout:  30 * time.Second,
+		Handler:      s.handler.router,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				domain := hello.ServerName
+				s.Info().Msgf("GetCertificate called for %s", domain)
+
+				if s.config.Https.EnableCertLookup {
+					// Cert lookup is enabled
+					// Check if certificate and key files exist on disk for the domain
+					_, certErr := os.Stat(domain + ".crt")
+					_, keyErr := os.Stat(domain + ".key")
+
+					// If certificate and key files exist, load them
+					if certErr == nil && keyErr == nil {
+						cert, err := tls.LoadX509KeyPair(domain+".crt", domain+".key")
+						return &cert, err
+					}
+				}
+
+				if strings.TrimSpace(certmagic.DefaultACME.Email) == "" {
+					// If certmagic is disabled, look for default certificate and key files
+					s.Info().Msgf("Looking up default certificate for %s", domain)
+					certFilePath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_CERT_FILE)
+					certKeyPath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_KEY_FILE)
+
+					_, certErr := os.Stat(certFilePath)
+					_, keyErr := os.Stat(certKeyPath)
+					if certErr != nil || keyErr != nil {
+						// If default certificate and key files don't exist, use certmagic to obtain a certificate
+						s.Info().Msgf("Generating default self signed certificate")
+
+						if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
+							return nil, fmt.Errorf("error creating cert directory %s : %s",
+								os.ExpandEnv(s.config.Https.CertLocation), err)
+						}
+
+						err := GenerateSelfSignedCertificate(certFilePath, certKeyPath, 365*24*time.Hour)
+						if err != nil {
+							return nil, fmt.Errorf("error generating self signed certificate: %w", err)
+						}
+					}
+
+					cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
+					return &cert, err
+				}
+				// If certificate or key file doesn't exist, use certmagic to obtain a certificate
+				s.Info().Msgf("Auto generating certificate for %s", domain)
+
+				certmagicConfig := certmagic.NewDefault()
+				err := certmagicConfig.ManageSync(hello.Context(), []string{domain})
+				if err != nil {
+					return nil, err
+				}
+				return certmagicConfig.GetCertificate(hello)
+
+			},
+		},
+	}
+	return server
 }
 
 // Stop stops the Clace Server
 func (s *Server) Stop(ctx context.Context) error {
 	s.Info().Msg("Stopping service")
-	return s.httpServer.Shutdown(ctx)
+	var err1, err2 error
+	if s.httpServer != nil {
+		err1 = s.httpServer.Shutdown(ctx)
+	}
+	if s.httpsServer != nil {
+		err2 = s.httpsServer.Shutdown(ctx)
+	}
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
 
 func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {

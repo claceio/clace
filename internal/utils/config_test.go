@@ -34,4 +34,13 @@ func TestConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "db connection", "sqlite:$CL_HOME/clace.db", c.Metadata.DBConnection)
 	testutil.AssertEqualsBool(t, "auto upgrade", true, c.Metadata.AutoUpgrade)
 	testutil.AssertEqualsString(t, "tailwind command", "npx tailwindcss", c.System.TailwindCSSCommand)
+
+	// HTTPS listen related settings
+	testutil.AssertEqualsString(t, "https host", "0.0.0.0", c.Https.Host)
+	testutil.AssertEqualsInt(t, "https port", -1, c.Https.Port)
+	testutil.AssertEqualsBool(t, "https cert lookup", true, c.Https.EnableCertLookup)
+	testutil.AssertEqualsString(t, "email", "", c.Https.ServiceEmail)
+	testutil.AssertEqualsBool(t, "https staging", true, c.Https.UseStaging)
+	testutil.AssertEqualsString(t, "storage", "$CL_HOME/run/certmagic", c.Https.StorageLocation)
+	testutil.AssertEqualsString(t, "cache", "$CL_HOME/config/certificates", c.Https.CertLocation)
 }
