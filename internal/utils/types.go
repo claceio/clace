@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	INTERNAL_URL_PREFIX     = "/_clace"
+	APP_INTERNAL_URL_PREFIX = "/_clace_app"
+)
+
 // Config entries shared between client and server
 type GlobalConfig struct {
 	ConfigFile          string `toml:"config_file"`

@@ -267,7 +267,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 
 func (a *App) createInternalRoutes(router *chi.Mux) error {
 	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
-		router.Get("/_clace/sse", a.sseHandler)
+		router.Get(utils.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
 	}
 
 	return nil

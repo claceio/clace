@@ -297,7 +297,7 @@ def handler(req):
 		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
 
 		<div id="cl_reload_listener" hx-ext="sse"
-		sse-connect="/test/_clace/sse" sse-swap="clace_reload"
+		sse-connect="/test/_clace_app/sse" sse-swap="clace_reload"
 		hx-trigger="sse:clace_reload"></div>
 	<script>
 		document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',

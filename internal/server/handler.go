@@ -54,8 +54,9 @@ var (
 )
 
 const (
-	REALM               = "clace"
-	INTERNAL_URL_PREFIX = "/_clace"
+	REALM                   = "clace"
+	INTERNAL_URL_PREFIX     = "/_clace"
+	APP_INTERNAL_URL_PREFIX = "/_clace_app"
 )
 
 type Handler struct {
