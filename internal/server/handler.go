@@ -54,9 +54,7 @@ var (
 )
 
 const (
-	REALM                   = "clace"
-	INTERNAL_URL_PREFIX     = "/_clace"
-	APP_INTERNAL_URL_PREFIX = "/_clace_app"
+	REALM = "clace"
 )
 
 type Handler struct {
@@ -96,7 +94,7 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
 	router.Use(handler.createAuthMiddleware)
 
-	router.Mount(INTERNAL_URL_PREFIX, handler.serveInternal())
+	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
 	router.HandleFunc("/*", handler.callApp)
 	return handler
 }
@@ -312,7 +310,14 @@ func (h *Handler) auditApp(r *http.Request) (any, error) {
 
 func AddVaryHeader(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add(VARY_HEADER, "HX-Request")
+		value := w.Header().Get(VARY_HEADER)
+		if value != "" {
+			value += ", HX-Request"
+		} else {
+			value = "HX-Request"
+		}
+
+		w.Header().Add(VARY_HEADER, value)
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
