@@ -243,6 +243,28 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath:/test AppUrl::////test AutoReload:false CONFIG Data:map[] Form:map[] IsDev:true IsHtmx:false PagePath:/test PageUrl::////test PostForm:map[] Query:map[] UrlParams:map[]].")
 }
 
+func TestFullDataRoot(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+		"index.go.html": `Template contents {{.}}.`,
+	}
+	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	configRegex := regexp.MustCompile(` Config:[^ ]+`)
+	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath: AppUrl::/// AutoReload:false CONFIG Data:map[] Form:map[] IsDev:false IsHtmx:false PagePath: PageUrl::/// PostForm:map[] Query:map[] UrlParams:map[*:]].")
+}
+
 func TestAppHeaderDefaultWithBody(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{

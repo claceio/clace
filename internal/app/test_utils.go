@@ -15,18 +15,22 @@ import (
 )
 
 func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
-	return CreateTestAppInt(logger, fileData, true)
+	return CreateTestAppInt(logger, "/test", fileData, true)
 }
 
 func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
-	return CreateTestAppInt(logger, fileData, false)
+	return CreateTestAppInt(logger, "/test", fileData, false)
 }
 
-func CreateTestAppInt(logger *utils.Logger, fileData map[string]string, isDev bool) (*App, *AppFS, error) {
+func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+	return CreateTestAppInt(logger, "/", fileData, false)
+}
+
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool) (*App, *AppFS, error) {
 	sourceFS := NewAppFS("", &TestFS{fileData: fileData})
 	workFS := NewAppFS("", &TestFS{fileData: map[string]string{}})
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
-	a := NewApp(sourceFS, workFS, logger, createTestAppEntry("/test"), &systemConfig)
+	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path), &systemConfig)
 	a.IsDev = isDev
 	err := a.Initialize()
 	return a, workFS, err

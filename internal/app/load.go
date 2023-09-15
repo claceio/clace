@@ -281,12 +281,20 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 		}
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
+		appPath := a.Path
+		if appPath == "/" {
+			appPath = ""
+		}
+		pagePath := r.URL.Path
+		if pagePath == "/" {
+			pagePath = ""
+		}
 		requestData := map[string]interface{}{
 			"AppName":    a.Name,
-			"AppPath":    a.Path,
-			"AppUrl":     fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, a.Path),
-			"PagePath":   r.URL.Path,
-			"PageUrl":    fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, r.URL.Path),
+			"AppPath":    appPath,
+			"AppUrl":     fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, appPath),
+			"PagePath":   pagePath,
+			"PageUrl":    fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, pagePath),
 			"IsDev":      a.IsDev,
 			"AutoReload": a.AutoReload,
 			"IsHtmx":     isHtmxRequest,
