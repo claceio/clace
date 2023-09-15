@@ -197,6 +197,7 @@ func (s *Server) setupHTTPSServer() *http.Server {
 		IdleTimeout:  30 * time.Second,
 		Handler:      s.handler.router,
 		TLSConfig: &tls.Config{
+			NextProtos: []string{"h2", "http/1.1"},
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				domain := hello.ServerName
 				s.Info().Msgf("GetCertificate called for %s", domain)

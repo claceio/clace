@@ -11,7 +11,7 @@ import (
 const (
 	PASSWORD_CHARS  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^&*()_-+=<>?/|"
 	PASSWORD_LENGTH = 16
-	BCRYPT_COST     = 12
+	BCRYPT_COST     = 10
 )
 
 // GenerateRandomPassword generates a random password

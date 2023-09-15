@@ -4,6 +4,7 @@
 package server
 
 import (
+	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
@@ -100,7 +102,34 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 }
 
 func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
+	// Cache the success auth header to avoid the bcrypt hash check penalty
+	// Basic auth is supported for admin user only, and changing it requires service restart.
+	// Caching the sha of the successful auth header allows us to skip the bcrypt check
+	// which significantly improves performance.
+	authHeaderLock := sync.RWMutex{}
+	authShaCache := ""
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		authHeaderLock.RLock()
+		authShaCopy := authShaCache
+		authHeaderLock.RUnlock()
+
+		inputHeader := r.Header.Get("Authorization")
+		if authShaCopy != "" {
+			inputSha := sha512.Sum512([]byte(inputHeader))
+			inputShaSlice := inputSha[:]
+
+			if subtle.ConstantTimeCompare(inputShaSlice, []byte(authShaCopy)) != 1 {
+				h.Warn().Msg("Auth header cache check failed")
+				h.basicAuthFailed(w)
+				return
+			}
+
+			// Cached header matches, so we can skip the rest of the auth checks
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		user, pass, ok := r.BasicAuth()
 		if !ok {
 			h.basicAuthFailed(w)
@@ -124,6 +153,17 @@ func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
 			h.Warn().Err(err).Msg("Password match failed")
 			h.basicAuthFailed(w)
 			return
+		}
+
+		authHeaderLock.RLock()
+		authShaCopy = authShaCache
+		authHeaderLock.RUnlock()
+		if authShaCopy == "" {
+			// Successful request, so we can cache the auth header
+			authHeaderLock.Lock()
+			inputSha := sha512.Sum512([]byte(inputHeader))
+			authShaCache = string(inputSha[:])
+			authHeaderLock.Unlock()
 		}
 
 		next.ServeHTTP(w, r)
