@@ -12,7 +12,7 @@ import (
 )
 
 func envString(name string) string {
-	return fmt.Sprintf("CL_%s", strings.ToUpper(name))
+	return fmt.Sprintf("CL_%s", strings.ToUpper(strings.ReplaceAll(name, ".", "_")))
 }
 
 func newAltStringFlag(name, alias, usage, value string, destionation *string) *altsrc.StringFlag {

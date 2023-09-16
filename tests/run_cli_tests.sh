@@ -33,13 +33,13 @@ cleanup() {
 }
 
 # Test error messages
-../clace server start --admin_password=abcd --http.port=9999 &
+../clace server start --admin_password=abcd --http.port=9154 --https.port=9155 &
 sleep 2
 commander test $VERBOSE test_errors.yaml
 rm -rf clace.db
 
 # Test server prints a password when started without config
-../clace server start --http.port=9998 > server.stdout &
+../clace server start --http.port=9156 --https.port=9157 > server.stdout &
 sleep 2
 grep "Admin password" server.stdout
 
@@ -48,7 +48,7 @@ echo "admin_password = \"qwerty\"" > clace.toml
 
 export CL_CONFIG_FILE=clace.toml
 
-../clace server start -l trace &
+../clace server start  -l trace &
 sleep 2
 commander test $VERBOSE --dir ./commander/
 

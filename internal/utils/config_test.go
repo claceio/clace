@@ -37,7 +37,7 @@ func TestConfig(t *testing.T) {
 
 	// HTTPS listen related settings
 	testutil.AssertEqualsString(t, "https host", "0.0.0.0", c.Https.Host)
-	testutil.AssertEqualsInt(t, "https port", -1, c.Https.Port)
+	testutil.AssertEqualsInt(t, "https port", 25224, c.Https.Port)
 	testutil.AssertEqualsBool(t, "https cert lookup", true, c.Https.EnableCertLookup)
 	testutil.AssertEqualsString(t, "email", "", c.Https.ServiceEmail)
 	testutil.AssertEqualsBool(t, "https staging", true, c.Https.UseStaging)

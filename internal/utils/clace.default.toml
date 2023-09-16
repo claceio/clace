@@ -13,7 +13,7 @@ port = 25223 # default port for HTTP
 # HTTPS port binding related Config
 [https]
 host = "0.0.0.0" # bind to all interfaces (if port is >= 0)
-port = -1 # https is disabled by default
+port = 25224 # port for HTTPS
 enable_cert_lookup = true # enable looking for certificate files on disk before using Let's Encrypt
 service_email = "" # email address for registering with Let's Encrypt. Set a value to enable automatic certs
 use_staging = true # use Let's Encrypt staging server

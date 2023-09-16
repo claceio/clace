@@ -1,21 +1,26 @@
 tests:
   ../clace app list /invalid: #Wrong port
-    stderr: "Get \"http://127.0.0.1:25223/_clace/app/invalid\": dial tcp 127.0.0.1:25223: connect: connection refused"
+    stderr: 'Get "http://127.0.0.1:25223/_clace/app/invalid": dial tcp 127.0.0.1:25223: connect: connection refused'
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=http://localhost:9999 /invalid: # Wrong password
-    stderr: 
+  ../clace app list --server_url=http://localhost:9154 /invalid: # Wrong password
+    stderr:
       exactly: "error: status code 401"
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=http://localhost:9999 --admin_password=abcd /invalid: # No app
-    stderr: 
+  ../clace app list --server_url=http://localhost:9154 --admin_password=abcd /invalid: # No app
+    stderr:
       exactly: "error: app not found"
     stdout:
       line-count: 0
     exit-code: 1
 
+  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd /invalid: # No app
+    stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate: x509: certificate signed by unknown authority'
+    stdout:
+      line-count: 0
+    exit-code: 1

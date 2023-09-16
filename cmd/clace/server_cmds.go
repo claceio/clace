@@ -28,6 +28,8 @@ func getServerCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.Cli
 
 		newAltStringFlag("http.host", "i", "The interface to bind on for HTTP", defaultServerConfig.Http.Host, &serverConfig.Http.Host),
 		newAltIntFlag("http.port", "p", "The port to listen on for HTTP", defaultServerConfig.Http.Port, &serverConfig.Http.Port),
+		newAltStringFlag("https.host", "", "The interface to bind on for HTTPS", defaultServerConfig.Https.Host, &serverConfig.Https.Host),
+		newAltIntFlag("https.port", "", "The port to listen on for HTTPS", defaultServerConfig.Https.Port, &serverConfig.Https.Port),
 		newAltStringFlag("logging.level", "l", "The logging level to use", defaultServerConfig.Log.Level, &serverConfig.Log.Level),
 		newAltBoolFlag("logging.console", "c", "Enable console logging", defaultServerConfig.Log.Console, &serverConfig.Log.Console),
 	}

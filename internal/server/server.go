@@ -154,6 +154,9 @@ func (s *Server) Start() error {
 		go func() {
 			if err := s.httpServer.Serve(listener); err != nil {
 				s.Error().Err(err).Msg("HTTP server error")
+				if s.httpsServer != nil {
+					s.httpsServer.Shutdown(context.Background())
+				}
 				os.Exit(1)
 			}
 		}()
@@ -171,6 +174,9 @@ func (s *Server) Start() error {
 		go func() {
 			if err := s.httpsServer.Serve(listener); err != nil {
 				s.Error().Err(err).Msg("HTTPS server error")
+				if s.httpServer != nil {
+					s.httpServer.Shutdown(context.Background())
+				}
 				os.Exit(1)
 			}
 		}()
