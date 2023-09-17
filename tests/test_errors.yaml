@@ -19,13 +19,13 @@ tests:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd /invalid: # No app
+  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd /invalid: # Test TLS
     stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate'
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd --insecure /invalid: # No app
+  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd --skip_cert_check /invalid: # TLS with skip_cert_check
     stderr: "error: app not found"
     stdout:
       line-count: 0
