@@ -11,7 +11,7 @@ unset CL_CONFIG_FILE
 # Enabling verbose is useful for debugging but the commander command seems to
 # return exit code of 0 when verbose is enabled, even if tests fails. So verbose
 # is disabled by default.
-#export VERBOSE="--verbose"
+#export CL_TEST_VERBOSE="--verbose"
 
 trap "error_handler" ERR
 
@@ -35,7 +35,7 @@ cleanup() {
 # Test error messages
 ../clace server start --admin_password=abcd --http.port=9154 --https.port=9155 &
 sleep 2
-commander test $VERBOSE test_errors.yaml
+commander test $CL_TEST_VERBOSE test_errors.yaml
 rm -rf clace.db
 
 # Test server prints a password when started without config
@@ -50,7 +50,7 @@ export CL_CONFIG_FILE=clace.toml
 
 ../clace server start  -l trace &
 sleep 2
-commander test $VERBOSE --dir ./commander/
+commander test $CL_TEST_VERBOSE --dir ./commander/
 
 echo $?
 

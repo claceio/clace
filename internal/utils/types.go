@@ -99,6 +99,7 @@ type Permission struct {
 
 // AuditResult represents the result of an app audit
 type AuditResult struct {
+	Id                  AppId        `json:"id"`
 	NewLoads            []string     `json:"new_loads"`
 	NewPermissions      []Permission `json:"new_permissions"`
 	ApprovedLoads       []string     `json:"approved_loads"`

@@ -110,6 +110,7 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 
 	perms := []utils.Permission{}
 	results := utils.AuditResult{
+		Id:                  a.Id,
 		NewLoads:            loads,
 		NewPermissions:      perms,
 		ApprovedLoads:       a.Loads,

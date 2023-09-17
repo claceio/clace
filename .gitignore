@@ -8,3 +8,4 @@ clace.toml
 logs/
 .DS_Store
 run/
+config/

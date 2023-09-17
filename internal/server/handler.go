@@ -286,6 +286,14 @@ func (h *Handler) getApp(r *http.Request) (any, error) {
 func (h *Handler) createApp(r *http.Request) (any, error) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
+	approveStr := r.URL.Query().Get("approve")
+	approve := false
+	if approveStr != "" {
+		var err error
+		if approve, err = strconv.ParseBool(approveStr); err != nil {
+			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		}
+	}
 
 	appPath = normalizePath(appPath)
 	matchedApp, err := h.server.MatchAppForDomain(domain, appPath)
@@ -311,11 +319,11 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	appEntry.AutoSync = appRequest.AutoSync
 	appEntry.AutoReload = appRequest.AutoReload
 
-	_, err = h.server.AddApp(&appEntry)
+	auditResult, err := h.server.AddApp(&appEntry, approve)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	return appEntry, nil
+	return auditResult, nil
 }
 
 func (h *Handler) deleteApp(r *http.Request) (any, error) {
@@ -334,17 +342,17 @@ func (h *Handler) deleteApp(r *http.Request) (any, error) {
 func (h *Handler) auditApp(r *http.Request) (any, error) {
 	appPath := chi.URLParam(r, "*")
 	domain := r.URL.Query().Get("domain")
-	approve := r.URL.Query().Get("approve")
-	approveBool := false
-	if approve != "" {
+	approveStr := r.URL.Query().Get("approve")
+	approve := false
+	if approveStr != "" {
 		var err error
-		if approveBool, err = strconv.ParseBool(r.URL.Query().Get("approve")); err != nil {
+		if approve, err = strconv.ParseBool(approveStr); err != nil {
 			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 		}
 	}
 
 	appPath = normalizePath(appPath)
-	auditResult, err := h.server.AuditApp(utils.CreateAppPathDomain(appPath, domain), approveBool)
+	auditResult, err := h.server.AuditApp(utils.CreateAppPathDomain(appPath, domain), approve)
 	return auditResult, err
 }
 

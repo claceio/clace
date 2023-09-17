@@ -30,7 +30,8 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain to add the app to", ""))
 	flags = append(flags, newBoolFlag("is_dev", "", "Is the application in development mode", false))
-	flags = append(flags, newBoolFlag("auto_sync", "", "Whether to automatically sync the application code", false))
+	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
+	//flags = append(flags, newBoolFlag("auto_sync", "", "Whether to automatically sync the application code", false))
 	flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
 
 	return &cli.Command{
@@ -50,6 +51,7 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
 			}
+			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 
 			body := utils.CreateAppRequest{
 				SourceUrl:  cCtx.Args().Get(1),
@@ -57,12 +59,31 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 				AutoSync:   cCtx.Bool("auto_sync"),
 				AutoReload: cCtx.Bool("auto_reload"),
 			}
-			resp := make(map[string]any)
-			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &resp)
+			var auditResult utils.AuditResult
+			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &auditResult)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "App created %s : %s\n", cCtx.Args().First(), resp["id"])
+			fmt.Printf("App audit results %s : %s\n", cCtx.Args().First(), auditResult.Id)
+			fmt.Printf("  Plugins :\n")
+			for _, load := range auditResult.NewLoads {
+				fmt.Printf("    %s\n", load)
+			}
+			fmt.Printf("  Permissions:\n")
+			for _, perm := range auditResult.NewPermissions {
+				fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
+			}
+
+			if auditResult.NeedsApproval {
+				if cCtx.Bool("approve") {
+					fmt.Print("App created. Permissions have been approved\n")
+				} else {
+					fmt.Print("App created. Permissions need to be approved\n")
+				}
+			} else {
+				fmt.Print("App created. No approval required\n")
+			}
+
 			return nil
 		},
 	}

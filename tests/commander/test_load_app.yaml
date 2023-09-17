@@ -4,17 +4,17 @@ config:
 tests:
   test0010: # copy sample app
     command: cp -r ../examples/disk_usage .
-  test0020: ## create dev app
+  test0020: # create dev app
     command: ../clace app create --is_dev /disk_usage_dev ./disk_usage
-    stdout:
+    stderr:
       line-count: 0
-    stderr: "App created /disk_usage_dev : app"
+    stdout: "App audit results /disk_usage_dev : app"
     exit-code: 0
   test0030: # create prod app
     command: ../clace app create /disk_usage_prod ./disk_usage
-    stdout:
+    stderr:
       line-count: 0
-    stderr: "App created /disk_usage_prod : app"
+    stdout: "App audit results /disk_usage_prod : app"
     exit-code: 0
   test0040: # test dev app
     command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
@@ -102,5 +102,17 @@ tests:
       line-count: 0
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1
-  test0101: # cleanup
+  test0110: # Create app without granting approval
+    command: ../clace app create /load1 ./disk_usage
+    stdout: "App created. Permissions need to be approved"
+    exit-code: 0
+  test0120: # Create app, granting approval
+    command: ../clace app create --approve /load2 ./disk_usage
+    stdout: "App created. Permissions have been approved"
+    exit-code: 0
+  test0130: # Create app, invalid path
+    command: ../clace app create /load3 ./invalid
+    stderr: "created, audit failed: open ./invalid/app.star: no such file or directory"
+    exit-code: 1
+  test0900: # cleanup
     command: rm -rf ./disk_usage || true

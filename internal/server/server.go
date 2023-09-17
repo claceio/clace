@@ -279,7 +279,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	return err2
 }
 
-func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
+func (s *Server) AddApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
 	id, err := ksuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -297,7 +297,19 @@ func (s *Server) AddApp(appEntry *utils.AppEntry) (*app.App, error) {
 
 	s.apps.AddApp(application)
 	s.Debug().Msgf("Created app %s %s", appEntry.Path, appEntry.Id)
-	return application, nil
+
+	auditResult, err := application.Audit()
+	if err != nil {
+		return nil, fmt.Errorf("App %s created, audit failed: %s", appEntry.Id, err)
+	}
+
+	if approve {
+		appEntry.Loads = auditResult.NewLoads
+		appEntry.Permissions = auditResult.NewPermissions
+		s.db.UpdateAppPermissions(appEntry)
+		s.Info().Msgf("Approved app %s %s: %+v %+v", appEntry.Domain, appEntry.Path, auditResult.NewLoads, auditResult.NewPermissions)
+	}
+	return auditResult, nil
 }
 
 func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
