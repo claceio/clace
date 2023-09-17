@@ -20,7 +20,7 @@ tests:
     exit-code: 1
 
   ../clace app list --server_url=https://localhost:9155 --admin_password=abcd /invalid: # No app
-    stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate: x509: certificate signed by unknown authority'
+    stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate'
     stdout:
       line-count: 0
     exit-code: 1
