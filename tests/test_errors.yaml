@@ -24,3 +24,9 @@ tests:
     stdout:
       line-count: 0
     exit-code: 1
+
+  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd --insecure /invalid: # No app
+    stderr: "error: app not found"
+    stdout:
+      line-count: 0
+    exit-code: 1

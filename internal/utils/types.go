@@ -70,7 +70,8 @@ type SystemConfig struct {
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
 	GlobalConfig
-	ServerUrl string `toml:"server_url"`
+	ServerUrl     string `toml:"server_url"`
+	SkipCertCheck bool   `toml:"skip_cert_check"`
 }
 
 // AppId is the identifier for an App

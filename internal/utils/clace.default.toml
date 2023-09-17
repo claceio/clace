@@ -4,6 +4,7 @@ server_url = "http://127.0.0.1:25223"
 admin_user = "admin"
 #admin_password = 
 #admin_password_bcrypt = 
+skip_cert_check = false
 
 # HTTP port binding related Config
 [http]

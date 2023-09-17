@@ -46,7 +46,7 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword)
+			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -106,7 +106,7 @@ func appListCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, cl
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword)
+			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -140,7 +140,7 @@ func appDeleteCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword)
+			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -174,7 +174,7 @@ func appAuditCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, c
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword)
+			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))

@@ -18,6 +18,7 @@ func getClientCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.Cli
 		newAltStringFlag("server_url", "s", "The server connection url", defaultClientConfig.ServerUrl, &clientConfig.ServerUrl),
 		newAltStringFlag("admin_user", "u", "The admin user name", defaultClientConfig.AdminUser, &globalConfig.AdminUser),
 		newAltStringFlag("admin_password", "w", "The admin user password", defaultClientConfig.AdminPassword, &globalConfig.AdminPassword),
+		newAltBoolFlag("insecure", "k", "Skip TLS certificate verification", defaultClientConfig.SkipCertCheck, &clientConfig.SkipCertCheck),
 	}
 
 	commands := make([]*cli.Command, 0, 6)

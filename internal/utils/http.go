@@ -5,6 +5,7 @@ package utils
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,10 +27,16 @@ type HttpClient struct {
 }
 
 // NewHttpClient creates a new HttpClient instance
-func NewHttpClient(server_uri, user, password string) *HttpClient {
-	c := http.Client{Timeout: time.Duration(180) * time.Second}
+func NewHttpClient(server_uri, user, password string, skipCertCheck bool) *HttpClient {
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: skipCertCheck}
+	client := &http.Client{
+		Transport: customTransport,
+		Timeout:   time.Duration(180) * time.Second,
+	}
+
 	return &HttpClient{
-		client:    &c,
+		client:    client,
 		serverUri: server_uri,
 		user:      user,
 		password:  password,
