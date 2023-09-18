@@ -360,8 +360,18 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			a.Trace().Msgf("Rendering block %s", block)
 			err = a.template.ExecuteTemplate(w, block, requestData)
 		} else {
-			a.Trace().Msgf("Rendering page %s", html)
-			err = a.template.ExecuteTemplate(w, html, requestData)
+			referrer := r.Header.Get("Referer")
+			isUpdateRequest := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
+			if !isHtmxRequest && isUpdateRequest && block != "" && referrer != "" {
+				// If block is defined, and this is a non-GET request, then redirect to the referrer page
+				// This handles the Post/Redirect/Get pattern required if HTMX is disabled
+				a.Trace().Msgf("Redirecting to %s with code %d", referrer, http.StatusSeeOther)
+				http.Redirect(w, r, referrer, http.StatusSeeOther)
+				return
+			} else {
+				a.Trace().Msgf("Rendering page %s", html)
+				err = a.template.ExecuteTemplate(w, html, requestData)
+			}
 		}
 
 		if err != nil {

@@ -276,3 +276,48 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 	_, _, err = app.CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "for parameter \"handler\": got int, want callable")
 }
+
+func TestFragmentPostRedirect(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc", block="ff",
+	fragments=[clace.fragment("frag", method="POST")]
+)])
+
+def handler(req):
+	return {"key": "myvalue", "key2": "myvalue2"}
+		`,
+		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
+	}
+	a, _, err := app.CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("POST", "/test/abc/frag", nil)
+	request.Header.Set("HX-Request", "true")
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	// HTMX return, return fragment
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", " fragdata myvalue2 ", response.Body.String())
+
+	request = httptest.NewRequest("POST", "/test/abc/frag", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	// Without Referer header, non htmx return, return main page
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "Template main myvalue.  fragdata myvalue2 ", response.Body.String())
+
+	request = httptest.NewRequest("POST", "/test/abc/frag", nil)
+	request.Header.Set("Referer", "/test/abc")
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	// With Referer header, non htmx, redirect to Origin
+	testutil.AssertEqualsInt(t, "code", 303, response.Code)
+	testutil.AssertEqualsString(t, "redirect", "/test/abc", response.Header().Get("Location"))
+}
