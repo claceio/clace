@@ -41,6 +41,7 @@ const (
 type AppStyle struct {
 	appId          utils.AppId
 	library        LibraryType
+	themes         []string
 	libraryUrl     string
 	disableWatcher bool
 	watcher        *exec.Cmd
@@ -74,9 +75,14 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 	if styleDef, ok = styleAttr.(*starlarkstruct.Struct); !ok {
 		return fmt.Errorf("style attr is not a struct")
 	}
+
 	var library string
+	var themes []string
 	var disableWatcher bool
 	if library, err = getStringAttr(styleDef, "library"); err != nil {
+		return err
+	}
+	if themes, err = getListStringAttr(styleDef, "themes", true); err != nil {
 		return err
 	}
 	if disableWatcher, err = getBoolAttr(styleDef, "disable_watcher"); err != nil {
@@ -85,6 +91,7 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 	s.disableWatcher = disableWatcher
 
 	libType := strings.ToLower(library)
+	s.themes = themes
 	switch libType {
 	case string(None):
 		s.library = None
@@ -139,6 +146,7 @@ const (
 		plugins: [
 		  %s
 		],
+		%s
 	}`
 
 	TAILWIND_INPUT_CONTENTS = `
@@ -153,8 +161,20 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, wor
 	inputPath := fmt.Sprintf("style/%s", "input.css")
 
 	daisyPlugin := ""
+	daisyThemes := ""
 	if s.library == DaisyUI {
 		daisyPlugin = `require("daisyui")`
+		if s.themes != nil && len(s.themes) > 0 {
+			quotedThemes := strings.Builder{}
+			for i, theme := range s.themes {
+				if i > 0 {
+					quotedThemes.WriteString(", ")
+				}
+				quotedThemes.WriteString(fmt.Sprintf("\"%s\"", theme))
+			}
+
+			daisyThemes = fmt.Sprintf("  daisyui: { themes: [%s], },", quotedThemes.String())
+		}
 	}
 
 	var buf strings.Builder
@@ -165,7 +185,7 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, wor
 		buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.root, loc)))
 	}
 
-	configContents := fmt.Sprintf(TAILWIND_CONFIG_CONTENTS, buf.String(), daisyPlugin)
+	configContents := fmt.Sprintf(TAILWIND_CONFIG_CONTENTS, buf.String(), daisyPlugin, daisyThemes)
 	if err := workFS.Write(configPath, []byte(configContents)); err != nil {
 		return fmt.Errorf("error writing tailwind config file : %s", err)
 	}

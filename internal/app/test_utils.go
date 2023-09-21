@@ -15,21 +15,25 @@ import (
 )
 
 func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true)
+	return CreateTestAppInt(logger, "/test", fileData, true, false)
+}
+
+func CreateDevModeHashDisable(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+	return CreateTestAppInt(logger, "/test", fileData, true, true)
 }
 
 func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
-	return CreateTestAppInt(logger, "/test", fileData, false)
+	return CreateTestAppInt(logger, "/test", fileData, false, false)
 }
 
 func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
-	return CreateTestAppInt(logger, "/", fileData, false)
+	return CreateTestAppInt(logger, "/", fileData, false, false)
 }
 
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool) (*App, *AppFS, error) {
-	sourceFS := NewAppFS("", &TestFS{fileData: fileData})
-	workFS := NewAppFS("", &TestFS{fileData: map[string]string{}})
-	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, disableHash bool) (*App, *AppFS, error) {
+	systemConfig := utils.SystemConfig{TailwindCSSCommand: "", DisableFileHashDevMode: disableHash}
+	sourceFS := NewAppFS("", &TestFS{fileData: fileData}, isDev, &systemConfig)
+	workFS := NewAppFS("", &TestFS{fileData: map[string]string{}}, isDev, &systemConfig)
 	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path), &systemConfig)
 	a.IsDev = isDev
 	err := a.Initialize()

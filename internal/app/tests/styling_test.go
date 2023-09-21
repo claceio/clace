@@ -107,6 +107,28 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
 	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], }`, string(data))
 }
 
+func TestStyleDaisyUIThemes(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
+				style=clace.style(library="daisyui", themes=["dark", "cupcake"]))`,
+	}
+
+	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	data, err := workFS.ReadFile("style/input.css")
+	testutil.AssertNoError(t, err)
+	testutil.AssertStringMatch(t, "input.css", "@tailwind base; @tailwind components; @tailwind utilities;", string(data))
+
+	data, err = workFS.ReadFile("style/tailwind.config.js")
+	testutil.AssertNoError(t, err)
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["dark", "cupcake"], }, }`, string(data))
+}
+
 func TestStyleError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{

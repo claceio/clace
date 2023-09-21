@@ -64,7 +64,9 @@ type LogConfig struct {
 
 // SystemConfig is the system level configuration
 type SystemConfig struct {
-	TailwindCSSCommand string `toml:"tailwindcss_command"`
+	TailwindCSSCommand        string `toml:"tailwindcss_command"`
+	DisableFileHashDevMode    bool   `toml:"disable_file_hash_dev_mode"`
+	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
 }
 
 // ClientConfig is the configuration for the Clace Client

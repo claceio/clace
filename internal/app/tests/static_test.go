@@ -24,7 +24,7 @@ def handler(req):
 		"static/file2.txt": `file2data`,
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := app.CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -56,6 +56,34 @@ def handler(req):
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 	testutil.AssertEqualsString(t, "header", "public, max-age=31536000", response.Header().Get("Cache-Control"))
 	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") != "")
+}
+
+func TestStaticLoadDevMode(t *testing.T) {
+	// In dev mode, the file hashing is disabled, Assumes
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":    `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":     `file1data`,
+		"static/file2.txt": `file2data`,
+	}
+
+	a, _, err := app.CreateDevModeHashDisable(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `abc /test/static/file1 def /test/static/file2.txt`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
 
 func TestStaticError(t *testing.T) {

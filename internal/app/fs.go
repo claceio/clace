@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/claceio/clace/internal/utils"
 )
 
 // WritableFS is the interface for the writable underlying file system used by AppFS
@@ -27,22 +29,33 @@ type WritableFS interface {
 
 // AppFS is the implementation of app file system
 type AppFS struct {
-	root string
-	fs   fs.FS
+	root         string
+	fs           fs.FS
+	isDev        bool
+	systemConfig *utils.SystemConfig
 
 	mu         sync.RWMutex
 	nameToHash map[string]string    // lookup (path to hash path)
 	hashToName map[string][2]string // reverse lookup (hash path to path)
 }
 
-func NewAppFS(dir string, fs fs.FS) *AppFS {
+func NewAppFS(dir string, fs fs.FS, isDev bool, systemConfig *utils.SystemConfig) *AppFS {
 	return &AppFS{
-		root: dir,
-		fs:   fs,
+		root:         dir,
+		fs:           fs,
+		isDev:        isDev,
+		systemConfig: systemConfig,
 
 		// File hashing code based on https://github.com/benbjohnson/hashfs/blob/main/hashfs.go
 		nameToHash: make(map[string]string),
 		hashToName: make(map[string][2]string)}
+}
+
+func (f *AppFS) ClearCache() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	clear(f.nameToHash)
+	clear(f.hashToName)
 }
 
 func (f *AppFS) ReadFile(name string) ([]byte, error) {
@@ -107,6 +120,11 @@ func (f *AppFS) open(name string) (_ fs.File, hash string, err error) {
 // HashName returns the hash name for a path, if exists.
 // Otherwise returns the original path.
 func (f *AppFS) HashName(name string) string {
+
+	if f.systemConfig.DisableFileHashDevMode && f.isDev {
+		// Hash based file name is disabled in dev mode
+		return name
+	}
 	// Lookup cached formatted name, if exists.
 	f.mu.RLock()
 	if s := f.nameToHash[name]; s != "" {

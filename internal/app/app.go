@@ -152,6 +152,9 @@ func (a *App) reload(force bool) (bool, error) {
 
 	a.initMutex.Lock()
 	defer a.initMutex.Unlock()
+	if a.initialized && !force {
+		return false, nil
+	}
 
 	if requestTime.Compare(a.reloadStartTime) == -1 {
 		// Current request is older than the last reloaded request, ignore
@@ -159,14 +162,15 @@ func (a *App) reload(force bool) (bool, error) {
 		return false, nil
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	// Sleep to allow for multiple file changes to be processed together
+	// For slower machines, this can be increased, default is 300ms. The tailwind watcher
+	// especially might need a higher value
+	time.Sleep(time.Duration(a.systemConfig.FileWatcherDebounceMillis) * time.Millisecond)
 	a.reloadStartTime = time.Now()
 
-	if a.initialized && !force {
-		return false, nil
-	}
 	var err error
 	a.Info().Msg("Reloading app definition")
+	a.sourceFS.ClearCache()
 
 	configData, err := a.sourceFS.ReadFile(CONFIG_LOCK_FILE_NAME)
 	if err != nil {

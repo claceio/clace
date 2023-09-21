@@ -119,13 +119,19 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 
 func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var library starlark.String
+	var themes *starlark.List
 	var disableWatcher starlark.Bool
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "disable_watcher?", &disableWatcher); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "themes?", &themes, "disable_watcher?", &disableWatcher); err != nil {
 		return nil, err
+	}
+
+	if themes == nil {
+		themes = starlark.NewList([]starlark.Value{})
 	}
 
 	fields := starlark.StringDict{
 		"library":         library,
+		"themes":          themes,
 		"disable_watcher": disableWatcher,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(STYLE), fields), nil

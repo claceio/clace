@@ -321,9 +321,9 @@ func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
 		path = appEntry.SourceUrl
 	}
 
-	sourceFS := app.NewAppFS(path, os.DirFS(path))
+	sourceFS := app.NewAppFS(path, os.DirFS(path), appEntry.IsDev, &s.config.System)
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
-	workFS := app.NewAppFS(appPath, os.DirFS(appPath))
+	workFS := app.NewAppFS(appPath, os.DirFS(appPath), appEntry.IsDev, &s.config.System)
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System)
 
 	return application, nil
