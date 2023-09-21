@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"go.starlark.net/starlark"
@@ -32,12 +33,17 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 }
 
 // loader is the starlark loader function
-func (a *App) loader(t *starlark.Thread, module string) (starlark.StringDict, error) {
+func (a *App) loader(thread *starlark.Thread, module string) (starlark.StringDict, error) {
+	if strings.HasSuffix(module, STARLARK_FILE_SUFFIX) {
+		// Load the starlark file rather than the plugin
+		return a.loadStarlark(thread, module, a.starlarkCache)
+	}
+
 	if a.Loads == nil || !slices.Contains(a.Loads, module) {
 		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions", a.Path, module)
 	}
 
-	staticDict, err := a.loaderImpl(t, module)
+	staticDict, err := a.pluginLookup(thread, module)
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +73,8 @@ func (a *App) loader(t *starlark.Thread, module string) (starlark.StringDict, er
 	return hookedDict, nil
 }
 
-// loaderImpl is the starlark loader function, with no audit checks
-func (a *App) loaderImpl(_ *starlark.Thread, module string) (starlark.StringDict, error) {
+// pluginLookup is the starlark loader function, with no audit checks
+func (a *App) pluginLookup(_ *starlark.Thread, module string) (starlark.StringDict, error) {
 	pluginDict, ok := builtInPlugins[module]
 	if !ok {
 		return nil, fmt.Errorf("module %s not found", module) // TODO extend loading

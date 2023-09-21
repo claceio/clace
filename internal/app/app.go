@@ -32,6 +32,7 @@ const (
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
 	BUILTIN_PLUGIN_SUFFIX = "in"
+	STARLARK_FILE_SUFFIX  = ".star"
 	INDEX_FILE            = "index.go.html"
 	INDEX_GEN_FILE        = "index_gen.go.html"
 	CLACE_GEN_FILE        = "clace_gen.go.html"
@@ -66,13 +67,19 @@ type App struct {
 	appStyle        *AppStyle
 	systemConfig    *utils.SystemConfig
 
-	globals      starlark.StringDict
-	appDef       *starlarkstruct.Struct
-	appRouter    *chi.Mux
-	template     *template.Template
-	watcher      *fsnotify.Watcher
-	sseListeners []chan SSEMessage
-	funcMap      template.FuncMap
+	globals       starlark.StringDict
+	appDef        *starlarkstruct.Struct
+	appRouter     *chi.Mux
+	template      *template.Template
+	watcher       *fsnotify.Watcher
+	sseListeners  []chan SSEMessage
+	funcMap       template.FuncMap
+	starlarkCache map[string]*starlarkCacheEntry
+}
+
+type starlarkCacheEntry struct {
+	globals starlark.StringDict
+	err     error
 }
 
 type SSEMessage struct {
@@ -82,12 +89,13 @@ type SSEMessage struct {
 
 func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
 	newApp := &App{
-		sourceFS:     sourceFS,
-		workFS:       workFS,
-		Logger:       logger,
-		AppEntry:     appEntry,
-		systemConfig: systemConfig,
-		appStyle:     &AppStyle{},
+		sourceFS:      sourceFS,
+		workFS:        workFS,
+		Logger:        logger,
+		AppEntry:      appEntry,
+		systemConfig:  systemConfig,
+		appStyle:      &AppStyle{},
+		starlarkCache: map[string]*starlarkCacheEntry{},
 	}
 	funcMap := sprig.FuncMap()
 
@@ -117,7 +125,7 @@ func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *util
 func (a *App) Initialize() error {
 	var reloaded bool
 	var err error
-	if reloaded, err = a.reload(false); err != nil {
+	if reloaded, err = a.Reload(false); err != nil {
 		return err
 	}
 
@@ -147,7 +155,7 @@ func (a *App) Close() error {
 	return nil
 }
 
-func (a *App) reload(force bool) (bool, error) {
+func (a *App) Reload(force bool) (bool, error) {
 	requestTime := time.Now()
 
 	a.initMutex.Lock()
@@ -170,7 +178,10 @@ func (a *App) reload(force bool) (bool, error) {
 
 	var err error
 	a.Info().Msg("Reloading app definition")
+
+	// Clear any cached data
 	a.sourceFS.ClearCache()
+	clear(a.starlarkCache)
 
 	configData, err := a.sourceFS.ReadFile(CONFIG_LOCK_FILE_NAME)
 	if err != nil {
@@ -302,7 +313,7 @@ func (a *App) startWatcher() error {
 				if event.Op == fsnotify.Chmod {
 					continue
 				}
-				_, err := a.reload(true)
+				_, err := a.Reload(true)
 				if err != nil {
 					a.Error().Err(err).Msg("Error reloading app")
 				}
@@ -398,4 +409,33 @@ func (a *App) sseHandler(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// loadStarlark loads a starlark file. The main app.star, if it calls load on a file with .star suffix, then
+// this function is used to load the starlark file.
+func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[string]*starlarkCacheEntry) (starlark.StringDict, error) {
+	cacheEntry, ok := cache[module]
+	if cacheEntry == nil {
+		if ok {
+			// request for package whose loading is in progress
+			return nil, fmt.Errorf("cycle in starlark load graph during load of %s", module)
+		}
+		// Add a placeholder to indicate "load in progress".
+		cache[module] = nil
+
+		buf, err := a.sourceFS.ReadFile(module)
+		if err != nil {
+			return nil, err
+		}
+
+		builtin := CreateBuiltin()
+		if builtin == nil {
+			return nil, errors.New("error creating builtin")
+		}
+		globals, err := starlark.ExecFile(thread, module, buf, builtin)
+		cacheEntry = &starlarkCacheEntry{globals, err}
+		// Update the cache.
+		cache[module] = cacheEntry
+	}
+	return cacheEntry.globals, cacheEntry.err
 }

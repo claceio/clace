@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
@@ -19,11 +20,19 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 		return nil, err
 	}
 
-	auditLoader := func(t *starlark.Thread, module string) (starlark.StringDict, error) {
+	starlarkCache := map[string]*starlarkCacheEntry{}
+
+	auditLoader := func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
+
+		if strings.HasSuffix(module, STARLARK_FILE_SUFFIX) {
+			// Load the starlark file rather than the plugin
+			return a.loadStarlark(thread, module, starlarkCache)
+		}
+
 		// The loader in audit mode is used to track the modules that are loaded.
 		// A copy of the real loader's response is returned, with builtins replaced with dummy methods,
 		// so that the audit can be run without any side effects
-		pluginDict, err := a.loaderImpl(t, module)
+		pluginDict, err := a.pluginLookup(thread, module)
 		if err != nil {
 			return nil, err
 		}
