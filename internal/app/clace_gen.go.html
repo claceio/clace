@@ -1,6 +1,13 @@
 {{ block "clace_gen_import" .}}
+
+<!-- Include the generated style file if present -->
 {{ if fileNonEmpty "gen/css/style.css" }}
 <link rel="stylesheet" href={{static "gen/css/style.css" }}>
+{{ end }}
+
+<!-- Include the custom style file if present -->
+{{ if fileNonEmpty "css/style.css" }}
+<link rel="stylesheet" href={{static "css/style.css" }}>
 {{ end }}
 
 <script src="https://unpkg.com/htmx.org@{{- .Config.Htmx.Version -}}"></script>
