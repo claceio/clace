@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pkg/errors"
 	startime "go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -149,7 +148,7 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 		if _var, ok := v.Constructor().(Unmarshaler); ok {
 			err = _var.UnmarshalStarlark(x)
 			if err != nil {
-				err = errors.Wrapf(err, "failed marshal %q to Starlark object", v.Constructor().Type())
+				err = fmt.Errorf("failed marshal %q to Starlark object : %w", v.Constructor().Type(), err)
 				return
 			}
 			val = _var
