@@ -17,12 +17,12 @@ const configFileFlagName = "config_file"
 
 func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command
-	serverCommands, err := getServerCommands(globalConfig, clientConfig, serverConfig)
+	serverCommands, err := getServerCommands(serverConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	clientCommands, err := getClientCommands(globalConfig, clientConfig, serverConfig)
+	clientCommands, err := getClientCommands(clientConfig)
 	if err != nil {
 		return nil, err
 	}

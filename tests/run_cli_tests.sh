@@ -33,15 +33,18 @@ cleanup() {
 }
 
 # Test error messages
+rm -f run/clace.sock
 ../clace server start --admin_password=abcd --http.port=9154 --https.port=9155 &
 sleep 2
 commander test $CL_TEST_VERBOSE test_errors.yaml
 rm -rf clace.db
+rm -f run/clace.sock
 
 # Test server prints a password when started without config
 ../clace server start --http.port=9156 --https.port=9157 > server.stdout &
 sleep 2
 grep "Admin password" server.stdout
+rm -f run/clace.sock
 
 # Run all other automated tests
 echo "admin_password = \"qwerty\"" > clace.toml

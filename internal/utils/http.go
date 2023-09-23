@@ -11,12 +11,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"strings"
 	"time"
 )
 
 const (
-	ApplicationJson = "application/json"
+	ApplicationJson      = "application/json"
+	ClaceServiceLocation = "clace"
 )
 
 type HttpClient struct {
@@ -27,17 +30,34 @@ type HttpClient struct {
 }
 
 // NewHttpClient creates a new HttpClient instance
-func NewHttpClient(server_uri, user, password string, skipCertCheck bool) *HttpClient {
-	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: skipCertCheck}
-	client := &http.Client{
-		Transport: customTransport,
-		Timeout:   time.Duration(180) * time.Second,
+func NewHttpClient(serverUri, user, password string, skipCertCheck bool) *HttpClient {
+	serverUri = os.ExpandEnv(serverUri)
+
+	var client *http.Client
+	if !strings.HasPrefix(serverUri, "http://") && !strings.HasPrefix(serverUri, "https://") {
+		transport := &Transport{}
+		// Using unix domain sockets
+		transport.RegisterLocation(ClaceServiceLocation, serverUri)
+		t := &http.Transport{}
+		t.RegisterProtocol(Scheme, transport)
+		client = &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(180) * time.Second,
+		}
+
+		serverUri = fmt.Sprintf("%s://%s", Scheme, ClaceServiceLocation)
+	} else {
+		customTransport := http.DefaultTransport.(*http.Transport).Clone()
+		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: skipCertCheck}
+		client = &http.Client{
+			Transport: customTransport,
+			Timeout:   time.Duration(180) * time.Second,
+		}
 	}
 
 	return &HttpClient{
 		client:    client,
-		serverUri: server_uri,
+		serverUri: serverUri,
 		user:      user,
 		password:  password,
 	}

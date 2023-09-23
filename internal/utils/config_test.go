@@ -21,7 +21,7 @@ func TestConfig(t *testing.T) {
 
 	// HTTP listen related settings
 	testutil.AssertEqualsString(t, "http host", "127.0.0.1", c.Http.Host)
-	testutil.AssertEqualsInt(t, "http port", 25223, c.Http.Port)
+	testutil.AssertEqualsInt(t, "http port", 25222, c.Http.Port)
 
 	// Logging related settings
 	testutil.AssertEqualsString(t, "log level", "INFO", c.Log.Level)
@@ -36,7 +36,7 @@ func TestConfig(t *testing.T) {
 
 	// HTTPS listen related settings
 	testutil.AssertEqualsString(t, "https host", "0.0.0.0", c.Https.Host)
-	testutil.AssertEqualsInt(t, "https port", 25224, c.Https.Port)
+	testutil.AssertEqualsInt(t, "https port", 25223, c.Https.Port)
 	testutil.AssertEqualsBool(t, "https cert lookup", true, c.Https.EnableCertLookup)
 	testutil.AssertEqualsString(t, "email", "", c.Https.ServiceEmail)
 	testutil.AssertEqualsBool(t, "https staging", true, c.Https.UseStaging)
@@ -47,4 +47,8 @@ func TestConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "tailwind command", "npx tailwindcss", c.System.TailwindCSSCommand)
 	testutil.AssertEqualsBool(t, "dev mode file hash", false, c.System.DisableFileHashDevMode)
 	testutil.AssertEqualsInt(t, "file debounce", 300, c.System.FileWatcherDebounceMillis)
+
+	// Security Settings
+	testutil.AssertEqualsBool(t, "admin tcp", false, c.Security.AdminOverTCP)
+	testutil.AssertEqualsString(t, "uds file", "$CL_HOME/run/clace.sock", c.GlobalConfig.ServerUri)
 }

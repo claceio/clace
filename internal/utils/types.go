@@ -14,10 +14,10 @@ const (
 
 // Config entries shared between client and server
 type GlobalConfig struct {
-	ConfigFile          string `toml:"config_file"`
-	AdminUser           string `toml:"admin_user"`
-	AdminPassword       string `toml:"admin_password"`
-	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
+	ConfigFile    string `toml:"config_file"`
+	AdminUser     string `toml:"admin_user"`
+	AdminPassword string `toml:"admin_password"`
+	ServerUri     string `toml:"server_uri"`
 }
 
 // ServerConfig is the configuration for the Clace Server
@@ -25,6 +25,7 @@ type ServerConfig struct {
 	GlobalConfig
 	Http     HttpConfig     `toml:"http"`
 	Https    HttpsConfig    `toml:"https"`
+	Security SecurityConfig `toml:"security"`
 	Metadata MetadataConfig `toml:"metadata"`
 	Log      LogConfig      `toml:"logging"`
 	System   SystemConfig   `toml:"system"`
@@ -45,6 +46,12 @@ type HttpsConfig struct {
 	UseStaging       bool   `toml:"use_staging"`
 	StorageLocation  string `toml:"storage_location"`
 	CertLocation     string `toml:"cert_location"`
+}
+
+// SecurityConfig is the configuration for Inter process communication
+type SecurityConfig struct {
+	AdminOverTCP        bool   `toml:"admin_over_tcp"`
+	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer
@@ -72,8 +79,7 @@ type SystemConfig struct {
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
 	GlobalConfig
-	ServerUrl     string `toml:"server_url"`
-	SkipCertCheck bool   `toml:"skip_cert_check"`
+	SkipCertCheck bool `toml:"skip_cert_check"`
 }
 
 // AppId is the identifier for an App

@@ -1,25 +1,28 @@
-# The default configuration used by the Clace server and APIs
+# The default configuration used by the Clace server and client
 
-server_url = "http://127.0.0.1:25223"
+server_uri = "$CL_HOME/run/clace.sock" # the unix domain socket (UDS) path or URL to the Clace server
 admin_user = "admin"
-#admin_password = 
-#admin_password_bcrypt = 
+admin_password = "" # the password for the admin user. If empty, server uses the bcrypt value in [security] section
 skip_cert_check = false
 
 # HTTP port binding related Config
 [http]
 host = "127.0.0.1" # bind to localhost by default for HTTP
-port = 25223 # default port for HTTP
+port = 25222 # default port for HTTP
 
 # HTTPS port binding related Config
 [https]
 host = "0.0.0.0" # bind to all interfaces (if port is >= 0)
-port = 25224 # port for HTTPS
+port = 25223 # port for HTTPS
 enable_cert_lookup = true # enable looking for certificate files on disk before using Let's Encrypt
 service_email = "" # email address for registering with Let's Encrypt. Set a value to enable automatic certs
 use_staging = true # use Let's Encrypt staging server
 cert_location = "$CL_HOME/config/certificates" # where to look for existing certificate files
 storage_location = "$CL_HOME/run/certmagic" # where to cache dynamically created certificates
+
+[security]
+admin_over_tcp = false # enable admin API's over TCP (HTTP/HTTPS). Admin is over UDS only by default
+admin_password_bcrypt = "" # the password bcrypt value
 
 # Logging related Config
 [logging]

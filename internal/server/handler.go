@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,23 +65,48 @@ type Handler struct {
 	router *chi.Mux
 }
 
-// NewHandler creates a new handler
-func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
-	router := chi.NewRouter()
-	router.Use(func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
-					msg := fmt.Sprint(rvr)
-					logger.Error().Str("recover", msg).Str("trace", string(debug.Stack())).Msg("Error during request processing")
-					http.Error(w, msg, http.StatusInternalServerError)
-				}
-			}()
+func panicRecovery(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
+				msg := fmt.Sprint(rvr)
+				//logger.Error().Str("recover", msg).Str("trace", string(debug.Stack())).Msg("Error during request processing")
+				// TODO log
+				http.Error(w, msg, http.StatusInternalServerError)
+			}
+		}()
 
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	})
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
+// NewUDSHandler creates a new handler for admin APIs over the unix domain socket
+func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
+	router := chi.NewRouter()
+	router.Use(panicRecovery)
+
+	handler := &Handler{
+		Logger: logger,
+		config: config,
+		server: server,
+		router: router,
+	}
+
+	router.Use(middleware.CleanPath)
+
+	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
+
+	// App APIs are not mounted over UDS
+	// No authentication middleware is added for UDS, the unix file permissions are used
+	return handler
+}
+
+// NewTCPHandler creates a new handler for HTTP/HTTPS requests. App API's are mounted amd
+// authentication is enabled. It also mounts the internal APIs if admin over TCP is enabled
+func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
+	router := chi.NewRouter()
+	router.Use(panicRecovery)
 
 	handler := &Handler{
 		Logger: logger,
@@ -96,7 +120,14 @@ func NewHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server
 	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
 	router.Use(handler.createAuthMiddleware)
 
-	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
+	if config.Security.AdminOverTCP {
+		// Mount the internal API's only if admin over TCP is enabled
+		logger.Warn().Msg("Admin API access over TCP is enabled, enable 2FA for admin user account")
+		router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
+	} else {
+		router.Mount(utils.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
+	}
+
 	router.HandleFunc("/*", handler.callApp)
 	return handler
 }
@@ -148,7 +179,7 @@ func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		err := bcrypt.CompareHashAndPassword([]byte(h.config.AdminPasswordBcrypt), []byte(pass))
+		err := bcrypt.CompareHashAndPassword([]byte(h.config.Security.AdminPasswordBcrypt), []byte(pass))
 		if err != nil {
 			h.Warn().Err(err).Msg("Password match failed")
 			h.basicAuthFailed(w)

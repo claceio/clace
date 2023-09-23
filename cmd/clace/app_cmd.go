@@ -13,19 +13,19 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func initAppCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) *cli.Command {
+func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name: "app",
 		Subcommands: []*cli.Command{
-			appCreateCommand(commonFlags, globalConfig, clientConfig),
-			appListCommand(commonFlags, globalConfig, clientConfig),
-			appDeleteCommand(commonFlags, globalConfig, clientConfig),
-			appAuditCommand(commonFlags, globalConfig, clientConfig),
+			appCreateCommand(commonFlags, clientConfig),
+			appListCommand(commonFlags, clientConfig),
+			appDeleteCommand(commonFlags, clientConfig),
+			appAuditCommand(commonFlags, clientConfig),
 		},
 	}
 }
 
-func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) *cli.Command {
+func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain to add the app to", ""))
@@ -41,12 +41,11 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path> <app_source_url>",
 		Action: func(cCtx *cli.Context) error {
-			clientConfig.GlobalConfig = *globalConfig
 			if cCtx.NArg() != 2 {
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -89,7 +88,7 @@ func appCreateCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 	}
 }
 
-func appListCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) *cli.Command {
+func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain to list apps from", ""))
@@ -101,12 +100,11 @@ func appListCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, cl
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path>",
 		Action: func(cCtx *cli.Context) error {
-			clientConfig.GlobalConfig = *globalConfig
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -123,7 +121,7 @@ func appListCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, cl
 	}
 }
 
-func appDeleteCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) *cli.Command {
+func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain to delete the app from", ""))
@@ -135,12 +133,11 @@ func appDeleteCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path>",
 		Action: func(cCtx *cli.Context) error {
-			clientConfig.GlobalConfig = *globalConfig
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -156,7 +153,7 @@ func appDeleteCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, 
 	}
 }
 
-func appAuditCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) *cli.Command {
+func appAuditCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("domain", "", "The domain for the app", ""))
@@ -169,12 +166,11 @@ func appAuditCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, c
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path>",
 		Action: func(cCtx *cli.Context) error {
-			clientConfig.GlobalConfig = *globalConfig
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("require one argument: <app_path>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUrl, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			if cCtx.IsSet("domain") {
 				values.Add("domain", cCtx.String("domain"))
@@ -184,7 +180,6 @@ func appAuditCommand(commonFlags []cli.Flag, globalConfig *utils.GlobalConfig, c
 			var auditResult utils.AuditResult
 			err := client.Post("/_clace/audit"+cCtx.Args().First(), values, nil, &auditResult)
 			if err != nil {
-				fmt.Println("in error")
 				return err
 			}
 			fmt.Printf("App audit: %s\n", cCtx.Args().First())

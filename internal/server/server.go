@@ -48,6 +48,7 @@ type Server struct {
 	db          *metadata.Metadata
 	httpServer  *http.Server
 	httpsServer *http.Server
+	udsServer   *http.Server
 	handler     *Handler
 	apps        *AppStore
 }
@@ -86,7 +87,7 @@ func (s *Server) setupAdminAccount() (string, error) {
 		s.Info().Msg("Using admin password from configuration")
 		password = s.config.AdminPassword
 	} else {
-		if s.config.AdminPasswordBcrypt != "" {
+		if s.config.Security.AdminPasswordBcrypt != "" {
 			s.Info().Msg("Using admin password bcrypt hash from configuration")
 			return "", nil
 		}
@@ -106,7 +107,7 @@ func (s *Server) setupAdminAccount() (string, error) {
 		return "", err
 	}
 
-	s.config.AdminPasswordBcrypt = string(bcryptHash)
+	s.config.Security.AdminPasswordBcrypt = string(bcryptHash)
 
 	if s.config.AdminPassword != "" {
 		return "", nil
@@ -117,8 +118,51 @@ func (s *Server) setupAdminAccount() (string, error) {
 
 // Start starts the Clace Server
 func (s *Server) Start() error {
-	s.handler = NewHandler(s.Logger, s.config, s)
+	s.handler = NewTCPHandler(s.Logger, s.config, s)
+	serverUri := strings.TrimSpace(os.ExpandEnv(s.config.GlobalConfig.ServerUri))
+	if serverUri == "" {
+		return errors.New("server_uri is not set")
+	}
 
+	// Start unix domain socket server
+	if !strings.HasPrefix(serverUri, "http://") && !strings.HasPrefix(serverUri, "https://") {
+		// Unix domain sockets is enabled
+		socketDir := path.Dir(serverUri)
+		if err := os.MkdirAll(socketDir, 0700); err != nil {
+			return fmt.Errorf("error creating directory %s : %s", socketDir, err)
+		}
+
+		udsHandler := NewUDSHandler(s.Logger, s.config, s)
+		socket, err := net.Listen("unix", serverUri)
+		if err != nil {
+			return fmt.Errorf("error creating socket %s : %s", serverUri, err)
+		}
+
+		s.udsServer = &http.Server{
+			WriteTimeout: 180 * time.Second,
+			ReadTimeout:  180 * time.Second,
+			IdleTimeout:  30 * time.Second,
+			Handler:      udsHandler.router,
+		}
+
+		s.Info().Str("address", serverUri).Msg("Starting unix domain socket server")
+		go func() {
+			if err := s.udsServer.Serve(socket); err != nil {
+				s.Error().Err(err).Msg("UDS server error")
+				if s.httpServer != nil {
+					s.httpServer.Shutdown(context.Background())
+				}
+				if s.httpsServer != nil {
+					s.httpsServer.Shutdown(context.Background())
+				}
+				os.Exit(1)
+			}
+		}()
+	} else {
+		s.Info().Msg("Unix domain sockets are disabled")
+	}
+
+	// Start HTTP and HTTPS servers
 	if s.config.Http.Port >= 0 {
 		s.httpServer = &http.Server{
 			WriteTimeout: 180 * time.Second,
@@ -157,6 +201,9 @@ func (s *Server) Start() error {
 				if s.httpsServer != nil {
 					s.httpsServer.Shutdown(context.Background())
 				}
+				if s.udsServer != nil {
+					s.udsServer.Shutdown(context.Background())
+				}
 				os.Exit(1)
 			}
 		}()
@@ -176,6 +223,9 @@ func (s *Server) Start() error {
 				s.Error().Err(err).Msg("HTTPS server error")
 				if s.httpServer != nil {
 					s.httpServer.Shutdown(context.Background())
+				}
+				if s.udsServer != nil {
+					s.udsServer.Shutdown(context.Background())
 				}
 				os.Exit(1)
 			}
@@ -266,17 +316,24 @@ func (s *Server) setupHTTPSServer() *http.Server {
 // Stop stops the Clace Server
 func (s *Server) Stop(ctx context.Context) error {
 	s.Info().Msg("Stopping service")
-	var err1, err2 error
+	var err1, err2, err3 error
 	if s.httpServer != nil {
 		err1 = s.httpServer.Shutdown(ctx)
 	}
 	if s.httpsServer != nil {
 		err2 = s.httpsServer.Shutdown(ctx)
 	}
+	if s.udsServer != nil {
+		err3 = s.udsServer.Shutdown(ctx)
+	}
+
 	if err1 != nil {
 		return err1
 	}
-	return err2
+	if err2 != nil {
+		return err2
+	}
+	return err3
 }
 
 func (s *Server) AddApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {

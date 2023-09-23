@@ -17,7 +17,7 @@ tests:
     stdout: "App audit results /disk_usage_prod : app"
     exit-code: 0
   test0040: # test dev app
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   test0041: # check audit output
     command: ../clace app audit /disk_usage_dev
@@ -30,12 +30,12 @@ tests:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
   test0043: # check curl after approval
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   test0044: # setup permission check, remove permissions entry from config
     command: cp ./disk_usage/app.star ./disk_usage/app.star.bk && grep -v "clace.permission" ./disk_usage/app.star > ./disk_usage/app.star.new && cp ./disk_usage/app.star.new ./disk_usage/app.star
   test0045: # check curl, still works since the old approvals with run are in place
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   test0046: # approve audit, no more run permissions
     command: ../clace app audit --approve /disk_usage_dev
@@ -43,7 +43,7 @@ tests:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\nApp permissions have been approved.\n"
     exit-code: 0
   test0047: # check curl
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to call exec.in.run. Audit the app and approve permissions"
   test0048: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star && perl -i -pe 's/\["du"\]/["cat"]/g' ./disk_usage/app.star
@@ -53,7 +53,7 @@ tests:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
   test0050: # check curl
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: 'app /disk_usage_dev is not permitted to call exec.in.run with argument 0 having value "du", expected "readlink". Update the app or audit and approve permissions'
   test0051: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
@@ -63,14 +63,14 @@ tests:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
   test0053: # check curl after approval
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev/
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   test0054: # check Vary header
-    command: curl -vsu "admin:qwerty" localhost:25223/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
+    command: curl -vsu "admin:qwerty" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
     stdout: "Vary: HX-Request"
     exit-code: 0
   test0055: # check Response compression header
-    command: curl -vsu "admin:qwerty" -H "Accept-Encoding:gzip" localhost:25223/disk_usage_dev/static/gen/css/style.css 2>&1 | grep "Content-Encoding"
+    command: curl -vsu "admin:qwerty" -H "Accept-Encoding:gzip" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep "Content-Encoding"
     stdout: "Content-Encoding: gzip"
     exit-code: 0
   test0060: # audit prod app
@@ -79,7 +79,7 @@ tests:
       exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
   test0061: # test prod app
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod/
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/
     stderr:
       line-count: 0
     stdout: "Disk Usage"
@@ -87,12 +87,12 @@ tests:
   test0070: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
   test0080: # with --is_dev, changes are picked up immediately
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_dev
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stderr:
       line-count: 0
     stdout: "DiskTest Usage"
   test0090: # without --is_dev, changes are not picked up
-    command: curl -su "admin:qwerty" localhost:25223/disk_usage_prod
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod
     stderr:
       line-count: 0
     stdout: "Disk Usage"

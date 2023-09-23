@@ -15,16 +15,16 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func getServerCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
+func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
 	_, defaultClientConfig, defaultServerConfig, err := utils.GetDefaultConfigs()
 	if err != nil {
 		return nil, err
 	}
 
 	flags := []cli.Flag{
-		newAltStringFlag("server_url", "s", "The server connection url", defaultClientConfig.ServerUrl, &clientConfig.ServerUrl),
-		newAltStringFlag("admin_user", "u", "The admin user name", defaultClientConfig.AdminUser, &globalConfig.AdminUser),
-		newAltStringFlag("admin_password", "w", "The admin user password", defaultClientConfig.AdminPassword, &globalConfig.AdminPassword),
+		newAltStringFlag("server_uri", "s", "The server connection uri", defaultClientConfig.ServerUri, &serverConfig.ServerUri),
+		newAltStringFlag("admin_user", "u", "The admin user name", defaultClientConfig.AdminUser, &serverConfig.AdminUser),
+		newAltStringFlag("admin_password", "w", "The admin user password", defaultClientConfig.AdminPassword, &serverConfig.AdminPassword),
 
 		newAltStringFlag("http.host", "i", "The interface to bind on for HTTP", defaultServerConfig.Http.Host, &serverConfig.Http.Host),
 		newAltIntFlag("http.port", "p", "The port to listen on for HTTP", defaultServerConfig.Http.Port, &serverConfig.Http.Port),
@@ -44,7 +44,6 @@ func getServerCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.Cli
 					Flags:  flags,
 					Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 					Action: func(cCtx *cli.Context) error {
-						serverConfig.GlobalConfig = *globalConfig
 						return startServer(cCtx, serverConfig)
 					},
 				},

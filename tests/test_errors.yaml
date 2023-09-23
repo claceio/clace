@@ -1,32 +1,37 @@
 tests:
-  ../clace app list /invalid: #Wrong port
-    stderr: 'Get "http://127.0.0.1:25223/_clace/app/invalid": dial tcp 127.0.0.1:25223: connect: connection refused'
+  error010: 
+    command: ../clace app list /invalid # Connects over UDS
+    stderr: 'error: app not found'
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=http://localhost:9154 /invalid: # Wrong password
+  error020: 
+    command: ../clace app list --server_uri=http://localhost:9154 /invalid # Wrong password
     stderr:
       exactly: "error: status code 401"
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=http://localhost:9154 --admin_password=abcd /invalid: # No app
+  error030: 
+    command: ../clace app list --server_uri=http://localhost:9154 --admin_password=abcd /invalid # No app
     stderr:
-      exactly: "error: app not found"
+      exactly: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd /invalid: # Test TLS
+  error040: 
+    command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd /invalid # Test TLS
     stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate'
     stdout:
       line-count: 0
     exit-code: 1
 
-  ../clace app list --server_url=https://localhost:9155 --admin_password=abcd --skip_cert_check /invalid: # TLS with skip_cert_check
-    stderr: "error: app not found"
+  error050: 
+    command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd --skip_cert_check /invalid # TLS with skip_cert_check
+    stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
     exit-code: 1
