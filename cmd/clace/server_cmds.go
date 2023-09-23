@@ -36,7 +36,8 @@ func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error)
 
 	return []*cli.Command{
 		{
-			Name: "server",
+			Name:  "server",
+			Usage: "Manage the Clace server",
 			Subcommands: []*cli.Command{
 				{
 					Name:   "start",

@@ -15,7 +15,8 @@ import (
 
 func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	return &cli.Command{
-		Name: "app",
+		Name:  "app",
+		Usage: "Manage apps on the server",
 		Subcommands: []*cli.Command{
 			appCreateCommand(commonFlags, clientConfig),
 			appListCommand(commonFlags, clientConfig),

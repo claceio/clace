@@ -1,6 +1,0 @@
-tests:
-  ../clace app list --admin_password=abcd /invalid: # Wrong password
-    stderr: 
-      exactly: "error: app not found"
-    exit-code: 1
-

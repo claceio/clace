@@ -27,9 +27,15 @@ func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientCon
 		return nil, err
 	}
 
+	passwordCommands, err := getPasswordCommands(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, v := range [][]*cli.Command{
 		serverCommands,
 		clientCommands,
+		passwordCommands,
 	} {
 		allCommands = append(allCommands, v...)
 	}
