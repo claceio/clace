@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -232,6 +233,19 @@ func MarshalStarlark(data interface{}) (v starlark.Value, err error) {
 		}
 		v = dict
 	case map[string]interface{}:
+		dict := &starlark.Dict{}
+		var elem starlark.Value
+		for key, val := range x {
+			elem, err = MarshalStarlark(val)
+			if err != nil {
+				return
+			}
+			if err = dict.SetKey(starlark.String(key), elem); err != nil {
+				return
+			}
+		}
+		v = dict
+	case http.Header:
 		dict := &starlark.Dict{}
 		var elem starlark.Value
 		for key, val := range x {

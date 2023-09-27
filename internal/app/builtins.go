@@ -18,6 +18,7 @@ const (
 	STYLE                 = "style"
 	REDIRECT              = "redirect"
 	PERMISSION            = "permission"
+	TEMPLATE              = "template"
 	DEFAULT_REDIRECT_CODE = 303
 )
 
@@ -156,6 +157,22 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
+func createTemplateBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var block, retarget, reswap starlark.String
+	var data *starlark.Dict
+	if err := starlark.UnpackArgs(TEMPLATE, args, kwargs, "block", &block, "data", &data, "retarget?", &retarget, "reswap?", &reswap); err != nil {
+		return nil, err
+	}
+
+	fields := starlark.StringDict{
+		"block":    block,
+		"data":     data,
+		"retarget": retarget,
+		"reswap":   reswap,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(TEMPLATE), fields), nil
+}
+
 func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var plugin, method starlark.String
 	var arguments *starlark.List
@@ -188,6 +205,7 @@ func CreateBuiltin() starlark.StringDict {
 					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
 					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
+					TEMPLATE:   starlark.NewBuiltin(STYLE, createTemplateBuiltin),
 				},
 			},
 		}

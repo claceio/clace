@@ -239,8 +239,10 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 
 	configRegex := regexp.MustCompile(` Config:[^ ]+`)
 	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
+	ipRegex := regexp.MustCompile(` RemoteIP:[^ ]+`)
+	replaced = ipRegex.ReplaceAllString(replaced, " RemoteIp")
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath:/test AppUrl::////test AutoReload:false CONFIG Data:map[] Form:map[] IsDev:true IsHtmx:false PagePath:/test PageUrl::////test PostForm:map[] Query:map[] UrlParams:map[]].")
+	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath:/test AppUrl::////test AutoReload:false CONFIG Data:map[] Form:map[] Headers:map[] IsDev:true IsHtmx:false PagePath:/test PageUrl::////test PostForm:map[] Query:map[] RemoteIp UrlParams:map[]].")
 }
 
 func TestFullDataRoot(t *testing.T) {
@@ -261,8 +263,10 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 
 	configRegex := regexp.MustCompile(` Config:[^ ]+`)
 	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
+	ipRegex := regexp.MustCompile(` RemoteIP:[^ ]+`)
+	replaced = ipRegex.ReplaceAllString(replaced, " RemoteIp")
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath: AppUrl::/// AutoReload:false CONFIG Data:map[] Form:map[] IsDev:false IsHtmx:false PagePath: PageUrl::/// PostForm:map[] Query:map[] UrlParams:map[*:]].")
+	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath: AppUrl::/// AutoReload:false CONFIG Data:map[] Form:map[] Headers:map[] IsDev:false IsHtmx:false PagePath: PageUrl::/// PostForm:map[] Query:map[] RemoteIp UrlParams:map[*:]].")
 }
 
 func TestAppHeaderDefaultWithBody(t *testing.T) {
@@ -380,4 +384,52 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 302, response.Code)
 	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
+}
+
+func TestTemplateReturn(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+
+def handler(req):
+	return clace.template("testtmpl", {"key": "myvalue"})`,
+		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
+	}
+	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "ABC myvalue")
+}
+
+func TestTemplateReturnRetarget(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+
+def handler(req):
+	return clace.template("testtmpl", {"key": "myvalue"}, retarget="#abc", reswap="outerHTML")`,
+		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
+	}
+	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "ABC myvalue")
+	testutil.AssertEqualsString(t, "retarget", response.Header().Get("HX-Retarget"), "#abc")
+	testutil.AssertEqualsString(t, "reswap", response.Header().Get("HX-Reswap"), "outerHTML")
 }

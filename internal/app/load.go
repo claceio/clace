@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
@@ -298,6 +299,8 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			"IsDev":      a.IsDev,
 			"AutoReload": a.AutoReload,
 			"IsHtmx":     isHtmxRequest,
+			"Headers":    r.Header,
+			"RemoteIP":   getRemoteIP(r),
 		}
 
 		chiContext := chi.RouteContext(r.Context())
@@ -335,13 +338,26 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			if ok {
 				// Handle Redirect response
 				url, err := getStringAttr(retStruct, "url")
-				if err != nil {
-					http.Error(w, fmt.Sprintf("require url for redirect %s", err), http.StatusInternalServerError)
+				// starlark Type() is not implemented for structs, so we can't check the type
+				// Looked at the mandatory properties to decide on type for now
+				if err == nil {
+					// Redirect type struct returned by handler
+					code, _ := getIntAttr(retStruct, "code")
+					a.Trace().Msgf("Redirecting to %s with code %d", url, code)
+					http.Redirect(w, r, url, int(code))
 					return
 				}
-				code, _ := getIntAttr(retStruct, "code")
-				a.Trace().Msgf("Redirecting to %s with code %d", url, code)
-				http.Redirect(w, r, url, int(code))
+
+				// Template type struct returned by handler
+				// Instead of template defined in the route, use the template
+				// specified in the response
+				// don't execute the rest of the handler
+				err, done := a.handleFragmentResponse(retStruct, w, requestData)
+				if done {
+					return
+				}
+
+				http.Error(w, fmt.Sprintf("require url for redirect %s", err), http.StatusInternalServerError)
 				return
 			}
 
@@ -380,4 +396,70 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 		}
 	}
 	return goHandler
+}
+
+func (a *App) handleFragmentResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData map[string]interface{}) (error, bool) {
+	templateBlock, err := getStringAttr(retStruct, "block")
+	if err != nil || templateBlock == "" {
+		return err, false
+	}
+
+	data, err := retStruct.Attr("data")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting data from template")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	retarget, err := getStringAttr(retStruct, "retarget")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting retarget from template")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	reswap, err := getStringAttr(retStruct, "reswap")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting reswap from template")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	templateValue, err := utils.UnmarshalStarlark(data)
+	if err != nil {
+		a.Error().Err(err).Msg("error converting response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	requestData["Data"] = templateValue
+	requestData["Config"] = a.Config
+	if retarget != "" {
+		w.Header().Add("HX-Retarget", retarget)
+	}
+	if reswap != "" {
+		w.Header().Add("HX-Reswap", reswap)
+	}
+	err = a.template.ExecuteTemplate(w, templateBlock, requestData)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+	return nil, true
+}
+
+func getRemoteIP(r *http.Request) string {
+	remoteIP := r.Header.Get("X-Real-IP")
+	if remoteIP == "" {
+		remoteIP = r.Header.Get("X-Forwarded-For")
+	}
+	if remoteIP == "" && r.RemoteAddr != "" {
+		if r.RemoteAddr[0] == '[' {
+			// IPv6
+			remoteIP = strings.Split(r.RemoteAddr, "]")[0][1:]
+		} else {
+			remoteIP = strings.Split(r.RemoteAddr, ":")[0]
+		}
+	}
+	return remoteIP
 }
