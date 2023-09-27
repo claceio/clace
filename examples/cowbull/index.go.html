@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+{{ define "theme" }}bumblebee{{ end }}
+<html data-theme="{{ template "theme" . }}">
+  {{ block "header" . }}
+    <head>
+      <meta
+        charset="utf-8"
+        name="viewport"
+        content="width=device-width, initial-scale=1.0" />
+      <link
+        rel="icon"
+        type="image/svg"
+        href="{{ static " images/cowbull.svg" }}" />
+      <link
+        rel="apple-touch-icon"
+        type="image/svg"
+        href="{{ static " images/cowbull.svg" }}" />
+
+      <title>CowBull: Word game</title>
+      <meta name="description" content="Play the Bulls and Cows word game" />
+      {{ template "clace_gen_import" . }}
+    </head>
+  {{ end }}
+
+
+  <body>
+    <div class="min-h-screen grid grid-flow-col md:grid-cols-12">
+      <!-- Left entry area: 1/4 of the screen on large screens, full width on smaller screens -->
+      <div class="md:col-span-3"></div>
+
+      <!-- Middle content area: 4/6 of the screen on large screens, full width on smaller screens -->
+      <div class="md:col-span-6 bg-gray-100">
+        {{ block "title_bar" . }}
+          <div class="grid grid-cols-10">
+            <a class="col-start-3 justify-right" href="{{ .AppPath }}"
+              ><img class="w-20" src="{{ static "images/cowbull.svg" }}"
+            /></a>
+            <a
+              class="col-start-5 col-span-2 pt-6 text-4xl font-extrabold font-mono tracking-wide"
+              href="{{ .AppPath }}"
+              >CowBull</a
+            >
+
+            <a
+              data-tip="Help"
+              class="col-start-8 pt-6 tooltip tooltip-closed tooltip-bottom"
+              href="{{ .AppPath }}/help">
+              <img class="w-8" src="{{ static "images/help.svg" }}"
+            /></a>
+          </div>
+        {{ end }}
+
+
+        <div class="grid grid-cols-6">
+          <div class="pt-6 col-start-2 col-span-4 text-center">
+            CowBull, find the hidden 4-letter word. Enter guesses, use clues to
+            find hidden word.
+            <br /><br />
+            <b>Bulls🎯</b>
+            - Bulls-eye, letter position matches
+            <br />
+            <b>Cows</b>
+            - Letter is at wrong position
+          </div>
+        </div>
+
+        <br /><br />
+        {{ block "start_game" . }}
+          <div class="grid grid-cols-6">
+            <label class="col-start-2 col-span-4 text-l">
+              <b>Start Game</b>
+            </label>
+          </div>
+
+          <form
+            action="{{ .AppPath }}/game"
+            method="post"
+            class="grid grid-cols-6 gap-8">
+            {{ block "level_selector" . }}
+              <select name="level" class="select col-start-2 col-span-2">
+                <option>Easy</option>
+                <option>Medium</option>
+                <option>Hard</option>
+              </select>
+            {{ end }}
+
+
+            <input
+              type="submit"
+              value="Start"
+              class="btn-md btn-primary rounded-md  col-start-4 col-span-2 font-bold" />
+          </form>
+        {{ end }}
+
+
+        <br />
+        <div class="grid grid-cols-6">
+          <label class="col-start-2 col-span-4 text-l">
+            <b>Multi-Player Game</b>
+          </label>
+        </div>
+
+        <form
+          action="{{ .AppPath }}/challenge"
+          method="post"
+          class="grid grid-cols-6 gap-8">
+          {{ template "level_selector" . }}
+          <input
+            type="submit"
+            value="Setup"
+            class="btn-md btn-primary rounded-md col-start-4 col-span-2 font-bold" />
+        </form>
+
+        <br />
+        <div class="grid grid-cols-6">
+          <label class="col-start-2 col-span-4 text-l">
+            <b>Join Game</b>
+          </label>
+        </div>
+
+        <form
+          action="{{ .AppPath }}/join"
+          method="post"
+          class="grid grid-cols-6 gap-8">
+          <input
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            class="col-start-2 col-span-2 input input-primary input-bordered input-md"
+            placeholder="GAMEID"
+            type="text"
+            id="input2"
+            name="id"
+            minlength="4"
+            maxlength="5"
+            size="6" />
+
+          <input
+            type="submit"
+            value="Join"
+            class="btn-md btn-primary rounded-md  col-start-4 col-span-2 font-bold" />
+        </form>
+
+        <div class="text-l sm:text-sm font-bold m-8 sm:w-80">
+          <div>
+            <label id="error" class="text-red-500"></label>
+          </div>
+        </div>
+
+        {{ block "footer" . }}
+          <footer class="sticky top-[200vh]">
+            <br /><br />
+            <div class="flex justify-center text-xs text-gray-300">
+              Copyright © 2023 CowBull
+            </div>
+          </footer>
+        {{ end }}
+      </div>
+
+      <!-- Right entry area: 1/4 of the screen on large screens, full width on smaller screens -->
+      <div class="md:col-span-3 w-full md:w-auto"></div>
+    </div>
+  </body>
+</html>

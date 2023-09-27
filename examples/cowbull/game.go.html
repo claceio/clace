@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html data-theme="{{ template "theme" . }}">
+  {{ template "header" . }}
+
+
+  <body>
+    <div class="min-h-screen grid grid-flow-col md:grid-cols-12">
+      <!-- Left entry area: 1/4 of the screen on large screens, full width on smaller screens -->
+      <div class="md:col-span-3"></div>
+
+      <!-- Middle content area: 4/6 of the screen on large screens, full width on smaller screens -->
+      <div class="md:col-span-6 bg-gray-100">
+        {{ template "title_bar" . }}
+
+
+        <br />
+        <div class="grid grid-cols-6">
+          <label class="col-start-2 col-span-4 text-l">
+            <b>Enter Guess</b>
+          </label>
+        </div>
+        <form
+          action="{{ .Data.GamePath }}/submit"
+          method="post"
+          hx-post="{{ .Data.GamePath }}/submit"
+          class="pt-2 grid grid-cols-6 gap-8"
+          hx-swap="innerHTML transition:true"
+          hx-target="#game_info">
+          <input
+            autofocus
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            class="col-start-2 col-span-2 input input-primary input-bordered input-md"
+            placeholder="word"
+            name="guess"
+            type="text"
+            minlength="4"
+            maxlength="4"
+            size="6" />
+
+          <input
+            type="submit"
+            value="Submit"
+            class="btn-md btn-primary rounded-md  col-start-4 col-span-2 font-bold" />
+        </form>
+
+        <div id="game_info" class="table-transition">
+          {{ block "game_info_tmpl" . }}
+            {{ $gameStatus := "" }}
+
+            {{ if not .Data.Error }}
+              {{ if or .Data.Word .Data.Score (eq .Data.Status "RESIGNED") }}
+                {{ $gameStatus = printf "%s. Guesses: %d, Hints: %d, Time Taken: %s"
+                  .Data.Status (.Data.GuessCount | int) (.Data.HintCount | int) .Data.Time
+                }}
+              {{ end }}
+              {{ if .Data.Score }}
+                {{ $gameStatus = printf "%s, Score %s" $gameStatus .Data.Score }}
+              {{ end }}
+            {{ end }}
+
+
+            <div class="grid grid-cols-6">
+              <div class="pt-4 col-start-2 col-span-4 text-sm font-bold">
+                {{ if .Data.Word }}
+                  <label id="statusId"
+                    >{{ $gameStatus }}. Word was
+                    <a
+                      class="link"
+                      href="https://www.merriam-webster.com/dictionary/{{ .Data.Word }}"
+                      >{{ .Data.Word }}</a
+                    ></label
+                  >
+                {{ else }}
+                  <label id="statusId">{{ $gameStatus }}</label>
+                {{ end }}
+
+
+                <br />
+                {{ block "game_error_block" . }}
+                  <label id="gameErrorId" class="text-red-500"
+                    >{{ .Data.Error }}</label
+                  >
+                {{ end }}
+
+              </div>
+            </div>
+            <br />
+            <div class="grid grid-cols-6">
+              <label class="col-start-2 col-span-4 text-l">
+                <b>Guesses</b>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-6">
+              <table
+                class="table table-zebra text-xl font-mono col-start-2 col-span-4">
+                <thead>
+                  <tr>
+                    <th>Word</th>
+                    <th>Bulls🎯</th>
+                    <th>Cows</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{ range $i, $g := .Data.Clues }}
+                    <tr>
+                      <td>
+                        {{ $isHint := "" }}
+                        {{ if $g.Hint }}
+                          {{ $isHint = "bg-yellow-200" }}
+                        {{ end }}
+                        <a
+                          class="link {{ $isHint }}"
+                          href="https://www.merriam-webster.com/dictionary/{{ $g.Clue }}"
+                          >{{ $g.Clue }}</a
+                        >
+                      </td>
+                      <td>{{ $g.Bulls }}</td>
+                      <td>{{ $g.Cows }}</td>
+                    </tr>
+                  {{ end }}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pt-6 grid grid-cols-6 gap-8 pb-4">
+              <div class="col-start-2 col-span-2">
+                <form
+                  action=" {{ .Data.GamePath }}/resign"
+                  method="post"
+                  hx-post="{{ .Data.GamePath }}/resign"
+                  hx-swap="innerHTML transition:true"
+                  hx-target="#game_info">
+                  <input
+                    type="submit"
+                    value="Resign"
+                    class="w-full btn-md btn-primary rounded-md font-bold" />
+                </form>
+              </div>
+
+              <div class="col-start-4 col-span-2">
+                <form
+                  action="{{ .Data.GamePath }}/hint"
+                  method="post"
+                  hx-post="{{ .Data.GamePath }}/hint"
+                  hx-swap="innerHTML transition:true"
+                  hx-target="#game_info">
+                  <input
+                    type="submit"
+                    value="Hint"
+                    class="w-full btn-md btn-primary rounded-md font-bold" />
+                </form>
+              </div>
+            </div>
+          {{ end }}<!-- end game_info_tmpl -->
+        </div>
+
+        {{ template "start_game" . }}
+        <div class="grid grid-cols-6">
+          <div class="col-start-2 col-span-4">
+            <br /><br />
+            <div class="text-center">
+              Guesses should be a 4-letter words.<br />
+              <b>Bulls🎯</b> - Bulls-eye, letter position matches
+              <br />
+              <b>Cows</b> - Letter is at wrong position
+            </div>
+          </div>
+        </div>
+
+        {{ if eq .Data.GameId "ABCDE" }}
+          <b>Bulls</b> are exact position matches. If a guess has 1 bull, that
+          means one of the letters is in the same position in the guess and in
+          the hidden word.
+          <p>
+            <b>Cows</b> are partial matches. If a guess has 2 cows, that means
+            two of the letters in the guess are present in the hidden word, but
+            at a different position.
+          </p>
+          <p>
+            The first guess <b>ROSE</b> tells that two letters match, one is an
+            exact match Bull and other is a partial match Cow.
+          </p>
+          <p>
+            The second guess <b>SEND</b> has no matches, so letters S and E are
+            eliminated, leaving O and R.
+          </p>
+          <p>
+            The next two guesses tell us that the hidden word starts with
+            letters WOR. The final guess is <b>WORK</b>
+            which is the hidden word.
+          </p>
+        {{ end }}
+
+        {{ template "footer" }}
+      </div>
+    </div>
+
+    <!-- Right entry area: 1/4 of the screen on large screens, full width on smaller screens -->
+    <div class="md:col-span-3 w-full md:w-auto"></div>
+  </body>
+</html>
+
+{{ define "invalid_game_id" }}
+  Invalid game id specified: .Data.Error
+{{ end }}
