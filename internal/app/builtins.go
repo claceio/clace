@@ -4,6 +4,7 @@
 package app
 
 import (
+	"net/http"
 	"sync"
 
 	"go.starlark.net/starlark"
@@ -18,7 +19,7 @@ const (
 	STYLE                 = "style"
 	REDIRECT              = "redirect"
 	PERMISSION            = "permission"
-	TEMPLATE              = "template"
+	RESPONSE              = "response"
 	DEFAULT_REDIRECT_CODE = 303
 )
 
@@ -157,20 +158,27 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
-func createTemplateBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var block, retarget, reswap starlark.String
 	var data *starlark.Dict
-	if err := starlark.UnpackArgs(TEMPLATE, args, kwargs, "block", &block, "data", &data, "retarget?", &retarget, "reswap?", &reswap); err != nil {
+	var code starlark.Int
+	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "block", &block, "data", &data, "code?", &code, "retarget?", &retarget, "reswap?", &reswap); err != nil {
 		return nil, err
+	}
+
+	codeValue, _ := code.Int64()
+	if codeValue == 0 {
+		code = starlark.MakeInt(http.StatusOK)
 	}
 
 	fields := starlark.StringDict{
 		"block":    block,
 		"data":     data,
+		"code":     code,
 		"retarget": retarget,
 		"reswap":   reswap,
 	}
-	return starlarkstruct.FromStringDict(starlark.String(TEMPLATE), fields), nil
+	return starlarkstruct.FromStringDict(starlark.String(RESPONSE), fields), nil
 }
 
 func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -205,7 +213,7 @@ func CreateBuiltin() starlark.StringDict {
 					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
 					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
-					TEMPLATE:   starlark.NewBuiltin(STYLE, createTemplateBuiltin),
+					RESPONSE:   starlark.NewBuiltin(STYLE, createResponseBuiltin),
 				},
 			},
 		}

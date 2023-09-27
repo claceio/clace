@@ -348,11 +348,9 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 					return
 				}
 
-				// Template type struct returned by handler
-				// Instead of template defined in the route, use the template
-				// specified in the response
-				// don't execute the rest of the handler
-				err, done := a.handleFragmentResponse(retStruct, w, requestData)
+				// response type struct returned by handler Instead of template defined in
+				// the route, use the template specified in the response
+				err, done := a.handleResponse(retStruct, w, requestData)
 				if done {
 					return
 				}
@@ -398,7 +396,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 	return goHandler
 }
 
-func (a *App) handleFragmentResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData map[string]interface{}) (error, bool) {
+func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData map[string]interface{}) (error, bool) {
 	templateBlock, err := getStringAttr(retStruct, "block")
 	if err != nil || templateBlock == "" {
 		return err, false
@@ -406,21 +404,28 @@ func (a *App) handleFragmentResponse(retStruct *starlarkstruct.Struct, w http.Re
 
 	data, err := retStruct.Attr("data")
 	if err != nil {
-		a.Error().Err(err).Msg("error getting data from template")
+		a.Error().Err(err).Msg("error getting data from response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	code, err := getIntAttr(retStruct, "code")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting code from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
 	}
 
 	retarget, err := getStringAttr(retStruct, "retarget")
 	if err != nil {
-		a.Error().Err(err).Msg("error getting retarget from template")
+		a.Error().Err(err).Msg("error getting retarget from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
 	}
 
 	reswap, err := getStringAttr(retStruct, "reswap")
 	if err != nil {
-		a.Error().Err(err).Msg("error getting reswap from template")
+		a.Error().Err(err).Msg("error getting reswap from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
 	}
@@ -440,6 +445,8 @@ func (a *App) handleFragmentResponse(retStruct *starlarkstruct.Struct, w http.Re
 	if reswap != "" {
 		w.Header().Add("HX-Reswap", reswap)
 	}
+
+	w.WriteHeader(int(code))
 	err = a.template.ExecuteTemplate(w, templateBlock, requestData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -386,14 +386,14 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Header().Get("Location"), "/new_url")
 }
 
-func TestTemplateReturn(t *testing.T) {
+func TestResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
-	return clace.template("testtmpl", {"key": "myvalue"})`,
+	return clace.response("testtmpl", {"key": "myvalue"})`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
@@ -409,14 +409,14 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Body.String(), "ABC myvalue")
 }
 
-func TestTemplateReturnRetarget(t *testing.T) {
+func TestResponseRetarget(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
-	return clace.template("testtmpl", {"key": "myvalue"}, retarget="#abc", reswap="outerHTML")`,
+	return clace.response("testtmpl", {"key": "myvalue"}, code=500, retarget="#abc", reswap="outerHTML")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
@@ -428,7 +428,7 @@ def handler(req):
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 
-	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
 	testutil.AssertStringContains(t, response.Body.String(), "ABC myvalue")
 	testutil.AssertEqualsString(t, "retarget", response.Header().Get("HX-Retarget"), "#abc")
 	testutil.AssertEqualsString(t, "reswap", response.Header().Get("HX-Reswap"), "outerHTML")
