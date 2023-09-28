@@ -1,14 +1,5 @@
 load("exec.in", "exec")
 
-app = clace.app("Disk Usage",
-                pages=[clace.page("/", block="du_table_block")],
-                permissions=[
-                    clace.permission("exec.in", "run", ["du"]),
-                    clace.permission("exec.in", "run", ["readlink"])
-                ],
-                style=clace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css")
-                )
-
 
 def handler(req):
     dir = req.Query.get("dir")
@@ -46,3 +37,13 @@ def handler(req):
         dirs[0], dirs[1] = dirs[1], dirs[0]
 
     return {"Current": current, "Dirs": dirs, "Error": "", "MaxSize": dirs[0]["Size"] if dirs else 0}
+
+
+app = clace.app("Disk Usage",
+                pages=[clace.page("/", block="du_table_block")],
+                permissions=[
+                    clace.permission("exec.in", "run", ["du"]),
+                    clace.permission("exec.in", "run", ["readlink"])
+                ],
+                style=clace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css")
+                )
