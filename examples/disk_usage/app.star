@@ -36,7 +36,7 @@ def handler(req):
     # Parse the results
     dirs = []
     for line in ret.lines:
-        cols = line.split()
+        cols = line.split("\t", 1)
         dirs.append({"Size": int(cols[0]), "Dir": cols[1]})
 
     # Descending sort on size, limit to 20 dirs

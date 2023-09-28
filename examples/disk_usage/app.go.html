@@ -1,42 +1,61 @@
-{{block "clace_body" .}}
+{{ block "clace_body" . }}
+  {{ block "du_table_block" . }}
+    <div id="du_table">
+      <h3>
+        Disk usage for
+        {{ .Data.Current }}
+        <img
+          id="spinner"
+          alt="Loading..."
+          class="htmx-indicator"
+          src="{{ static "images/spinner.svg" }}" />
+      </h3>
+      <div><em>{{ .Data.Error }}</em></div>
 
-    {{block "du_table_block" .}}
-        <style>
-        .htmx-indicator {
-            opacity: 0;
-            transition: opacity 200ms ease-in;
-        }
-        </style>
+      <table>
+        <thead>
+          <th>Name</th>
+          <th></th>
+          <th>Size (MB)</th>
+        </thead>
+        {{ range .Data.Dirs }}
+          <tr>
+            {{ $dirUrl := printf "%s?dir=%s" $.AppPath .Dir }}
+            <td>
+              <a
+                href="{{ $dirUrl }}"
+                hx-target="#du_table"
+                hx-push-url="true"
+                hx-get="{{ $dirUrl }}"
+                hx-indicator="#spinner"
+                >{{ .Dir }}</a
+              >
+            </td>
+            <td>
+              <progress max="{{- $.Data.MaxSize -}}" value="{{- .Size -}}">
+                {{ .Size }}
+              </progress>
+            </td>
+            <td>{{ .Size }}</td>
+          </tr>
+        {{ end }}
 
-        <div id="du_table">
-            <h3> Disk usage for {{.Data.Current}} 
-            <img id="spinner" class="htmx-indicator" src="{{ static "images/spinner.svg" }}"/>
-            </h3>
-            <div><em>{{.Data.Error}}</em></div>
+      </table>
 
-            <table >
-                <thead>
-                    <th>Name</th>
-                    <th></th>
-                    <th>Size (MB)</th>
-                </thead>
-                {{ range .Data.Dirs }}
-                    <tr>
-                        {{$dirUrl := printf "%s?dir=%s" $.AppPath .Dir }}
-                        <td><a href="{{$dirUrl}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$dirUrl}}" hx-indicator="#spinner">{{ .Dir }}</a></td>
-                        <td><progress max="{{- $.Data.MaxSize -}}" value="{{- .Size -}}">{{ .Size }}</progress></td>
-                        <td>{{ .Size }}</td>
-                    </tr>
-                {{ end }}
-
-            </table>
-
-            <h3>
-            {{if ne .Data.Current "/"}}
-            {{$parentUrl := printf "%s?dir=%s/.." $.AppPath .Data.Current}}
-            Parent Directory : <a href="{{$parentUrl}}" hx-target="#du_table" hx-push-url="true" hx-get="{{$parentUrl}}" hx-indicator="#spinner">{{.Data.Current}}/..</a>
-            {{end}}
-            </h3>
-        </div>
-    {{end}}
-{{end}}
+      <h3>
+        {{ if ne .Data.Current "/" }}
+          {{ $parentUrl := printf "%s?dir=%s/.." $.AppPath .Data.Current }}
+          Parent Directory :
+          <a
+            href="{{ $parentUrl }}"
+            hx-target="#du_table"
+            hx-push-url="true"
+            hx-get="{{ $parentUrl }}"
+            hx-indicator="#spinner"
+            >{{ .Data.Current }}/..</a
+          >
+        {{ end }}
+      </h3>
+    </div>
+  {{ end }}
+{{ end }}
