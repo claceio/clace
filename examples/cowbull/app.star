@@ -4,15 +4,15 @@ SERVICE_URL = "http://localhost:9999"
 
 
 def create_game(req):
-    level = req["Form"]["level"]
+    level = req.Form["level"]
     ret = http.post(SERVICE_URL + "/api/create_game/" + level[0], headers={
-        "X-Forwarded-For": req["RemoteIP"]
+        "X-Forwarded-For": req.RemoteIP
     })
-    return clace.redirect(req["AppPath"] + "/game/" + ret.json()["GameId"])
+    return clace.redirect(req.AppPath + "/game/" + ret.json()["GameId"])
 
 
 def fetch_game(req, game_id):
-    game_path = req["AppPath"] + "/game/" + game_id
+    game_path = req.AppPath + "/game/" + game_id
     ret = http.get(SERVICE_URL + "/api/game/" + game_id)
     game = ret.json()
     if game.get("Error"):
@@ -24,18 +24,18 @@ def fetch_game(req, game_id):
 
 
 def game_handler(req):
-    game_id = req["UrlParams"]["game_id"]
+    game_id = req.UrlParams["game_id"]
     return fetch_game(req, game_id)
 
 
 def post_game_update(req, req_type):
     arg = None
     if req_type == "submit":
-        if "guess" not in req["Form"]:
+        if "guess" not in req.Form:
             return clace.response("game_error_block", req, code=400)
-        arg = req["Form"]["guess"][0]
+        arg = req.Form["guess"][0]
 
-    game_id = req["UrlParams"]["game_id"]
+    game_id = req.UrlParams["game_id"]
     api_url = SERVICE_URL + "/api/game/" + game_id + "/" + req_type
     if arg:
         api_url += "/" + arg
@@ -46,16 +46,16 @@ def post_game_update(req, req_type):
 
 
 def create_challenge(req):
-    level = req["Form"]["level"]
+    level = req.Form["level"]
     challenge = http.post(
         SERVICE_URL + "/api/create_challenge/" + level[0]).json()
     if challenge.get("Error"):
         return clace.response("invalid_challenge_id", challenge, code=404)
-    return clace.redirect(req["AppPath"] + "/challenge/" + challenge["ChallengeId"])
+    return clace.redirect(req.AppPath + "/challenge/" + challenge["ChallengeId"])
 
 
 def challenge_handler(req):
-    challenge_id = req["UrlParams"]["challenge_id"]
+    challenge_id = req.UrlParams["challenge_id"]
     challenge = http.get(SERVICE_URL + "/api/challenge/" + challenge_id).json()
     if challenge.get("Error"):
         return clace.response("invalid_challenge_id", challenge, code=404)
@@ -65,23 +65,23 @@ def challenge_handler(req):
 
 
 def play_challenge(req):
-    challenge_id = req["UrlParams"]["challenge_id"]
+    challenge_id = req.UrlParams["challenge_id"]
     ret = http.post(SERVICE_URL + "/api/challenge/" +
                     challenge_id + "/play").json()
     if ret.get("Error"):
         return clace.response("invalid_challenge_id", ret, code=404)
 
-    return clace.redirect(req["AppPath"] + "/game/" + ret["GameId"])
+    return clace.redirect(req.AppPath + "/game/" + ret["GameId"])
 
 
 def join(req):
-    id = req["Form"]["id"]
+    id = req.Form["id"]
     if id:
         id = id[0]
     if len(id) == 4:
-        return clace.redirect(req["AppPath"] + "/challenge/" + id)
+        return clace.redirect(req.AppPath + "/challenge/" + id)
     else:
-        return clace.redirect(req["AppPath"] + "/game/" + id)
+        return clace.redirect(req.AppPath + "/game/" + id)
 
 
 app = clace.app("CowBull",

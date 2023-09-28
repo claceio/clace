@@ -290,17 +290,20 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 		if pagePath == "/" {
 			pagePath = ""
 		}
-		requestData := map[string]interface{}{
-			"AppName":    a.Name,
-			"AppPath":    appPath,
-			"AppUrl":     fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, appPath),
-			"PagePath":   pagePath,
-			"PageUrl":    fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, pagePath),
-			"IsDev":      a.IsDev,
-			"AutoReload": a.AutoReload,
-			"IsHtmx":     isHtmxRequest,
-			"Headers":    r.Header,
-			"RemoteIP":   getRemoteIP(r),
+		requestData := Request{
+			AppName:     a.Name,
+			AppPath:     appPath,
+			AppUrl:      fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, appPath),
+			PagePath:    pagePath,
+			PageUrl:     fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, pagePath),
+			Method:      r.Method,
+			IsDev:       a.IsDev,
+			AutoReload:  a.AutoReload,
+			IsPartial:   isHtmxRequest,
+			PushEvents:  a.Config.Routing.PushEvents,
+			HtmxVersion: a.Config.Htmx.Version,
+			Headers:     r.Header,
+			RemoteIP:    getRemoteIP(r),
 		}
 
 		chiContext := chi.RouteContext(r.Context())
@@ -310,24 +313,16 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 				params[k] = chiContext.URLParams.Values[i]
 			}
 		}
-		requestData["UrlParams"] = params
+		requestData.UrlParams = params
 
 		r.ParseForm()
-		requestData["Form"] = r.Form
-		requestData["Query"] = r.URL.Query()
-		requestData["PostForm"] = r.PostForm
+		requestData.Form = r.Form
+		requestData.Query = r.URL.Query()
+		requestData.PostForm = r.PostForm
 
-		var value any = map[string]any{} // no handler means empty Data map is passed into template
+		var handlerResponse any = map[string]any{} // no handler means empty Data map is passed into template
 		if handler != nil {
-			dataStarlark, err := utils.MarshalStarlark(requestData)
-			if err != nil {
-				a.Error().Err(err).Msg("error converting request data")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			a.Trace().Msgf("Calling handler %s %s", handler.Name(), dataStarlark.String())
-
-			ret, err := starlark.Call(thread, handler, starlark.Tuple{dataStarlark}, nil)
+			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
 			if err != nil {
 				a.Error().Err(err).Msg("error calling handler")
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -359,7 +354,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 				return
 			}
 
-			value, err = utils.UnmarshalStarlark(ret)
+			handlerResponse, err = utils.UnmarshalStarlark(ret)
 			if err != nil {
 				a.Error().Err(err).Msg("error converting response")
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -367,8 +362,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			}
 		}
 
-		requestData["Data"] = value
-		requestData["Config"] = a.Config
+		requestData.Data = handlerResponse
 		var err error
 		if isHtmxRequest && block != "" {
 			a.Trace().Msgf("Rendering block %s", block)
@@ -396,7 +390,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 	return goHandler
 }
 
-func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData map[string]interface{}) (error, bool) {
+func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request) (error, bool) {
 	templateBlock, err := getStringAttr(retStruct, "block")
 	if err != nil || templateBlock == "" {
 		return err, false
@@ -437,8 +431,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 		return nil, true
 	}
 
-	requestData["Data"] = templateValue
-	requestData["Config"] = a.Config
+	requestData.Data = templateValue
 	if retarget != "" {
 		w.Header().Add("HX-Retarget", retarget)
 	}

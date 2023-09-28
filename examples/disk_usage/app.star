@@ -11,7 +11,7 @@ app = clace.app("Disk Usage",
 
 
 def handler(req):
-    dir = req["Query"].get("dir")
+    dir = req.Query.get("dir")
     current = dir[0] if dir and dir[0] else "."
 
     # Run readlink -f to get the absolute path for the current directory

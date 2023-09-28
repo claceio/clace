@@ -6,7 +6,6 @@ package app_test
 import (
 	"encoding/json"
 	"net/http/httptest"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -237,12 +236,8 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 
-	configRegex := regexp.MustCompile(` Config:[^ ]+`)
-	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
-	ipRegex := regexp.MustCompile(` RemoteIP:[^ ]+`)
-	replaced = ipRegex.ReplaceAllString(replaced, " RemoteIp")
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath:/test AppUrl::////test AutoReload:false CONFIG Data:map[] Form:map[] Headers:map[] IsDev:true IsHtmx:false PagePath:/test PageUrl::////test PostForm:map[] Query:map[] RemoteIp UrlParams:map[]].")
+	testutil.AssertStringContains(t, response.Body.String(), "Template contents testapp:/test:get.")
 }
 
 func TestFullDataRoot(t *testing.T) {
@@ -261,12 +256,8 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 
-	configRegex := regexp.MustCompile(` Config:[^ ]+`)
-	replaced := configRegex.ReplaceAllString(response.Body.String(), " CONFIG")
-	ipRegex := regexp.MustCompile(` RemoteIP:[^ ]+`)
-	replaced = ipRegex.ReplaceAllString(replaced, " RemoteIp")
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, replaced, "Template contents map[AppName:testApp AppPath: AppUrl::/// AutoReload:false CONFIG Data:map[] Form:map[] Headers:map[] IsDev:false IsHtmx:false PagePath: PageUrl::/// PostForm:map[] Query:map[] RemoteIp UrlParams:map[*:]].")
+	testutil.AssertStringContains(t, response.Body.String(), "Template contents testapp::get.")
 }
 
 func TestAppHeaderDefaultWithBody(t *testing.T) {
@@ -304,7 +295,7 @@ def handler(req):
 		sse-connect="/test/_clace_app/sse" sse-swap="clace_reload"
 		hx-trigger="sse:clace_reload"></div>
 	<script>
-		document.getElementById('cl_reload_listener').addEventListener('sse:clace_reload',
+		document .getElementById("cl_reload_listener") .addEventListener("sse:clace_reload",
 			function (event) {
 				location.reload();
 			});
