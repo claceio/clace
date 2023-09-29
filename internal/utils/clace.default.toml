@@ -2,7 +2,10 @@
 
 server_uri = "$CL_HOME/run/clace.sock" # the unix domain socket (UDS) path or URL to the Clace server
 admin_user = "admin"
-admin_password = "" # the password for the admin user. If empty, server uses the bcrypt value in [security] section
+
+# Properties use by the Clace client to connect to the server
+[client]
+admin_password = "" # the password for the admin user. Required only if admin over TCP is enabled
 skip_cert_check = false
 
 # HTTP port binding related Config

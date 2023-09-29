@@ -16,16 +16,14 @@ import (
 )
 
 func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
-	_, defaultClientConfig, defaultServerConfig, err := utils.GetDefaultConfigs()
+	_, _, defaultServerConfig, err := utils.GetDefaultConfigs()
 	if err != nil {
 		return nil, err
 	}
 
 	flags := []cli.Flag{
-		newAltStringFlag("server_uri", "s", "The server connection uri", defaultClientConfig.ServerUri, &serverConfig.ServerUri),
-		newAltStringFlag("admin_user", "u", "The admin user name", defaultClientConfig.AdminUser, &serverConfig.AdminUser),
-		newAltStringFlag("admin_password", "w", "The admin user password", defaultClientConfig.AdminPassword, &serverConfig.AdminPassword),
-
+		newAltStringFlag("server_uri", "s", "The server connection uri", defaultServerConfig.ServerUri, &serverConfig.ServerUri),
+		newAltStringFlag("admin_user", "u", "The admin user name", defaultServerConfig.AdminUser, &serverConfig.AdminUser),
 		newAltStringFlag("http.host", "i", "The interface to bind on for HTTP", defaultServerConfig.Http.Host, &serverConfig.Http.Host),
 		newAltIntFlag("http.port", "p", "The port to listen on for HTTP", defaultServerConfig.Http.Port, &serverConfig.Http.Port),
 		newAltStringFlag("https.host", "", "The interface to bind on for HTTPS", defaultServerConfig.Https.Host, &serverConfig.Https.Host),

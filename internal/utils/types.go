@@ -14,10 +14,9 @@ const (
 
 // Config entries shared between client and server
 type GlobalConfig struct {
-	ConfigFile    string `toml:"config_file"`
-	AdminUser     string `toml:"admin_user"`
-	AdminPassword string `toml:"admin_password"`
-	ServerUri     string `toml:"server_uri"`
+	ConfigFile string `toml:"config_file"`
+	AdminUser  string `toml:"admin_user"`
+	ServerUri  string `toml:"server_uri"`
 }
 
 // ServerConfig is the configuration for the Clace Server
@@ -79,7 +78,8 @@ type SystemConfig struct {
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
 	GlobalConfig
-	SkipCertCheck bool `toml:"skip_cert_check"`
+	SkipCertCheck bool   `toml:"skip_cert_check"`
+	AdminPassword string `toml:"admin_password"`
 }
 
 // AppId is the identifier for an App

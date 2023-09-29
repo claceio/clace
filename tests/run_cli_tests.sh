@@ -34,11 +34,16 @@ cleanup() {
 
 # Test error messages
 rm -f run/clace.sock
-../clace server start --admin_password=abcd --http.port=9154 --https.port=9155 &
+# Use password hash for "abcd"
+cat <<EOF > config_error_test.toml
+[security]
+admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DUPUyvIK7C"
+EOF
+CL_CONFIG_FILE=config_error_test.toml ../clace server start  --http.port=9154 --https.port=9155 &
 sleep 2
+
 commander test $CL_TEST_VERBOSE test_errors.yaml
-rm -rf clace.db
-rm -f run/clace.sock
+rm -rf clace.db run/clace.sock config_error_test.toml
 
 # Test server prints a password when started without config
 ../clace server start --http.port=9156 --https.port=9157 > server.stdout &
@@ -46,10 +51,12 @@ sleep 2
 grep "Admin password" server.stdout
 rm -f run/clace.sock
 
-# Run all other automated tests
-echo "admin_password = \"qwerty\"" > clace.toml
-
+# Run all other automated tests, use password hash for "qwerty"
 export CL_CONFIG_FILE=clace.toml
+cat <<EOF > $CL_CONFIG_FILE
+[security]
+admin_password_bcrypt = "\$2a\$10\$PMaPsOVMBfKuDG04RsqJbeKIOJjlYi1Ie1KQbPCZRQx38bqYfernm"
+EOF
 
 ../clace server start  -l trace &
 sleep 2

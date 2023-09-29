@@ -10,7 +10,7 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-func TestConfig(t *testing.T) {
+func TestServerConfig(t *testing.T) {
 	c, err := utils.NewServerConfigEmbedded()
 	if err != nil {
 		t.Fatalf("failed to load embedded config: %v", err)
@@ -48,7 +48,22 @@ func TestConfig(t *testing.T) {
 	testutil.AssertEqualsBool(t, "dev mode file hash", false, c.System.DisableFileHashDevMode)
 	testutil.AssertEqualsInt(t, "file debounce", 300, c.System.FileWatcherDebounceMillis)
 
+	// Global Settings
+	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)
+	testutil.AssertEqualsString(t, "admin user", "admin", c.AdminUser)
+
 	// Security Settings
 	testutil.AssertEqualsBool(t, "admin tcp", false, c.Security.AdminOverTCP)
-	testutil.AssertEqualsString(t, "uds file", "$CL_HOME/run/clace.sock", c.GlobalConfig.ServerUri)
+	testutil.AssertEqualsString(t, "admin password bcrypt", "", c.Security.AdminPasswordBcrypt)
+}
+
+func TestClientConfig(t *testing.T) {
+	c, err := utils.NewClientConfigEmbedded()
+	if err != nil {
+		t.Fatalf("failed to load embedded config: %v", err)
+	}
+	testutil.AssertEqualsBool(t, "cert check", false, c.SkipCertCheck)
+	testutil.AssertEqualsString(t, "admin password", "", c.AdminPassword)
+	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)
+	testutil.AssertEqualsString(t, "admin user", "admin", c.AdminUser)
 }

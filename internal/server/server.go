@@ -70,36 +70,27 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 	return server, nil
 }
 
-// setupAdminAccount sets up the basic auth password for admin account if not specified
-// in the configuration. If admin user is unset, that means admin account is not enabled.
-// If admin password is set, it will be used as the password for the admin account.
-// If admin password hash is set, it will be used as the password hash for the admin account.
-// If neither is set, a random password will be generated for the server session and used as
-// the password for the admin account. The generated password will be printed to stdout.
+// setupAdminAccount sets up the basic auth password for admin account. If admin user is unset,
+// that means admin account is not enabled. If AdminPasswordBcrypt is set, it will be used as
+// the password hash for the admin account. If AdminPasswordBcrypt is not set, a random password
+// will be generated used as the password for the admin account for that server startup. The
+// generated password will be printed to stdout.
 func (s *Server) setupAdminAccount() (string, error) {
 	if s.config.AdminUser == "" {
 		s.Warn().Msg("No admin username specified, skipping admin account setup")
 		return "", nil
 	}
 
-	password := ""
-	if s.config.AdminPassword != "" {
-		s.Info().Msg("Using admin password from configuration")
-		password = s.config.AdminPassword
-	} else {
-		if s.config.Security.AdminPasswordBcrypt != "" {
-			s.Info().Msg("Using admin password bcrypt hash from configuration")
-			return "", nil
-		}
+	if s.config.Security.AdminPasswordBcrypt != "" {
+		s.Info().Msgf("Using admin password bcrypt hash from configuration %s", s.config.Security.AdminPasswordBcrypt)
+		return "", nil
 	}
 
-	if password == "" {
-		s.Debug().Msg("Generating admin password")
-		var err error
-		password, err = utils.GenerateRandomPassword()
-		if err != nil {
-			return "", err
-		}
+	s.Debug().Msg("Generating admin password")
+	var err error
+	password, err := utils.GenerateRandomPassword()
+	if err != nil {
+		return "", err
 	}
 
 	bcryptHash, err := bcrypt.GenerateFromPassword([]byte(password), utils.BCRYPT_COST)
@@ -108,12 +99,7 @@ func (s *Server) setupAdminAccount() (string, error) {
 	}
 
 	s.config.Security.AdminPasswordBcrypt = string(bcryptHash)
-
-	if s.config.AdminPassword != "" {
-		return "", nil
-	} else {
-		return password, nil
-	}
+	return password, nil
 }
 
 // Start starts the Clace Server
