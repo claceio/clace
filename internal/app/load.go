@@ -12,6 +12,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/dev"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -21,7 +23,7 @@ import (
 func (a *App) loadStarlarkConfig() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
-	buf, err := a.sourceFS.ReadFile(APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
 		return err
 	}
@@ -32,11 +34,11 @@ func (a *App) loadStarlarkConfig() error {
 		Load:  a.loader,
 	}
 
-	builtin := CreateBuiltin()
+	builtin := util.CreateBuiltin()
 	if builtin == nil {
 		return errors.New("error creating builtin")
 	}
-	a.globals, err = starlark.ExecFile(thread, APP_FILE_NAME, buf, builtin)
+	a.globals, err = starlark.ExecFile(thread, util.APP_FILE_NAME, buf, builtin)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")
@@ -51,14 +53,21 @@ func (a *App) loadStarlarkConfig() error {
 		return err
 	}
 
-	a.Name, err = getStringAttr(a.appDef, "name")
+	a.Name, err = util.GetStringAttr(a.appDef, "name")
+	if err != nil {
+		return err
+	}
+	a.CustomLayout, err = util.GetBoolAttr(a.appDef, "custom_layout")
 	if err != nil {
 		return err
 	}
 
-	a.customLayout, err = getBoolAttr(a.appDef, "custom_layout")
-	if err != nil {
-		return err
+	if a.IsDev {
+		a.appDev.CustomLayout = a.CustomLayout
+		a.appDev.JsLibs, err = a.loadLibraryInfo()
+		if err != nil {
+			return err
+		}
 	}
 
 	var settingsMap map[string]interface{}
@@ -98,23 +107,23 @@ func (a *App) loadStarlarkConfig() error {
 }
 
 func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
-	if !globals.Has(APP_CONFIG_KEY) {
-		return nil, fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", APP_CONFIG_KEY, APP_FILE_NAME, APP_CONFIG_KEY)
+	if !globals.Has(util.APP_CONFIG_KEY) {
+		return nil, fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", util.APP_CONFIG_KEY, util.APP_FILE_NAME, util.APP_CONFIG_KEY)
 	}
-	appDef, ok := globals[APP_CONFIG_KEY].(*starlarkstruct.Struct)
+	appDef, ok := globals[util.APP_CONFIG_KEY].(*starlarkstruct.Struct)
 	if !ok {
-		return nil, fmt.Errorf("%s not of type clace.app in %s", APP_CONFIG_KEY, APP_FILE_NAME)
+		return nil, fmt.Errorf("%s not of type clace.app in %s", util.APP_CONFIG_KEY, util.APP_FILE_NAME)
 	}
 	return appDef, nil
 }
 
 func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
-	if a.globals.Has(DEFAULT_HANDLER) {
+	if a.globals.Has(util.DEFAULT_HANDLER) {
 		var ok bool
-		defaultHandler, ok = a.globals[DEFAULT_HANDLER].(starlark.Callable)
+		defaultHandler, ok = a.globals[util.DEFAULT_HANDLER].(starlark.Callable)
 		if !ok {
-			return fmt.Errorf("%s is not a function", DEFAULT_HANDLER)
+			return fmt.Errorf("%s is not a function", util.DEFAULT_HANDLER)
 		}
 	}
 	router := chi.NewRouter()
@@ -146,7 +155,7 @@ func (a *App) initRouter() error {
 
 	// Mount static dir
 	staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
-	router.Handle(staticPattern, http.StripPrefix(a.Path, FileServer(a.sourceFS)))
+	router.Handle(staticPattern, http.StripPrefix(a.Path, util.FileServer(a.sourceFS)))
 
 	a.appRouter = chi.NewRouter()
 	a.appRouter.Mount(a.Path, router)
@@ -168,24 +177,24 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return fmt.Errorf("pages entry %d is not a struct", count)
 	}
 	var pathStr, htmlFile, blockStr, methodStr string
-	if pathStr, err = getStringAttr(pageDef, "path"); err != nil {
+	if pathStr, err = util.GetStringAttr(pageDef, "path"); err != nil {
 		return err
 	}
-	if methodStr, err = getStringAttr(pageDef, "method"); err != nil {
+	if methodStr, err = util.GetStringAttr(pageDef, "method"); err != nil {
 		return err
 	}
-	if htmlFile, err = getStringAttr(pageDef, "html"); err != nil {
+	if htmlFile, err = util.GetStringAttr(pageDef, "html"); err != nil {
 		return err
 	}
-	if blockStr, err = getStringAttr(pageDef, "block"); err != nil {
+	if blockStr, err = util.GetStringAttr(pageDef, "block"); err != nil {
 		return err
 	}
 
 	if htmlFile == "" {
-		if a.customLayout {
-			htmlFile = INDEX_FILE
+		if a.CustomLayout {
+			htmlFile = util.INDEX_FILE
 		} else {
-			htmlFile = INDEX_GEN_FILE
+			htmlFile = util.INDEX_GEN_FILE
 		}
 	}
 
@@ -232,13 +241,13 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 		}
 
 		var pathStr, blockStr, methodStr string
-		if pathStr, err = getStringAttr(fragmentDef, "path"); err != nil {
+		if pathStr, err = util.GetStringAttr(fragmentDef, "path"); err != nil {
 			return err
 		}
-		if methodStr, err = getStringAttr(fragmentDef, "method"); err != nil {
+		if methodStr, err = util.GetStringAttr(fragmentDef, "method"); err != nil {
 			return err
 		}
-		if blockStr, err = getStringAttr(fragmentDef, "block"); err != nil {
+		if blockStr, err = util.GetStringAttr(fragmentDef, "block"); err != nil {
 			return err
 		}
 
@@ -332,12 +341,12 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 			retStruct, ok := ret.(*starlarkstruct.Struct)
 			if ok {
 				// Handle Redirect response
-				url, err := getStringAttr(retStruct, "url")
+				url, err := util.GetStringAttr(retStruct, "url")
 				// starlark Type() is not implemented for structs, so we can't check the type
 				// Looked at the mandatory properties to decide on type for now
 				if err == nil {
 					// Redirect type struct returned by handler
-					code, _ := getIntAttr(retStruct, "code")
+					code, _ := util.GetIntAttr(retStruct, "code")
 					a.Trace().Msgf("Redirecting to %s with code %d", url, code)
 					http.Redirect(w, r, url, int(code))
 					return
@@ -391,7 +400,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 }
 
 func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request) (error, bool) {
-	templateBlock, err := getStringAttr(retStruct, "block")
+	templateBlock, err := util.GetStringAttr(retStruct, "block")
 	if err != nil || templateBlock == "" {
 		return err, false
 	}
@@ -403,21 +412,21 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 		return nil, true
 	}
 
-	code, err := getIntAttr(retStruct, "code")
+	code, err := util.GetIntAttr(retStruct, "code")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting code from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
 	}
 
-	retarget, err := getStringAttr(retStruct, "retarget")
+	retarget, err := util.GetStringAttr(retStruct, "retarget")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting retarget from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
 	}
 
-	reswap, err := getStringAttr(retStruct, "reswap")
+	reswap, err := util.GetStringAttr(retStruct, "reswap")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting reswap from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -462,4 +471,55 @@ func getRemoteIP(r *http.Request) string {
 		}
 	}
 	return remoteIP
+}
+
+func (a *App) loadLibraryInfo() ([]dev.JSLibrary, error) {
+	lib, err := a.appDef.Attr("libraries")
+	if err != nil {
+		return nil, err
+	}
+
+	if lib == nil {
+		// No libraries defined
+		return nil, nil
+	}
+
+	var ok bool
+	var libList *starlark.List
+	if libList, ok = lib.(*starlark.List); !ok {
+		return nil, fmt.Errorf("libraries is not a list")
+	}
+
+	libraries := []dev.JSLibrary{}
+	iter := libList.Iterate()
+	var libValue starlark.Value
+	count := 0
+	for iter.Next(&libValue) {
+		count++
+		libStruct, ok := libValue.(*starlarkstruct.Struct)
+		if ok {
+			var name, version string
+			var esbuildArgs []string
+			if name, err = util.GetStringAttr(libStruct, "name"); err != nil {
+				return nil, err
+			}
+			if version, err = util.GetStringAttr(libStruct, "version"); err != nil {
+				return nil, err
+			}
+			if esbuildArgs, err = util.GetListStringAttr(libStruct, "args", true); err != nil {
+				return nil, err
+			}
+			jsLib := dev.NewLibraryESM(name, version, esbuildArgs)
+			libraries = append(libraries, *jsLib)
+		} else {
+			libStr, ok := libValue.(starlark.String)
+			if !ok {
+				return nil, fmt.Errorf("libraries entry %d is not a string or library", count)
+			}
+			jsLib := dev.NewLibrary(string(libStr))
+			libraries = append(libraries, *jsLib)
+		}
+	}
+
+	return libraries, nil
 }

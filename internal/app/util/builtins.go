@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package util
 
 import (
 	"net/http"
@@ -20,6 +20,7 @@ const (
 	REDIRECT              = "redirect"
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
+	LIBRARY               = "library"
 	DEFAULT_REDIRECT_CODE = 303
 )
 
@@ -33,16 +34,19 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var name starlark.String
 	var pages *starlark.List
 	var settings *starlark.Dict
-	var permissions *starlark.List
+	var permissions, libraries *starlark.List
 	var style *starlarkstruct.Struct
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
-		"pages?", &pages, "style?", &style, "permissions?", &permissions, "settings?",
+		"pages?", &pages, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
 		&settings, "custom_layout?", &customLayout); err != nil {
 		return nil, err
 	}
 
 	if pages == nil {
 		pages = starlark.NewList([]starlark.Value{})
+	}
+	if libraries == nil {
+		libraries = starlark.NewList([]starlark.Value{})
 	}
 	if settings == nil {
 		settings = starlark.NewDict(0)
@@ -58,6 +62,7 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		"pages":         pages,
 		"settings":      settings,
 		"permissions":   permissions,
+		"libraries":     libraries,
 	}
 
 	if style != nil {
@@ -201,6 +206,26 @@ func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starl
 	return starlarkstruct.FromStringDict(starlark.String(PERMISSION), fields), nil
 }
 
+func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name, version starlark.String
+	var esbuildArgs *starlark.List
+	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "version", &version,
+		"args?", &esbuildArgs); err != nil {
+		return nil, err
+	}
+
+	if esbuildArgs == nil {
+		esbuildArgs = starlark.NewList([]starlark.Value{})
+	}
+
+	fields := starlark.StringDict{
+		"name":    name,
+		"version": version,
+		"args":    esbuildArgs,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(LIBRARY), fields), nil
+}
+
 func CreateBuiltin() starlark.StringDict {
 	once.Do(func() {
 		builtin = starlark.StringDict{
@@ -213,7 +238,8 @@ func CreateBuiltin() starlark.StringDict {
 					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
 					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
-					RESPONSE:   starlark.NewBuiltin(STYLE, createResponseBuiltin),
+					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
+					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
 				},
 			},
 		}

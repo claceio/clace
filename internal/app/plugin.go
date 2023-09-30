@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/claceio/clace/internal/app/util"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -26,7 +27,7 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
-	pluginName := fmt.Sprintf("%s.%s", name, BUILTIN_PLUGIN_SUFFIX)
+	pluginName := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
 	pluginDict := make(starlark.StringDict)
 	pluginDict[name] = plugin
 	builtInPlugins[pluginName] = pluginDict
@@ -34,7 +35,7 @@ func RegisterPlugin(name string, plugin *starlarkstruct.Struct) {
 
 // loader is the starlark loader function
 func (a *App) loader(thread *starlark.Thread, module string) (starlark.StringDict, error) {
-	if strings.HasSuffix(module, STARLARK_FILE_SUFFIX) {
+	if strings.HasSuffix(module, util.STARLARK_FILE_SUFFIX) {
 		// Load the starlark file rather than the plugin
 		return a.loadStarlark(thread, module, a.starlarkCache)
 	}

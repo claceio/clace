@@ -17,6 +17,7 @@ import (
 
 	"github.com/caddyserver/certmagic"
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/segmentio/ksuid"
@@ -73,8 +74,7 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 // setupAdminAccount sets up the basic auth password for admin account. If admin user is unset,
 // that means admin account is not enabled. If AdminPasswordBcrypt is set, it will be used as
 // the password hash for the admin account. If AdminPasswordBcrypt is not set, a random password
-// will be generated used as the password for the admin account for that server startup. The
-// generated password will be printed to stdout.
+// will be generated for that server startup. The generated password will be printed to stdout.
 func (s *Server) setupAdminAccount() (string, error) {
 	if s.config.AdminUser == "" {
 		s.Warn().Msg("No admin username specified, skipping admin account setup")
@@ -364,9 +364,9 @@ func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
 		path = appEntry.SourceUrl
 	}
 
-	sourceFS := app.NewAppFS(path, os.DirFS(path), appEntry.IsDev, &s.config.System)
+	sourceFS := util.NewAppFS(path, os.DirFS(path), appEntry.IsDev, &s.config.System)
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
-	workFS := app.NewAppFS(appPath, os.DirFS(appPath), appEntry.IsDev, &s.config.System)
+	workFS := util.NewAppFS(appPath, os.DirFS(appPath), appEntry.IsDev, &s.config.System)
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System)
 
 	return application, nil

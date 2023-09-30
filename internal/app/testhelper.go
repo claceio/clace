@@ -11,41 +11,42 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 )
 
-func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, false)
 }
 
-func CreateDevModeHashDisable(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+func CreateDevModeHashDisable(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, true)
 }
 
-func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
 	return CreateTestAppInt(logger, "/test", fileData, false, false)
 }
 
-func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *AppFS, error) {
+func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
 	return CreateTestAppInt(logger, "/", fileData, false, false)
 }
 
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, disableHash bool) (*App, *AppFS, error) {
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, disableHash bool) (*App, *util.AppFS, error) {
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: "", DisableFileHashDevMode: disableHash}
-	sourceFS := NewAppFS("", &TestFS{fileData: fileData}, isDev, &systemConfig)
-	workFS := NewAppFS("", &TestFS{fileData: map[string]string{}}, isDev, &systemConfig)
-	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path), &systemConfig)
-	a.IsDev = isDev
+	sourceFS := util.NewAppFS("", &TestFS{fileData: fileData}, isDev, &systemConfig)
+	workFS := util.NewAppFS("", &TestFS{fileData: map[string]string{}}, isDev, &systemConfig)
+	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig)
 	err := a.Initialize()
 	return a, workFS, err
 }
 
-func createTestAppEntry(path string) *utils.AppEntry {
+func createTestAppEntry(path string, isDev bool) *utils.AppEntry {
 	return &utils.AppEntry{
 		Id:     "testApp",
 		Path:   path,
 		Domain: "",
 		FsPath: ".",
+		IsDev:  isDev,
 	}
 }
 
@@ -53,7 +54,7 @@ type TestFS struct {
 	fileData map[string]string
 }
 
-var _ WritableFS = (*TestFS)(nil)
+var _ util.WritableFS = (*TestFS)(nil)
 
 type TestFileInfo struct {
 	f *TestFile

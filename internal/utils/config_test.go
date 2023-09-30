@@ -47,6 +47,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "tailwind command", "npx tailwindcss", c.System.TailwindCSSCommand)
 	testutil.AssertEqualsBool(t, "dev mode file hash", false, c.System.DisableFileHashDevMode)
 	testutil.AssertEqualsInt(t, "file debounce", 300, c.System.FileWatcherDebounceMillis)
+	testutil.AssertEqualsString(t, "node path", "", c.System.NodePath)
 
 	// Global Settings
 	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)

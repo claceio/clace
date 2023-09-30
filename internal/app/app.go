@@ -4,8 +4,6 @@
 package app
 
 import (
-	"bytes"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,8 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/claceio/clace/internal/app/dev"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
@@ -25,46 +25,20 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-const (
-	APP_FILE_NAME         = "app.star"
-	APP_CONFIG_KEY        = "app"
-	DEFAULT_HANDLER       = "handler"
-	METHODS_DELIMITER     = ","
-	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
-	BUILTIN_PLUGIN_SUFFIX = "in"
-	STARLARK_FILE_SUFFIX  = ".star"
-	INDEX_FILE            = "index.go.html"
-	INDEX_GEN_FILE        = "index_gen.go.html"
-	CLACE_GEN_FILE        = "clace_gen.go.html"
-)
-
-//go:embed index_gen.go.html clace_gen.go.html
-var embedHtml embed.FS
-var indexEmbed, claceGenEmbed []byte
-
-func init() {
-	var err error
-	if indexEmbed, err = embedHtml.ReadFile(INDEX_GEN_FILE); err != nil {
-		panic(err)
-	}
-	if claceGenEmbed, err = embedHtml.ReadFile(CLACE_GEN_FILE); err != nil {
-		panic(err)
-	}
-}
-
+// App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*utils.Logger
 	*utils.AppEntry
-	Name            string
-	customLayout    bool
-	Config          *AppConfig
-	sourceFS        *AppFS
-	workFS          *AppFS
+	Name         string
+	CustomLayout bool
+
+	Config          *util.AppConfig
+	sourceFS        *util.AppFS
 	initMutex       sync.Mutex
 	initialized     bool
 	reloadError     error
 	reloadStartTime time.Time
-	appStyle        *AppStyle
+	appDev          *dev.AppDev
 	systemConfig    *utils.SystemConfig
 
 	globals       starlark.StringDict
@@ -87,24 +61,25 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *AppFS, workFS *AppFS, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
+func NewApp(sourceFS *util.AppFS, workFS *util.AppFS, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
 	newApp := &App{
 		sourceFS:      sourceFS,
-		workFS:        workFS,
 		Logger:        logger,
 		AppEntry:      appEntry,
 		systemConfig:  systemConfig,
-		appStyle:      &AppStyle{},
 		starlarkCache: map[string]*starlarkCacheEntry{},
 	}
-	funcMap := sprig.FuncMap()
 
+	if appEntry.IsDev {
+		newApp.appDev = dev.NewAppDev(logger, sourceFS, workFS, systemConfig)
+	}
+
+	funcMap := sprig.FuncMap()
 	funcMap["static"] = func(name string) string {
 		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
 		fullPath := path.Join(newApp.Path, sourceFS.HashName(staticPath))
 		return fullPath
 	}
-
 	funcMap["fileNonEmpty"] = func(name string) bool {
 		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
 		data, err := sourceFS.ReadFile(staticPath)
@@ -147,11 +122,10 @@ func (a *App) Close() error {
 		}
 	}
 
-	if a.appStyle != nil {
-		if err := a.appStyle.StopWatcher(); err != nil {
-			a.Warn().Err(err).Msg("Error stopping watcher")
-		}
+	if a.appDev != nil {
+		a.appDev.Close()
 	}
+
 	return nil
 }
 
@@ -183,7 +157,7 @@ func (a *App) Reload(force bool) (bool, error) {
 	a.sourceFS.ClearCache()
 	clear(a.starlarkCache)
 
-	configData, err := a.sourceFS.ReadFile(CONFIG_LOCK_FILE_NAME)
+	configData, err := a.sourceFS.ReadFile(util.CONFIG_LOCK_FILE_NAME)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
 			return false, err
@@ -191,12 +165,15 @@ func (a *App) Reload(force bool) (bool, error) {
 
 		// Config lock is not present, use default config
 		a.Debug().Msg("No config lock file found, using default config")
-		a.Config = NewAppConfig()
-		a.saveConfigLockFile()
+		a.Config = util.NewAppConfig()
+		if a.IsDev {
+			a.appDev.Config = a.Config
+			a.appDev.SaveConfigLockFile()
+		}
 	} else {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
-		a.Config = NewCompatibleAppConfig()
+		a.Config = util.NewCompatibleAppConfig()
 		json.Unmarshal(configData, a.Config)
 	}
 
@@ -205,30 +182,39 @@ func (a *App) Reload(force bool) (bool, error) {
 		return false, err
 	}
 
-	// Initialize style configuration
-	if err := a.appStyle.Init(a.Id, a.appDef); err != nil {
-		return false, err
-	}
-
 	if a.IsDev {
+		// Copy settings into appdev
+		a.appDev.Config = a.Config
+		a.appDev.CustomLayout = a.CustomLayout
+
+		// Initialize style configuration
+		if err := a.appDev.AppStyle.Init(a.Id, a.appDef); err != nil {
+			return false, err
+		}
+
 		// Setup the CSS files
-		if err = a.appStyle.Setup(a.Config.Routing.TemplateLocations, a.sourceFS, a.workFS); err != nil {
+		if err = a.appDev.AppStyle.Setup(a.appDev); err != nil {
 			return false, err
 		}
 
 		// Start the watcher for CSS files unless disabled
-		if !a.appStyle.disableWatcher {
-			if err = a.appStyle.StartWatcher(a.Config.Routing.TemplateLocations, a.sourceFS, a.workFS, a.systemConfig); err != nil {
+		if !a.appDev.AppStyle.DisableWatcher {
+			if err = a.appDev.AppStyle.StartWatcher(a.appDev); err != nil {
 				return false, err
 			}
-		} else if err := a.appStyle.StopWatcher(); err != nil {
+		} else if err := a.appDev.AppStyle.StopWatcher(); err != nil {
 			return false, err
 		}
-	}
 
-	// Create the generated HTML
-	if err = a.generateHTML(); err != nil {
-		return false, err
+		// Setup the JS libraries
+		if err := a.appDev.SetupJsLibs(); err != nil {
+			return false, err
+		}
+
+		// Create the generated HTML
+		if err = a.appDev.GenerateHTML(); err != nil {
+			return false, err
+		}
 	}
 
 	// Parse HTML templates
@@ -241,40 +227,6 @@ func (a *App) Reload(force bool) (bool, error) {
 		a.notifyClients()
 	}
 	return true, nil
-}
-
-func (a *App) generateHTML() error {
-	// The header name of contents have changed, recreate it. Since reload creates the header
-	// file and updating the file causes the FS watcher to call reload, we have to make sure the
-	// file is updated only if there is an actual content change
-	if !a.customLayout {
-		indexData, err := a.sourceFS.ReadFile(INDEX_GEN_FILE)
-		if err != nil || !bytes.Equal(indexData, indexEmbed) {
-			if err := a.sourceFS.Write(INDEX_GEN_FILE, indexEmbed); err != nil {
-				return err
-			}
-		}
-	} else {
-		// TODO : remove generated index file if custom layout is enabled
-	}
-
-	claceGenData, err := a.sourceFS.ReadFile(CLACE_GEN_FILE)
-	if err != nil || !bytes.Equal(claceGenData, claceGenEmbed) {
-		if err := a.sourceFS.Write(CLACE_GEN_FILE, claceGenEmbed); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (a *App) saveConfigLockFile() error {
-	buf, err := json.MarshalIndent(a.Config, "", "  ")
-	if err != nil {
-		return err
-	}
-	err = a.sourceFS.Write(CONFIG_LOCK_FILE_NAME, buf)
-	return err
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -428,7 +380,7 @@ func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[str
 			return nil, err
 		}
 
-		builtin := CreateBuiltin()
+		builtin := util.CreateBuiltin()
 		if builtin == nil {
 			return nil, errors.New("error creating builtin")
 		}

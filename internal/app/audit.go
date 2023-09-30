@@ -9,13 +9,14 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
 func (a *App) Audit() (*utils.AuditResult, error) {
-	buf, err := a.sourceFS.ReadFile(APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +25,7 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 
 	auditLoader := func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 
-		if strings.HasSuffix(module, STARLARK_FILE_SUFFIX) {
+		if strings.HasSuffix(module, util.STARLARK_FILE_SUFFIX) {
 			// Load the starlark file rather than the plugin
 			return a.loadStarlark(thread, module, starlarkCache)
 		}
@@ -61,12 +62,12 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 		Load:  auditLoader,
 	}
 
-	builtin := CreateBuiltin()
+	builtin := util.CreateBuiltin()
 	if builtin == nil {
 		return nil, errors.New("error creating builtin")
 	}
 
-	_, prog, err := starlark.SourceProgram(APP_FILE_NAME, buf, builtin.Has)
+	_, prog, err := starlark.SourceProgram(util.APP_FILE_NAME, buf, builtin.Has)
 	if err != nil {
 		return nil, fmt.Errorf("parsing source failed %v", err)
 	}
@@ -149,13 +150,13 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 		a.Info().Msgf("perm: %+v", perm)
 		var pluginStr, methodStr string
 		var args []string
-		if pluginStr, err = getStringAttr(perm, "plugin"); err != nil {
+		if pluginStr, err = util.GetStringAttr(perm, "plugin"); err != nil {
 			return nil, err
 		}
-		if methodStr, err = getStringAttr(perm, "method"); err != nil {
+		if methodStr, err = util.GetStringAttr(perm, "method"); err != nil {
 			return nil, err
 		}
-		if args, err = getListStringAttr(perm, "arguments", true); err != nil {
+		if args, err = util.GetListStringAttr(perm, "arguments", true); err != nil {
 			return nil, err
 		}
 		perms = append(perms, utils.Permission{

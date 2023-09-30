@@ -5,11 +5,13 @@ package app_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -75,7 +77,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template got {{ .Data.key }}.`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -87,9 +89,9 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config app.AppConfig
+	var config util.AppConfig
 
-	json.Unmarshal([]byte(fileData[app.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
 }
 
@@ -102,8 +104,8 @@ app = clace.app("testApp", pages = [clace.page("/", html="t1.tmpl")]
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"./templates/t1.tmpl":     `Template got {{ .Data.key }}.`,
-		app.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+		"./templates/t1.tmpl":      `Template got {{ .Data.key }}.`,
+		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
 	a, _, err := app.CreateTestApp(logger, fileData)
 	if err != nil {
@@ -117,9 +119,9 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config app.AppConfig
+	var config util.AppConfig
 
-	json.Unmarshal([]byte(fileData[app.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
@@ -132,8 +134,8 @@ app = clace.app("testApp", pages = [clace.page("/", html="t12.tmpl")]
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"./templates/t1.tmpl":     `Template got {{ .key }}.`,
-		app.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+		"./templates/t1.tmpl":      `Template got {{ .key }}.`,
+		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
 	a, _, err := app.CreateTestApp(logger, fileData)
 	if err != nil {
@@ -148,9 +150,9 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body",
 		`html/template: "t12.tmpl" is undefined`,
 		strings.TrimSpace(response.Body.String()))
-	var config app.AppConfig
+	var config util.AppConfig
 
-	json.Unmarshal([]byte(fileData[app.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
@@ -175,6 +177,7 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	want := `Template contents <script src="https://unpkg.com/htmx.org@"></script> .`
+	fmt.Println(response.Body.String())
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
 

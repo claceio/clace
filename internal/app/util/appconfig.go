@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package util
 
 type AppConfig struct {
 	Routing RouteConfig `json:"routing"`

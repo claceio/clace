@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package util
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ type WritableFS interface {
 
 // AppFS is the implementation of app file system
 type AppFS struct {
-	root         string
+	Root         string
 	fs           fs.FS
 	isDev        bool
 	systemConfig *utils.SystemConfig
@@ -41,7 +41,7 @@ type AppFS struct {
 
 func NewAppFS(dir string, fs fs.FS, isDev bool, systemConfig *utils.SystemConfig) *AppFS {
 	return &AppFS{
-		root:         dir,
+		Root:         dir,
 		fs:           fs,
 		isDev:        isDev,
 		systemConfig: systemConfig,
@@ -86,7 +86,7 @@ func (f *AppFS) ParseFS(funcMap template.FuncMap, patterns ...string) (*template
 }
 
 func (f *AppFS) Write(name string, bytes []byte) error {
-	target := path.Join(f.root, name)
+	target := path.Join(f.Root, name)
 	// If underlying FS implements Write, use that. Otherwise use os.Write
 	if fs, ok := f.fs.(WritableFS); ok {
 		return fs.Write(target, bytes)

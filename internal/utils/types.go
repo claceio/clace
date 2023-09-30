@@ -73,6 +73,7 @@ type SystemConfig struct {
 	TailwindCSSCommand        string `toml:"tailwindcss_command"`
 	DisableFileHashDevMode    bool   `toml:"disable_file_hash_dev_mode"`
 	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
+	NodePath                  string `toml:"node_path"`
 }
 
 // ClientConfig is the configuration for the Clace Client

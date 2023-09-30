@@ -1,13 +1,10 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package dev
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -15,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -24,14 +22,14 @@ const (
 	STYLE_FILE_PATH = "static/gen/css/style.css"
 )
 
-// LibraryType is the type of style library used by the app
-type LibraryType string
+// StyleType is the type of style library used by the app
+type StyleType string
 
 const (
-	TailwindCSS LibraryType = "tailwindcss"
-	DaisyUI     LibraryType = "daisyui"
-	Other       LibraryType = "other"
-	None        LibraryType = ""
+	TailwindCSS StyleType = "tailwindcss"
+	DaisyUI     StyleType = "daisyui"
+	Other       StyleType = "other"
+	None        StyleType = ""
 )
 
 // AppStyle is the style related configuration and state for an app. It is created
@@ -40,10 +38,10 @@ const (
 // ensure only one call to the watcher is done at a time, no locking is implemented in AppStyle
 type AppStyle struct {
 	appId          utils.AppId
-	library        LibraryType
+	library        StyleType
 	themes         []string
 	libraryUrl     string
-	disableWatcher bool
+	DisableWatcher bool
 	watcher        *exec.Cmd
 	watcherState   *WatcherState
 	watcherStdout  *os.File
@@ -51,7 +49,7 @@ type AppStyle struct {
 
 // WatcherState is the state of the watcher process as of when it was started the last time.
 type WatcherState struct {
-	library           LibraryType
+	library           StyleType
 	templateLocations []string
 }
 
@@ -67,7 +65,7 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 		// No style defined
 		s.library = None
 		s.libraryUrl = ""
-		s.disableWatcher = true
+		s.DisableWatcher = true
 		return nil
 	}
 
@@ -79,16 +77,16 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 	var library string
 	var themes []string
 	var disableWatcher bool
-	if library, err = getStringAttr(styleDef, "library"); err != nil {
+	if library, err = util.GetStringAttr(styleDef, "library"); err != nil {
 		return err
 	}
-	if themes, err = getListStringAttr(styleDef, "themes", true); err != nil {
+	if themes, err = util.GetListStringAttr(styleDef, "themes", true); err != nil {
 		return err
 	}
-	if disableWatcher, err = getBoolAttr(styleDef, "disable_watcher"); err != nil {
+	if disableWatcher, err = util.GetBoolAttr(styleDef, "disable_watcher"); err != nil {
 		return err
 	}
-	s.disableWatcher = disableWatcher
+	s.DisableWatcher = disableWatcher
 
 	libType := strings.ToLower(library)
 	s.themes = themes
@@ -115,19 +113,19 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 }
 
 // Setup sets up the style library for the app. This is called when the app is reloaded.
-func (s *AppStyle) Setup(templateLocations []string, sourceFS, workFS *AppFS) error {
+func (s *AppStyle) Setup(dev *AppDev) error {
 	switch s.library {
 	case None:
 		// Empty out the style.css file
-		return sourceFS.Write(STYLE_FILE_PATH, []byte(""))
+		return dev.sourceFS.Write(STYLE_FILE_PATH, []byte(""))
 	case TailwindCSS:
 		fallthrough
 	case DaisyUI:
 		// Generate the tailwind/daisyui config files
-		return s.setupTailwindConfig(templateLocations, sourceFS, workFS)
+		return s.setupTailwindConfig(dev.Config.Routing.TemplateLocations, dev.sourceFS, dev.workFS)
 	case Other:
 		// Download style.css from url
-		return DownloadFile(s.libraryUrl, sourceFS, STYLE_FILE_PATH)
+		return dev.downloadFile(s.libraryUrl, dev.sourceFS, STYLE_FILE_PATH)
 	default:
 		return fmt.Errorf("invalid style library type : %s", s.library)
 	}
@@ -156,7 +154,7 @@ const (
 	`
 )
 
-func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, workFS *AppFS) error {
+func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, workFS *util.AppFS) error {
 	configPath := fmt.Sprintf("style/%s", TAILWIND_CONFIG_FILE)
 	inputPath := fmt.Sprintf("style/%s", "input.css")
 
@@ -182,7 +180,7 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, wor
 		if i > 0 {
 			buf.WriteString(", ")
 		}
-		buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.root, loc)))
+		buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.Root, loc)))
 	}
 
 	configContents := fmt.Sprintf(TAILWIND_CONFIG_CONTENTS, buf.String(), daisyPlugin, daisyThemes)
@@ -196,25 +194,8 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, wor
 	return nil
 }
 
-func DownloadFile(url string, appFS *AppFS, path string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	var buf bytes.Buffer
-	if _, err = io.Copy(&buf, resp.Body); err != nil {
-		return err
-	}
-	if err = appFS.Write(path, buf.Bytes()); err != nil {
-		return err
-	}
-	return nil
-}
-
 // StartWatcher starts the watcher process for the app. This is called when the app is reloaded.
-func (s *AppStyle) StartWatcher(templateLocations []string, sourceFS, workFS *AppFS, systemConfig *utils.SystemConfig) error {
+func (s *AppStyle) StartWatcher(dev *AppDev) error {
 	switch s.library {
 	case None:
 		fallthrough
@@ -224,16 +205,16 @@ func (s *AppStyle) StartWatcher(templateLocations []string, sourceFS, workFS *Ap
 	case TailwindCSS:
 		fallthrough
 	case DaisyUI:
-		if s.disableWatcher {
+		if s.DisableWatcher {
 			return s.StopWatcher()
 		}
-		return s.startTailwindWatcher(templateLocations, sourceFS, workFS, systemConfig)
+		return s.startTailwindWatcher(dev.Config.Routing.TemplateLocations, dev.sourceFS, dev.workFS, dev.systemConfig)
 	default:
 		return fmt.Errorf("invalid style library type : %s", s.library)
 	}
 }
 
-func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, workFS *AppFS, systemConfig *utils.SystemConfig) error {
+func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, workFS *util.AppFS, systemConfig *utils.SystemConfig) error {
 	tailwindCmd := strings.TrimSpace(systemConfig.TailwindCSSCommand)
 	if tailwindCmd == "" {
 		fmt.Println("Warning: tailwindcss command not configured. Skipping tailwindcss watcher") // TODO: log
@@ -260,14 +241,14 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, wo
 
 	// Since the watcher process creates the file, the unit test framework (in memory filesystem)
 	// can't be used to test the watcher functionality)
-	targetFile := path.Join(sourceFS.root, STYLE_FILE_PATH)
+	targetFile := path.Join(sourceFS.Root, STYLE_FILE_PATH)
 	targetDir := path.Dir(targetFile)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("error creating directory %s : %s", targetDir, err)
 	}
 	args = append(args, "--watch")
-	args = append(args, "-c", path.Join(workFS.root, "style", TAILWIND_CONFIG_FILE))
-	args = append(args, "-i", path.Join(workFS.root, "style", "input.css"))
+	args = append(args, "-c", path.Join(workFS.Root, "style", TAILWIND_CONFIG_FILE))
+	args = append(args, "-i", path.Join(workFS.Root, "style", "input.css"))
 	args = append(args, "-o", targetFile)
 	fmt.Printf("Running command %s args %#v", split[0], args) // TODO: log
 
@@ -276,7 +257,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, wo
 		s.watcherStdout.Close()
 	}
 	var err error
-	s.watcherStdout, err = os.Create(path.Join(workFS.root, "tailwindcss.log"))
+	s.watcherStdout, err = os.Create(path.Join(workFS.Root, "tailwindcss.log"))
 	if err != nil {
 		return fmt.Errorf("error creating tailwindcss log file : %s", err)
 	}

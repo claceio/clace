@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package util
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
+func GetStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return "", fmt.Errorf("error getting %s: %s", key, err)
@@ -23,7 +23,7 @@ func getStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
 	return vs.GoString(), nil
 }
 
-func getIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
+func GetIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return 0, fmt.Errorf("error getting %s: %s", key, err)
@@ -40,7 +40,7 @@ func getIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
 	return intVal, nil
 }
 
-func getBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
+func GetBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return false, fmt.Errorf("error getting %s: %s", key, err)
@@ -53,7 +53,7 @@ func getBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
 	return bool(vb), nil
 }
 
-func getListStringAttr(s *starlarkstruct.Struct, key string, optional bool) ([]string, error) {
+func GetListStringAttr(s *starlarkstruct.Struct, key string, optional bool) ([]string, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		if optional {
