@@ -176,7 +176,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	if pageDef, ok = pageVal.(*starlarkstruct.Struct); !ok {
 		return fmt.Errorf("pages entry %d is not a struct", count)
 	}
-	var pathStr, htmlFile, blockStr, methodStr string
+	var pathStr, htmlFile, blockStr, methodStr, rtypeStr string
 	if pathStr, err = util.GetStringAttr(pageDef, "path"); err != nil {
 		return err
 	}
@@ -187,6 +187,10 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return err
 	}
 	if blockStr, err = util.GetStringAttr(pageDef, "block"); err != nil {
+		return err
+	}
+
+	if rtypeStr, err = util.GetStringAttr(pageDef, "type"); err != nil {
 		return err
 	}
 
@@ -206,7 +210,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		}
 	}
 
-	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler)
+	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler, rtypeStr)
 	if err = a.handleFragments(router, pathStr, count, htmlFile, blockStr, pageDef, handler); err != nil {
 		return err
 	}
@@ -240,7 +244,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 			return fmt.Errorf("page %d fragment %d is not a struct", pageCount, count)
 		}
 
-		var pathStr, blockStr, methodStr string
+		var pathStr, blockStr, methodStr, rtypeStr string
 		if pathStr, err = util.GetStringAttr(fragmentDef, "path"); err != nil {
 			return err
 		}
@@ -248,6 +252,10 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 			return err
 		}
 		if blockStr, err = util.GetStringAttr(fragmentDef, "block"); err != nil {
+			return err
+		}
+
+		if rtypeStr, err = util.GetStringAttr(fragmentDef, "type"); err != nil {
 			return err
 		}
 
@@ -265,7 +273,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 				return fmt.Errorf("handler for page %d fragment %d is not a function", pageCount, count)
 			}
 		}
-		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback)
+		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback, rtypeStr)
 
 		fragmentPath := path.Join(pagePath, pathStr)
 		a.Trace().Msgf("Adding fragment route %s <%s>", methodStr, fragmentPath)
@@ -283,7 +291,7 @@ func (a *App) createInternalRoutes(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) http.HandlerFunc {
+func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, rtype string) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
 			Name:  a.Path,
@@ -354,12 +362,12 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 
 				// response type struct returned by handler Instead of template defined in
 				// the route, use the template specified in the response
-				err, done := a.handleResponse(retStruct, w, requestData)
+				err, done := a.handleResponse(retStruct, w, requestData, rtype)
 				if done {
 					return
 				}
 
-				http.Error(w, fmt.Sprintf("require url for redirect %s", err), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("Error handling response: %s", err), http.StatusInternalServerError)
 				return
 			}
 
@@ -369,6 +377,17 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+		}
+
+		if strings.ToLower(rtype) == "json" {
+			// If the route type is JSON, then return the handler response as JSON
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewEncoder(w).Encode(handlerResponse)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			return
 		}
 
 		requestData.Data = handlerResponse
@@ -399,9 +418,9 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable) h
 	return goHandler
 }
 
-func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request) (error, bool) {
+func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request, rtype string) (error, bool) {
 	templateBlock, err := util.GetStringAttr(retStruct, "block")
-	if err != nil || templateBlock == "" {
+	if err != nil {
 		return err, false
 	}
 
@@ -410,6 +429,21 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 		a.Error().Err(err).Msg("error getting data from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, true
+	}
+
+	responseRtype, err := util.GetStringAttr(retStruct, "type")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting type from response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+	if responseRtype == "" {
+		// Default to the type set at the route level
+		responseRtype = rtype
+	}
+
+	if templateBlock == "" && responseRtype != "json" {
+		return fmt.Errorf("block not defined in response and type is not html"), false
 	}
 
 	code, err := util.GetIntAttr(retStruct, "code")
@@ -437,6 +471,17 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 	if err != nil {
 		a.Error().Err(err).Msg("error converting response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
+	if strings.ToLower(responseRtype) == "json" {
+		// If the route type is JSON, then return the handler response as JSON
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(templateValue)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return err, true
+		}
 		return nil, true
 	}
 

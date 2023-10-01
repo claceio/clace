@@ -16,7 +16,7 @@ def fetch_game(req, game_id):
     ret = http.get(SERVICE_URL + "/api/game/" + game_id)
     game = ret.json()
     if game.get("Error"):
-        return clace.response("invalid_game_id", game, code=404)
+        return clace.response(game, "invalid_game_id", code=404)
     clues = http.get(SERVICE_URL + "/api/game/" + game_id + "/clues")
     game["Clues"] = clues.json()
     game["GamePath"] = game_path
@@ -32,7 +32,7 @@ def post_game_update(req, req_type):
     arg = None
     if req_type == "submit":
         if "guess" not in req.Form:
-            return clace.response("game_error_block", req, code=400)
+            return clace.response(req, "game_error_block", req, code=400)
         arg = req.Form["guess"][0]
 
     game_id = req.UrlParams["game_id"]
@@ -41,7 +41,7 @@ def post_game_update(req, req_type):
         api_url += "/" + arg
     ret = http.post(api_url).json()
     if ret.get("Error"):
-        return clace.response("game_error_block", ret, retarget="#gameErrorId")
+        return clace.response(ret, "game_error_block", retarget="#gameErrorId")
     return fetch_game(req, game_id)
 
 
@@ -50,7 +50,7 @@ def create_challenge(req):
     challenge = http.post(
         SERVICE_URL + "/api/create_challenge/" + level[0]).json()
     if challenge.get("Error"):
-        return clace.response("invalid_challenge_id", challenge, code=404)
+        return clace.response(challenge, "invalid_challenge_id", code=404)
     return clace.redirect(req.AppPath + "/challenge/" + challenge["ChallengeId"])
 
 
@@ -58,7 +58,7 @@ def challenge_handler(req):
     challenge_id = req.UrlParams["challenge_id"]
     challenge = http.get(SERVICE_URL + "/api/challenge/" + challenge_id).json()
     if challenge.get("Error"):
-        return clace.response("invalid_challenge_id", challenge, code=404)
+        return clace.response(challenge, "invalid_challenge_id", code=404)
     games = http.get(SERVICE_URL + "/api/challenge/" + challenge_id + "/games")
     challenge["Games"] = games.json()
     return challenge
@@ -69,7 +69,7 @@ def play_challenge(req):
     ret = http.post(SERVICE_URL + "/api/challenge/" +
                     challenge_id + "/play").json()
     if ret.get("Error"):
-        return clace.response("invalid_challenge_id", ret, code=404)
+        return clace.response(ret, "invalid_challenge_id", code=404)
 
     return clace.redirect(req.AppPath + "/game/" + ret["GameId"])
 

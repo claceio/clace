@@ -387,7 +387,7 @@ func TestResponse(t *testing.T) {
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
-	return clace.response("testtmpl", {"key": "myvalue"})`,
+	return clace.response({"key": "myvalue"}, "testtmpl")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
@@ -410,7 +410,7 @@ func TestResponseRetarget(t *testing.T) {
 app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
 
 def handler(req):
-	return clace.response("testtmpl", {"key": "myvalue"}, code=500, retarget="#abc", reswap="outerHTML")`,
+	return clace.response({"key": "myvalue"}, "testtmpl", code=500, retarget="#abc", reswap="outerHTML")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)

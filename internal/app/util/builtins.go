@@ -4,7 +4,9 @@
 package util
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"go.starlark.net/starlark"
@@ -72,12 +74,12 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 }
 
 func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, html, block starlark.String
+	var path, html, block, rtype starlark.String
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
 	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html?", &html,
-		"block?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
+		"block?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method, "type?", &rtype); err != nil {
 		return nil, err
 	}
 
@@ -88,12 +90,18 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 		fragments = starlark.NewList([]starlark.Value{})
 	}
 
+	rtypeStr := strings.ToLower(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
+	}
+
 	fields := starlark.StringDict{
 		"path":      path,
 		"html":      html,
 		"block":     block,
 		"fragments": fragments,
 		"method":    method,
+		"type":      rtype,
 	}
 	if handler != nil {
 		fields["handler"] = handler
@@ -102,10 +110,11 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 }
 
 func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, block starlark.String
+	var path, block, rtype starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block?", &block, "handler?", &handler, "method?", &method); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block?", &block,
+		"handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
 		return nil, err
 	}
 
@@ -113,10 +122,16 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		method = "GET"
 	}
 
+	rtypeStr := strings.ToLower(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
+	}
+
 	fields := starlark.StringDict{
 		"path":   path,
 		"block":  block,
 		"method": method,
+		"type":   rtype,
 	}
 	if handler != nil {
 		fields["handler"] = handler
@@ -164,10 +179,10 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 }
 
 func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var block, retarget, reswap starlark.String
+	var block, retarget, reswap, rtype starlark.String
 	var data *starlark.Dict
 	var code starlark.Int
-	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "block", &block, "data", &data, "code?", &code, "retarget?", &retarget, "reswap?", &reswap); err != nil {
+	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "data", &data, "block?", &block, "type?", &rtype, "code?", &code, "retarget?", &retarget, "reswap?", &reswap); err != nil {
 		return nil, err
 	}
 
@@ -176,9 +191,15 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		code = starlark.MakeInt(http.StatusOK)
 	}
 
+	rtypeStr := strings.ToLower(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
+	}
+
 	fields := starlark.StringDict{
 		"block":    block,
 		"data":     data,
+		"type":     rtype,
 		"code":     code,
 		"retarget": retarget,
 		"reswap":   reswap,

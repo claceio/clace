@@ -140,7 +140,6 @@ func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
 	authHeaderLock := sync.RWMutex{}
 	authShaCache := ""
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		authHeaderLock.RLock()
 		authShaCopy := authShaCache
 		authHeaderLock.RUnlock()
