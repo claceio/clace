@@ -33,7 +33,7 @@ type JSLibrary struct {
 	directUrl         string
 	packageName       string
 	version           string
-	esbuildArgs       []string
+	esbuildArgs       [10]string // use an array so that the struct can be used as key in the jsCache map
 	sanitizedFileName string
 }
 
@@ -47,11 +47,16 @@ func NewLibrary(url string) *JSLibrary {
 }
 
 func NewLibraryESM(packageName string, version string, esbuildArgs []string) *JSLibrary {
+	args := [10]string{}
+	if esbuildArgs != nil {
+		copy(args[:], esbuildArgs)
+	}
+
 	j := JSLibrary{
 		libType:           ESModule,
 		packageName:       packageName,
 		version:           version,
-		esbuildArgs:       esbuildArgs,
+		esbuildArgs:       args,
 		sanitizedFileName: sanitizeFileName(packageName) + "-" + version + ".js",
 	}
 	return &j
@@ -85,9 +90,15 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS, workFS *util.AppFS) (str
 	}
 
 	esbuildArgs := []string{sourceFile, "--bundle", "--format=esm"}
-	if j.esbuildArgs != nil {
-		esbuildArgs = append(esbuildArgs, j.esbuildArgs...)
+
+	args := []string{}
+	for _, arg := range j.esbuildArgs {
+		if arg == "" {
+			break
+		}
+		args = append(args, arg)
 	}
+	esbuildArgs = append(esbuildArgs, args...)
 	dev.Trace().Msgf("esbuild args : %v", esbuildArgs)
 
 	// Parse the build options from the esbuild args
@@ -95,7 +106,7 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS, workFS *util.AppFS) (str
 	if err != nil {
 		return "", fmt.Errorf("error parsing esbuild args : %s", err)
 	}
-	options.AbsWorkingDir = sourceFS.Root
+	//options.AbsWorkingDir = sourceFS.Root this fails if the source dir is not absolute
 	options.Outfile = targetFile
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
@@ -149,6 +160,5 @@ func (j *JSLibrary) generateSourceFile(workFS *util.AppFS) (string, error) {
 func sanitizeFileName(input string) string {
 	output := path.Base(input)
 	output = strings.ReplaceAll(output, "@", "")
-	output = strings.ReplaceAll(output, "/", "_")
 	return output
 }

@@ -29,6 +29,9 @@ func init() {
 	}
 }
 
+// AppDev is the main object that represents a Clace app in dev mode. It is created when the app is loaded with is_dev true
+// and handles the styling and js library related functionalities. Access to this is synced through the initMutex in App.
+// The reload method in App is the main access point to this object
 type AppDev struct {
 	*utils.Logger
 
@@ -41,6 +44,7 @@ type AppDev struct {
 
 	filesDownloaded map[string][]string
 	JsLibs          []JSLibrary
+	jsCache         map[JSLibrary]string
 }
 
 func NewAppDev(logger *utils.Logger, sourceFS, workFS *util.AppFS, systemConfig *utils.SystemConfig) *AppDev {
@@ -51,10 +55,13 @@ func NewAppDev(logger *utils.Logger, sourceFS, workFS *util.AppFS, systemConfig 
 		systemConfig:    systemConfig,
 		AppStyle:        &AppStyle{},
 		filesDownloaded: make(map[string][]string),
+		jsCache:         make(map[JSLibrary]string),
 	}
 	return dev
 }
 
+// downloadFile downloads the files from the url, unless it was already loaded for this app in the current
+// server session.
 func (a *AppDev) downloadFile(url string, appFS *util.AppFS, path string) error {
 	var ok bool
 	var alreadyDone []string
@@ -87,28 +94,49 @@ func (a *AppDev) downloadFile(url string, appFS *util.AppFS, path string) error 
 	return nil
 }
 
+// SetupJsLibs sets up the js libraries for the app.
 func (a *AppDev) SetupJsLibs() error {
-	if a.JsLibs == nil {
-		return nil
-	}
-	for _, jsLib := range a.JsLibs {
-		targetFile, err := jsLib.Setup(a, a.sourceFS, a.workFS)
-		if err != nil {
-			if targetFile == "" {
-				// Setup failed and cannot check if file exists, error out
-				return err
+	if a.JsLibs != nil {
+		for _, jsLib := range a.JsLibs {
+			if _, ok := a.jsCache[jsLib]; ok {
+				a.Trace().Msgf("JsLib %s already setup, skipping", jsLib)
+				continue
 			}
-			_, err2 := a.sourceFS.ReadFile(targetFile)
-			if err2 != nil {
-				// Setup failed and file does not exist, error out with original error
-				return err
+
+			targetFile, err := jsLib.Setup(a, a.sourceFS, a.workFS)
+			if err != nil {
+				if targetFile == "" {
+					// Setup failed and cannot check if file exists, error out
+					return err
+				}
+				_, err2 := a.sourceFS.Stat(targetFile)
+				if err2 != nil {
+					// Setup failed and file does not exist, error out with original error
+					return err
+				}
+				a.Warn().Err(err).Msgf("Error setting up %s, using existing file", targetFile)
 			}
-			a.Warn().Err(err).Msgf("Error setting up %s, using existing file", targetFile)
+			// Cache that this lib is setup
+			a.jsCache[jsLib] = targetFile
 		}
 	}
+
+	for lib, target := range a.jsCache {
+		if a.JsLibs == nil || !slices.Contains(a.JsLibs[:], lib) {
+			// This lib is in the cache, but not in current list of libs. Remove it
+			// for disk.
+			a.Trace().Msgf("Removing js lib %s", target)
+			if err := a.sourceFS.Remove(target); err != nil {
+				a.Warn().Msgf("Error removing js lib %s : %s", target, err)
+			}
+			delete(a.jsCache, lib)
+		}
+	}
+
 	return nil
 }
 
+// GenerateHTML generates the default HTML template files for the app.
 func (a *AppDev) GenerateHTML() error {
 	// The header name of contents have changed, recreate it. Since reload creates the header
 	// file and updating the file causes the FS watcher to call reload, we have to make sure the
@@ -121,7 +149,7 @@ func (a *AppDev) GenerateHTML() error {
 			}
 		}
 	} else {
-		// TODO : remove generated index file if custom layout is enabled
+		a.sourceFS.Remove(util.INDEX_GEN_FILE)
 	}
 
 	claceGenData, err := a.sourceFS.ReadFile(util.CLACE_GEN_FILE)
@@ -143,6 +171,7 @@ func (a *AppDev) SaveConfigLockFile() error {
 	return err
 }
 
+// Close the app dev session
 func (a *AppDev) Close() error {
 	if a.AppStyle != nil {
 		if err := a.AppStyle.StopWatcher(); err != nil {

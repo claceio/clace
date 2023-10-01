@@ -25,6 +25,8 @@ import (
 // WritableFS is the interface for the writable underlying file system used by AppFS
 type WritableFS interface {
 	Write(name string, bytes []byte) error
+	Remove(name string) error
+	Stat(name string) (fs.FileInfo, error)
 }
 
 // AppFS is the implementation of app file system
@@ -86,7 +88,11 @@ func (f *AppFS) ParseFS(funcMap template.FuncMap, patterns ...string) (*template
 }
 
 func (f *AppFS) Write(name string, bytes []byte) error {
-	target := path.Join(f.Root, name)
+	target := name
+	if name[0] != '/' {
+		target = path.Join(f.Root, name)
+	}
+	path.Join(f.Root, name)
 	// If underlying FS implements Write, use that. Otherwise use os.Write
 	if fs, ok := f.fs.(WritableFS); ok {
 		return fs.Write(target, bytes)
@@ -98,10 +104,38 @@ func (f *AppFS) Write(name string, bytes []byte) error {
 	return os.WriteFile(target, bytes, 0600)
 }
 
+func (f *AppFS) Remove(name string) error {
+	target := name
+	if name[0] != '/' {
+		target = path.Join(f.Root, name)
+	}
+	// If underlying FS implements Remove, use that. Otherwise use os.Remove
+	if fs, ok := f.fs.(WritableFS); ok {
+		return fs.Remove(target)
+	}
+	return os.Remove(target)
+}
+
+func (f *AppFS) Stat(name string) (fs.FileInfo, error) {
+	target := name
+	if name[0] != '/' {
+		target = path.Join(f.Root, name)
+	}
+	// If underlying FS implements Remove, use that. Otherwise use os.Remove
+	if fs, ok := f.fs.(WritableFS); ok {
+		return fs.Stat(target)
+	}
+	return os.Stat(target)
+}
+
 // Open returns a reference to the named file.
 // If name is a hash name then the underlying file is used.
 func (f *AppFS) Open(name string) (fs.File, error) {
-	fi, _, err := f.open(name)
+	target := name
+	if name[0] != '/' {
+		target = path.Join(f.Root, name)
+	}
+	fi, _, err := f.open(target)
 	return fi, err
 }
 

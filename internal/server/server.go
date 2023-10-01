@@ -121,7 +121,20 @@ func (s *Server) Start() error {
 		udsHandler := NewUDSHandler(s.Logger, s.config, s)
 		socket, err := net.Listen("unix", serverUri)
 		if err != nil {
-			return fmt.Errorf("error creating socket %s : %s", serverUri, err)
+			_, errDial := net.Dial("unix", serverUri)
+			if errDial != nil {
+				// Cannot dial also, so it's safe to delete the socket file
+				if removeErr := os.Remove(serverUri); removeErr != nil {
+					return fmt.Errorf("error removing socket file %s : %s", serverUri, removeErr)
+				}
+				socket, err = net.Listen("unix", serverUri)
+				if err != nil {
+					return fmt.Errorf("error creating socket after deleting old file  %s : %s", serverUri, err)
+				}
+
+			} else {
+				return fmt.Errorf("error creating socket, another server already running %s : %s", serverUri, err)
+			}
 		}
 
 		s.udsServer = &http.Server{

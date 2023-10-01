@@ -45,5 +45,5 @@ app = clace.app("Disk Usage",
                     clace.permission("exec.in", "run", ["du"]),
                     clace.permission("exec.in", "run", ["readlink"])
                 ],
-                style=clace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css")
+                style=clace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
                 )

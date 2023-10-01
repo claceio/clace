@@ -82,11 +82,11 @@ func NewApp(sourceFS *util.AppFS, workFS *util.AppFS, logger *utils.Logger, appE
 	}
 	funcMap["fileNonEmpty"] = func(name string) bool {
 		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
-		data, err := sourceFS.ReadFile(staticPath)
+		fi, err := sourceFS.Stat(staticPath)
 		if err != nil {
 			return false
 		}
-		return len(data) > 0
+		return fi.Size() > 0
 	}
 
 	// Remove the env functions from sprig, since they can leak system information
@@ -255,6 +255,11 @@ func (a *App) startWatcher() error {
 	// Start listening for events.
 	a.Trace().Msg("Start waiting for file changes")
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				a.Error().Msgf("Recovered from panic in watcher: %s", r)
+			}
+		}()
 		for {
 			select {
 			case event, ok := <-a.watcher.Events:

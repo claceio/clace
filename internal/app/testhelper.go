@@ -144,3 +144,19 @@ func (f *TestFS) Write(name string, bytes []byte) error {
 	f.fileData[name] = string(bytes)
 	return nil
 }
+
+func (f *TestFS) Remove(name string) error {
+	name = strings.TrimPrefix(name, "/")
+	delete(f.fileData, name)
+	return nil
+}
+
+func (f *TestFS) Stat(name string) (fs.FileInfo, error) {
+	name = strings.TrimPrefix(name, "/")
+	if _, ok := f.fileData[name]; !ok {
+		return nil, fs.ErrNotExist
+	}
+
+	file := CreateTestFile(name, f.fileData[name])
+	return &TestFileInfo{file}, nil
+}

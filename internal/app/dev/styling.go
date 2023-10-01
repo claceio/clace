@@ -47,7 +47,7 @@ type AppStyle struct {
 	watcherStdout  *os.File
 }
 
-// WatcherState is the state of the watcher process as of when it was started the last time.
+// WatcherState is the state of the watcher process as of when it was last started.
 type WatcherState struct {
 	library           StyleType
 	templateLocations []string
@@ -132,7 +132,7 @@ func (s *AppStyle) Setup(dev *AppDev) error {
 }
 
 const (
-	// TODO: CONTENT needs to be configurable based on TemplateLocations
+	// TODO: allow custom config file to be specified
 	TAILWIND_CONFIG_FILE     = "tailwind.config.js"
 	TAILWIND_CONFIG_CONTENTS = `
 	module.exports = {
