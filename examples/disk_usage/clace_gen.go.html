@@ -10,10 +10,13 @@
     <link rel="stylesheet" href="{{ static "css/style.css" }}" />
   {{ end }}
 
-
-  <script src="https://unpkg.com/htmx.org@{{- .HtmxVersion -}}"></script>
+  {{ if fileNonEmpty "gen/lib/htmx.min.js" }}
+    <script src="{{ static "gen/lib/htmx.min.js" }}"></script>
+  {{ end }}
   {{ if or .IsDev .AutoReload .PushEvents }}
-    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    {{ if fileNonEmpty "gen/lib/sse.js" }}
+      <script src="{{ static "gen/lib/sse.js" }}"></script>
+    {{ end }}
   {{ end }}
 
   {{ if or .IsDev .AutoReload }}

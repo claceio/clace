@@ -1,7 +1,5 @@
-// Copyright (c) ClaceIO, LLC
-// SPDX-License-Identifier: Apache-2.0
-
-// Copied from https://github.com/qri-io/starlib/blob/master/util/util.go
+// Based on https://github.com/qri-io/starlib/blob/master/util/util.go
+// Copyright (c) 2018 QRI, Inc. The MIT License (MIT)
 
 package utils
 

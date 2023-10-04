@@ -49,6 +49,7 @@ func NewAppFS(dir string, fs fs.FS, isDev bool, systemConfig *utils.SystemConfig
 		systemConfig: systemConfig,
 
 		// File hashing code based on https://github.com/benbjohnson/hashfs/blob/main/hashfs.go
+		// Copyright (c) 2020 Ben Johnson. MIT License
 		nameToHash: make(map[string]string),
 		hashToName: make(map[string][2]string)}
 }

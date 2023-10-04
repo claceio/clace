@@ -63,7 +63,7 @@ def get_children(ppid, id_to_process, child_map, memory_usage, depth, max_depth)
     child_pids = child_map.get(ppid, [])
     if not child_pids or depth >= MAX_TREE_DEPTH:
         return {
-            "name": "Pid " + str(ppid) + ": " + id_to_process[ppid]["command"],
+            "name": "Pid " + str(ppid) + ": " + id_to_process[ppid]["command"][0:150],
             "value": id_to_process[ppid]["rss"]
         }
 
