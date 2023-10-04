@@ -24,7 +24,7 @@ func TestLibraryBasic(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=["%s"])`, testUrl),
 	}
 
@@ -61,32 +61,32 @@ func TestLibraryESM(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     libraries=[clace.library("mylib", "1.0.0")])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+			     libraries=[ace.library("mylib", "1.0.0")])`,
 	}
 	_, _, err := app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Could not resolve "mylib-1.0.0.js"`)
 
 	fileData = map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     libraries=[clace.library("mylib", "1.0.0", args=["--minify"])])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+			     libraries=[ace.library("mylib", "1.0.0", args=["--minify"])])`,
 	}
 	_, _, err = app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Could not resolve "mylib-1.0.0.js"`) // flag got passed to esbuild
 
 	fileData = map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     libraries=[clace.library("mylib", "1.0.0", args=["--invalid"])])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+			     libraries=[ace.library("mylib", "1.0.0", args=["--invalid"])])`,
 	}
 	_, _, err = app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Invalid build flag: "--invalid"`) // esbuild did not like the arg
 
 	fileData = map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     libraries=[clace.library("mylib", "1.0.0", args=10)])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+			     libraries=[ace.library("mylib", "1.0.0", args=10)])`,
 	}
 	_, _, err = app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `got int, want list`)

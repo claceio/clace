@@ -18,7 +18,7 @@ func TestStyleNone(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 settings={"style":{"library": ""}})`,
 	}
 
@@ -45,8 +45,8 @@ func TestStyleOther(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-			     style=clace.style("%s"))`, testUrl),
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+			     style=ace.style("%s"))`, testUrl),
 		"static/mystyle.css": `mystyle contents`,
 	}
 
@@ -67,8 +67,8 @@ func TestStyleTailwindCSS(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-		        style=clace.style(library="tailwindcss"))`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+		        style=ace.style(library="tailwindcss"))`,
 	}
 
 	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
@@ -89,8 +89,8 @@ func TestStyleDaisyUI(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-				style=clace.style(library="daisyui"))`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+				style=ace.style(library="daisyui"))`,
 	}
 
 	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
@@ -111,8 +111,8 @@ func TestStyleDaisyUIThemes(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-				style=clace.style(library="daisyui", themes=["dark", "cupcake"]))`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+				style=ace.style(library="daisyui", themes=["dark", "cupcake"]))`,
 	}
 
 	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
@@ -133,7 +133,7 @@ func TestStyleCustom(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=False, pages = [clace.page("/")])`,
+app = ace.app("testApp", custom_layout=False, pages = [ace.page("/")])`,
 		"static/css/style.css": "body { background-color: red; }",
 		"app.go.html":          `{{block "clace_body" .}}ABC{{end}}`,
 	}
@@ -157,8 +157,8 @@ func TestStyleError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")],
-                style=clace.style(library="unknown"))`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
+                style=ace.style(library="unknown"))`,
 	}
 
 	_, _, err := app.CreateDevModeTestApp(logger, fileData)

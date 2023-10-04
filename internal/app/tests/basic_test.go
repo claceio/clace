@@ -28,17 +28,17 @@ func TestAppLoadError(t *testing.T) {
 		"app.star":      `app = 1`,
 		"index.go.html": `{{.}}`,
 	})
-	testutil.AssertErrorContains(t, err, "app not of type clace.app in app.star")
+	testutil.AssertErrorContains(t, err, "app not of type ace.app in app.star")
 
 	_, _, err = app.CreateTestApp(logger, map[string]string{
-		"app.star":      `app = clace.app()`,
+		"app.star":      `app = ace.app()`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
 	_, _, err = app.CreateTestApp(logger, map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = ace.app("testApp", pages = [ace.page("/")])
 handler = 10`,
 		"index.go.html": `{{.}}`,
 	})
@@ -46,7 +46,7 @@ handler = 10`,
 
 	_, _, err = app.CreateTestApp(logger, map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", handler=10)])`,
+app = ace.app("testApp", pages = [ace.page("/", handler=10)])`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "page: for parameter \"handler\": got int, want callable")
@@ -56,12 +56,12 @@ func TestAppPages(t *testing.T) {
 	logger := testutil.TestLogger()
 
 	_, _, err := app.CreateTestApp(logger, map[string]string{
-		"app.star": `app = clace.app("testApp", pages = 2)`,
+		"app.star": `app = ace.app("testApp", pages = 2)`,
 	})
 	testutil.AssertErrorContains(t, err, "got int, want list")
 
 	_, _, err = app.CreateTestApp(logger, map[string]string{
-		"app.star": `app = clace.app("testApp", pages = ["abc"])`,
+		"app.star": `app = ace.app("testApp", pages = ["abc"])`,
 	})
 	testutil.AssertErrorContains(t, err, "pages entry 1 is not a struct")
 }
@@ -70,7 +70,7 @@ func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -99,7 +99,7 @@ func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", html="t1.tmpl")]
+app = ace.app("testApp", pages = [ace.page("/", html="t1.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -129,7 +129,7 @@ func TestAppLoadWrongTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", html="t12.tmpl")]
+app = ace.app("testApp", pages = [ace.page("/", html="t12.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -160,7 +160,7 @@ func TestAppHeaderCustom(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -185,7 +185,7 @@ func TestAppHeaderDefault(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = ace.app("testApp", pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -207,7 +207,7 @@ func TestNoHandler(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.Data}}.`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
@@ -227,7 +227,7 @@ func TestFullData(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
@@ -247,7 +247,7 @@ func TestFullDataRoot(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
@@ -267,7 +267,7 @@ func TestAppHeaderDefaultWithBody(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = ace.app("testApp", pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -317,9 +317,9 @@ func TestRedirect(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 def handler(req):
-	return clace.redirect("/new_url", code=302)`,
+	return ace.redirect("/new_url", code=302)`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -336,9 +336,9 @@ def handler(req):
 	// Test default code is 303
 	fileData = map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 def handler(req):
-	return clace.redirect("/new_url")`,
+	return ace.redirect("/new_url")`,
 	}
 	a, _, err = app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -357,9 +357,9 @@ func TestPost(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/", method="POST")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/", method="POST")])
 def handler(req):
-	return clace.redirect("/new_url", code=302)`,
+	return ace.redirect("/new_url", code=302)`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -384,10 +384,10 @@ func TestResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
-	return clace.response({"key": "myvalue"}, "testtmpl")`,
+	return ace.response({"key": "myvalue"}, "testtmpl")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
@@ -407,10 +407,10 @@ func TestResponseRetarget(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
-	return clace.response({"key": "myvalue"}, "testtmpl", code=500, retarget="#abc", reswap="outerHTML")`,
+	return ace.response({"key": "myvalue"}, "testtmpl", code=500, retarget="#abc", reswap="outerHTML")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)

@@ -16,7 +16,7 @@ func TestRTypeBasic(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/", type="json")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/", type="json")])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -43,7 +43,7 @@ func TestRTypeNoTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", type="json")])
+app = ace.app("testApp", pages = [ace.page("/", type="json")])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -69,7 +69,7 @@ func TestRTypeFragment(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", fragments=[clace.fragment("frag", type="json")])])
+app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", type="json")])])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -95,10 +95,10 @@ func TestRTypeResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/")])
+app = ace.app("testApp", pages = [ace.page("/")])
 
 def handler(req):
-	return clace.response({"a": "aval", "b": 1}, type="json")`,
+	return ace.response({"a": "aval", "b": 1}, type="json")`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -121,10 +121,10 @@ func TestRTypeResponseInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", type="json")])
+app = ace.app("testApp", pages = [ace.page("/", type="json")])
 
 def handler(req):
-	return clace.response({"a": "aval", "b": 1})`,
+	return ace.response({"a": "aval", "b": 1})`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -147,10 +147,10 @@ func TestRTypeFragmentInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", fragments=[clace.fragment("frag", type="json")])])
+app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", type="json")])])
 
 def handler(req):
-	return clace.response({"a": "aval", "b": 1})`,
+	return ace.response({"a": "aval", "b": 1})`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -173,10 +173,10 @@ func TestRTypeResponseInvalid(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", fragments=[clace.fragment("frag")])])
+app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag")])])
 
 def handler(req):
-	return clace.response({"a": "aval", "b": 1})`,
+	return ace.response({"a": "aval", "b": 1})`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -195,10 +195,10 @@ func TestRTypeInvalidType(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", pages = [clace.page("/", fragments=[clace.fragment("frag", type="abc")])])
+app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", type="abc")])])
 
 def handler(req):
-	return clace.response({"a": "aval", "b": 1})`,
+	return ace.response({"a": "aval", "b": 1})`,
 	}
 	_, _, err := app.CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "invalid type specified : abc")

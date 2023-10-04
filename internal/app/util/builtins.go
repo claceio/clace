@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DEFAULT_MODULE        = "clace"
+	DEFAULT_MODULE        = "ace"
 	APP                   = "app"
 	PAGE                  = "page"
 	FRAGMENT              = "fragment"

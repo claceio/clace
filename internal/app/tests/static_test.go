@@ -15,7 +15,7 @@ func TestStaticLoad(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -63,7 +63,7 @@ func TestStaticLoadDevMode(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -90,7 +90,7 @@ func TestStaticError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/")])
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,

@@ -15,8 +15,8 @@ func TestFragmentBasics(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
-	fragments=[clace.fragment("frag", "ff")]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+	fragments=[ace.fragment("frag", "ff")]
 )])
 
 def handler(req):
@@ -65,8 +65,8 @@ func TestFragmentInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc", block="ff",
-	fragments=[clace.fragment("frag")]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", block="ff",
+	fragments=[ace.fragment("frag")]
 )])
 
 def handler(req):
@@ -120,8 +120,8 @@ def handler(req):
 def handler2(req):
 	return {"key": "myvalue3", "key2": "myvalue4"}
 
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
-	fragments=[clace.fragment("frag", "ff", handler=handler2)]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+	fragments=[ace.fragment("frag", "ff", handler=handler2)]
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
@@ -173,8 +173,8 @@ def handler(req):
 def handler2(req):
 	return {"key": "myvalue3", "key2": "myvalue4"}
 
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
-	fragments=[clace.fragment("frag", "ff", handler=handler2), clace.fragment("frag2", "ff2", method="POST")]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+	fragments=[ace.fragment("frag", "ff", handler=handler2), ace.fragment("frag2", "ff2", method="POST")]
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}
@@ -230,7 +230,7 @@ func TestFragmentErrors(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 	fragments=10
 )])
 		`,
@@ -243,7 +243,7 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 		"app.star": `
 def handler(req):
 		return {"key": "myvalue", "key2": "myvalue2"}
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 	fragments=[10]
 )])
 		`,
@@ -256,8 +256,8 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 		"app.star": `
 def handler(req):
 		return {"key": "myvalue", "key2": "myvalue2"}
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
-	fragments=[clace.fragment("frag", abc="ff", handler=handler)]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+	fragments=[ace.fragment("frag", abc="ff", handler=handler)]
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
@@ -267,8 +267,8 @@ app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
 
 	fileData = map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc",
-	fragments=[clace.fragment("frag", "ff", handler=10)]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+	fragments=[ace.fragment("frag", "ff", handler=10)]
 )])
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
@@ -281,8 +281,8 @@ func TestFragmentPostRedirect(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = clace.app("testApp", custom_layout=True, pages = [clace.page("/abc", block="ff",
-	fragments=[clace.fragment("frag", method="POST")]
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", block="ff",
+	fragments=[ace.fragment("frag", method="POST")]
 )])
 
 def handler(req):

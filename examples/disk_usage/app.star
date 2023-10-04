@@ -39,11 +39,11 @@ def handler(req):
     return {"Current": current, "Dirs": dirs, "Error": "", "MaxSize": dirs[0]["Size"] if dirs else 0}
 
 
-app = clace.app("Disk Usage",
-                pages=[clace.page("/", block="du_table_block")],
-                permissions=[
-                    clace.permission("exec.in", "run", ["du"]),
-                    clace.permission("exec.in", "run", ["readlink"])
-                ],
-                style=clace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
-                )
+app = ace.app("Disk Usage",
+              pages=[ace.page("/", block="du_table_block")],
+              permissions=[
+                  ace.permission("exec.in", "run", ["du"]),
+                  ace.permission("exec.in", "run", ["readlink"])
+              ],
+              style=ace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
+              )

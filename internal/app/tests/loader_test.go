@@ -15,9 +15,9 @@ func TestLoadStarlark(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test.star", "testpage")
-app = clace.app("testApp", custom_layout=True, pages = testpage)`,
+app = ace.app("testApp", custom_layout=True, pages = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test.star":     `testpage = [clace.page("/")]`,
+		"test.star":     `testpage = [ace.page("/")]`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
 	if err != nil {
@@ -36,11 +36,11 @@ func TestLoadStarlarkMulti(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test1.star", "testpages")
-app = clace.app("testApp", custom_layout=True, pages = testpages)`,
+app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star": `load ("test2.star", "mypage")
 testpages = [mypage]`,
-		"test2.star": `mypage = clace.page("/")`,
+		"test2.star": `mypage = ace.page("/")`,
 	}
 	a, _, err := app.CreateTestAppRoot(logger, fileData)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestLoadStarlarkLoop(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test1.star", "testpages")
-app = clace.app("testApp", custom_layout=True, pages = testpages)`,
+app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star": `load ("app.star", "mypage")
 testpages = [mypage]`,
@@ -74,9 +74,9 @@ func TestLoadStarlarkLoopRuntime(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test1.star", "testpages")
-app = clace.app("testApp", custom_layout=True, pages = testpages)`,
+app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test1.star":    `testpages = [clace.page("/")]`,
+		"test1.star":    `testpages = [ace.page("/")]`,
 	}
 	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -101,9 +101,9 @@ func TestLoadStarlarkError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test2.star", "testpage")
-app = clace.app("testApp", custom_layout=True, pages = testpage)`,
+app = ace.app("testApp", custom_layout=True, pages = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test.star":     `testpage = [clace.page("/")]`,
+		"test.star":     `testpage = [ace.page("/")]`,
 	}
 	_, _, err := app.CreateTestAppRoot(logger, fileData)
 	testutil.AssertErrorContains(t, err, "cannot load test2.star: file does not exist")

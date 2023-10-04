@@ -113,11 +113,11 @@ func (a *App) loadStarlarkConfig() error {
 
 func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
 	if !globals.Has(util.APP_CONFIG_KEY) {
-		return nil, fmt.Errorf("%s not defined, check %s, add '%s = clace.app(...)'", util.APP_CONFIG_KEY, util.APP_FILE_NAME, util.APP_CONFIG_KEY)
+		return nil, fmt.Errorf("%s not defined, check %s, add '%s = ace.app(...)'", util.APP_CONFIG_KEY, util.APP_FILE_NAME, util.APP_CONFIG_KEY)
 	}
 	appDef, ok := globals[util.APP_CONFIG_KEY].(*starlarkstruct.Struct)
 	if !ok {
-		return nil, fmt.Errorf("%s not of type clace.app in %s", util.APP_CONFIG_KEY, util.APP_FILE_NAME)
+		return nil, fmt.Errorf("%s not of type ace.app in %s", util.APP_CONFIG_KEY, util.APP_FILE_NAME)
 	}
 	return appDef, nil
 }

@@ -1,6 +1,10 @@
 load("exec.in", "exec")
 
 
+MAX_CHILD_COUNT = 100
+MAX_TREE_DEPTH = 10
+
+
 def memory_handler(req):
     ret = exec.run("ps", ["-eo", "pid,ppid,rss,command"])
     if ret.exit_code != 0:
@@ -57,7 +61,7 @@ def get_child_memory(ppid, id_to_process, child_map, memo):
 
 def get_children(ppid, id_to_process, child_map, memory_usage, depth, max_depth):
     child_pids = child_map.get(ppid, [])
-    if not child_pids or depth >= max_depth:
+    if not child_pids or depth >= MAX_TREE_DEPTH:
         return {
             "name": "Pid " + str(ppid) + ": " + id_to_process[ppid]["command"],
             "value": id_to_process[ppid]["rss"]
@@ -69,7 +73,7 @@ def get_children(ppid, id_to_process, child_map, memory_usage, depth, max_depth)
         child_memory, key=lambda x: x[1], reverse=True)
 
     child_list = []
-    for ct in sorted_child_memory[:100]:
+    for ct in sorted_child_memory[:MAX_CHILD_COUNT]:
         pid = ct[0]
         name = "Pid " + str(pid) + ": "
         command = id_to_process[pid]["command"]
@@ -87,14 +91,14 @@ def get_children(ppid, id_to_process, child_map, memory_usage, depth, max_depth)
     return child_list
 
 
-app = clace.app("Memory Usage",
-                custom_layout=True,
-                pages=[
-                    clace.page("/"),
-                    clace.page("/memory", handler=memory_handler, type="json"),
-                ],
-                permissions=[
-                    clace.permission("exec.in", "run", ["ps"]),
-                ],
-                libraries=[clace.library("d3", "7.8.5")],
-                )
+app = ace.app("Memory Usage",
+              custom_layout=True,
+              pages=[
+                  ace.page("/"),
+                  ace.page("/memory", handler=memory_handler, type="json"),
+              ],
+              permissions=[
+                  ace.permission("exec.in", "run", ["ps"]),
+              ],
+              libraries=[ace.library("d3", "7.8.5")],
+              )

@@ -33,7 +33,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   test0044: # setup permission check, remove permissions entry from config
-    command: cp ./disk_usage/app.star ./disk_usage/app.star.bk && grep -v "clace.permission" ./disk_usage/app.star > ./disk_usage/app.star.new && cp ./disk_usage/app.star.new ./disk_usage/app.star
+    command: cp ./disk_usage/app.star ./disk_usage/app.star.bk && grep -v "ace.permission" ./disk_usage/app.star > ./disk_usage/app.star.new && cp ./disk_usage/app.star.new ./disk_usage/app.star
   test0045: # check curl, still works since the old approvals with run are in place
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
