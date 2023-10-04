@@ -122,9 +122,9 @@ func (a *AppDev) SetupJsLibs() error {
 	}
 
 	for lib, target := range a.jsCache {
-		if a.JsLibs == nil || !slices.Contains(a.JsLibs[:], lib) {
+		if target != "" && (a.JsLibs == nil || !slices.Contains(a.JsLibs[:], lib)) {
 			// This lib is in the cache, but not in current list of libs. Remove it
-			// for disk.
+			// from the disk.
 			a.Trace().Msgf("Removing js lib %s", target)
 			if err := a.sourceFS.Remove(target); err != nil {
 				a.Warn().Msgf("Error removing js lib %s : %s", target, err)

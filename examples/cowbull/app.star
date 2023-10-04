@@ -32,7 +32,7 @@ def post_game_update(req, req_type):
     arg = None
     if req_type == "submit":
         if "guess" not in req.Form:
-            return clace.response(req, "game_error_block", req, code=400)
+            return clace.response(req, "game_error_block", code=400)
         arg = req.Form["guess"][0]
 
     game_id = req.UrlParams["game_id"]

@@ -114,6 +114,11 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS, workFS *util.AppFS) (str
 	}
 
 	if dev.systemConfig.NodePath != "" {
+		if dev.systemConfig.NodePath == "disable" {
+			dev.Warn().Msg("node_modules path is disabled, esbuild is not being run")
+			return "", nil
+		}
+
 		// Add node paths to the esbuild options to customize the node_module location
 		var nodePaths []string
 		if runtime.GOOS == "windows" {

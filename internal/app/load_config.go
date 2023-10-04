@@ -16,9 +16,14 @@ import (
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
+	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
+
+func init() {
+	resolve.AllowRecursion = true
+}
 
 func (a *App) loadStarlarkConfig() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
