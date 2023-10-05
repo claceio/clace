@@ -28,8 +28,9 @@ func (r RequestError) Error() string {
 
 // CreateAppRequest is the request body for creating an app
 type CreateAppRequest struct {
-	SourceUrl  string `json:"source_url"`
-	IsDev      bool   `json:"is_dev"`
-	AutoSync   bool   `json:"auto_sync"`
-	AutoReload bool   `json:"auto_reload"`
+	SourceUrl  string       `json:"source_url"`
+	IsDev      bool         `json:"is_dev"`
+	AutoSync   bool         `json:"auto_sync"`
+	AutoReload bool         `json:"auto_reload"`
+	AppAuthn   AppAuthnType `json:"app_authn"`
 }

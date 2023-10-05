@@ -107,6 +107,23 @@ type Permission struct {
 	Arguments []string
 }
 
+// AppAuthnType is the app level authentication type
+type AppAuthnType string
+
+const (
+	AppAuthnDefault AppAuthnType = "default" // Use whatever auth is the default for the system
+	AppAuthnNone    AppAuthnType = "none"    // No auth
+)
+
+// Rules contains the authentication and authorization rules for an app
+type Rules struct {
+	AuthnType AppAuthnType `json:"authn_type"`
+}
+
+// Metadata contains the metadata for an app
+type Metadata struct {
+}
+
 // AuditResult represents the result of an app audit
 type AuditResult struct {
 	Id                  AppId        `json:"id"`
@@ -130,8 +147,8 @@ type AppEntry struct {
 	UserID      string       `json:"user_id"`
 	CreateTime  *time.Time   `json:"create_time"`
 	UpdateTime  *time.Time   `json:"update_time"`
-	Rules       string       `json:"rules"`
-	Metadata    string       `json:"metadata"`
+	Rules       Rules        `json:"rules"`
+	Metadata    Metadata     `json:"metadata"`
 	Loads       []string     `json:"loads"`
 	Permissions []Permission `json:"permissions"`
 }

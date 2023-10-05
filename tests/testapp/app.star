@@ -1,4 +1,5 @@
-app = ace.app("TestApp")
+app = ace.app("TestApp",
+              pages=[ace.page("/")])
 
 
 def handler(req):

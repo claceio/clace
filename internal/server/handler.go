@@ -4,19 +4,15 @@
 package server
 
 import (
-	"crypto/sha512"
-	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -95,7 +91,7 @@ func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 
 	router.Use(middleware.CleanPath)
 
-	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
+	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal(false))
 
 	// App APIs are not mounted over UDS
 	// No authentication middleware is added for UDS, the unix file permissions are used
@@ -118,91 +114,17 @@ func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 	router.Use(AddVaryHeader)
 	router.Use(middleware.CleanPath)
 	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
-	router.Use(handler.createAuthMiddleware)
 
 	if config.Security.AdminOverTCP {
 		// Mount the internal API's only if admin over TCP is enabled
 		logger.Warn().Msg("Admin API access over TCP is enabled, enable 2FA for admin user account")
-		router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal())
+		router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal(true))
 	} else {
 		router.Mount(utils.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
 	}
 
 	router.HandleFunc("/*", handler.callApp)
 	return handler
-}
-
-func (h *Handler) createAuthMiddleware(next http.Handler) http.Handler {
-	// Cache the success auth header to avoid the bcrypt hash check penalty
-	// Basic auth is supported for admin user only, and changing it requires service restart.
-	// Caching the sha of the successful auth header allows us to skip the bcrypt check
-	// which significantly improves performance.
-	authHeaderLock := sync.RWMutex{}
-	authShaCache := ""
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeaderLock.RLock()
-		authShaCopy := authShaCache
-		authHeaderLock.RUnlock()
-
-		inputHeader := r.Header.Get("Authorization")
-		if authShaCopy != "" {
-			inputSha := sha512.Sum512([]byte(inputHeader))
-			inputShaSlice := inputSha[:]
-
-			if subtle.ConstantTimeCompare(inputShaSlice, []byte(authShaCopy)) != 1 {
-				h.Warn().Msg("Auth header cache check failed")
-				h.basicAuthFailed(w)
-				return
-			}
-
-			// Cached header matches, so we can skip the rest of the auth checks
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		user, pass, ok := r.BasicAuth()
-		if !ok {
-			h.basicAuthFailed(w)
-			return
-		}
-
-		if h.config.AdminUser == "" {
-			h.Warn().Msg("No admin username specified, basic auth not available")
-			h.basicAuthFailed(w)
-			return
-		}
-
-		if subtle.ConstantTimeCompare([]byte(h.config.AdminUser), []byte(user)) != 1 {
-			h.Warn().Msg("Admin username does not match")
-			h.basicAuthFailed(w)
-			return
-		}
-
-		err := bcrypt.CompareHashAndPassword([]byte(h.config.Security.AdminPasswordBcrypt), []byte(pass))
-		if err != nil {
-			h.Warn().Err(err).Msg("Password match failed")
-			h.basicAuthFailed(w)
-			return
-		}
-
-		authHeaderLock.RLock()
-		authShaCopy = authShaCache
-		authHeaderLock.RUnlock()
-		if authShaCopy == "" {
-			// Successful request, so we can cache the auth header
-			authHeaderLock.Lock()
-			inputSha := sha512.Sum512([]byte(inputHeader))
-			authShaCache = string(inputSha[:])
-			authHeaderLock.Unlock()
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (h *Handler) basicAuthFailed(w http.ResponseWriter) {
-	w.Header().Add("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, REALM))
-	w.WriteHeader(http.StatusUnauthorized)
 }
 
 func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
@@ -222,40 +144,41 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 	h.server.serveApp(w, r, matchedApp)
 }
 
-func (h *Handler) serveInternal() http.Handler {
+func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
+
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
 
 	// Get app
 	r.Get("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.getApp)
+		h.apiHandler(w, r, enableBasicAuth, h.getApp)
 	}))
 	r.Get("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.getApp)
+		h.apiHandler(w, r, enableBasicAuth, h.getApp)
 	}))
 
 	// Create app
 	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.createApp)
+		h.apiHandler(w, r, enableBasicAuth, h.createApp)
 	}))
 	r.Post("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.createApp)
+		h.apiHandler(w, r, enableBasicAuth, h.createApp)
 	}))
 
 	// Delete app
 	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.deleteApp)
+		h.apiHandler(w, r, enableBasicAuth, h.deleteApp)
 	}))
 	r.Delete("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.deleteApp)
+		h.apiHandler(w, r, enableBasicAuth, h.deleteApp)
 	}))
 
 	// API to audit the plugin usage and permissions for the app
 	r.Post("/audit", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.auditApp)
+		h.apiHandler(w, r, enableBasicAuth, h.auditApp)
 	}))
 	r.Post("/audit/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, h.auditApp)
+		h.apiHandler(w, r, enableBasicAuth, h.auditApp)
 	}))
 
 	return r
@@ -271,7 +194,16 @@ func normalizePath(path string) string {
 	return path
 }
 
-func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, apiFunc func(r *http.Request) (any, error)) {
+func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasicAuth bool, apiFunc func(r *http.Request) (any, error)) {
+	if enableBasicAuth {
+		authStatus := h.server.authHandler.authenticate(r.Header.Get("Authorization"))
+		if !authStatus {
+			w.Header().Add("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, REALM))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	resp, err := apiFunc(r)
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Interface("resp", resp).Err(err).Msg("API Received request")
 	if err != nil {
@@ -348,6 +280,15 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	appEntry.IsDev = appRequest.IsDev
 	appEntry.AutoSync = appRequest.AutoSync
 	appEntry.AutoReload = appRequest.AutoReload
+	if appRequest.AppAuthn != "" {
+		authType := utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
+		if authType != utils.AppAuthnDefault && authType != utils.AppAuthnNone {
+			return nil, utils.CreateRequestError("Invalid auth type: "+string(authType), http.StatusBadRequest)
+		}
+		appEntry.Rules.AuthnType = utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
+	} else {
+		appEntry.Rules.AuthnType = utils.AppAuthnDefault
+	}
 
 	auditResult, err := h.server.AddApp(&appEntry, approve)
 	if err != nil {

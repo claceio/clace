@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .AppName }}</title>
+    {{ template "clace_gen_import" . }}
+  </head>
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
+  <body>
+    <h1>Clace: {{ .AppName }}</h1>
 
-<body>
-  {{template "clace_gen_import" .}}
-
-  <h1> Clace: {{ .Name }}</h1>
-
-  {{ template "clace_body" .}}
-  
-</body>
+    {{ template "clace_body" . }}
+  </body>
+</html>

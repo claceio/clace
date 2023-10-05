@@ -52,6 +52,7 @@ type Server struct {
 	udsServer   *http.Server
 	handler     *Handler
 	apps        *AppStore
+	authHandler *AdminBasicAuth
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -68,6 +69,7 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 		db:     db,
 	}
 	server.apps = NewAppStore(logger, server)
+	server.authHandler = NewAdminBasicAuth(logger, config)
 	return server, nil
 }
 
@@ -433,6 +435,21 @@ func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, pathDomain uti
 		return
 	}
 
+	if app.Rules.AuthnType == utils.AppAuthnDefault || app.Rules.AuthnType == "" {
+		// The default authn type is to use the admin user account
+		authStatus := s.authHandler.authenticate(r.Header.Get("Authorization"))
+		if !authStatus {
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, REALM))
+			http.Error(w, "Authentication failed", http.StatusUnauthorized)
+			return
+		}
+	} else if app.Rules.AuthnType == utils.AppAuthnNone {
+		// No authentication required
+	} else {
+		http.Error(w, "Unsupported authn type: "+string(app.Rules.AuthnType), http.StatusInternalServerError)
+		return
+	}
+
 	app.ServeHTTP(w, r)
 }
 
@@ -463,12 +480,12 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppPathDomain, er
 
 	for _, entry := range pathDomains {
 		if checkDomain && entry.Domain != hostHeader {
-			// Request uses domain, but app is not for this domain
+			// Request uses known domain, but app is not for this domain
 			continue
 		}
 
 		if !checkDomain && entry.Domain != "" {
-			// Request does not use domain, but app is for a domain
+			// Request does not use known domain, but app is for a domain
 			continue
 		}
 

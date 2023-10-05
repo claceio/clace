@@ -34,6 +34,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
 	//flags = append(flags, newBoolFlag("auto_sync", "", "Whether to automatically sync the application code", false))
 	flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
+	flags = append(flags, newStringFlag("auth_type", "", "The authentication type to use: can be default or none", "default"))
 
 	return &cli.Command{
 		Name:      "create",
@@ -58,6 +59,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 				IsDev:      cCtx.Bool("is_dev"),
 				AutoSync:   cCtx.Bool("auto_sync"),
 				AutoReload: cCtx.Bool("auto_reload"),
+				AppAuthn:   utils.AppAuthnType(cCtx.String("auth_type")),
 			}
 			var auditResult utils.AuditResult
 			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &auditResult)

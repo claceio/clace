@@ -64,7 +64,7 @@ func NewLibraryESM(packageName string, version string, esbuildArgs []string) *JS
 
 func (j *JSLibrary) Setup(dev *AppDev, sourceFS, workFS *util.AppFS) (string, error) {
 	if j.libType == Library {
-		targetFile := path.Join(sourceFS.Root, LIB_PATH, j.sanitizedFileName)
+		targetFile := path.Join(LIB_PATH, j.sanitizedFileName)
 		targetDir := path.Dir(targetFile)
 		if err := os.MkdirAll(targetDir, 0755); err != nil {
 			return "", fmt.Errorf("error creating directory %s : %s", LIB_PATH, err)

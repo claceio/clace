@@ -3,10 +3,10 @@
     "template_locations": [
       "*.go.html"
     ],
+    "static_dir": "static",
     "push_events": false
   },
   "htmx": {
     "version": "1.9.2"
-  },
-  "styling": {}
+  }
 }

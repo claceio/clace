@@ -93,7 +93,17 @@ func (m *Metadata) AddApp(app *utils.AppEntry) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
-	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.SourceUrl, app.FsPath, app.IsDev, app.AutoSync, app.AutoReload, app.UserID, app.Rules, app.Metadata)
+
+	rulesJson, err := json.Marshal(app.Rules)
+	if err != nil {
+		return fmt.Errorf("error marshalling rules: %w", err)
+	}
+	metadataJson, err := json.Marshal(app.Metadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+
+	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.SourceUrl, app.FsPath, app.IsDev, app.AutoSync, app.AutoReload, app.UserID, rulesJson, metadataJson)
 	if err != nil {
 		return fmt.Errorf("error inserting app: %w", err)
 	}
@@ -108,7 +118,8 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
 	var app utils.AppEntry
 	var loads, permissions sql.NullString
-	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &app.Rules, &app.Metadata, &loads, &permissions)
+	var rules, metadata sql.NullString
+	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &rules, &metadata, &loads, &permissions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("app not found")
@@ -133,6 +144,25 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 		}
 	} else {
 		app.Permissions = []utils.Permission{}
+	}
+
+	if rules.Valid && rules.String != "" {
+		fmt.Println("rules", rules.String)
+		err = json.Unmarshal([]byte(rules.String), &app.Rules)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling rules: %w", err)
+		}
+	} else {
+		app.Rules = utils.Rules{AuthnType: utils.AppAuthnDefault}
+	}
+
+	if metadata.Valid && metadata.String != "" {
+		err = json.Unmarshal([]byte(metadata.String), &app.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+		}
+	} else {
+		app.Metadata = utils.Metadata{}
 	}
 
 	return &app, nil
@@ -208,6 +238,42 @@ func (m *Metadata) UpdateAppPermissions(app *utils.AppEntry) error {
 	}
 
 	_, err = stmt.Exec(string(loadsJson), string(permissionsJson), app.Path, app.Domain)
+	if err != nil {
+		return fmt.Errorf("error updating app: %w", err)
+	}
+	return nil
+}
+
+func (m *Metadata) UpdateAppRules(app *utils.AppEntry) error {
+	stmt, err := m.db.Prepare(`UPDATE apps set rules = ? where path = ? and domain = ?`)
+	if err != nil {
+		return fmt.Errorf("error preparing statement: %w", err)
+	}
+
+	rulesJson, err := json.Marshal(app.Rules)
+	if err != nil {
+		return fmt.Errorf("error marshalling rules: %w", err)
+	}
+
+	_, err = stmt.Exec(string(rulesJson), app.Path, app.Domain)
+	if err != nil {
+		return fmt.Errorf("error updating app: %w", err)
+	}
+	return nil
+}
+
+func (m *Metadata) UpdateAppMetadata(app *utils.AppEntry) error {
+	stmt, err := m.db.Prepare(`UPDATE apps set metadata = ? where path = ? and domain = ?`)
+	if err != nil {
+		return fmt.Errorf("error preparing statement: %w", err)
+	}
+
+	metadataJson, err := json.Marshal(app.Metadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+
+	_, err = stmt.Exec(string(metadataJson), app.Path, app.Domain)
 	if err != nil {
 		return fmt.Errorf("error updating app: %w", err)
 	}

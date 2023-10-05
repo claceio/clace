@@ -32,18 +32,18 @@ cleanup() {
   echo "Done with cleanup"
 }
 
-# Test error messages
+# Test basic functionality
 rm -f run/clace.sock
 # Use password hash for "abcd"
-cat <<EOF > config_error_test.toml
+cat <<EOF > config_basic_test.toml
 [security]
 admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DUPUyvIK7C"
 EOF
-CL_CONFIG_FILE=config_error_test.toml ../clace server start  --http.port=9154 --https.port=9155 &
+CL_CONFIG_FILE=config_basic_test.toml ../clace server start  --http.port=9154 --https.port=9155 &
 sleep 2
 
-commander test $CL_TEST_VERBOSE test_errors.yaml
-rm -rf clace.db run/clace.sock config_error_test.toml
+commander test $CL_TEST_VERBOSE test_basics.yaml
+rm -rf clace.db run/clace.sock config_basic_test.toml
 
 # Test server prints a password when started without config
 ../clace server start --http.port=9156 --https.port=9157 > server.stdout &
