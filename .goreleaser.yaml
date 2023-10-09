@@ -1,43 +1,77 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-before:
-  hooks:
-    # You may remove this if you don't use go modules.
-    - go mod tidy
+project_name: clace
+
+release:
+  github:
+    owner: claceio
+    name: clace
+  name_template: "Release {{.Tag}}"
+  draft: true
+
+changelog:
+  skip: true
+
 builds:
-  - env:
+  - main: ./cmd/clace
+    binary: clace
+    flags:
+      - -trimpath
+    ldflags:
+      - -w -X github.com/claceio/clace/server.gitCommit={{.ShortCommit}}
+    env:
+      - GO111MODULE=on
       - CGO_ENABLED=0
     goos:
+      - darwin
       - linux
       - windows
-      - darwin
+      - freebsd
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+
+nfpms:
+  - file_name_template: "{{.ProjectName}}-{{.Tag}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    homepage: https://clace.io/
+    description: Securely develop and deploy internal applications
+    maintainer: Ajay Kidave <contact@clace.io>
+    license: Apache 2.0
+    vendor: ClaceIO LLC.
+    formats:
+      - deb
+      - rpm
+    contents:
+      - src: /usr/bin/clace
+        dst: /usr/local/bin/clace
+        type: "symlink"
 
 archives:
-  - format: tar.gz
-    # this name template makes the OS and Arch compatible with the results of uname.
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-    - goos: windows
-      format: zip
-checksum:
-  name_template: 'checksums.txt'
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
+  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    wrap_in_directory: true
+    format: zip
+    files:
+      - README.md
+      - LICENSE
+  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
+    id: targz-archives
+    wrap_in_directory: true
+    format: tar.gz
+    files:
+      - README.md
+      - LICENSE
 
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+checksum:
+  name_template: "SHA256SUMS"
+  algorithm: sha256
