@@ -83,7 +83,7 @@ func startServer(cCtx *cli.Context, serverConfig *utils.ServerConfig) error {
 	// Create a deadline to wait for.
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), 30)
 	defer cancel()
-	server.Stop(ctxTimeout)
+	_ = server.Stop(ctxTimeout)
 
 	return nil
 }

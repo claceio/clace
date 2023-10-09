@@ -10,6 +10,12 @@ release:
 changelog:
   skip: true
 
+before:
+  hooks:
+    - go mod download
+    - go mod tidy
+    - go test -race ./...
+
 builds:
   - main: ./cmd/clace
     binary: clace

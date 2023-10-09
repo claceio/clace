@@ -170,7 +170,9 @@ func (a *AppDev) GenerateHTML() error {
 			}
 		}
 	} else {
-		a.sourceFS.Remove(util.INDEX_GEN_FILE)
+		if err := a.sourceFS.Remove(util.INDEX_GEN_FILE); err != nil {
+			return err
+		}
 	}
 
 	claceGenData, err := a.sourceFS.ReadFile(util.CLACE_GEN_FILE)

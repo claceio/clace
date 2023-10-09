@@ -242,7 +242,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, wo
 	// can't be used to test the watcher functionality)
 	targetFile := path.Join(sourceFS.Root, STYLE_FILE_PATH)
 	targetDir := path.Dir(targetFile)
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
 		return fmt.Errorf("error creating directory %s : %s", targetDir, err)
 	}
 	args = append(args, "--watch")
@@ -253,7 +253,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, wo
 
 	// Setup stdin/stdout for watcher process
 	if s.watcherStdout != nil {
-		s.watcherStdout.Close()
+		_ = s.watcherStdout.Close()
 	}
 	var err error
 	s.watcherStdout, err = os.Create(path.Join(workFS.Root, "tailwindcss.log"))

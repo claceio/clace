@@ -123,7 +123,7 @@ func (a *App) Close() error {
 	}
 
 	if a.appDev != nil {
-		a.appDev.Close()
+		_ = a.appDev.Close()
 	}
 
 	return nil
@@ -174,7 +174,9 @@ func (a *App) Reload(force bool) (bool, error) {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
 		a.Config = util.NewCompatibleAppConfig()
-		json.Unmarshal(configData, a.Config)
+		if err := json.Unmarshal(configData, a.Config); err != nil {
+			return false, err
+		}
 	}
 
 	// Load Starlark config, AppConfig is updated with the settings contents
@@ -243,7 +245,7 @@ func (a *App) startWatcher() error {
 	a.initMutex.Lock()
 	defer a.initMutex.Unlock()
 	if a.watcher != nil {
-		a.watcher.Close()
+		_ = a.watcher.Close()
 	}
 
 	var err error
