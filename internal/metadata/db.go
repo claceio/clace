@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/utils"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const CURRENT_DB_VERSION = 1
@@ -44,7 +44,7 @@ func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, e
 	}
 
 	logger.Info().Str("dbPath", dbPath).Msg("Connecting to DB")
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}
