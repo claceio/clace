@@ -197,8 +197,8 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	}
 
 	fields := starlark.StringDict{
-		"block":    block,
 		"data":     data,
+		"block":    block,
 		"type":     rtype,
 		"code":     code,
 		"retarget": retarget,
