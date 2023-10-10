@@ -5,7 +5,7 @@ release:
     owner: claceio
     name: clace
   name_template: "Release {{.Tag}}"
-  draft: false
+  draft: true
   prerelease: "true"
 
 before:
@@ -83,21 +83,34 @@ checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
 
-brews:
-  - name: clace
-    tap:
-      owner: claceio
-      name: homebrew-clace
-      branch: main
-    folder: Formula
-    url_template: https://github.com/claceio/clace/releases/download/{{ .Tag }}/{{ .ArtifactName }}
-    commit_author:
-      name: clace
-      email: contact@clace.io
-    homepage: "https://github.com/claceio/clace"
-    license: "Apache 2.0"
-    ids:
-      - clace
+archives:
+  - id: windows
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .Os "windows" }}Windows
+      {{- else }}{{ .Os }}{{- end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
+    builds:
+      - windows
+    files:
+      - wintun.dll
+    wrap_in_directory: false
+    format: zip
+
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else if eq .Os "linux" }}Linux
+      {{- else }}{{ .Os }}{{- end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
+    builds:
+      - default
+    files: [only-the-binary*]
+    wrap_in_directory: false
+    format: tar.gz
 
 # https://goreleaser.com/customization/changelog/
 changelog:
