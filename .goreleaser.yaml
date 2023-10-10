@@ -5,7 +5,8 @@ release:
     owner: claceio
     name: clace
   name_template: "Release {{.Tag}}"
-  draft: true
+  draft: false
+  prerelease: "true"
 
 before:
   hooks:
@@ -19,7 +20,10 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -w -X github.com/claceio/clace/version.GitCommit={{.ShortCommit}} -X github.com/claceio/clace/version.BuildDate={{.Date}}
+      - -w
+      - -X github.com/claceio/clace/version.GitCommit={{.ShortCommit}}
+      - -X github.com/claceio/clace/version.BuildDate={{.Date}}
+      - -X github.com/claceio/clace/version={{.Version}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0
@@ -61,20 +65,68 @@ nfpms:
         type: "symlink"
 
 archives:
-  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
-    wrap_in_directory: true
+  - id: windows
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .Os "windows" }}Windows
+      {{- else }}{{ .Os }}{{- end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
+    builds:
+      - windows
+    files:
+      - wintun.dll
+    wrap_in_directory: false
     format: zip
-    files:
-      - README.md
-      - LICENSE
-  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
-    id: targz-archives
-    wrap_in_directory: true
+
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else if eq .Os "linux" }}Linux
+      {{- else }}{{ .Os }}{{- end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
+    builds:
+      - default
+    files: [only-the-binary*]
+    wrap_in_directory: false
     format: tar.gz
-    files:
-      - README.md
-      - LICENSE
 
 checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
+
+brews:
+  - name: clace
+    tap:
+      owner: claceio
+      name: homebrew-clace
+      branch: main
+    folder: Formula
+    url_template: https://github.com/claceio/clace/releases/download/{{ .Tag }}/{{ .ArtifactName }}
+    commit_author:
+      name: clace
+      email: contact@clace.io
+    homepage: "https://github.com/claceio/clace"
+    license: "Apache 2.0"
+    ids:
+      - clace
+
+# https://goreleaser.com/customization/changelog/
+changelog:
+  skip: false
+  use: github
+  sort: asc
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 10
+    - title: "Dependencies"
+      regexp: "^.*deps[(\\w)]*:+.*$"
+      order: 30
+    - title: Other
+      order: 999
