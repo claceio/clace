@@ -7,9 +7,6 @@ release:
   name_template: "Release {{.Tag}}"
   draft: true
 
-changelog:
-  skip: true
-
 before:
   hooks:
     - go mod download
