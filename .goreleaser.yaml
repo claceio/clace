@@ -64,21 +64,6 @@ nfpms:
         dst: /usr/local/bin/clace
         type: "symlink"
 
-archives:
-  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
-    wrap_in_directory: true
-    format: zip
-    files:
-      - README.md
-      - LICENSE
-  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
-    id: targz-archives
-    wrap_in_directory: true
-    format: tar.gz
-    files:
-      - README.md
-      - LICENSE
-
 checksum:
   name_template: "SHA256SUMS"
   algorithm: sha256
