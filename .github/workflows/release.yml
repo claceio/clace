@@ -1,8 +1,10 @@
 name: goreleaser
 
 on:
-  pull_request:
   push:
+    # Pattern matched against refs/tags
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write

@@ -19,7 +19,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -w -X github.com/claceio/clace/server.gitCommit={{.ShortCommit}}
+      - -w -X github.com/claceio/clace/version.GitCommit={{.ShortCommit}} -X github.com/claceio/clace/version.BuildDate={{.Date}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0
