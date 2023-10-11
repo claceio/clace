@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
+	"github.com/go-chi/chi/middleware"
 	"github.com/segmentio/ksuid"
 	"golang.org/x/crypto/bcrypt"
 
@@ -70,6 +72,12 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 	}
 	server.apps = NewAppStore(logger, server)
 	server.authHandler = NewAdminBasicAuth(logger, config)
+
+	accessLogger := utils.RollingFileLogger(&config.Log, "access.log")
+	customLogger := log.New(accessLogger, "", log.LstdFlags)
+	middleware.DefaultLogger = middleware.RequestLogger(
+		&middleware.DefaultLogFormatter{Logger: customLogger, NoColor: true})
+
 	return server, nil
 }
 

@@ -89,6 +89,7 @@ func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 		router: router,
 	}
 
+	router.Use(middleware.Logger)
 	router.Use(middleware.CleanPath)
 
 	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal(false))
@@ -111,6 +112,7 @@ func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 		router: router,
 	}
 
+	router.Use(middleware.Logger)
 	router.Use(AddVaryHeader)
 	router.Use(middleware.CleanPath)
 	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
