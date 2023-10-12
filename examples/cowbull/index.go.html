@@ -31,19 +31,23 @@
       <!-- Middle content area: 4/6 of the screen on large screens, full width on smaller screens -->
       <div class="md:col-span-6 bg-gray-100">
         {{ block "title_bar" . }}
-          <div class="grid grid-cols-10">
-            <a class="col-start-3 justify-right" href="{{ .AppPath }}/"
-              ><img class="w-20" src="{{ static "images/cowbull.svg" }}"
-            /></a>
+          <div class="grid grid-cols-3 gap-x-4 gap-y-8 md:gap-x-8 lg:gap-x-12">
+            <div class="flex justify-center items-center">
+              <a href="{{ .AppPath }}/"
+                ><img
+                  class="ml-16 w-20"
+                  src="{{ static "images/cowbull.svg" }}"
+              /></a>
+            </div>
             <a
-              class="col-start-5 col-span-2 pt-6 text-4xl font-extrabold font-mono tracking-wide"
+              class="pt-6 text-4xl font-extrabold font-mono tracking-wide"
               href="{{ .AppPath }}/"
               >CowBull</a
             >
 
             <a
               data-tip="Help"
-              class="col-start-8 pt-6 tooltip tooltip-closed tooltip-bottom"
+              class="pt-6 tooltip tooltip-closed tooltip-bottom"
               href="{{ .AppPath }}/help">
               <img class="w-8" src="{{ static "images/help.svg" }}"
             /></a>
