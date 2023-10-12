@@ -92,7 +92,7 @@ func (s *Server) setupAdminAccount() (string, error) {
 	}
 
 	if s.config.Security.AdminPasswordBcrypt != "" {
-		s.Info().Msgf("Using admin password bcrypt hash from configuration %s", s.config.Security.AdminPasswordBcrypt)
+		s.Info().Msgf("Using admin password bcrypt hash from configuration")
 		return "", nil
 	}
 
@@ -244,81 +244,85 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) setupHTTPSServer() *http.Server {
-	// Use Let's Encrypt staging server
-	if s.config.Https.UseStaging {
-		certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+
+	var tlsConfig *tls.Config
+	if s.config.Https.ServiceEmail != "" {
+		// Certmagic is enabled
+		if s.config.Https.UseStaging {
+			// Use Let's Encrypt staging server
+			certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+		}
+		certmagic.DefaultACME.Agreed = true
+		certmagic.DefaultACME.Email = s.config.Https.ServiceEmail
+		certmagic.DefaultACME.DisableHTTPChallenge = true
+		// Customize the storage directory
+		customStorageDir := os.ExpandEnv(s.config.Https.StorageLocation)
+		certmagic.Default.Storage = &certmagic.FileStorage{Path: customStorageDir}
+
+		magicConfig := certmagic.NewDefault()
+		magicConfig.OnDemand = &certmagic.OnDemandConfig{
+			DecisionFunc: func(name string) error {
+				// Always issue a certificate
+				return nil
+			},
+		}
+		tlsConfig = magicConfig.TLSConfig()
+		tlsConfig.NextProtos = append([]string{"h2", "http/1.1"}, tlsConfig.NextProtos...)
+		tlsConfig.GetCertificate = magicConfig.GetCertificate
+		tlsConfig.MinVersion = tls.VersionTLS12
+	} else {
+		// Certmagic is disabled, use certs from disk or create self signed ones
+		tlsConfig = &tls.Config{
+			NextProtos: []string{"h2", "http/1.1"},
+			MinVersion: tls.VersionTLS12,
+			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				domain := hello.ServerName
+
+				if s.config.Https.EnableCertLookup {
+					certFilePath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), domain+".crt")
+					certKeyPath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), domain+".key")
+					// Check if certificate and key files exist on disk for the domain
+					_, certErr := os.Stat(certFilePath)
+					_, keyErr := os.Stat(certKeyPath)
+
+					// If certificate and key files exist, load them
+					if certErr == nil && keyErr == nil {
+						cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
+						return &cert, err
+					}
+				}
+
+				certFilePath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_CERT_FILE)
+				certKeyPath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_KEY_FILE)
+
+				_, certErr := os.Stat(certFilePath)
+				_, keyErr := os.Stat(certKeyPath)
+				if certErr != nil || keyErr != nil {
+					s.Info().Msgf("Generating default self signed certificate")
+
+					if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
+						return nil, fmt.Errorf("error creating cert directory %s : %s",
+							os.ExpandEnv(s.config.Https.CertLocation), err)
+					}
+
+					err := GenerateSelfSignedCertificate(certFilePath, certKeyPath, 365*24*time.Hour)
+					if err != nil {
+						return nil, fmt.Errorf("error generating self signed certificate: %w", err)
+					}
+				}
+
+				cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
+				return &cert, err
+			},
+		}
 	}
-
-	certmagic.DefaultACME.Agreed = true
-	certmagic.DefaultACME.Email = s.config.Https.ServiceEmail
-
-	// Customize the storage directory
-	customStorageDir := os.ExpandEnv(s.config.Https.StorageLocation)
-	certmagic.Default.Storage = &certmagic.FileStorage{Path: customStorageDir}
 
 	server := &http.Server{
 		WriteTimeout: 180 * time.Second,
 		ReadTimeout:  180 * time.Second,
 		IdleTimeout:  30 * time.Second,
 		Handler:      s.handler.router,
-		TLSConfig: &tls.Config{
-			NextProtos: []string{"h2", "http/1.1"},
-			MinVersion: tls.VersionTLS12,
-			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				domain := hello.ServerName
-				s.Info().Msgf("GetCertificate called for %s", domain)
-
-				if s.config.Https.EnableCertLookup {
-					// Cert lookup is enabled
-					// Check if certificate and key files exist on disk for the domain
-					_, certErr := os.Stat(domain + ".crt")
-					_, keyErr := os.Stat(domain + ".key")
-
-					// If certificate and key files exist, load them
-					if certErr == nil && keyErr == nil {
-						cert, err := tls.LoadX509KeyPair(domain+".crt", domain+".key")
-						return &cert, err
-					}
-				}
-
-				if strings.TrimSpace(certmagic.DefaultACME.Email) == "" {
-					// If certmagic is disabled, look for default certificate and key files
-					s.Info().Msgf("Looking up default certificate for %s", domain)
-					certFilePath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_CERT_FILE)
-					certKeyPath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), DEFAULT_KEY_FILE)
-
-					_, certErr := os.Stat(certFilePath)
-					_, keyErr := os.Stat(certKeyPath)
-					if certErr != nil || keyErr != nil {
-						// If default certificate and key files don't exist, use certmagic to obtain a certificate
-						s.Info().Msgf("Generating default self signed certificate")
-
-						if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
-							return nil, fmt.Errorf("error creating cert directory %s : %s",
-								os.ExpandEnv(s.config.Https.CertLocation), err)
-						}
-
-						err := GenerateSelfSignedCertificate(certFilePath, certKeyPath, 365*24*time.Hour)
-						if err != nil {
-							return nil, fmt.Errorf("error generating self signed certificate: %w", err)
-						}
-					}
-
-					cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
-					return &cert, err
-				}
-				// If certificate or key file doesn't exist, use certmagic to obtain a certificate
-				s.Info().Msgf("Auto generating certificate for %s", domain)
-
-				certmagicConfig := certmagic.NewDefault()
-				err := certmagicConfig.ManageSync(hello.Context(), []string{domain})
-				if err != nil {
-					return nil, err
-				}
-				return certmagicConfig.GetCertificate(hello)
-
-			},
-		},
+		TLSConfig:    tlsConfig,
 	}
 	return server
 }
