@@ -100,5 +100,6 @@
 </html>
 
 {{ define "invalid_challenge_id" }}
-  Invalid challenge id specified: .Data.Error
+  Invalid challenge id specified:
+  {{ .Data.Error }}
 {{ end }}

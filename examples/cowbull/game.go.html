@@ -205,5 +205,6 @@
 </html>
 
 {{ define "invalid_game_id" }}
-  Invalid game id specified: .Data.Error
+  Invalid game id specified:
+  {{ .Data.Error }}
 {{ end }}
