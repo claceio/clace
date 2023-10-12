@@ -170,8 +170,12 @@ func (a *AppDev) GenerateHTML() error {
 			}
 		}
 	} else {
-		if err := a.sourceFS.Remove(util.INDEX_GEN_FILE); err != nil {
-			return err
+		_, statErr := a.sourceFS.Stat(util.INDEX_GEN_FILE)
+		if statErr == nil {
+			// If generated index file exists, remove it
+			if err := a.sourceFS.Remove(util.INDEX_GEN_FILE); err != nil {
+				return err
+			}
 		}
 	}
 
