@@ -1,26 +1,29 @@
 {{ block "clace_body" . }}
   <div class="bg-gray-100">
     <div
-      class="min-h-screen flex flex-col justify-center bg-gradient-to-r from-lime-200 via-lime-300 to-lime-400">
+      class="min-h-screen flex flex-col justify-center bg-gradient-to-r from-sky-100 to-sky-200">
       <div class="container mx-auto text-center text-gray-600 p-4">
         <h1 class="text-4xl font-bold text-grey-800 mb-8">Clace Demo Apps</h1>
-        These apps showcase the features of Clace. All the apps are running on a
-        single Clace server. The code for the apps is
-        <a
-          class="link link-primary"
-          href="https://github.com/claceio/clace/tree/main/examples"
-          >here</a
-        >
+        Clace is a platform for building secure internal applications. These are
+        simple apps built to show the features of Clace.
+        <p>
+          All the apps are running on a single Clace server. The code for the
+          apps can be found on
+          <a
+            class="link link-primary"
+            href="https://github.com/claceio/clace/tree/main/examples"
+            >GitHub</a
+          >.
+        </p>
 
         <div class="pt-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <!-- App 1 -->
           <div class="bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-bold mb-4">Disk Usage</h2>
             <p class="text-gray-600 mb-4">
               This app shows the disk usage on the node, allowing the user to
               find which directory is consuming the most space. It is a wrapper
               over the "du" command and shows simple Hypermedia based
-              transitions.
+              interactions.
             </p>
             <a
               href="https://utils.demo.clace.io/disk_usage"
@@ -29,12 +32,12 @@
             >
           </div>
 
-          <!-- App 2 -->
           <div class="bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-bold mb-4">Memory Usage</h2>
             <p class="text-gray-600 mb-4">
               This app shows the resident memory usage, aggregated by parent
-              process. The data comes from the "ps" command. The "plot" ui
+              process. The data comes from the "ps" command. The
+              <a class="link link-primary" href="https://d3js.org/">d3</a>
               library is used as an ESM module to show the data visualization.
             </p>
             <a
@@ -44,13 +47,12 @@
             >
           </div>
 
-          <!-- App 3 -->
           <div class="bg-white p-6 rounded-lg shadow-lg">
             <h2 class="text-2xl font-bold mb-4">CowBull Word Game</h2>
             <p class="text-gray-600 mb-4">
               This app builds the UI for a CowBull word finding game. It
-              demonstrates the use of more complex Hypermedia controls and
-              integration with Tailwind CSS and DaisyUI.
+              demonstrates the use of Hypermedia controls across multiple pages
+              and integration with Tailwind CSS and DaisyUI.
             </p>
             <a href="https://cowbull.demo.clace.io/" class="btn btn-primary"
               >Cowbull</a
@@ -59,8 +61,7 @@
         </div>
 
         <div class="pt-4 text-gray-600">
-          This page itself is a static Clace app. The complete installation
-          steps for the service and apps are below.
+          The steps for installing the apps are:
         </div>
 
         <div class="text-gray-600">
@@ -69,13 +70,14 @@
             <a
               class="link link-primary"
               href="https://clace.io/docs/installation/#install-from-source">
-              Install Clace</a
+              install Clace</a
             >. Then enable
             <a
               class="link link-primary"
               href="https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate">
               auto TLS certificates</a
-            >. Then start the server and install the apps.
+            >. Setup DNS for the domains. Then start the Clace server and
+            install the apps.
           </p>
           <!-- prettier-ignore -->
           <div class="bg-black p-4 rounded text-left">
