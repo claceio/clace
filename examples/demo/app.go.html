@@ -3,7 +3,10 @@
     <div
       class="min-h-screen flex flex-col justify-center bg-gradient-to-r from-sky-100 to-sky-200">
       <div class="container mx-auto text-center text-gray-600 p-4">
-        <h1 class="text-4xl font-bold text-grey-800 mb-8">Clace Demo Apps</h1>
+        <h1 class="text-4xl font-bold text-grey-800 mb-8">
+          <a href="https://clace.io/" class="link"> Clace</a>
+          Demo Apps
+        </h1>
         Clace is a platform for building secure internal applications. These are
         simple apps built to show the features of Clace.
         <p>
@@ -81,12 +84,18 @@
           </p>
           <!-- prettier-ignore -->
           <div class="bg-black p-4 rounded text-left">
-            <code class="text-green-400">
+            <code class="text-green-300">
+              <span class="text-green-600"># Start the Clace server</span> <br>
               $ nohup clace server start &amp; <br>
+              <span class="text-green-600"># Create memory usage app, under utils domain</span> <br>
               $ clace app create --domain utils.demo.clace.io --auth_type=none --approve /memory_usage ~/clace_source/clace/examples/memory_usage/ <br>
+              <span class="text-green-600"># Create disk usage app, under utils domain</span> <br>
               $ clace app create --domain utils.demo.clace.io --auth_type=none --approve /disk_usage ~/clace_source/clace/examples/disk_usage/ <br>
+              <span class="text-green-600"># Create cowbull app, under cowbull domain</span> <br>
               $ clace app create --domain cowbull.demo.clace.io --auth_type=none --approve / ~/clace_source/clace/examples/cowbull <br>
+              <span class="text-green-600"># Create demo app</span> <br>
               $ clace app create --auth_type=none --approve / ~/clace_source/clace/examples/demo <br>
+              <span class="text-green-600"># All apps are live now, TLS certs will be created on demand</span> <br>
             </code>
           </div>
         </div>
