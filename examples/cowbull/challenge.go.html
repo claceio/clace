@@ -6,9 +6,10 @@
   <body>
     <script>
       function copyFunction() {
-        link = {{.AppPath}} + "/challenge/" + {{.Data.Challenge_Id}};
-        navigator.clipboard.writeText(link);
-        alert("Copied: " + link + " to clipboard");
+        link = {{.AppUrl}} + "/challenge/" + {{.Data.Challenge_Id}};
+        navigator.clipboard.writeText(link).then(() => {
+            alert("Copied: " + link + " to clipboard");
+        })
       }
     </script>
     <div class="min-h-screen grid grid-flow-col md:grid-cols-12">
@@ -21,7 +22,10 @@
 
 
         <div class="pt-6 text-center">
-          <label>Use Share to invite others, Play to start game<br /></label>
+          <label
+            >Game code is <b>{{ .Data.Challenge_Id }}</b>. Use Share to invite
+            others, Play to start game<br
+          /></label>
           <label
             id="code"
             class="block px-16 py-2 text-xl font-extrabold font-mono tracking-wide w-80"></label>

@@ -67,7 +67,9 @@ def challenge_handler(req):
 def play_challenge(req):
     challenge_id = req.UrlParams["challenge_id"]
     ret = http.post(SERVICE_URL + "/api/challenge/" +
-                    challenge_id + "/play").json()
+                    challenge_id + "/play", headers={
+                        "X-Forwarded-For": req.RemoteIP
+                    }).json()
     if ret.get("Error"):
         return ace.response(ret, "invalid_challenge_id", code=404)
 

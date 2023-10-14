@@ -296,6 +296,14 @@ func (a *App) createInternalRoutes(router *chi.Mux) error {
 	return nil
 }
 
+func getRequestUrl(r *http.Request) string {
+	if r.TLS != nil {
+		return fmt.Sprintf("https://%s", r.Host)
+	} else {
+		return fmt.Sprintf("http://%s", r.Host)
+	}
+}
+
 func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, rtype string) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
@@ -312,12 +320,13 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		if pagePath == "/" {
 			pagePath = ""
 		}
+		appUrl := getRequestUrl(r) + appPath
 		requestData := Request{
 			AppName:     a.Name,
 			AppPath:     appPath,
-			AppUrl:      fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, appPath),
+			AppUrl:      appUrl,
 			PagePath:    pagePath,
-			PageUrl:     fmt.Sprintf("%s://%s/%s", r.URL.Scheme, r.URL.Host, pagePath),
+			PageUrl:     appUrl + pagePath,
 			Method:      r.Method,
 			IsDev:       a.IsDev,
 			AutoReload:  a.AutoReload,
