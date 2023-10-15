@@ -78,8 +78,6 @@ archives:
       {{- else }}{{ .Arch }}{{- end }}
     builds:
       - windows
-    files:
-      - wintun.dll
     wrap_in_directory: false
     format: zip
 
