@@ -5,7 +5,7 @@
   - [Development Features](#development-features)
   - [Deployment Features](#deployment-features)
 - [Roadmap](#roadmap)
-- [Setup] (#setup)
+- [Setup](#setup)
   - [Build from source](#build-from-source)
   - [Initial Configuration](#initial-configuration)
   - [Start Service](#start-service)
@@ -141,6 +141,6 @@ Please use the bug tracker only for bug reports and feature requests. General qu
 PRs welcome for bug fixes, please file a bug first. Commit messages should [reference
 bugs](https://docs.github.com/en/github/writing-on-github/autolinked-references-and-urls).
 
-For feature enhancements, please first file a ticket with the `enhancement` label and discuss the change before working on the code changes.
+For feature enhancements, please first file a ticket with the `feature` label and discuss the change before working on the code changes.
 
 The Google [go style guide](https://google.github.io/styleguide/go/guide) is used for Clace. For application behavior related fixes, refer the [app unit test cases](https://github.com/claceio/clace/tree/main/internal/app/tests). Those test run as part of regular unit tests `go test ./...`. For API related changes, Clace uses the [commander-cli](https://github.com/commander-cli/commander) library for [automated CLI tests](https://github.com/claceio/clace/tree/main/tests). To run the CLI test, run `CL_HOME=. tests/run_cli_tests.sh` from the clace home directory.
