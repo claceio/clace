@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
+
+  <p align="center">Secure internal web applications platform</p>
+</p>
+
 ### Menu
 
 - [Overview](#overview)
@@ -18,7 +24,7 @@
 
 Clace is an open-source Apache-2.0 licensed project building a platform to develop and deploy secure internal web applications. Clace provides a web application server focussed on securely running multiple applications on a single installation. Clace apps are [Hypermedia driven](https://hypermedia.systems/hypermedia-reintroduction) full stack web applications.
 
-The project is implements an application server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
+The project implements an application server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clalce.io) is in the [docs](https://github.com/claceio/docs) repo.
 
@@ -144,3 +150,9 @@ bugs](https://docs.github.com/en/github/writing-on-github/autolinked-references-
 For feature enhancements, please first file a ticket with the `feature` label and discuss the change before working on the code changes.
 
 The Google [go style guide](https://google.github.io/styleguide/go/guide) is used for Clace. For application behavior related fixes, refer the [app unit test cases](https://github.com/claceio/clace/tree/main/internal/app/tests). Those test run as part of regular unit tests `go test ./...`. For API related changes, Clace uses the [commander-cli](https://github.com/commander-cli/commander) library for [automated CLI tests](https://github.com/claceio/clace/tree/main/tests). To run the CLI test, run `CL_HOME=. tests/run_cli_tests.sh` from the clace home directory.
+
+Thanks for all contributions!
+
+<a href="https://github.com/claceio/clace/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=claceio/clace" />
+</a>
