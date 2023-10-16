@@ -6,7 +6,7 @@ release:
     name: clace
   name_template: "Release {{.Tag}}"
   draft: true
-  prerelease: "true"
+  prerelease: "auto"
 
 before:
   hooks:
@@ -34,18 +34,10 @@ builds:
       - freebsd
     goarch:
       - amd64
-      - arm
       - arm64
-    goarm:
-      - 6
-      - 7
     ignore:
       - goos: freebsd
-        goarch: arm
-      - goos: freebsd
         goarch: arm64
-      - goos: windows
-        goarch: arm
       - goos: windows
         goarch: arm64
 
@@ -69,31 +61,19 @@ checksum:
   algorithm: sha256
 
 archives:
-  - id: windows
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version}}_
-      {{- if eq .Os "windows" }}Windows
-      {{- else }}{{ .Os }}{{- end }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else }}{{ .Arch }}{{- end }}
-    builds:
-      - windows
-    wrap_in_directory: false
+  - name_template: '{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+    wrap_in_directory: true
     format: zip
-
-  - id: default
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version}}_
-      {{- if eq .Os "darwin" }}macOS
-      {{- else if eq .Os "linux" }}Linux
-      {{- else }}{{ .Os }}{{- end }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else }}{{ .Arch }}{{- end }}
-    builds:
-      - default
-    files: [only-the-binary*]
-    wrap_in_directory: false
+    files:
+      - README.md
+      - LICENSE
+  - name_template: '{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+    id: targz-archives
+    wrap_in_directory: true
     format: tar.gz
+    files:
+      - README.md
+      - LICENSE
 
 # https://goreleaser.com/customization/changelog/
 changelog:
