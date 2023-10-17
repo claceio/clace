@@ -13,6 +13,12 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
+// Added by goreleaser as build information
+var (
+	gitCommit  string // gitCommit is the git commit that was compiled
+	gitVersion string // gitVersion is the build tag
+)
+
 const configFileFlagName = "config_file"
 
 func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
@@ -32,10 +38,16 @@ func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientCon
 		return nil, err
 	}
 
+	versionCommands, err := getVersionCommands(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, v := range [][]*cli.Command{
 		serverCommands,
 		clientCommands,
 		passwordCommands,
+		versionCommands,
 	} {
 		allCommands = append(allCommands, v...)
 	}

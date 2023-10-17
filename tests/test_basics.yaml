@@ -1,12 +1,12 @@
 tests:
-  error010:
+  basic010:
     command: ../clace app list /invalid # Connects over UDS
     stderr: "error: app not found"
     stdout:
       line-count: 0
     exit-code: 1
 
-  error020:
+  basic020:
     command: ../clace app list --server_uri=http://localhost:9154 /invalid # Wrong password
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
@@ -14,7 +14,7 @@ tests:
       line-count: 0
     exit-code: 1
 
-  error030:
+  basic030:
     command: ../clace app list --server_uri=http://localhost:9154 --admin_password=abcd /invalid # No app
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
@@ -22,86 +22,93 @@ tests:
       line-count: 0
     exit-code: 1
 
-  error040:
+  basic040:
     command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd /invalid # Test TLS
     stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate'
     stdout:
       line-count: 0
     exit-code: 1
 
-  error050:
+  basic050:
     command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd --skip_cert_check /invalid # TLS with skip_cert_check
     stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
     exit-code: 1
 
-  error060: ## create test1 app with default of authentication enabled
+  basic060: ## create test1 app with default of authentication enabled
     command: ../clace app create /test1 ./testapp
     exit-code: 0
 
-  error070: # check curl works with password
+  basic070: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test1
     stdout: "Test app body"
 
-  error080: # check curl fails without password
+  basic080: # check curl fails without password
     command: curl -sS localhost:9154/test1
     stdout:
       exactly: "Authentication failed"
 
-  error090: # check curl fails with wrong password
+  basic090: # check curl fails with wrong password
     command: curl -sS -u "admin:abcd2" localhost:9154/test1
     stdout:
       exactly: "Authentication failed"
 
-  error100: # check curl fails with wrong user
+  basic100: # check curl fails with wrong user
     command: curl -sS -u "admin2:abcd" localhost:9154/test1
     stdout:
       exactly: "Authentication failed"
 
-  error160: ## create test2 app with authentication disabled
+  basic160: ## create test2 app with authentication disabled
     command: ../clace app create --auth_type=none /test2 ./testapp
     exit-code: 0
 
-  error170: # check curl works with password
+  basic170: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test2
     stdout: "Test app body"
 
-  error180: # check curl without password
+  basic180: # check curl without password
     command: curl -sS localhost:9154/test2
     stdout: "Test app body"
 
-  error190: # check curl works with wrong password (no authentication is done)
+  basic190: # check curl works with wrong password (no authentication is done)
     command: curl -sS -u "admin:abcd2" localhost:9154/test2
     stdout: "Test app body"
 
-  error200: # check curl works with wrong user (no authentication is done)
+  basic200: # check curl works with wrong user (no authentication is done)
     command: curl -sS -u "admin2:abcd" localhost:9154/test2
     stdout: "Test app body"
 
-  error250: # Clear generated files
+  basic250: # Clear generated files
     command: rm -rf ./testapp/static/gen ./testapp/index_gen.go.html ./testapp/config_gen.lock ./testapp/clace_gen.go.html
     exit-code: 0
 
-  error260: # create test3 app with auth specifically enabled. is_dev is used to check if files are created fine
+  basic260: # create test3 app with auth specifically enabled. is_dev is used to check if files are created fine
     command: ../clace app create --is_dev --auth_type=default /test3 ./testapp
     exit-code: 0
 
-  error270: # check curl works with password
+  basic270: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test3
     stdout: "Test app body"
 
-  error280: # check curl fails without password
+  basic280: # check curl fails without password
     command: curl -sS localhost:9154/test3
     stdout:
       exactly: "Authentication failed"
 
-  error290: # check curl fails with wrong password
+  basic290: # check curl fails with wrong password
     command: curl -sS -u "admin:abcd2" localhost:9154/test3
     stdout:
       exactly: "Authentication failed"
 
-  error300: # check curl fails with wrong user
+  basic300: # check curl fails with wrong user
     command: curl -sS -u "admin2:abcd" localhost:9154/test3
     stdout:
       exactly: "Authentication failed"
+
+  basic400: # check version command output
+    command: ../clace version
+    stdout: "Clace version"
+    stderr:
+      line-count: 0
+    exit-code: 0

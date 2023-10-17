@@ -21,9 +21,8 @@ builds:
       - -trimpath
     ldflags:
       - -w
-      - -X github.com/claceio/clace/version.GitCommit={{.ShortCommit}}
-      - -X github.com/claceio/clace/version.BuildDate={{.Date}}
-      - -X github.com/claceio/clace/version={{.Version}}
+      - -X github.com/claceio/clace/main.gitCommit={{.ShortCommit}}
+      - -X github.com/claceio/clace/main.gitVersion={{.Version}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0
@@ -61,13 +60,13 @@ checksum:
   algorithm: sha256
 
 archives:
-  - name_template: '{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
     wrap_in_directory: true
     format: zip
     files:
       - README.md
       - LICENSE
-  - name_template: '{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
+  - name_template: "{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}"
     id: targz-archives
     wrap_in_directory: true
     format: tar.gz
