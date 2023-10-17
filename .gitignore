@@ -1,6 +1,6 @@
 dist/
 .vscode
-clace
+/clace
 clace.db
 clace.toml
 *.swp
