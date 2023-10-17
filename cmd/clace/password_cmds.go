@@ -69,7 +69,7 @@ func generatePassword(cCtx *cli.Context) error {
 		return cli.Exit(err, 1)
 	}
 
-	fmt.Fprintf(os.Stderr, "\nAdd the following lines to your clace.toml config file to configure the server to use this password:\n\n")
+	fmt.Printf("# Auto generated password hash, add to clace.toml\n")
 	fmt.Printf("[security]\n")
 	fmt.Printf("admin_password_bcrypt = \"%s\"\n", bcryptPassword)
 	return nil
