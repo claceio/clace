@@ -21,8 +21,8 @@ builds:
       - -trimpath
     ldflags:
       - -w
-      - -X github.com/claceio/clace/main.gitCommit={{.ShortCommit}}
-      - -X github.com/claceio/clace/main.gitVersion={{.Version}}
+      - -X main.gitCommit={{.ShortCommit}}
+      - -X main.gitVersion={{.Version}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0
