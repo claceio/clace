@@ -292,7 +292,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		appEntry.Rules.AuthnType = utils.AppAuthnDefault
 	}
 
-	auditResult, err := h.server.AddApp(&appEntry, approve)
+	auditResult, err := h.server.CreateApp(&appEntry, approve)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

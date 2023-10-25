@@ -350,18 +350,27 @@ func (s *Server) Stop(ctx context.Context) error {
 	return err3
 }
 
-func (s *Server) AddApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
+// isGit returns true if the sourceURL is a git URL
+func isGit(url string) bool {
+	return strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
+}
+
+func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
+	if isGit(appEntry.SourceUrl) && appEntry.IsDev {
+		return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
+	}
+
 	id, err := ksuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
 	appEntry.Id = utils.AppId("app" + id.String())
-	err = s.db.AddApp(appEntry)
+	err = s.db.CreateApp(appEntry)
 	if err != nil {
 		return nil, err
 	}
 
-	application, err := s.createApp(appEntry)
+	application, err := s.setupApp(appEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -383,18 +392,25 @@ func (s *Server) AddApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditRes
 	return auditResult, nil
 }
 
-func (s *Server) createApp(appEntry *utils.AppEntry) (*app.App, error) {
+func (s *Server) setupApp(appEntry *utils.AppEntry) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
-
-	path := appEntry.FsPath
-	if path == "" {
-		path = appEntry.SourceUrl
+	var sourceFS *util.SourceFs
+	if isGit(appEntry.SourceUrl) {
+		// TODO
+		//sourceFS = db.NewDbFs(appEntry.SourceUrl, appEntry.IsDev, &s.config.System)
+	} else {
+		if appEntry.IsDev {
+			sourceFS = util.NewSourceFs(appEntry.SourceUrl,
+				&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
+				appEntry.IsDev)
+		} else {
+			sourceFS = util.NewSourceFs(appEntry.SourceUrl, util.NewDiskReadFS(&appLogger, appEntry.SourceUrl), appEntry.IsDev)
+		}
 	}
 
-	sourceFS := util.NewAppFS(path, os.DirFS(path), appEntry.IsDev, &s.config.System)
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
-	workFS := util.NewAppFS(appPath, os.DirFS(appPath), appEntry.IsDev, &s.config.System)
+	workFS := util.NewWorkFs(appPath, &util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appPath)})
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System)
 
 	return application, nil
@@ -409,7 +425,7 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 			return nil, err
 		}
 
-		application, err = s.createApp(appEntry)
+		application, err = s.setupApp(appEntry)
 		if err != nil {
 			return nil, err
 		}

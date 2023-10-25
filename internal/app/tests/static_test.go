@@ -72,7 +72,7 @@ def handler(req):
 		"static/file2.txt": `file2data`,
 	}
 
-	a, _, err := app.CreateDevModeHashDisable(logger, fileData)
+	a, _, err := app.CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -82,7 +82,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `abc /test/static/file1 def /test/static/file2.txt`
+	want := `abc /test/static/file1-ca9e40772ef9119c13100a8258bc38a665a0a1976bf81c96e69a353b6605f5a7 def /test/static/file2-d044e5b148745e322fe3e916e5f3bb9c9182892fdf99850baf4ed82c2864dd30.txt`
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
 

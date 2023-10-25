@@ -15,26 +15,28 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true, false)
+func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, true)
 }
 
-func CreateDevModeHashDisable(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true, true)
+func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, false)
 }
 
-func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
-	return CreateTestAppInt(logger, "/test", fileData, false, false)
+func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/", fileData, false)
 }
 
-func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *util.AppFS, error) {
-	return CreateTestAppInt(logger, "/", fileData, false, false)
-}
-
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, disableHash bool) (*App, *util.AppFS, error) {
-	systemConfig := utils.SystemConfig{TailwindCSSCommand: "", DisableFileHashDevMode: disableHash}
-	sourceFS := util.NewAppFS("", &TestFS{fileData: fileData}, isDev, &systemConfig)
-	workFS := util.NewAppFS("", &TestFS{fileData: map[string]string{}}, isDev, &systemConfig)
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool) (*App, *util.WorkFs, error) {
+	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
+	var fs util.ReadableFS
+	if isDev {
+		fs = &TestWriteFS{TestReadFS: &TestReadFS{fileData: fileData}}
+	} else {
+		fs = &TestReadFS{fileData: fileData}
+	}
+	sourceFS := util.NewSourceFs("", fs, isDev)
+	workFS := util.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig)
 	err := a.Initialize()
 	return a, workFS, err
@@ -42,19 +44,25 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 
 func createTestAppEntry(path string, isDev bool) *utils.AppEntry {
 	return &utils.AppEntry{
-		Id:     "testApp",
-		Path:   path,
-		Domain: "",
-		FsPath: ".",
-		IsDev:  isDev,
+		Id:        "testApp",
+		Path:      path,
+		Domain:    "",
+		SourceUrl: ".",
+		IsDev:     isDev,
 	}
 }
 
-type TestFS struct {
+type TestReadFS struct {
 	fileData map[string]string
 }
 
-var _ util.WritableFS = (*TestFS)(nil)
+var _ util.ReadableFS = (*TestReadFS)(nil)
+
+type TestWriteFS struct {
+	*TestReadFS
+}
+
+var _ util.WritableFS = (*TestWriteFS)(nil)
 
 type TestFileInfo struct {
 	f *TestFile
@@ -106,7 +114,7 @@ func (f *TestFile) Close() error {
 	return nil
 }
 
-func (f *TestFS) Open(name string) (fs.File, error) {
+func (f *TestReadFS) Open(name string) (fs.File, error) {
 	name = strings.TrimPrefix(name, "/")
 	if _, ok := f.fileData[name]; !ok {
 		return nil, fs.ErrNotExist
@@ -115,7 +123,7 @@ func (f *TestFS) Open(name string) (fs.File, error) {
 	return CreateTestFile(name, f.fileData[name]), nil
 }
 
-func (f *TestFS) ReadFile(name string) ([]byte, error) {
+func (f *TestReadFS) ReadFile(name string) ([]byte, error) {
 	name = strings.TrimPrefix(name, "/")
 	data, ok := f.fileData[name]
 	if !ok {
@@ -124,7 +132,7 @@ func (f *TestFS) ReadFile(name string) ([]byte, error) {
 	return []byte(data), nil
 }
 
-func (f *TestFS) Glob(pattern string) ([]string, error) {
+func (f *TestReadFS) Glob(pattern string) ([]string, error) {
 	matchedFiles := []string{}
 	for name := range f.fileData {
 		if matched, _ := path.Match(pattern, name); matched {
@@ -135,23 +143,11 @@ func (f *TestFS) Glob(pattern string) ([]string, error) {
 	return matchedFiles, nil
 }
 
-func (f *TestFS) ParseFS(funcMap template.FuncMap, patterns ...string) (*template.Template, error) {
+func (f *TestReadFS) ParseFS(funcMap template.FuncMap, patterns ...string) (*template.Template, error) {
 	return template.New("clacetestapp").Funcs(funcMap).ParseFS(f, patterns...)
 }
 
-func (f *TestFS) Write(name string, bytes []byte) error {
-	name = strings.TrimPrefix(name, "/")
-	f.fileData[name] = string(bytes)
-	return nil
-}
-
-func (f *TestFS) Remove(name string) error {
-	name = strings.TrimPrefix(name, "/")
-	delete(f.fileData, name)
-	return nil
-}
-
-func (f *TestFS) Stat(name string) (fs.FileInfo, error) {
+func (f *TestReadFS) Stat(name string) (fs.FileInfo, error) {
 	name = strings.TrimPrefix(name, "/")
 	if _, ok := f.fileData[name]; !ok {
 		return nil, fs.ErrNotExist
@@ -159,4 +155,16 @@ func (f *TestFS) Stat(name string) (fs.FileInfo, error) {
 
 	file := CreateTestFile(name, f.fileData[name])
 	return &TestFileInfo{file}, nil
+}
+
+func (f *TestWriteFS) Write(name string, bytes []byte) error {
+	name = strings.TrimPrefix(name, "/")
+	f.fileData[name] = string(bytes)
+	return nil
+}
+
+func (f *TestWriteFS) Remove(name string) error {
+	name = strings.TrimPrefix(name, "/")
+	delete(f.fileData, name)
+	return nil
 }

@@ -140,7 +140,6 @@ type AppEntry struct {
 	Path        string       `json:"path"`
 	Domain      string       `json:"domain"`
 	SourceUrl   string       `json:"source_url"`
-	FsPath      string       `json:"fs_path"`
 	IsDev       bool         `json:"is_dev"`
 	AutoSync    bool         `json:"auto_sync"`
 	AutoReload  bool         `json:"auto_reload"`

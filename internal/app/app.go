@@ -33,7 +33,7 @@ type App struct {
 	CustomLayout bool
 
 	Config          *util.AppConfig
-	sourceFS        *util.AppFS
+	sourceFS        *util.SourceFs
 	initMutex       sync.Mutex
 	initialized     bool
 	reloadError     error
@@ -61,7 +61,7 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *util.AppFS, workFS *util.AppFS, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
+func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,
@@ -71,7 +71,7 @@ func NewApp(sourceFS *util.AppFS, workFS *util.AppFS, logger *utils.Logger, appE
 	}
 
 	if appEntry.IsDev {
-		newApp.appDev = dev.NewAppDev(logger, sourceFS, workFS, systemConfig)
+		newApp.appDev = dev.NewAppDev(logger, &util.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
 	}
 
 	funcMap := sprig.FuncMap()
@@ -288,12 +288,7 @@ func (a *App) startWatcher() error {
 	}()
 
 	// Add watcher path.
-	path := a.FsPath
-	if path == "" {
-		path = a.SourceUrl
-	}
-
-	err = a.watcher.Add(path)
+	err = a.watcher.Add(a.SourceUrl)
 	if err != nil {
 		return err
 	}

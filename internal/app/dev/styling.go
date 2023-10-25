@@ -153,7 +153,7 @@ const (
 	`
 )
 
-func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS, workFS *util.AppFS) error {
+func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS *util.WritableSourceFs, workFS *util.WorkFs) error {
 	configPath := fmt.Sprintf("style/%s", TAILWIND_CONFIG_FILE)
 	inputPath := fmt.Sprintf("style/%s", "input.css")
 
@@ -213,7 +213,7 @@ func (s *AppStyle) StartWatcher(dev *AppDev) error {
 	}
 }
 
-func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS, workFS *util.AppFS, systemConfig *utils.SystemConfig) error {
+func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *util.WritableSourceFs, workFS *util.WorkFs, systemConfig *utils.SystemConfig) error {
 	tailwindCmd := strings.TrimSpace(systemConfig.TailwindCSSCommand)
 	if tailwindCmd == "" {
 		fmt.Println("Warning: tailwindcss command not configured. Skipping tailwindcss watcher") // TODO: log

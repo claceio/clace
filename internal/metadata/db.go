@@ -16,11 +16,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const CURRENT_DB_VERSION = 1
+const CURRENT_DB_VERSION = 2
 
 // Metadata is the metadata persistence layer
 type Metadata struct {
 	*utils.Logger
+	*FileStore
 	config *utils.ServerConfig
 	db     *sql.DB
 }
@@ -49,9 +50,10 @@ func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, e
 		return nil, err
 	}
 	m := &Metadata{
-		Logger: logger,
-		config: config,
-		db:     db,
+		Logger:    logger,
+		config:    config,
+		db:        db,
+		FileStore: NewFileStore(db),
 	}
 
 	err = m.VersionUpgrade()
@@ -80,7 +82,16 @@ func (m *Metadata) VersionUpgrade() error {
 		if _, err := m.db.Exec(`insert into version values (1, datetime('now'))`); err != nil {
 			return err
 		}
-		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, source_url text, fs_path text, is_dev bool, auto_sync bool, auto_reload bool, user_id text, create_time datetime, update_time datetime, rules text, metadata text, loads json, permissions json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+		if _, err := m.db.Exec(`create table apps(id text, path text, domain text, source_url text, fs_path text, is_dev bool, auto_sync bool, auto_reload bool, user_id text, create_time datetime, update_time datetime, rules json, metadata json, loads json, permissions json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+			return err
+		}
+	}
+	if version < 1 {
+		m.Info().Msg("Upgrading to version 2")
+		if err := m.initTables(); err != nil {
+			return err
+		}
+		if _, err := m.db.Exec(`update version set version=2, last_upgraded=datetime('now')`); err != nil {
 			return err
 		}
 	}
@@ -88,8 +99,8 @@ func (m *Metadata) VersionUpgrade() error {
 	return nil
 }
 
-func (m *Metadata) AddApp(app *utils.AppEntry) error {
-	stmt, err := m.db.Prepare(`INSERT into apps(id, path, domain, source_url, fs_path, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`)
+func (m *Metadata) CreateApp(app *utils.AppEntry) error {
+	stmt, err := m.db.Prepare(`INSERT into apps(id, path, domain, source_url, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -103,7 +114,7 @@ func (m *Metadata) AddApp(app *utils.AppEntry) error {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.SourceUrl, app.FsPath, app.IsDev, app.AutoSync, app.AutoReload, app.UserID, rulesJson, metadataJson)
+	_, err = stmt.Exec(app.Id, app.Path, app.Domain, app.SourceUrl, app.IsDev, app.AutoSync, app.AutoReload, app.UserID, rulesJson, metadataJson)
 	if err != nil {
 		return fmt.Errorf("error inserting app: %w", err)
 	}
@@ -111,7 +122,7 @@ func (m *Metadata) AddApp(app *utils.AppEntry) error {
 }
 
 func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
-	stmt, err := m.db.Prepare(`select id, path, domain, source_url, fs_path, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata, loads, permissions from apps where path = ? and domain = ?`)
+	stmt, err := m.db.Prepare(`select id, path, domain, source_url, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata, loads, permissions from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -119,7 +130,7 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 	var app utils.AppEntry
 	var loads, permissions sql.NullString
 	var rules, metadata sql.NullString
-	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.FsPath, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &rules, &metadata, &loads, &permissions)
+	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.SourceUrl, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &rules, &metadata, &loads, &permissions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("app not found")

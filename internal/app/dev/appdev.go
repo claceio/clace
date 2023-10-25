@@ -39,8 +39,8 @@ type AppDev struct {
 	CustomLayout bool
 	Config       *util.AppConfig
 	systemConfig *utils.SystemConfig
-	sourceFS     *util.AppFS
-	workFS       *util.AppFS
+	sourceFS     *util.WritableSourceFs
+	workFS       *util.WorkFs
 	AppStyle     *AppStyle
 
 	filesDownloaded map[string][]string
@@ -48,7 +48,7 @@ type AppDev struct {
 	jsCache         map[JSLibrary]string
 }
 
-func NewAppDev(logger *utils.Logger, sourceFS, workFS *util.AppFS, systemConfig *utils.SystemConfig) *AppDev {
+func NewAppDev(logger *utils.Logger, sourceFS *util.WritableSourceFs, workFS *util.WorkFs, systemConfig *utils.SystemConfig) *AppDev {
 	dev := &AppDev{
 		Logger:          logger,
 		sourceFS:        sourceFS,
@@ -64,7 +64,7 @@ func NewAppDev(logger *utils.Logger, sourceFS, workFS *util.AppFS, systemConfig 
 
 // downloadFile downloads the files from the url, unless it was already loaded for this app in the current
 // server session.
-func (a *AppDev) downloadFile(url string, appFS *util.AppFS, path string) error {
+func (a *AppDev) downloadFile(url string, appFS *util.WritableSourceFs, path string) error {
 	var ok bool
 	var alreadyDone []string
 	if alreadyDone, ok = a.filesDownloaded[url]; ok {
