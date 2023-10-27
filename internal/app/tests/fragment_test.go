@@ -65,7 +65,7 @@ func TestFragmentInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", block="ff",
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", partial="ff",
 	fragments=[ace.fragment("frag")]
 )])
 
@@ -281,7 +281,7 @@ func TestFragmentPostRedirect(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", block="ff",
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", partial="ff",
 	fragments=[ace.fragment("frag", method="POST")]
 )])
 

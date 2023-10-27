@@ -188,10 +188,10 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	if methodStr, err = util.GetStringAttr(pageDef, "method"); err != nil {
 		return err
 	}
-	if htmlFile, err = util.GetStringAttr(pageDef, "html"); err != nil {
+	if htmlFile, err = util.GetStringAttr(pageDef, "full"); err != nil {
 		return err
 	}
-	if blockStr, err = util.GetStringAttr(pageDef, "block"); err != nil {
+	if blockStr, err = util.GetStringAttr(pageDef, "partial"); err != nil {
 		return err
 	}
 
@@ -256,7 +256,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 		if methodStr, err = util.GetStringAttr(fragmentDef, "method"); err != nil {
 			return err
 		}
-		if blockStr, err = util.GetStringAttr(fragmentDef, "block"); err != nil {
+		if blockStr, err = util.GetStringAttr(fragmentDef, "partial"); err != nil {
 			return err
 		}
 

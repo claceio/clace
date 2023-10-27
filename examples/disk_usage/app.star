@@ -40,7 +40,7 @@ def handler(req):
 
 
 app = ace.app("Disk Usage",
-              pages=[ace.page("/", block="du_table_block")],
+              pages=[ace.page("/", partial="du_table_block")],
               permissions=[
                   ace.permission("exec.in", "run", ["du"]),
                   ace.permission("exec.in", "run", ["readlink"])

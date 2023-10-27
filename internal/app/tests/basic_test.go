@@ -99,7 +99,7 @@ func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", pages = [ace.page("/", html="t1.tmpl")]
+app = ace.app("testApp", pages = [ace.page("/", full="t1.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -129,7 +129,7 @@ func TestAppLoadWrongTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", pages = [ace.page("/", html="t12.tmpl")]
+app = ace.app("testApp", pages = [ace.page("/", full="t12.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):

@@ -78,8 +78,8 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
-	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "html?", &html,
-		"block?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method, "type?", &rtype); err != nil {
+	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "full?", &html,
+		"partial?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method, "type?", &rtype); err != nil {
 		return nil, err
 	}
 
@@ -97,8 +97,8 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 
 	fields := starlark.StringDict{
 		"path":      path,
-		"html":      html,
-		"block":     block,
+		"full":      html,
+		"partial":   block,
 		"fragments": fragments,
 		"method":    method,
 		"type":      rtype,
@@ -113,7 +113,7 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	var path, block, rtype starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "block?", &block,
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "partial?", &block,
 		"handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
 		return nil, err
 	}
@@ -128,10 +128,10 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	}
 
 	fields := starlark.StringDict{
-		"path":   path,
-		"block":  block,
-		"method": method,
-		"type":   rtype,
+		"path":    path,
+		"partial": block,
+		"method":  method,
+		"type":    rtype,
 	}
 	if handler != nil {
 		fields["handler"] = handler
