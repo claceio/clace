@@ -146,7 +146,7 @@ tests:
     stderr: "reference not found"
     exit-code: 1
   test0290: # Create app, valid commit id
-    command: ../clace app create --approve --commit 2342fa1a7030de2f22ec9b75e8538d4035235652 /ghload5 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve --commit e6a3ebc00392bc7afebcc3a2cdb6e13273985704 /ghload5 https://github.com/claceio/clace/examples/disk_usage
     stdout: "App created. Permissions have been approved"
     exit-code: 0
 
