@@ -33,8 +33,10 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, newBoolFlag("is_dev", "", "Is the application in development mode", false))
 	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
 	//flags = append(flags, newBoolFlag("auto_sync", "", "Whether to automatically sync the application code", false))
-	flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
+	//flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
 	flags = append(flags, newStringFlag("auth_type", "", "The authentication type to use: can be default or none", "default"))
+	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", "main"))
+	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over git_branch", ""))
 
 	return &cli.Command{
 		Name:      "create",
@@ -60,6 +62,8 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 				AutoSync:   cCtx.Bool("auto_sync"),
 				AutoReload: cCtx.Bool("auto_reload"),
 				AppAuthn:   utils.AppAuthnType(cCtx.String("auth_type")),
+				GitBranch:  cCtx.String("branch"),
+				GitCommit:  cCtx.String("commit"),
 			}
 			var auditResult utils.AuditResult
 			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &auditResult)

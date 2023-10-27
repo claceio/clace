@@ -372,10 +372,22 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 	if err != nil {
 		return nil, err
 	}
+	cleanupApp := true
+	defer func() {
+		if cleanupApp {
+			s.Info().Msgf("Deleting app %s %s", appEntry.Path, appEntry.Id)
+			s.db.DeleteApp(utils.AppPathDomain{Path: appEntry.Path, Domain: appEntry.Domain})
+		}
+	}()
 
 	if isGit(appEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
-		if err := s.loadGitSources(appEntry); err != nil {
+		if err := s.loadSourceFromGit(appEntry); err != nil {
+			return nil, err
+		}
+	} else if !appEntry.IsDev {
+		// App is loaded from disk (not git) and not in dev mode, load files into DB
+		if err := s.loadSourceFromDisk(appEntry); err != nil {
 			return nil, err
 		}
 	}
@@ -390,7 +402,7 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 
 	auditResult, err := application.Audit()
 	if err != nil {
-		return nil, fmt.Errorf("App %s created, audit failed: %s", appEntry.Id, err)
+		return nil, fmt.Errorf("App %s audit failed: %s", appEntry.Id, err)
 	}
 
 	if approve {
@@ -399,6 +411,12 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 		s.db.UpdateAppPermissions(appEntry)
 		s.Info().Msgf("Approved app %s %s: %+v %+v", appEntry.Domain, appEntry.Path, auditResult.NewLoads, auditResult.NewPermissions)
 	}
+
+	// Persist the metadata so that any git info is saved
+	if err := s.db.UpdateAppMetadata(appEntry); err != nil {
+		return nil, err
+	}
+	cleanupApp = false
 	return auditResult, nil
 }
 
@@ -406,25 +424,19 @@ func (s *Server) setupApp(appEntry *utils.AppEntry) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 	var sourceFS *util.SourceFs
-	if isGit(appEntry.SourceUrl) {
-		if appEntry.IsDev {
-			return nil, fmt.Errorf("cannot setup dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
-		}
+	if !appEntry.IsDev {
+		// Prod mode, use DB as source
 		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
 		dbFs, err := metadata.NewDbFs(s.Logger, fileStore)
 		if err != nil {
 			return nil, err
 		}
-		sourceFS = util.NewSourceFs(appEntry.SourceUrl, dbFs, appEntry.IsDev)
+		sourceFS = util.NewSourceFs("", dbFs, false)
 	} else {
-		// Not git source, must be local disk
-		if appEntry.IsDev {
-			sourceFS = util.NewSourceFs(appEntry.SourceUrl,
-				&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
-				appEntry.IsDev)
-		} else {
-			sourceFS = util.NewSourceFs(appEntry.SourceUrl, util.NewDiskReadFS(&appLogger, appEntry.SourceUrl), appEntry.IsDev)
-		}
+		// Dev mode, use local disk as source
+		sourceFS = util.NewSourceFs(appEntry.SourceUrl,
+			&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
+			appEntry.IsDev)
 	}
 
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
@@ -555,7 +567,6 @@ func (s *Server) MatchAppForDomain(domain, matchPath string) (string, error) {
 	matchPath = normalizePath(matchPath)
 	matchedApp := ""
 	for _, path := range paths {
-		s.Trace().Msgf("MatchAppForDomain %s %s %t", path, matchPath, strings.HasPrefix(matchPath, path))
 		// If /test is in use, do not allow /test/other
 		if strings.HasPrefix(matchPath, path) {
 			if len(path) == 1 || len(path) == len(matchPath) || matchPath[len(path)] == '/' {
@@ -592,9 +603,12 @@ func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.
 	if approve {
 		app.AppEntry.Loads = auditResult.NewLoads
 		app.AppEntry.Permissions = auditResult.NewPermissions
-		s.db.UpdateAppPermissions(app.AppEntry)
+		if err := s.db.UpdateAppPermissions(app.AppEntry); err != nil {
+			return nil, err
+		}
 		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.NewLoads, auditResult.NewPermissions)
 	}
+
 	return auditResult, nil
 }
 
@@ -619,7 +633,7 @@ func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
 	return "", "", fmt.Errorf("invalid github url: %s, expected github.com/orgName/repoName or github.com/orgName/repoName/folder", sourceUrl)
 }
 
-func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
+func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
 	if err != nil {
@@ -631,13 +645,21 @@ func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpDir)
+	//defer os.RemoveAll(tmpDir)
 	s.Info().Msgf("Cloning git repo %s to %s", repo, tmpDir)
 
-	// Configure the repo to Clone
-	gitRepo, err := git.PlainClone(tmpDir, false, &git.CloneOptions{
+	cloneOptions := git.CloneOptions{
 		URL: repo,
-	})
+	}
+
+	if appEntry.Metadata.GitBranch != "" {
+		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(appEntry.Metadata.GitBranch)
+		cloneOptions.SingleBranch = true
+		cloneOptions.Depth = 1
+	}
+
+	// Configure the repo to Clone
+	gitRepo, err := git.PlainClone(tmpDir, false, &cloneOptions)
 	if err != nil {
 		return err
 	}
@@ -646,17 +668,13 @@ func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
 	if err != nil {
 		return err
 	}
-	branch := "main"
-	if appEntry.Metadata.GitBranch != "" {
-		branch = appEntry.Metadata.GitBranch
-	}
-
-	// Checkout specified branch/hash
+	// Checkout specified hash
 	options := git.CheckoutOptions{}
 	if appEntry.Metadata.GitCommit != "" {
+		s.Info().Msgf("Checking out commit %s", appEntry.Metadata.GitCommit)
 		options.Hash = plumbing.NewHash(appEntry.Metadata.GitCommit)
 	} else {
-		options.Branch = plumbing.NewBranchReferenceName(branch)
+		options.Branch = plumbing.NewBranchReferenceName(appEntry.Metadata.GitBranch)
 	}
 
 	/* Sparse checkout seems to not be reliable with go-git
@@ -664,7 +682,9 @@ func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
 		options.SparseCheckoutDirectories = []string{folder}
 	}
 	*/
-	w.Checkout(&options)
+	if err := w.Checkout(&options); err != nil {
+		return err
+	}
 
 	ref, err := gitRepo.Head()
 	if err != nil {
@@ -675,20 +695,29 @@ func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
 		return err
 	}
 	// Update the git info into the appEntry, the caller needs to persist it
-	s.Info().Msgf("Cloned git repo %s folder %s to %s, commit %s: %s", repo, folder, tmpDir, commit.Hash.String(), commit.Message)
-	appEntry.Metadata.CheckedoutCommit = commit.Hash.String()
-	appEntry.Metadata.CheckedoutMessage = commit.Message
-
+	s.Info().Msgf("Cloned git repo %s %s:%s folder %s to %s, commit %s: %s", repo, appEntry.Metadata.GitBranch, appEntry.Metadata.GitCommit, folder, tmpDir, commit.Hash.String(), commit.Message)
 	checkoutFolder := tmpDir
 	if folder != "" {
 		checkoutFolder = path.Join(tmpDir, folder)
 	}
 
+	s.Info().Msgf("Loading app sources from %s", checkoutFolder)
 	// Walk the local directory and add all files to the database
 	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
-	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, commit.Hash.String(), appEntry.Metadata.GitBranch, checkoutFolder); err != nil {
+	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, commit.Hash.String(), appEntry.Metadata.GitBranch, commit.Message, checkoutFolder); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (s *Server) loadSourceFromDisk(appEntry *utils.AppEntry) error {
+	appEntry.Metadata.GitBranch = ""
+	appEntry.Metadata.GitCommit = ""
+	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
+	// Walk the local directory and add all files to the database
+	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, "", "", "", appEntry.SourceUrl); err != nil {
+		return err
+	}
 	return nil
 }

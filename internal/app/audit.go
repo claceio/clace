@@ -18,11 +18,10 @@ import (
 func (a *App) Audit() (*utils.AuditResult, error) {
 	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading %s file: %w", util.APP_FILE_NAME, err)
 	}
 
 	starlarkCache := map[string]*starlarkCacheEntry{}
-
 	auditLoader := func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 
 		if strings.HasSuffix(module, util.STARLARK_FILE_SUFFIX) {

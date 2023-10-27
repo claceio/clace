@@ -14,7 +14,6 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -255,18 +254,11 @@ func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", "\""+hash+"\"")
 	}
 
-	// Flush header and write content.
-	switch f := f.(type) {
-	case io.ReadSeeker:
-		http.ServeContent(w, r, filename, fi.ModTime(), f)
-	default:
-		// Set content length.
-		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
-
-		// Flush header and write content.
-		w.WriteHeader(http.StatusOK)
-		if r.Method != http.MethodHead {
-			io.Copy(w, f)
-		}
+	seeker, ok := f.(io.ReadSeeker)
+	if !ok {
+		http.Error(w, "500 Filesystem does not implement Seek interface", http.StatusInternalServerError)
+		return
 	}
+
+	http.ServeContent(w, r, filename, fi.ModTime(), seeker)
 }

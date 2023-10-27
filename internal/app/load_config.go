@@ -30,7 +30,7 @@ func (a *App) loadStarlarkConfig() error {
 
 	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
-		return err
+		return fmt.Errorf("error reading %s: %w", util.APP_FILE_NAME, err)
 	}
 
 	thread := &starlark.Thread{

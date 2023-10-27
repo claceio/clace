@@ -29,8 +29,8 @@ func NewFileStore(appId utils.AppId, version int, metadata *Metadata) *FileStore
 	return &FileStore{appId: appId, version: version, db: metadata.db}
 }
 
-func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch string, checkoutDir string) error {
-	if _, err := f.db.Exec(`insert into app_versions (appid, version, git_sha, git_branch, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch); err != nil {
+func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch, commit_message string, checkoutDir string) error {
+	if _, err := f.db.Exec(`insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch, commit_message); err != nil {
 		return err
 	}
 
@@ -51,7 +51,6 @@ func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch string, checkou
 		if inErr != nil {
 			return fmt.Errorf("file walk on %s failed for path %s: %w", checkoutDir, path, inErr)
 		}
-
 		if d.IsDir() && path == ".git" {
 			// Skip .git directory completely
 			return fs.SkipDir
@@ -139,11 +138,11 @@ func (f *FileStore) GetFileBySha(sha string) ([]byte, error) {
 }
 
 func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {
-	stmt, err := f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files`)
+	stmt, err := f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
-	rows, err := stmt.Query()
+	rows, err := stmt.Query(f.appId, f.version)
 	if err != nil {
 		return nil, fmt.Errorf("error querying files: %w", err)
 	}

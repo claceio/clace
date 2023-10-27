@@ -122,11 +122,9 @@ type Rules struct {
 
 // Metadata contains the metadata for an app
 type Metadata struct {
-	Version           int    `json:"version"`
-	GitBranch         string `json:"git_branch"`
-	GitCommit         string `json:"git_commit"`
-	CheckedoutCommit  string `json:"checkedout_commit"`
-	CheckedoutMessage string `json:"checkedout_message"`
+	Version   int    `json:"version"`
+	GitBranch string `json:"git_branch"`
+	GitCommit string `json:"git_commit"`
 }
 
 // AuditResult represents the result of an app audit

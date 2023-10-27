@@ -101,7 +101,7 @@ func (m *Metadata) initFileTables() error {
 	if _, err := m.db.Exec(`create table files (sha text, compression_type text, content blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
 		return err
 	}
-	if _, err := m.db.Exec(`create table app_versions (appid text, version int, git_sha text, git_branch text, user_id text, notes text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
+	if _, err := m.db.Exec(`create table app_versions (appid text, version int, git_sha text, git_branch text, commit_message text, user_id text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
 		return err
 	}
 	if _, err := m.db.Exec(`create table app_files (appid text, version int, name text, sha text, uncompressed_size int, create_time datetime, PRIMARY KEY(appid, version, name))`); err != nil {
