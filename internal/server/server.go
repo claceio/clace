@@ -652,7 +652,7 @@ func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 		URL: repo,
 	}
 
-	if appEntry.Metadata.GitBranch != "" {
+	if appEntry.Metadata.GitCommit == "" {
 		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(appEntry.Metadata.GitBranch)
 		cloneOptions.SingleBranch = true
 		cloneOptions.Depth = 1

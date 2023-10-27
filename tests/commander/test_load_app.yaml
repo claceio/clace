@@ -135,7 +135,7 @@ tests:
     exit-code: 1
   test0260: # Create app, invalid branch
     command: ../clace app create --approve --branch invalid /ghload3 https://github.com/claceio/clace/examples/disk_usage
-    stderr: 'couldn''t find remote ref "refs/heads/invalid"'
+    stderr: 'find remote ref "refs/heads/invalid"'
     exit-code: 1
   test0270: # Create app, valid branch
     command: ../clace app create --approve --branch main /ghload3 https://github.com/claceio/clace/examples/disk_usage
@@ -147,6 +147,7 @@ tests:
     exit-code: 1
   test0290: # Create app, valid commit id
     command: ../clace app create --approve --commit 2342fa1a7030de2f22ec9b75e8538d4035235652 /ghload5 https://github.com/claceio/clace/examples/disk_usage
+    stdout: "App created. Permissions have been approved"
     exit-code: 0
 
   test0900: # cleanup
