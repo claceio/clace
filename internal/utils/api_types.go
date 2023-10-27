@@ -33,4 +33,6 @@ type CreateAppRequest struct {
 	AutoSync   bool         `json:"auto_sync"`
 	AutoReload bool         `json:"auto_reload"`
 	AppAuthn   AppAuthnType `json:"app_authn"`
+	GitBranch  string       `json:"git_branch"`
+	GitCommit  string       `json:"git_commit"`
 }

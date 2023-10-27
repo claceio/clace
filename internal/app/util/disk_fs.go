@@ -21,7 +21,7 @@ type DiskReadFS struct {
 	fs   fs.FS
 }
 
-var _ ReadableFS = (*DiskReadFS)(nil)
+var _ utils.ReadableFS = (*DiskReadFS)(nil)
 
 func NewDiskReadFS(logger *utils.Logger, root string) *DiskReadFS {
 	return &DiskReadFS{
@@ -35,7 +35,6 @@ type DiskWriteFS struct {
 	*DiskReadFS
 }
 
-// Open returns a reference to the named file.
 func (d *DiskReadFS) Open(name string) (fs.File, error) {
 	return d.fs.Open(name)
 }

@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"io/fs"
 	"time"
 )
 
@@ -71,7 +72,6 @@ type LogConfig struct {
 // SystemConfig is the system level configuration
 type SystemConfig struct {
 	TailwindCSSCommand        string `toml:"tailwindcss_command"`
-	DisableFileHashDevMode    bool   `toml:"disable_file_hash_dev_mode"`
 	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
 	NodePath                  string `toml:"node_path"`
 }
@@ -122,6 +122,11 @@ type Rules struct {
 
 // Metadata contains the metadata for an app
 type Metadata struct {
+	Version           int    `json:"version"`
+	GitBranch         string `json:"git_branch"`
+	GitCommit         string `json:"git_commit"`
+	CheckedoutCommit  string `json:"checkedout_commit"`
+	CheckedoutMessage string `json:"checkedout_message"`
 }
 
 // AuditResult represents the result of an app audit
@@ -150,4 +155,20 @@ type AppEntry struct {
 	Metadata    Metadata     `json:"metadata"`
 	Loads       []string     `json:"loads"`
 	Permissions []Permission `json:"permissions"`
+}
+
+// WritableFS is the interface for the writable underlying file system used by AppFS
+type ReadableFS interface {
+	fs.FS
+	fs.ReadFileFS
+	fs.GlobFS
+	// Stat returns the stats for the named file.
+	Stat(name string) (fs.FileInfo, error)
+}
+
+// WritableFS is the interface for the writable underlying file system used by AppFS
+type WritableFS interface {
+	ReadableFS
+	Write(name string, bytes []byte) error
+	Remove(name string) error
 }

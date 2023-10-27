@@ -292,6 +292,12 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		appEntry.Rules.AuthnType = utils.AppAuthnDefault
 	}
 
+	appEntry.Metadata = utils.Metadata{
+		Version:   1,
+		GitBranch: appRequest.GitBranch,
+		GitCommit: appRequest.GitCommit,
+	}
+
 	auditResult, err := h.server.CreateApp(&appEntry, approve)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)

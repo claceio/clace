@@ -9,59 +9,155 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/claceio/clace/internal/utils"
 )
 
 type FileStore struct {
-	db *sql.DB
+	appId   utils.AppId
+	version int
+	db      *sql.DB
 }
 
-func NewFileStore(db *sql.DB) *FileStore {
-	return &FileStore{db: db}
+func NewFileStore(appId utils.AppId, version int, metadata *Metadata) *FileStore {
+	return &FileStore{appId: appId, version: version, db: metadata.db}
 }
 
-func (d *FileStore) initTables() error {
-	if _, err := d.db.Exec(`create table files (sha text, context blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
-		return err
-	}
-	if _, err := d.db.Exec(`create table app_versions (appid text, version int, git_sha text, git_branch text, user_id text, notes text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
-		return err
-	}
-	if _, err := d.db.Exec(`create table app_files (appid text, version int, name text, sha text, compressed_size int, uncompressed_size int, create_time datetime, PRIMARY KEY(appid, version, name))`); err != nil {
+func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch string, checkoutDir string) error {
+	if _, err := f.db.Exec(`insert into app_versions (appid, version, git_sha, git_branch, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (d *FileStore) AddAppVersion(appId string, version int, gitSha, gitBranch string, files map[string][]byte) error {
-
-	if _, err := d.db.Exec(`insert into app_versions (appid, version, git_sha, git_branch, create_time) values (?, ?, ?, ?, ?, ?, datetime('now'))`, appId, version, gitSha, gitBranch); err != nil {
+	var err error
+	var insertFileStmt *sql.Stmt
+	if insertFileStmt, err = f.db.Prepare(`insert or ignore into files (sha, compression_type, content, create_time) values (?, ?, ?, datetime('now'))`); err != nil {
 		return err
 	}
 
-	var byteBuf bytes.Buffer
-	for name, buf := range files {
-		hash := sha256.Sum256(buf)
-		hashHex := hex.EncodeToString(hash[:])
-		byteBuf.Reset()
-		gz := gzip.NewWriter(&byteBuf)
+	var insertAppFileStmt *sql.Stmt
+	if insertAppFileStmt, err = f.db.Prepare(`insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
+		return err
+	}
 
-		if _, err := gz.Write(buf); err != nil {
+	fsys := os.DirFS(checkoutDir)
+
+	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, inErr error) error {
+		if inErr != nil {
+			return fmt.Errorf("file walk on %s failed for path %s: %w", checkoutDir, path, inErr)
+		}
+
+		if d.IsDir() && path == ".git" {
+			// Skip .git directory completely
+			return fs.SkipDir
+		}
+
+		if d.IsDir() {
+			// Ignore directory paths
+			return nil
+		}
+
+		// Walk the file system, read one file at a time
+		file, err := fsys.Open(path)
+		if err != nil {
 			return err
 		}
-		if err := gz.Close(); err != nil {
+		defer file.Close()
+
+		buf, err := fs.ReadFile(fsys, path)
+		if err != nil {
 			return err
+		}
+
+		// Use forward slash as path separator
+		path = strings.ReplaceAll(path, "\\", "/")
+
+		var byteBuf bytes.Buffer
+		hash := sha256.Sum256(buf)
+		hashHex := hex.EncodeToString(hash[:])
+		compressionType := ""
+		storeBuf := buf
+		if len(buf) > 1024 {
+			compressionType = "gzip"
+			byteBuf.Reset()
+			gz := gzip.NewWriter(&byteBuf)
+
+			if _, err := gz.Write(buf); err != nil {
+				gz.Close()
+				return err
+			}
+			if err := gz.Close(); err != nil {
+				return err
+			}
+			storeBuf = byteBuf.Bytes()
 		}
 
 		// Compressed data is written to files table. Ignore if sha is already present
-		// File content, if same across versions and also across apps, are shared
-		if _, err := d.db.Exec(`insert or ignore into files (sha, context, create_time) values (?, ?, datetime('now'))`, hashHex, byteBuf.Bytes()); err != nil {
-			return err
+		// File contents, if same across versions and also across apps, are shared
+		if _, err = insertFileStmt.Exec(hashHex, compressionType, storeBuf); err != nil {
+			return fmt.Errorf("error inserting file: %w", err)
 		}
 
-		if _, err := d.db.Exec(`insert into app_files (appid, version, name, sha, compressed_size, uncompressed_size, create_time) values (?, ?, ?, ?, ?, ?, datetime('now'))`, appId, version, name, hashHex, byteBuf.Len(), len(buf)); err != nil {
-			return err
+		if _, err := insertAppFileStmt.Exec(f.appId, version, path, hashHex, len(buf)); err != nil {
+			return fmt.Errorf("error inserting app file: %w", err)
+		}
+		return nil
+	})
+	return nil
+}
+
+func (f *FileStore) GetFileBySha(sha string) ([]byte, error) {
+	stmt, err := f.db.Prepare("SELECT compression_type , content FROM files where sha = ?")
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	row := stmt.QueryRow(sha)
+	var compressionType string
+	var content []byte
+	if err := row.Scan(&compressionType, &content); err != nil {
+		return nil, fmt.Errorf("error querying file table: %w", err)
+	}
+
+	retBytes := content
+	if compressionType == "gzip" {
+		gz, err := gzip.NewReader(bytes.NewReader(content))
+		if err != nil {
+			return nil, err
+		}
+		defer gz.Close()
+		if retBytes, err = io.ReadAll(gz); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+
+	return retBytes, nil
+}
+
+func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {
+	stmt, err := f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files`)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, fmt.Errorf("error querying files: %w", err)
+	}
+	fileInfo := make(map[string]DbFileInfo)
+	for rows.Next() {
+		var name, sha string
+		var size int64
+		var modTime time.Time
+		err = rows.Scan(&name, &sha, &size, &modTime)
+		if err != nil {
+			return nil, fmt.Errorf("error querying files: %w", err)
+		}
+		fileInfo[name] = DbFileInfo{name: name, sha: sha, len: size, modTime: modTime}
+	}
+
+	return fileInfo, nil
 }

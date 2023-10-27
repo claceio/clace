@@ -21,7 +21,6 @@ const CURRENT_DB_VERSION = 2
 // Metadata is the metadata persistence layer
 type Metadata struct {
 	*utils.Logger
-	*FileStore
 	config *utils.ServerConfig
 	db     *sql.DB
 }
@@ -50,10 +49,9 @@ func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, e
 		return nil, err
 	}
 	m := &Metadata{
-		Logger:    logger,
-		config:    config,
-		db:        db,
-		FileStore: NewFileStore(db),
+		Logger: logger,
+		config: config,
+		db:     db,
 	}
 
 	err = m.VersionUpgrade()
@@ -88,12 +86,26 @@ func (m *Metadata) VersionUpgrade() error {
 	}
 	if version < 1 {
 		m.Info().Msg("Upgrading to version 2")
-		if err := m.initTables(); err != nil {
+		if err := m.initFileTables(); err != nil {
 			return err
 		}
 		if _, err := m.db.Exec(`update version set version=2, last_upgraded=datetime('now')`); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *Metadata) initFileTables() error {
+	if _, err := m.db.Exec(`create table files (sha text, compression_type text, content blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
+		return err
+	}
+	if _, err := m.db.Exec(`create table app_versions (appid text, version int, git_sha text, git_branch text, user_id text, notes text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
+		return err
+	}
+	if _, err := m.db.Exec(`create table app_files (appid text, version int, name text, sha text, uncompressed_size int, create_time datetime, PRIMARY KEY(appid, version, name))`); err != nil {
+		return err
 	}
 
 	return nil

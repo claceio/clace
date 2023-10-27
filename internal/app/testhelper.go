@@ -4,7 +4,6 @@
 package app
 
 import (
-	"io"
 	"io/fs"
 	"path"
 	"strings"
@@ -29,7 +28,7 @@ func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, 
 
 func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool) (*App, *util.WorkFs, error) {
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
-	var fs util.ReadableFS
+	var fs utils.ReadableFS
 	if isDev {
 		fs = &TestWriteFS{TestReadFS: &TestReadFS{fileData: fileData}}
 	} else {
@@ -56,13 +55,13 @@ type TestReadFS struct {
 	fileData map[string]string
 }
 
-var _ util.ReadableFS = (*TestReadFS)(nil)
+var _ utils.ReadableFS = (*TestReadFS)(nil)
 
 type TestWriteFS struct {
 	*TestReadFS
 }
 
-var _ util.WritableFS = (*TestWriteFS)(nil)
+var _ utils.WritableFS = (*TestWriteFS)(nil)
 
 type TestFileInfo struct {
 	f *TestFile
@@ -91,7 +90,7 @@ func (fi *TestFileInfo) Sys() any {
 type TestFile struct {
 	name   string
 	data   string
-	reader io.Reader
+	reader *strings.Reader
 }
 
 func CreateTestFile(name string, data string) *TestFile {
@@ -103,14 +102,15 @@ func (f *TestFile) Stat() (fs.FileInfo, error) {
 	return &TestFileInfo{f}, nil
 }
 
+func (f *TestFile) Seek(offset int64, whence int) (int64, error) {
+	return f.reader.Seek(offset, whence)
+}
+
 func (f *TestFile) Read(dst []byte) (int, error) {
 	return f.reader.Read(dst)
 }
 
 func (f *TestFile) Close() error {
-	if r, ok := f.reader.(io.Closer); ok {
-		return r.Close()
-	}
 	return nil
 }
 

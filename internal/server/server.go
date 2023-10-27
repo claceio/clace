@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -22,6 +23,8 @@ import (
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/segmentio/ksuid"
 	"golang.org/x/crypto/bcrypt"
 
@@ -370,6 +373,13 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 		return nil, err
 	}
 
+	if isGit(appEntry.SourceUrl) {
+		// Checkout the git repo locally and load into database
+		if err := s.loadGitSources(appEntry); err != nil {
+			return nil, err
+		}
+	}
+
 	application, err := s.setupApp(appEntry)
 	if err != nil {
 		return nil, err
@@ -397,9 +407,17 @@ func (s *Server) setupApp(appEntry *utils.AppEntry) (*app.App, error) {
 	appLogger := utils.Logger{Logger: &subLogger}
 	var sourceFS *util.SourceFs
 	if isGit(appEntry.SourceUrl) {
-		// TODO
-		//sourceFS = db.NewDbFs(appEntry.SourceUrl, appEntry.IsDev, &s.config.System)
+		if appEntry.IsDev {
+			return nil, fmt.Errorf("cannot setup dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
+		}
+		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
+		dbFs, err := metadata.NewDbFs(s.Logger, fileStore)
+		if err != nil {
+			return nil, err
+		}
+		sourceFS = util.NewSourceFs(appEntry.SourceUrl, dbFs, appEntry.IsDev)
 	} else {
+		// Not git source, must be local disk
 		if appEntry.IsDev {
 			sourceFS = util.NewSourceFs(appEntry.SourceUrl,
 				&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
@@ -578,4 +596,99 @@ func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.
 		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.NewLoads, auditResult.NewPermissions)
 	}
 	return auditResult, nil
+}
+
+func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
+	if strings.HasPrefix(sourceUrl, "github.com") {
+		sourceUrl = "https://" + sourceUrl
+	}
+	if !strings.HasSuffix(sourceUrl, "/") {
+		sourceUrl = sourceUrl + "/"
+	}
+
+	url, err := url.Parse(sourceUrl)
+	if err != nil {
+		return "", "", err
+	}
+
+	split := strings.SplitN(url.Path, "/", 4)
+	if len(split) == 4 {
+		return fmt.Sprintf("%s://%s/%s/%s", url.Scheme, url.Host, split[1], split[2]), split[3], nil
+	}
+
+	return "", "", fmt.Errorf("invalid github url: %s, expected github.com/orgName/repoName or github.com/orgName/repoName/folder", sourceUrl)
+}
+
+func (s *Server) loadGitSources(appEntry *utils.AppEntry) error {
+	// Figure on which repo to clone
+	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
+	if err != nil {
+		return err
+	}
+
+	// Create temp directory on disk
+	tmpDir, err := os.MkdirTemp("", "clace_git_"+string(appEntry.Id)+"_")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+	s.Info().Msgf("Cloning git repo %s to %s", repo, tmpDir)
+
+	// Configure the repo to Clone
+	gitRepo, err := git.PlainClone(tmpDir, false, &git.CloneOptions{
+		URL: repo,
+	})
+	if err != nil {
+		return err
+	}
+
+	w, err := gitRepo.Worktree()
+	if err != nil {
+		return err
+	}
+	branch := "main"
+	if appEntry.Metadata.GitBranch != "" {
+		branch = appEntry.Metadata.GitBranch
+	}
+
+	// Checkout specified branch/hash
+	options := git.CheckoutOptions{}
+	if appEntry.Metadata.GitCommit != "" {
+		options.Hash = plumbing.NewHash(appEntry.Metadata.GitCommit)
+	} else {
+		options.Branch = plumbing.NewBranchReferenceName(branch)
+	}
+
+	/* Sparse checkout seems to not be reliable with go-git
+	if folder != "" {
+		options.SparseCheckoutDirectories = []string{folder}
+	}
+	*/
+	w.Checkout(&options)
+
+	ref, err := gitRepo.Head()
+	if err != nil {
+		return err
+	}
+	commit, err := gitRepo.CommitObject(ref.Hash())
+	if err != nil {
+		return err
+	}
+	// Update the git info into the appEntry, the caller needs to persist it
+	s.Info().Msgf("Cloned git repo %s folder %s to %s, commit %s: %s", repo, folder, tmpDir, commit.Hash.String(), commit.Message)
+	appEntry.Metadata.CheckedoutCommit = commit.Hash.String()
+	appEntry.Metadata.CheckedoutMessage = commit.Message
+
+	checkoutFolder := tmpDir
+	if folder != "" {
+		checkoutFolder = path.Join(tmpDir, folder)
+	}
+
+	// Walk the local directory and add all files to the database
+	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
+	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, commit.Hash.String(), appEntry.Metadata.GitBranch, checkoutFolder); err != nil {
+		return err
+	}
+
+	return nil
 }

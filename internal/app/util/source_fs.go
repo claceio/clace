@@ -17,26 +17,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/claceio/clace/internal/utils"
 )
-
-// WritableFS is the interface for the writable underlying file system used by AppFS
-type ReadableFS interface {
-	fs.FS
-	fs.GlobFS
-	fs.ReadFileFS
-	Stat(name string) (fs.FileInfo, error)
-}
-
-// WritableFS is the interface for the writable underlying file system used by AppFS
-type WritableFS interface {
-	ReadableFS
-	Write(name string, bytes []byte) error
-	Remove(name string) error
-}
 
 // SourceFs is the implementation of source file system
 type SourceFs struct {
-	ReadableFS
+	utils.ReadableFS
 	Root  string
 	isDev bool
 
@@ -45,19 +32,19 @@ type SourceFs struct {
 	hashToName map[string][2]string // reverse lookup (hash path to path)
 }
 
-var _ ReadableFS = (*SourceFs)(nil)
+var _ utils.ReadableFS = (*SourceFs)(nil)
 
 type WritableSourceFs struct {
 	*SourceFs
 }
 
-var _ WritableFS = (*WritableSourceFs)(nil)
+var _ utils.WritableFS = (*WritableSourceFs)(nil)
 
 func (w *WritableSourceFs) Write(name string, bytes []byte) error {
 	if !w.isDev {
 		return fmt.Errorf("cannot write to source fs")
 	}
-	wfs, ok := w.ReadableFS.(WritableFS)
+	wfs, ok := w.ReadableFS.(utils.WritableFS)
 	if !ok {
 		return fmt.Errorf("cannot write to source fs (not writable mode)")
 	}
@@ -68,14 +55,14 @@ func (w *WritableSourceFs) Remove(name string) error {
 	if !w.isDev {
 		return fmt.Errorf("cannot remove file from source fs")
 	}
-	wfs, ok := w.ReadableFS.(WritableFS)
+	wfs, ok := w.ReadableFS.(utils.WritableFS)
 	if !ok {
 		return fmt.Errorf("cannot remove file from source fs (not writable mode)")
 	}
 	return wfs.Remove(name)
 }
 
-func NewSourceFs(dir string, fs ReadableFS, isDev bool) *SourceFs {
+func NewSourceFs(dir string, fs utils.ReadableFS, isDev bool) *SourceFs {
 	return &SourceFs{
 		Root:       dir,
 		ReadableFS: fs,

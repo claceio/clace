@@ -58,6 +58,20 @@ func AssertErrorContains(tb testing.TB, err error, want string) {
 	}
 }
 
+func AssertEqualsError(tb testing.TB, msg string, got error, want error) {
+	tb.Helper()
+	if got == nil && want == nil {
+		return
+	}
+	if got == nil && want != nil {
+		tb.Errorf("%s expected error `%s`, got nil", msg, want)
+	} else if got != nil && want == nil {
+		tb.Errorf("%s expected nil error, got `%s`", msg, got)
+	} else if got.Error() != want.Error() {
+		tb.Errorf("%s expected error `%s`, got `%s`", msg, want, got)
+	}
+}
+
 func AssertStringContains(tb testing.TB, str string, want string) {
 	tb.Helper()
 	if !strings.Contains(str, want) {
