@@ -36,7 +36,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	//flags = append(flags, newBoolFlag("auto_reload", "", "Whether to automatically reload the UI on app updates", false))
 	flags = append(flags, newStringFlag("auth_type", "", "The authentication type to use: can be default or none", "default"))
 	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", "main"))
-	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over git_branch", ""))
+	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 
 	return &cli.Command{
 		Name:      "create",
@@ -44,6 +44,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path> <app_source_url>",
+		UsageText: `args: <app_path> <app_source_url>
+Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
+Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
+Create app for development (source has to be disk): clace app create --approve --is_dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
+Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
+Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
+Create app for specified domain, no auth : clace app create --domain clace.example.com --approve --auth_type=none / github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
