@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Secure internal web applications platform</p>
+  <p align="center">Secure internal web application platform</p>
 </p>
 
 ### Menu
