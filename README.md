@@ -26,7 +26,7 @@ Clace is an open-source Apache-2.0 licensed project building a platform to devel
 
 The project implements an application server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
 
-This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clalce.io) is in the [docs](https://github.com/claceio/docs) repo.
+This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo.
 
 ## Features
 
