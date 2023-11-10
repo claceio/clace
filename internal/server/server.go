@@ -355,7 +355,8 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // isGit returns true if the sourceURL is a git URL
 func isGit(url string) bool {
-	return strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
+	return strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "git@github.com") ||
+		strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
 }
 
 func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
@@ -613,11 +614,22 @@ func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.
 }
 
 func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
-	if strings.HasPrefix(sourceUrl, "github.com") {
-		sourceUrl = "https://" + sourceUrl
-	}
 	if !strings.HasSuffix(sourceUrl, "/") {
 		sourceUrl = sourceUrl + "/"
+	}
+
+	if strings.HasPrefix(sourceUrl, "git@github.com:") {
+		// Using git url format
+		split := strings.SplitN(sourceUrl, "/", 3)
+		if len(split) != 3 {
+			return "", "", fmt.Errorf("invalid github url: %s, expected git@github.com:orgName/repoName or git@github.com:orgName/repoName/folder", sourceUrl)
+		}
+
+		return fmt.Sprintf("%s/%s", split[0], split[1]), split[2], nil
+	}
+
+	if strings.HasPrefix(sourceUrl, "github.com") {
+		sourceUrl = "https://" + sourceUrl
 	}
 
 	url, err := url.Parse(sourceUrl)
@@ -645,7 +657,7 @@ func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 	if err != nil {
 		return err
 	}
-	//defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir)
 	s.Info().Msgf("Cloning git repo %s to %s", repo, tmpDir)
 
 	cloneOptions := git.CloneOptions{

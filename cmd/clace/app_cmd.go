@@ -45,11 +45,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path> <app_source_url>",
 		UsageText: `args: <app_path> <app_source_url>
+
 Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
 Create app for development (source has to be disk): clace app create --approve --is_dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
 Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
+Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
 Create app for specified domain, no auth : clace app create --domain clace.example.com --approve --auth_type=none / github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
