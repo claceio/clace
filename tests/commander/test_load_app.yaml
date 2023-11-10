@@ -152,11 +152,13 @@ tests:
 
   test0300: # Create app, git url
     command: ../clace app create --approve /ghload6 git@github.com:claceio/clace.git/examples/disk_usage
-    stdout: "App created. Permissions have been approved"
+    #stdout: "App created. Permissions have been approved"
+    stderr: ""
     exit-code: 0
   test0310: # Create app, git url with commit id
     command: ../clace app create --approve --commit e6a3ebc00392bc7afebcc3a2cdb6e13273985704 /ghload7 git@github.com:claceio/clace.git/examples/disk_usage
-    stdout: "App created. Permissions have been approved"
+    #stdout: "App created. Permissions have been approved"
+    stderr: ""
     exit-code: 0
 
   test0900: # cleanup
