@@ -7,6 +7,7 @@ rm -rf clace.db
 
 export CL_HOME=.
 unset CL_CONFIG_FILE
+unset SSH_AUTH_SOCK
 
 # Enabling verbose is useful for debugging but the commander command seems to
 # return exit code of 0 when verbose is enabled, even if tests fails. So verbose
@@ -58,11 +59,27 @@ cat <<EOF > $CL_CONFIG_FILE
 admin_password_bcrypt = "\$2a\$10\$PMaPsOVMBfKuDG04RsqJbeKIOJjlYi1Ie1KQbPCZRQx38bqYfernm"
 EOF
 
+if [[ -n "$CL_INFOCLACE_SSH" ]]; then
+  # CL_INFOCLACE_SSH env is set, test authenticated git access with ssh key
+  # infoclace user has only read access to clace repo, which is anyway public
+  echo "$CL_INFOCLACE_SSH" > ./infoclace_ssh
+
+  cat <<EOF >> $CL_CONFIG_FILE
+  [git_auth.infoclace]
+  key_file_path = "./infoclace_ssh"
+EOF
+fi
+
 ../clace server start  -l trace &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/
 
 echo $?
+
+if [[ -n "$CL_INFOCLACE_SSH" ]]; then
+  commander test $CL_TEST_VERBOSE test_github_auth.yaml
+  rm ./infoclace_ssh
+fi
 
 cleanup
 echo "All tests passed"

@@ -23,12 +23,13 @@ type GlobalConfig struct {
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
 	GlobalConfig
-	Http     HttpConfig     `toml:"http"`
-	Https    HttpsConfig    `toml:"https"`
-	Security SecurityConfig `toml:"security"`
-	Metadata MetadataConfig `toml:"metadata"`
-	Log      LogConfig      `toml:"logging"`
-	System   SystemConfig   `toml:"system"`
+	Http     HttpConfig              `toml:"http"`
+	Https    HttpsConfig             `toml:"https"`
+	Security SecurityConfig          `toml:"security"`
+	Metadata MetadataConfig          `toml:"metadata"`
+	Log      LogConfig               `toml:"logging"`
+	System   SystemConfig            `toml:"system"`
+	GitAuth  map[string]GitAuthEntry `toml:"git_auth"`
 }
 
 // HttpConfig is the configuration for the HTTP server
@@ -74,6 +75,13 @@ type SystemConfig struct {
 	TailwindCSSCommand        string `toml:"tailwindcss_command"`
 	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
 	NodePath                  string `toml:"node_path"`
+}
+
+// GitAuth is a github auth config entry
+type GitAuthEntry struct {
+	UserID      string `toml:"user_id"`       // the user id of the user, defaults to "git" https://github.com/src-d/go-git/issues/637
+	KeyFilePath string `toml:"key_file_path"` // the path to the private key file
+	Password    string `toml:"password"`      // the password for the private key file
 }
 
 // ClientConfig is the configuration for the Clace Client
@@ -122,9 +130,10 @@ type Rules struct {
 
 // Metadata contains the metadata for an app
 type Metadata struct {
-	Version   int    `json:"version"`
-	GitBranch string `json:"git_branch"`
-	GitCommit string `json:"git_commit"`
+	Version     int    `json:"version"`
+	GitBranch   string `json:"git_branch"`
+	GitCommit   string `json:"git_commit"`
+	GitAuthName string `json:"git_auth_name"`
 }
 
 // AuditResult represents the result of an app audit

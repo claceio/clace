@@ -25,6 +25,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/segmentio/ksuid"
 	"golang.org/x/crypto/bcrypt"
 
@@ -645,6 +646,36 @@ func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
 	return "", "", fmt.Errorf("invalid github url: %s, expected github.com/orgName/repoName or github.com/orgName/repoName/folder", sourceUrl)
 }
 
+type gitAuthEntry struct {
+	user     string
+	key      []byte
+	password string
+}
+
+// loadGitKey gets the git key from the config and loads the key from disk
+func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
+	authEntry, ok := s.config.GitAuth[gitAuth]
+	if !ok {
+		return nil, fmt.Errorf("git auth entry %s not found in server config", gitAuth)
+	}
+
+	gitKey, err := os.ReadFile(authEntry.KeyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading git key %s: %w", authEntry.KeyFilePath, err)
+	}
+
+	user := "git" // https://github.com/src-d/go-git/issues/637, default to "git"
+	if authEntry.UserID != "" {
+		user = authEntry.UserID
+	}
+
+	return &gitAuthEntry{
+		user:     user,
+		key:      gitKey,
+		password: authEntry.Password,
+	}, nil
+}
+
 func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
@@ -665,9 +696,24 @@ func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 	}
 
 	if appEntry.Metadata.GitCommit == "" {
+		// No commit id specified, checkout specified branch
 		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(appEntry.Metadata.GitBranch)
 		cloneOptions.SingleBranch = true
 		cloneOptions.Depth = 1
+	}
+
+	if appEntry.Metadata.GitAuthName != "" {
+		// Auth is specified, load the key
+		authEntry, err := s.loadGitKey(appEntry.Metadata.GitAuthName)
+		if err != nil {
+			return err
+		}
+		s.Info().Msgf("Using git auth %s", authEntry.user)
+		auth, err := ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
+		if err != nil {
+			return err
+		}
+		cloneOptions.Auth = auth
 	}
 
 	// Configure the repo to Clone
@@ -707,6 +753,7 @@ func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 		return err
 	}
 	// Update the git info into the appEntry, the caller needs to persist it
+	appEntry.Metadata.GitCommit = commit.Hash.String()
 	s.Info().Msgf("Cloned git repo %s %s:%s folder %s to %s, commit %s: %s", repo, appEntry.Metadata.GitBranch, appEntry.Metadata.GitCommit, folder, tmpDir, commit.Hash.String(), commit.Message)
 	checkoutFolder := tmpDir
 	if folder != "" {

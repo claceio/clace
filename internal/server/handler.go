@@ -293,9 +293,10 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	}
 
 	appEntry.Metadata = utils.Metadata{
-		Version:   1,
-		GitBranch: appRequest.GitBranch,
-		GitCommit: appRequest.GitCommit,
+		Version:     1,
+		GitBranch:   appRequest.GitBranch,
+		GitCommit:   appRequest.GitCommit,
+		GitAuthName: appRequest.GitAuthName,
 	}
 
 	auditResult, err := h.server.CreateApp(&appEntry, approve)

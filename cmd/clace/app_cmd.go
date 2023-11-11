@@ -37,6 +37,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, newStringFlag("auth_type", "", "The authentication type to use: can be default or none", "default"))
 	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
+	flags = append(flags, newStringFlag("git_auth", "", "The name of the git_auth entry to use", ""))
 
 	return &cli.Command{
 		Name:      "create",
@@ -52,6 +53,7 @@ Create app for development (source has to be disk): clace app create --approve -
 Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
+Create app using git url, with git private key auth: clace app create --approve --git_auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
 Create app for specified domain, no auth : clace app create --domain clace.example.com --approve --auth_type=none / github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
@@ -66,13 +68,14 @@ Create app for specified domain, no auth : clace app create --domain clace.examp
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 
 			body := utils.CreateAppRequest{
-				SourceUrl:  cCtx.Args().Get(1),
-				IsDev:      cCtx.Bool("is_dev"),
-				AutoSync:   cCtx.Bool("auto_sync"),
-				AutoReload: cCtx.Bool("auto_reload"),
-				AppAuthn:   utils.AppAuthnType(cCtx.String("auth_type")),
-				GitBranch:  cCtx.String("branch"),
-				GitCommit:  cCtx.String("commit"),
+				SourceUrl:   cCtx.Args().Get(1),
+				IsDev:       cCtx.Bool("is_dev"),
+				AutoSync:    cCtx.Bool("auto_sync"),
+				AutoReload:  cCtx.Bool("auto_reload"),
+				AppAuthn:    utils.AppAuthnType(cCtx.String("auth_type")),
+				GitBranch:   cCtx.String("branch"),
+				GitCommit:   cCtx.String("commit"),
+				GitAuthName: cCtx.String("git_auth"),
 			}
 			var auditResult utils.AuditResult
 			err := client.Post("/_clace/app"+cCtx.Args().Get(0), values, body, &auditResult)
