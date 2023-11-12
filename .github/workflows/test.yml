@@ -37,6 +37,8 @@ jobs:
       - name: Test with Go
         run: go test -json ./... > TestResults-${{ matrix.go-version }}.json
       - name: Test CLI
+        env:
+          CL_INFOCLACE_SSH: ${{ secrets.CL_INFOCLACE_SSH }}
         run: |
           export CL_HOME=`pwd`
           go install github.com/commander-cli/commander/v2/cmd/commander@latest
