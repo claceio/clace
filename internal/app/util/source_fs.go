@@ -10,12 +10,15 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/claceio/clace/internal/utils"
 )
@@ -260,5 +263,82 @@ func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If this is a request without Range headers and gzip encoding is accepted,
+	// Return the data which is already in a compressed form
+	served, err := h.serveCompressed(w, r, filename, fi.ModTime(), seeker)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if served {
+		return
+	}
+
 	http.ServeContent(w, r, filename, fi.ModTime(), seeker)
+}
+
+const COMPRESSION_TYPE = "gzip"
+
+func (h *fsHandler) canServeCompressed(r *http.Request) bool {
+	rangeHeader := r.Header.Get("Range")
+	if rangeHeader != "" {
+		// Range headers are being used, fallback to http.ServeContent
+		return false
+	}
+
+	encodingHeader := r.Header.Get("Accept-Encoding")
+	acceptedEncodings := strings.Split(strings.ToLower(encodingHeader), ",")
+	gzipMatchFound := false
+
+	for _, acceptedEncoding := range acceptedEncodings {
+		if strings.TrimSpace(acceptedEncoding) == COMPRESSION_TYPE {
+			gzipMatchFound = true
+			break
+		}
+	}
+
+	return gzipMatchFound
+}
+
+var unixEpochTime = time.Unix(0, 0)
+
+// serveCompressed checks if the compressed file data can be streamed directly to the client, without
+// the need to decompress and then recompress. If the client accepts gzipped data and there are no range headers, then this
+// optimization can be used.
+func (h *fsHandler) serveCompressed(w http.ResponseWriter, r *http.Request, filename string, modtime time.Time, content io.ReadSeeker) (bool, error) {
+	if !h.canServeCompressed(r) {
+		return false, nil
+	}
+
+	compressedReader, ok := content.(utils.CompressedReader)
+	if !ok {
+		return false, nil
+	}
+
+	data, compressionType, err := compressedReader.ReadCompressed()
+	if err != nil {
+		return false, err
+	}
+
+	if compressionType != COMPRESSION_TYPE {
+		// the data is not compressed with gzip, fallback to http.ServeContent
+		return false, nil
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(filename))
+	if contentType == "" {
+		return false, nil
+	}
+
+	if !modtime.IsZero() && !modtime.Equal(unixEpochTime) {
+		w.Header().Set("Last-Modified", modtime.UTC().Format(http.TimeFormat))
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Encoding", COMPRESSION_TYPE)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+	w.Header().Set("X-Clace-Compressed", "true")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+
+	return true, nil
 }

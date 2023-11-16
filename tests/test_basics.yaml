@@ -63,6 +63,13 @@ tests:
     command: ../clace app create --auth_type=none /test2 ./testapp
     exit-code: 0
 
+  basic161: ## Check static files are using optimized fetch path (no compression/decompression)
+    ## The data should be streamed directly from sqlite. x-clace-compressed header should be true
+    command: 'curl -sI -H "Accept-Encoding: gzip" localhost:9154/test2/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js | grep -e "X-Clace-Compressed: true" -e "Content-Encoding: gzip" -e "Content-Length: 14213" | wc -l'
+    stdout:
+      exactly: "3"
+    exit-code: 0
+
   basic170: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test2
     stdout: "Test app body"

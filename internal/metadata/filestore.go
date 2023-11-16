@@ -10,7 +10,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"strings"
@@ -110,31 +109,19 @@ func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch, commit_message
 	return nil
 }
 
-func (f *FileStore) GetFileBySha(sha string) ([]byte, error) {
+func (f *FileStore) GetFileBySha(sha string) ([]byte, string, error) {
 	stmt, err := f.db.Prepare("SELECT compression_type , content FROM files where sha = ?")
 	if err != nil {
-		return nil, fmt.Errorf("error preparing statement: %w", err)
+		return nil, "", fmt.Errorf("error preparing statement: %w", err)
 	}
 	row := stmt.QueryRow(sha)
 	var compressionType string
 	var content []byte
 	if err := row.Scan(&compressionType, &content); err != nil {
-		return nil, fmt.Errorf("error querying file table: %w", err)
+		return nil, "", fmt.Errorf("error querying file table: %w", err)
 	}
 
-	retBytes := content
-	if compressionType == "gzip" {
-		gz, err := gzip.NewReader(bytes.NewReader(content))
-		if err != nil {
-			return nil, err
-		}
-		defer gz.Close()
-		if retBytes, err = io.ReadAll(gz); err != nil {
-			return nil, err
-		}
-	}
-
-	return retBytes, nil
+	return content, compressionType, nil
 }
 
 func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {

@@ -173,6 +173,10 @@ type ReadableFS interface {
 	Stat(name string) (fs.FileInfo, error)
 }
 
+type CompressedReader interface {
+	ReadCompressed() (data []byte, compressionType string, err error)
+}
+
 // WritableFS is the interface for the writable underlying file system used by AppFS
 type WritableFS interface {
 	ReadableFS

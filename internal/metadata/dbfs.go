@@ -5,6 +5,9 @@ package metadata
 
 import (
 	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
 	"io/fs"
 	"path"
 	"time"
@@ -34,20 +37,19 @@ func NewDbFs(logger *utils.Logger, fileStore *FileStore) (*DbFs, error) {
 
 type DbFile struct {
 	name   string
-	data   []byte
 	fi     DbFileInfo
-	reader *bytes.Reader
+	reader *DbFileReader
 }
 
 var _ fs.File = (*DbFile)(nil)
 
-func NewDBFile(name string, data []byte, fi DbFileInfo) *DbFile {
-	reader := bytes.NewReader(data)
-	return &DbFile{name: name, data: data, reader: reader, fi: fi}
+func NewDBFile(name string, compressionType string, data []byte, fi DbFileInfo) *DbFile {
+	reader := NewbFileReader(compressionType, data)
+	return &DbFile{name: name, fi: fi, reader: reader}
 }
 
-func (f *DbFile) Seek(offset int64, whence int) (int64, error) {
-	return f.reader.Seek(offset, whence)
+func (f *DbFile) Read(dst []byte) (int, error) {
+	return f.reader.Read(dst)
 }
 
 func (f *DbFile) Name() string {
@@ -58,12 +60,77 @@ func (f *DbFile) Stat() (fs.FileInfo, error) {
 	return &f.fi, nil
 }
 
-func (f *DbFile) Read(dst []byte) (int, error) {
-	return f.reader.Read(dst)
+func (f *DbFile) Seek(offset int64, whence int) (int64, error) {
+	// Seek is called by http.ServeContent in source_fs for the unoptimized case only
+	// The data is decompressed and then recompressed if required in the unoptimized case
+	return f.reader.Seek(offset, whence)
+}
+
+func (f *DbFile) ReadCompressed() ([]byte, string, error) {
+	return f.reader.ReadCompressed()
 }
 
 func (f *DbFile) Close() error {
 	return nil
+}
+
+type DbFileReader struct {
+	compressionType    string
+	compressedReader   *bytes.Reader
+	uncompressedReader *bytes.Reader
+}
+
+var _ io.ReadSeeker = (*DbFileReader)(nil)
+var _ utils.CompressedReader = (*DbFileReader)(nil)
+
+func NewbFileReader(compressionType string, data []byte) *DbFileReader {
+	compressedReader := bytes.NewReader(data)
+	return &DbFileReader{compressionType: compressionType, compressedReader: compressedReader}
+}
+
+func (f *DbFileReader) uncompress() error {
+	if f.compressionType == "" {
+		f.uncompressedReader = f.compressedReader
+	} else if f.compressionType == "gzip" {
+		gz, err := gzip.NewReader(f.compressedReader)
+		if err != nil {
+			return err
+		}
+		defer gz.Close()
+		uncompressed, err := io.ReadAll(gz)
+		if err != nil {
+			return err
+		}
+		f.uncompressedReader = bytes.NewReader(uncompressed)
+	} else {
+		return fmt.Errorf("unsupported compression type: %s", f.compressionType)
+	}
+	return nil
+}
+
+func (f *DbFileReader) Seek(offset int64, whence int) (int64, error) {
+	if f.uncompressedReader == nil {
+		if err := f.uncompress(); err != nil {
+			return 0, err
+		}
+	}
+
+	return f.uncompressedReader.Seek(offset, whence)
+}
+
+func (f *DbFileReader) Read(dst []byte) (int, error) {
+	if f.uncompressedReader == nil {
+		if err := f.uncompress(); err != nil {
+			return 0, err
+		}
+	}
+
+	return f.uncompressedReader.Read(dst)
+}
+
+func (f *DbFileReader) ReadCompressed() ([]byte, string, error) {
+	data, err := io.ReadAll(f.compressedReader)
+	return data, f.compressionType, err
 }
 
 type DbFileInfo struct {
@@ -100,11 +167,11 @@ func (d *DbFs) Open(name string) (fs.File, error) {
 	if !ok {
 		return nil, fs.ErrNotExist
 	}
-	fileBytes, err := d.fileStore.GetFileBySha(fi.sha)
+	fileBytes, compressionType, err := d.fileStore.GetFileBySha(fi.sha)
 	if err != nil {
 		return nil, err
 	}
-	return NewDBFile(name, fileBytes, fi), nil
+	return NewDBFile(name, compressionType, fileBytes, fi), nil
 }
 
 func (d *DbFs) ReadFile(name string) ([]byte, error) {
@@ -112,10 +179,25 @@ func (d *DbFs) ReadFile(name string) ([]byte, error) {
 	if !ok {
 		return nil, fs.ErrNotExist
 	}
-	fileBytes, err := d.fileStore.GetFileBySha(fi.sha)
+	fileBytes, compressionType, err := d.fileStore.GetFileBySha(fi.sha)
 	if err != nil {
 		return nil, err
 	}
+	if compressionType != "" {
+		if compressionType != "gzip" {
+			return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
+		}
+		gz, err := gzip.NewReader(bytes.NewReader(fileBytes))
+		if err != nil {
+			return nil, err
+		}
+		defer gz.Close()
+		fileBytes, err = io.ReadAll(gz)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return fileBytes, err
 
 }
