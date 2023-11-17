@@ -60,14 +60,12 @@ func (d *DiskReadFS) ReadFile(name string) ([]byte, error) {
 }
 
 func (d *DiskReadFS) makeAbsolute(name string) (string, error) {
-	absRoot, err := filepath.Abs(d.root)
-	if err != nil {
-		return "", err
-	}
+	cleanRoot := filepath.Clean(d.root)
 
-	if !strings.HasPrefix(name, absRoot) {
+	if !strings.HasPrefix(name, "/") && !strings.HasPrefix(name, d.root) && !strings.HasPrefix(name, cleanRoot) {
 		name = path.Join(d.root, name)
 	}
+
 	return name, nil
 }
 
