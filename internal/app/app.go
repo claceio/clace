@@ -202,7 +202,9 @@ func (a *App) Reload(force bool) (bool, error) {
 		// Start the watcher for CSS files unless disabled
 		if !a.appDev.AppStyle.DisableWatcher {
 			if err = a.appDev.AppStyle.StartWatcher(a.appDev); err != nil {
-				return false, err
+				a.Warn().Err(err).Msg("Error starting tailwind watcher")
+				fmt.Printf("Error: %s\n", err)
+				// Allow the app to start even if the watcher fails
 			}
 		} else if err := a.appDev.AppStyle.StopWatcher(); err != nil {
 			return false, err

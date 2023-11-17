@@ -249,7 +249,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *ut
 	args = append(args, "-c", path.Join(workFS.Root, "style", TAILWIND_CONFIG_FILE))
 	args = append(args, "-i", path.Join(workFS.Root, "style", "input.css"))
 	args = append(args, "-o", targetFile)
-	fmt.Printf("Running command %s args %#v", split[0], args) // TODO: log
+	fmt.Printf("Running command %s args %#v\n", split[0], args) // TODO: log
 
 	// Setup stdin/stdout for watcher process
 	if s.watcherStdout != nil {

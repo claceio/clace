@@ -170,7 +170,6 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 	}
 
 	if rules.Valid && rules.String != "" {
-		fmt.Println("rules", rules.String)
 		err = json.Unmarshal([]byte(rules.String), &app.Rules)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling rules: %w", err)
