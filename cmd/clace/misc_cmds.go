@@ -105,8 +105,6 @@ func readPassword() (string, error) {
 func getVersionCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error) {
 	return []*cli.Command{
 		{
-			Name:  "version",
-			Usage: "Print the Clace version info",
 			Action: func(cCtx *cli.Context) error {
 				return printVersion(cCtx)
 			},

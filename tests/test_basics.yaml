@@ -114,7 +114,7 @@ tests:
       exactly: "Authentication failed"
 
   basic400: # check version command output
-    command: ../clace version
+    command: ../clace --version
     stdout: "Clace version"
     stderr:
       line-count: 0

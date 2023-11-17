@@ -21,7 +21,7 @@ var (
 
 const configFileFlagName = "config_file"
 
-func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
+func getAllCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command
 	serverCommands, err := getServerCommands(serverConfig)
 	if err != nil {
@@ -38,16 +38,10 @@ func allCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientCon
 		return nil, err
 	}
 
-	versionCommands, err := getVersionCommands(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	for _, v := range [][]*cli.Command{
 		serverCommands,
 		clientCommands,
 		passwordCommands,
-		versionCommands,
 	} {
 		allCommands = append(allCommands, v...)
 	}
@@ -62,6 +56,11 @@ func globalFlags(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientCon
 			Usage:       "TOML configuration file",
 			Destination: &globalConfig.ConfigFile,
 			EnvVars:     []string{"CL_CONFIG_FILE"},
+		},
+		&cli.BoolFlag{
+			Name:    "version",
+			Aliases: []string{"v"},
+			Usage:   "Print version info",
 		},
 	}, nil
 }
@@ -100,7 +99,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	allComms, err := allCommands(globalConfig, clientConfig, serverConfig)
+	allCommands, err := getAllCommands(globalConfig, clientConfig, serverConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,6 +116,7 @@ func main() {
 				// For password command, ignore error parsing config
 				return err
 			}
+
 			return nil
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
@@ -125,7 +125,15 @@ func main() {
 				os.Exit(1)
 			}
 		},
-		Commands: allComms,
+		Commands: allCommands,
+		Action: func(ctx *cli.Context) error {
+			// Default action when no subcommand is specified
+			if ctx.Bool("version") {
+				printVersion(ctx)
+				os.Exit(0)
+			}
+			return cli.ShowAppHelp(ctx)
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
