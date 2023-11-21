@@ -37,16 +37,15 @@ const (
 
 func init() {
 	h := &httpPlugin{client: http.DefaultClient}
-	pluginMap := map[string]*app.PluginFunc{
-		"get":     app.CreatePluginApi(true, starlark.NewBuiltin("get", h.reqMethod("get"))),
-		"head":    app.CreatePluginApi(true, starlark.NewBuiltin("head", h.reqMethod("head"))),
-		"options": app.CreatePluginApi(true, starlark.NewBuiltin("options", h.reqMethod("options"))),
-		"put":     app.CreatePluginApi(false, starlark.NewBuiltin("put", h.reqMethod("put"))),
-		"post":    app.CreatePluginApi(false, starlark.NewBuiltin("post", h.reqMethod("post"))),
-		"delete":  app.CreatePluginApi(false, starlark.NewBuiltin("delete", h.reqMethod("delete"))),
-		"patch":   app.CreatePluginApi(false, starlark.NewBuiltin("patch", h.reqMethod("patch"))),
+	pluginFuncs := []app.PluginFunc{
+		app.CreatePluginApi("get", true, h.reqMethod("get")),
+		app.CreatePluginApi("head", true, h.reqMethod("head")),
+		app.CreatePluginApi("options", true, h.reqMethod("options")),
+		app.CreatePluginApi("put", false, h.reqMethod("put")),
+		app.CreatePluginApi("delete", false, h.reqMethod("delete")),
+		app.CreatePluginApi("patch", false, h.reqMethod("patch")),
 	}
-	app.RegisterPlugin("http", pluginMap)
+	app.RegisterPlugin("http", pluginFuncs)
 }
 
 type httpPlugin struct {

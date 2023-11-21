@@ -24,29 +24,36 @@ func init() {
 }
 
 // RegisterPlugin registers a plugin with Clace
-func RegisterPlugin(name string, plugin PluginMap) {
+func RegisterPlugin(name string, funcs []PluginFunc) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
 	pluginName := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
-	builtInPlugins[pluginName] = plugin
+	pluginMap := make(PluginMap)
+	for _, f := range funcs {
+		pluginMap[f.name] = f
+	}
+
+	builtInPlugins[pluginName] = pluginMap
 }
 
 // PluginMap is the plugin function mapping to PluginFuncs
-type PluginMap map[string]*PluginFunc
+type PluginMap map[string]PluginFunc
 
 // PluginFunc is the Clace plugin function mapping to starlark function
 type PluginFunc struct {
-	IsRead   bool
-	Function *starlark.Builtin
+	name     string
+	isRead   bool
+	function *starlark.Builtin
 }
 
 // CreatePluginApi creates a Clace plugin function
-func CreatePluginApi(isRead bool,
-	function *starlark.Builtin) *PluginFunc {
-	return &PluginFunc{
-		IsRead:   isRead,
-		Function: function,
+func CreatePluginApi(name string, isRead bool,
+	function func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)) PluginFunc {
+	return PluginFunc{
+		name:     name,
+		isRead:   isRead,
+		function: starlark.NewBuiltin(name, function),
 	}
 }
 
@@ -92,7 +99,7 @@ func (a *App) pluginLookup(_ *starlark.Thread, module string) (PluginMap, error)
 	return pluginDict, nil
 }
 
-func (a *App) pluginHook(module string, function string, pluginFunc *PluginFunc) *starlark.Builtin {
+func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) *starlark.Builtin {
 	hook := func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		a.Trace().Msgf("Plugin called: %s.%s", module, function)
 
@@ -138,7 +145,7 @@ func (a *App) pluginHook(module string, function string, pluginFunc *PluginFunc)
 			}
 		}
 
-		val, err := pluginFunc.Function.CallInternal(thread, args, kwargs)
+		val, err := pluginFunc.function.CallInternal(thread, args, kwargs)
 		return val, err
 	}
 

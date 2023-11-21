@@ -18,11 +18,9 @@ import (
 const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
 
 func init() {
-	// plugin := &execPlugin{}
-	plugin := map[string]*app.PluginFunc{
-		"run": app.CreatePluginApi(false, starlark.NewBuiltin("run", run)),
-	}
-	app.RegisterPlugin("exec", plugin)
+	app.RegisterPlugin("exec", []app.PluginFunc{
+		app.CreatePluginApi("run", false, run),
+	})
 }
 
 // execResponse is the response from an exec command
