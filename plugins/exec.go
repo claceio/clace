@@ -18,24 +18,11 @@ import (
 const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
 
 func init() {
-	plugin := &execPlugin{}
-	app.RegisterPlugin("exec", plugin.Struct())
-}
-
-// execPlugin is a plugin that provides OS command execution functionality
-type execPlugin struct {
-}
-
-// Struct returns this plugins's methods as a starlark Struct
-func (e *execPlugin) Struct() *starlarkstruct.Struct {
-	return starlarkstruct.FromStringDict(starlarkstruct.Default, e.StringDict())
-}
-
-// StringDict returns all plugin methods in a starlark.StringDict
-func (e *execPlugin) StringDict() starlark.StringDict {
-	return starlark.StringDict{
-		"run": starlark.NewBuiltin("run", e.run),
+	// plugin := &execPlugin{}
+	plugin := map[string]*app.PluginFunc{
+		"run": app.CreatePluginApi(false, starlark.NewBuiltin("run", run)),
 	}
+	app.RegisterPlugin("exec", plugin)
 }
 
 // execResponse is the response from an exec command
@@ -78,7 +65,7 @@ func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execR
 	}
 }
 
-func (e *execPlugin) run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		path           starlark.String
 		cmdArgs        *starlark.List

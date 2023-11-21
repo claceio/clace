@@ -36,30 +36,21 @@ const (
 )
 
 func init() {
-	plugin := &httpPlugin{client: http.DefaultClient}
-	app.RegisterPlugin("http", plugin.Struct())
+	h := &httpPlugin{client: http.DefaultClient}
+	pluginMap := map[string]*app.PluginFunc{
+		"get":     app.CreatePluginApi(true, starlark.NewBuiltin("get", h.reqMethod("get"))),
+		"head":    app.CreatePluginApi(true, starlark.NewBuiltin("head", h.reqMethod("head"))),
+		"options": app.CreatePluginApi(true, starlark.NewBuiltin("options", h.reqMethod("options"))),
+		"put":     app.CreatePluginApi(false, starlark.NewBuiltin("put", h.reqMethod("put"))),
+		"post":    app.CreatePluginApi(false, starlark.NewBuiltin("post", h.reqMethod("post"))),
+		"delete":  app.CreatePluginApi(false, starlark.NewBuiltin("delete", h.reqMethod("delete"))),
+		"patch":   app.CreatePluginApi(false, starlark.NewBuiltin("patch", h.reqMethod("patch"))),
+	}
+	app.RegisterPlugin("http", pluginMap)
 }
 
 type httpPlugin struct {
 	client *http.Client
-}
-
-// Struct returns this plugins's methods as a starlark Struct
-func (h *httpPlugin) Struct() *starlarkstruct.Struct {
-	return starlarkstruct.FromStringDict(starlarkstruct.Default, h.StringDict())
-}
-
-// StringDict returns all plugin methods in a starlark.StringDict
-func (h *httpPlugin) StringDict() starlark.StringDict {
-	return starlark.StringDict{
-		"get":     starlark.NewBuiltin("get", h.reqMethod("get")),
-		"put":     starlark.NewBuiltin("put", h.reqMethod("put")),
-		"post":    starlark.NewBuiltin("post", h.reqMethod("post")),
-		"delete":  starlark.NewBuiltin("delete", h.reqMethod("delete")),
-		"head":    starlark.NewBuiltin("head", h.reqMethod("head")),
-		"patch":   starlark.NewBuiltin("patch", h.reqMethod("patch")),
-		"options": starlark.NewBuiltin("options", h.reqMethod("options")),
-	}
 }
 
 // reqMethod is a factory function for generating starlark builtin functions for different http request methods

@@ -32,27 +32,25 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 		// The loader in audit mode is used to track the modules that are loaded.
 		// A copy of the real loader's response is returned, with builtins replaced with dummy methods,
 		// so that the audit can be run without any side effects
-		pluginDict, err := a.pluginLookup(thread, module)
+		pluginMap, err := a.pluginLookup(thread, module)
 		if err != nil {
 			return nil, err
 		}
+		moduleName := strings.TrimSuffix(module, "."+util.BUILTIN_PLUGIN_SUFFIX)
 
 		// Replace all the builtins with dummy methods
 		dummyDict := make(starlark.StringDict)
-		for k, v := range pluginDict {
-			val := make(starlark.StringDict)
-			if s, ok := v.(*starlarkstruct.Struct); ok {
-				for _, attr := range s.AttrNames() {
-					val[attr] = starlark.NewBuiltin(k, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-						a.Info().Msgf("Plugin called during audit: %s.%s.%s", module, k, attr)
-						return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
-					})
-				}
-			}
-			dummyDict[k] = starlarkstruct.FromStringDict(starlarkstruct.Default, val)
+		for name := range pluginMap {
+			dummyDict[name] = starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+				a.Info().Msgf("Plugin called during audit: %s.%s", module, name)
+				return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
+			})
 		}
 
-		return dummyDict, nil
+		ret := make(starlark.StringDict)
+		ret[moduleName] = starlarkstruct.FromStringDict(starlarkstruct.Default, dummyDict)
+
+		return ret, nil
 	}
 
 	thread := &starlark.Thread{
