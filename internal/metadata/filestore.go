@@ -6,6 +6,7 @@ package metadata
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -22,25 +23,32 @@ type FileStore struct {
 	appId   utils.AppId
 	version int
 	db      *sql.DB
+	initTx  Transaction // This is the transaction for the initial setup of the app, before it is committed to the database.
+	// After app is committed to database, this is not used, auto-commit transactions are used for reads
 }
 
-func NewFileStore(appId utils.AppId, version int, metadata *Metadata) *FileStore {
-	return &FileStore{appId: appId, version: version, db: metadata.db}
+func NewFileStore(appId utils.AppId, version int, metadata *Metadata, tx Transaction) *FileStore {
+	return &FileStore{appId: appId, version: version, db: metadata.db, initTx: tx}
 }
 
-func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch, commit_message string, checkoutDir string) error {
-	if _, err := f.db.Exec(`insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch, commit_message); err != nil {
+func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version int, gitSha, gitBranch, commit_message string, checkoutDir string) error {
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch, commit_message); err != nil {
+		return err
+	}
+
+	stageAppId := fmt.Sprintf("%s%s", f.appId, utils.STAGE_SUFFIX)
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, stageAppId, version, gitSha, gitBranch, commit_message); err != nil {
 		return err
 	}
 
 	var err error
 	var insertFileStmt *sql.Stmt
-	if insertFileStmt, err = f.db.Prepare(`insert or ignore into files (sha, compression_type, content, create_time) values (?, ?, ?, datetime('now'))`); err != nil {
+	if insertFileStmt, err = tx.PrepareContext(ctx, `insert or ignore into files (sha, compression_type, content, create_time) values (?, ?, ?, datetime('now'))`); err != nil {
 		return err
 	}
 
 	var insertAppFileStmt *sql.Stmt
-	if insertAppFileStmt, err = f.db.Prepare(`insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
+	if insertAppFileStmt, err = tx.PrepareContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
 		return err
 	}
 
@@ -97,11 +105,11 @@ func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch, commit_message
 
 		// Compressed data is written to files table. Ignore if sha is already present
 		// File contents, if same across versions and also across apps, are shared
-		if _, err = insertFileStmt.Exec(hashHex, compressionType, storeBuf); err != nil {
+		if _, err = insertFileStmt.ExecContext(ctx, hashHex, compressionType, storeBuf); err != nil {
 			return fmt.Errorf("error inserting file: %w", err)
 		}
 
-		if _, err := insertAppFileStmt.Exec(f.appId, version, path, hashHex, len(buf)); err != nil {
+		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, version, path, hashHex, len(buf)); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
 		return nil
@@ -110,7 +118,13 @@ func (f *FileStore) AddAppVersion(version int, gitSha, gitBranch, commit_message
 }
 
 func (f *FileStore) GetFileBySha(sha string) ([]byte, string, error) {
-	stmt, err := f.db.Prepare("SELECT compression_type , content FROM files where sha = ?")
+	var stmt *sql.Stmt
+	var err error
+	if f.initTx.IsInitialized() {
+		stmt, err = f.initTx.Prepare("SELECT compression_type , content FROM files where sha = ?")
+	} else {
+		stmt, err = f.db.Prepare("SELECT compression_type , content FROM files where sha = ?")
+	}
 	if err != nil {
 		return nil, "", fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -125,7 +139,13 @@ func (f *FileStore) GetFileBySha(sha string) ([]byte, string, error) {
 }
 
 func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {
-	stmt, err := f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+	var stmt *sql.Stmt
+	var err error
+	if f.initTx.IsInitialized() {
+		stmt, err = f.initTx.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+	} else {
+		stmt, err = f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}

@@ -360,7 +360,7 @@ func isGit(url string) bool {
 		strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
 }
 
-func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
+func (s *Server) CreateApp(ctx context.Context, appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
 	if isGit(appEntry.SourceUrl) && appEntry.IsDev {
 		return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
 	}
@@ -369,39 +369,47 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 	if err != nil {
 		return nil, err
 	}
-	appEntry.Id = utils.AppId("app" + id.String())
-	err = s.db.CreateApp(appEntry)
+
+	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cleanupApp := true
-	defer func() {
-		if cleanupApp {
-			s.Info().Msgf("Deleting app %s %s", appEntry.Path, appEntry.Id)
-			s.db.DeleteApp(utils.AppPathDomain{Path: appEntry.Path, Domain: appEntry.Domain})
+	defer tx.Rollback()
+
+	appEntry.Id = utils.AppId("app" + id.String())
+	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
+		return nil, err
+	}
+
+	// Create the stage app entry if not dev
+	stageAppEntry := *appEntry
+	if !appEntry.IsDev {
+		stageAppEntry.Path = appEntry.Path + utils.STAGE_SUFFIX
+		stageAppEntry.Id = utils.AppId(string(appEntry.Id) + utils.STAGE_SUFFIX)
+		stageAppEntry.MainApp = appEntry.Id
+		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
+			return nil, err
 		}
-	}()
+	}
 
 	if isGit(appEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
-		if err := s.loadSourceFromGit(appEntry); err != nil {
+		if err := s.loadSourceFromGit(ctx, tx, appEntry); err != nil {
 			return nil, err
 		}
 	} else if !appEntry.IsDev {
 		// App is loaded from disk (not git) and not in dev mode, load files into DB
-		if err := s.loadSourceFromDisk(appEntry); err != nil {
+		if err := s.loadSourceFromDisk(ctx, tx, appEntry); err != nil {
 			return nil, err
 		}
 	}
 
-	application, err := s.setupApp(appEntry)
+	application, err := s.setupApp(appEntry, tx)
 	if err != nil {
 		return nil, err
 	}
 
-	s.apps.AddApp(application)
 	s.Debug().Msgf("Created app %s %s", appEntry.Path, appEntry.Id)
-
 	auditResult, err := application.Audit()
 	if err != nil {
 		return nil, fmt.Errorf("App %s audit failed: %s", appEntry.Id, err)
@@ -410,25 +418,39 @@ func (s *Server) CreateApp(appEntry *utils.AppEntry, approve bool) (*utils.Audit
 	if approve {
 		appEntry.Loads = auditResult.NewLoads
 		appEntry.Permissions = auditResult.NewPermissions
-		s.db.UpdateAppPermissions(appEntry)
+		s.db.UpdateAppPermissions(ctx, tx, appEntry)
 		s.Info().Msgf("Approved app %s %s: %+v %+v", appEntry.Domain, appEntry.Path, auditResult.NewLoads, auditResult.NewPermissions)
 	}
 
 	// Persist the metadata so that any git info is saved
-	if err := s.db.UpdateAppMetadata(appEntry); err != nil {
+	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
 		return nil, err
 	}
-	cleanupApp = false
+
+	// Update the staged app metadata also
+	if !appEntry.IsDev {
+		stageAppUpdate := *appEntry
+		stageAppUpdate.Id = stageAppEntry.Id
+		stageAppUpdate.Path = appEntry.Path + utils.STAGE_SUFFIX
+		if err := s.db.UpdateAppMetadata(ctx, tx, &stageAppUpdate); err != nil {
+			return nil, err
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	return auditResult, nil
 }
 
-func (s *Server) setupApp(appEntry *utils.AppEntry) (*app.App, error) {
+func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
 	var sourceFS *util.SourceFs
 	if !appEntry.IsDev {
 		// Prod mode, use DB as source
-		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
+		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db, tx)
 		dbFs, err := metadata.NewDbFs(s.Logger, fileStore)
 		if err != nil {
 			return nil, err
@@ -457,7 +479,7 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 			return nil, err
 		}
 
-		application, err = s.setupApp(appEntry)
+		application, err = s.setupApp(appEntry, metadata.Transaction{})
 		if err != nil {
 			return nil, err
 		}
@@ -476,14 +498,27 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 	return application, nil
 }
 
-func (s *Server) DeleteApp(pathDomain utils.AppPathDomain) error {
-	err := s.db.DeleteApp(pathDomain)
+func (s *Server) DeleteApp(ctx context.Context, pathDomain utils.AppPathDomain) error {
+	app, err := s.GetApp(pathDomain, false)
 	if err != nil {
 		return err
 	}
-	err = s.apps.DeleteApp(pathDomain)
+
+	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.db.DeleteApp(ctx, tx, app.AppEntry.Id); err != nil {
+		return err
+	}
+	if err := s.apps.DeleteApp(pathDomain); err != nil {
 		return fmt.Errorf("error deleting app: %s", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -591,7 +626,7 @@ func (s *Server) MatchAppForDomain(domain, matchPath string) (string, error) {
 	return matchedApp, nil
 }
 
-func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.AuditResult, error) {
+func (s *Server) AuditApp(ctx context.Context, pathDomain utils.AppPathDomain, approve bool) (*utils.AuditResult, error) {
 	app, err := s.GetApp(pathDomain, false)
 	if err != nil {
 		return nil, err
@@ -603,12 +638,22 @@ func (s *Server) AuditApp(pathDomain utils.AppPathDomain, approve bool) (*utils.
 	}
 
 	if approve {
+		tx, err := s.db.BeginTransaction(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
 		app.AppEntry.Loads = auditResult.NewLoads
 		app.AppEntry.Permissions = auditResult.NewPermissions
-		if err := s.db.UpdateAppPermissions(app.AppEntry); err != nil {
+		if err := s.db.UpdateAppPermissions(ctx, tx, app.AppEntry); err != nil {
 			return nil, err
 		}
 		s.Info().Msgf("Approved app %s %s: %+v %+v", pathDomain.Path, pathDomain.Domain, auditResult.NewLoads, auditResult.NewPermissions)
+
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
 	}
 
 	return auditResult, nil
@@ -676,7 +721,7 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 	}, nil
 }
 
-func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
+func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) error {
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
 	if err != nil {
@@ -762,20 +807,20 @@ func (s *Server) loadSourceFromGit(appEntry *utils.AppEntry) error {
 
 	s.Info().Msgf("Loading app sources from %s", checkoutFolder)
 	// Walk the local directory and add all files to the database
-	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
-	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, commit.Hash.String(), appEntry.Metadata.GitBranch, commit.Message, checkoutFolder); err != nil {
+	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db, tx)
+	if err := fileStore.AddAppVersion(ctx, tx, appEntry.Metadata.Version, commit.Hash.String(), appEntry.Metadata.GitBranch, commit.Message, checkoutFolder); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *Server) loadSourceFromDisk(appEntry *utils.AppEntry) error {
+func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) error {
 	appEntry.Metadata.GitBranch = ""
 	appEntry.Metadata.GitCommit = ""
-	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db)
+	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.Version, s.db, tx)
 	// Walk the local directory and add all files to the database
-	if err := fileStore.AddAppVersion(appEntry.Metadata.Version, "", "", "", appEntry.SourceUrl); err != nil {
+	if err := fileStore.AddAppVersion(ctx, tx, appEntry.Metadata.Version, "", "", "", appEntry.SourceUrl); err != nil {
 		return err
 	}
 	return nil

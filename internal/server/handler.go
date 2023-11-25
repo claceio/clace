@@ -299,7 +299,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		GitAuthName: appRequest.GitAuthName,
 	}
 
-	auditResult, err := h.server.CreateApp(&appEntry, approve)
+	auditResult, err := h.server.CreateApp(r.Context(), &appEntry, approve)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -311,7 +311,7 @@ func (h *Handler) deleteApp(r *http.Request) (any, error) {
 	domain := r.URL.Query().Get("domain")
 
 	appPath = normalizePath(appPath)
-	err := h.server.DeleteApp(utils.CreateAppPathDomain(appPath, domain))
+	err := h.server.DeleteApp(r.Context(), utils.CreateAppPathDomain(appPath, domain))
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -332,7 +332,7 @@ func (h *Handler) auditApp(r *http.Request) (any, error) {
 	}
 
 	appPath = normalizePath(appPath)
-	auditResult, err := h.server.AuditApp(utils.CreateAppPathDomain(appPath, domain), approve)
+	auditResult, err := h.server.AuditApp(r.Context(), utils.CreateAppPathDomain(appPath, domain), approve)
 	return auditResult, err
 }
 

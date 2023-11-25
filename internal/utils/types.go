@@ -11,6 +11,7 @@ import (
 const (
 	INTERNAL_URL_PREFIX     = "/_clace"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
+	STAGE_SUFFIX            = "_cl_stage"
 )
 
 // Config entries shared between client and server
@@ -150,6 +151,7 @@ type AuditResult struct {
 type AppEntry struct {
 	Id          AppId        `json:"id"`
 	Path        string       `json:"path"`
+	MainApp     AppId        `json:"linked_app"` // the id of the app that this app is linked to
 	Domain      string       `json:"domain"`
 	SourceUrl   string       `json:"source_url"`
 	IsDev       bool         `json:"is_dev"`
