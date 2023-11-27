@@ -418,7 +418,17 @@ func (s *Server) CreateApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	if approve {
 		appEntry.Loads = auditResult.NewLoads
 		appEntry.Permissions = auditResult.NewPermissions
-		s.db.UpdateAppPermissions(ctx, tx, appEntry)
+		if err := s.db.UpdateAppPermissions(ctx, tx, appEntry); err != nil {
+			return nil, err
+		}
+
+		if !appEntry.IsDev {
+			stageAppEntry.Loads = auditResult.NewLoads
+			stageAppEntry.Permissions = auditResult.NewPermissions
+			if err := s.db.UpdateAppPermissions(ctx, tx, &stageAppEntry); err != nil {
+				return nil, err
+			}
+		}
 		s.Info().Msgf("Approved app %s %s: %+v %+v", appEntry.Domain, appEntry.Path, auditResult.NewLoads, auditResult.NewPermissions)
 	}
 

@@ -102,7 +102,7 @@ func (m *Metadata) VersionUpgrade() error {
 		}
 	}
 
-	if version < 1 {
+	if version < 2 {
 		m.Info().Msg("Upgrading to version 2")
 		if err := m.initFileTables(ctx, tx); err != nil {
 			return err
@@ -114,7 +114,6 @@ func (m *Metadata) VersionUpgrade() error {
 
 	if version < 3 {
 		m.Info().Msg("Upgrading to version 3")
-
 		if _, err := tx.ExecContext(ctx, `alter table apps add column main_app text default ""`); err != nil {
 			return err
 		}

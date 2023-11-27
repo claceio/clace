@@ -112,6 +112,11 @@ func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version i
 		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, version, path, hashHex, len(buf)); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
+
+		if _, err := insertAppFileStmt.ExecContext(ctx, stageAppId, version, path, hashHex, len(buf)); err != nil {
+			return fmt.Errorf("error inserting app file: %w", err)
+		}
+
 		return nil
 	})
 	return nil

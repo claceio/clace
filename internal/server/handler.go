@@ -186,14 +186,35 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	return r
 }
 
-func normalizePath(path string) string {
-	if len(path) == 0 || path[0] != '/' {
-		path = "/" + path
+func normalizePath(inp string) string {
+	if len(inp) == 0 || inp[0] != '/' {
+		inp = "/" + inp
 	}
-	if len(path) > 1 {
-		path = strings.TrimRight(path, "/")
+	if len(inp) > 1 {
+		inp = strings.TrimRight(inp, "/")
 	}
-	return path
+	return inp
+}
+
+func validatePath(inp string) error {
+	if strings.Contains(inp, "/..") {
+		return fmt.Errorf("path cannot contain '/..'")
+	}
+	if strings.Contains(inp, "../") {
+		return fmt.Errorf("path cannot contain '../'")
+	}
+	if strings.Contains(inp, "/./") {
+		return fmt.Errorf("path cannot contain '/./'")
+	}
+	if strings.HasSuffix(inp, "/.") {
+		return fmt.Errorf("path cannot end with '/.'")
+	}
+	parts := strings.Split(inp, "/")
+	lastPart := parts[len(parts)-1]
+	if strings.Contains(lastPart, "_cl_") {
+		return fmt.Errorf("last section of path cannot contain _cl_, clace reserved path")
+	}
+	return nil
 }
 
 func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasicAuth bool, apiFunc func(r *http.Request) (any, error)) {
@@ -260,6 +281,10 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	}
 
 	appPath = normalizePath(appPath)
+	if err := validatePath(appPath); err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
 	matchedApp, err := h.server.MatchAppForDomain(domain, appPath)
 	if err != nil {
 		return nil, utils.CreateRequestError(
