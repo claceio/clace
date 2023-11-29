@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Secure internal web application platform</p>
+  <p align="center">Web App Self-Hosting Made Easy</p>
 </p>
 
 ### Menu
@@ -45,10 +45,10 @@ The dev time features supported currently by Clace are:
 
 The deployment features supported currently by Clace are:
 
-- Backend app code run in a [security sandbox](https://clace.io/docs/applications/appsecurity/#security-model), with allowlist based permissions.
+- Backend app code runs in a [security sandbox](https://clace.io/docs/applications/appsecurity/#security-model), with allowlist based permissions.
 - [No build step](https://clace.io/docs/app/overview/#app-lifecycle), the development artifacts are ready for production use.
 - Support for github integration, apps being directly deployed from github code.
-- Database backed application file system, for atomic version updates and rollbacks.
+- Database backed file system, for atomic version updates and rollbacks.
 - Zero downtime application updates.
 - Scalable backend, all performance critical code is in Go, only application handler code is in Starlark.
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
