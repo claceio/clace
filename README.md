@@ -22,9 +22,9 @@
 
 ## Overview
 
-Clace is an open-source Apache-2.0 licensed project building a platform to develop and deploy secure internal web applications. Clace provides a web application server focussed on securely running multiple applications on a single installation. Clace apps are [Hypermedia driven](https://hypermedia.systems/hypermedia-reintroduction) full stack web applications.
+Clace is an open-source Apache-2.0 licensed web application server which makes self-hosting web applications easy. Clace securely runs multiple applications on a single server installation. Clace apps are [Hypermedia driven](https://hypermedia.systems/hypermedia-reintroduction) full stack web applications.
 
-The project implements an application server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
+The project implements a server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo.
 
@@ -32,7 +32,7 @@ This repo hosts the source code for Clace server and client. The source for the 
 
 ### Development Features
 
-The dev time features supported currently by Clace are:
+The development features supported currently by Clace are:
 
 - Hypermedia driven backend [API design](https://clace.io/docs/app/routing/), simplifying UI development.
 - Dynamic reload using SSE (Server Sent Events) for all application changes, backend and frontend.
@@ -54,6 +54,7 @@ The deployment features supported currently by Clace are:
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
 - Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function), enabling aggressive static content caching.
 - [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
+- Staging mode for app updates, to verify whether changes work before making them live.
 
 ## Roadmap
 
@@ -63,7 +64,6 @@ Clace is early in its development. The feature roadmap for Clace is:
 - Support for SSO with SAML.
 - All plugins are internal (built into Clace binary) currently. The plan is to move to an external plugin model, plugins being loaded dynamically using [go-plugin](https://github.com/hashicorp/go-plugin).
 - SQLite is used for metadata storage currently. Support for postgres and other systems is planned.
-- Staging mode for app updates, to verify whether changes work before making them live.
 - Support for workflow jobs, which would have a form based interface with limited customizability, but with support for triggered and scheduled execution.
 - Support for application data persistance.
 - UI interface for Clace admin operations.
