@@ -11,7 +11,8 @@ import (
 const (
 	INTERNAL_URL_PREFIX     = "/_clace"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
-	STAGE_SUFFIX            = "_cl_stage"
+	INTERNAL_APP_DELIM      = "_cl_"
+	STAGE_SUFFIX            = INTERNAL_APP_DELIM + "stage"
 )
 
 // Config entries shared between client and server
@@ -99,6 +100,10 @@ type AppId string
 type AppPathDomain struct {
 	Path   string
 	Domain string
+}
+
+func (a AppPathDomain) String() string {
+	return a.Domain + ":" + a.Path
 }
 
 func CreateAppPathDomain(path, domain string) AppPathDomain {
