@@ -36,7 +36,7 @@ func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version i
 		return err
 	}
 
-	stageAppId := fmt.Sprintf("%s%s", f.appId, utils.STAGE_SUFFIX)
+	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STG, string(f.appId)[len(utils.ID_PREFIX_APP_PRD):])
 	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, stageAppId, version, gitSha, gitBranch, commit_message); err != nil {
 		return err
 	}

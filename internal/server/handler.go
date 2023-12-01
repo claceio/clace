@@ -151,12 +151,9 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
 
-	// Get app
-	r.Get("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.getApp)
-	}))
-	r.Get("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.getApp)
+	// Get apps
+	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.getApps)
 	}))
 
 	// Create app
@@ -228,7 +225,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}
 
 	resp, err := apiFunc(r)
-	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Interface("resp", resp).Err(err).Msg("API Received request")
+	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Err(err).Msg("API Received request")
 	if err != nil {
 		if reqError, ok := err.(utils.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")
@@ -246,7 +243,6 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 		return
 	}
 	w.Header().Add("Content-Type", "application/json")
-	h.Info().Msgf("response: %+v", resp)
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		h.Error().Err(err).Msg("error encoding response")
@@ -255,17 +251,37 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}
 }
 
-func (h *Handler) getApp(r *http.Request) (any, error) {
-	appPath := chi.URLParam(r, "*")
-	domain := r.URL.Query().Get("domain")
+func (h *Handler) getApps(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	internalStr := r.URL.Query().Get("internal")
+	internal := false
+	if internalStr != "" {
+		var err error
+		if internal, err = strconv.ParseBool(internalStr); err != nil {
+			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		}
+	}
 
-	appPath = normalizePath(appPath)
-	app, err := h.server.GetApp(utils.CreateAppPathDomain(appPath, domain), false)
+	apps, err := h.server.GetAllApps(internal)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusNotFound)
 	}
 
-	return app.AppEntry, nil
+	filteredApps, err := parseAppPathSpec(appPath, apps)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	ret := utils.AppListResponse{Apps: make([]utils.AppResponse, 0, len(filteredApps))}
+	for _, app := range filteredApps {
+		retApp, err := h.server.GetApp(app, false)
+		if err != nil {
+			return nil, utils.CreateRequestError(err.Error(), http.StatusInternalServerError)
+		}
+		ret.Apps = append(ret.Apps, utils.AppResponse{AppEntry: *retApp.AppEntry})
+	}
+
+	return ret, nil
 }
 
 func (h *Handler) createApp(r *http.Request) (any, error) {

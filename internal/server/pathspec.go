@@ -16,7 +16,7 @@ import (
 // glob patters are supported, *:** matches all apps.
 func parseAppPathSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDomain, error) {
 	if pathSpec == "" {
-		return nil, fmt.Errorf("path spec cannot be empty")
+		pathSpec = "*:**"
 	}
 	split := strings.Split(pathSpec, ":")
 	if len(split) > 2 {

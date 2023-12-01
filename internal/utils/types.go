@@ -9,6 +9,9 @@ import (
 )
 
 const (
+	ID_PREFIX_APP_PRD       = "app_prd_"
+	ID_PREFIX_APP_DEV       = "app_dev_"
+	ID_PREFIX_APP_STG       = "app_stg_"
 	INTERNAL_URL_PREFIX     = "/_clace"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
 	INTERNAL_APP_DELIM      = "_cl_"

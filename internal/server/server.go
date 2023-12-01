@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -361,8 +362,17 @@ func isGit(url string) bool {
 }
 
 func (s *Server) CreateApp(ctx context.Context, appEntry *utils.AppEntry, approve bool) (*utils.AuditResult, error) {
-	if isGit(appEntry.SourceUrl) && appEntry.IsDev {
-		return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
+	if isGit(appEntry.SourceUrl) {
+		if appEntry.IsDev {
+			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
+		}
+	} else {
+		// Make sure the source path is absolute
+		var err error
+		appEntry.SourceUrl, err = filepath.Abs(appEntry.SourceUrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	id, err := ksuid.NewRandom()
@@ -376,7 +386,11 @@ func (s *Server) CreateApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	}
 	defer tx.Rollback()
 
-	appEntry.Id = utils.AppId("app" + id.String())
+	if appEntry.IsDev {
+		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_DEV + id.String())
+	} else {
+		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PRD + id.String())
+	}
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
 		return nil, err
 	}
@@ -385,7 +399,7 @@ func (s *Server) CreateApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	stageAppEntry := *appEntry
 	if !appEntry.IsDev {
 		stageAppEntry.Path = appEntry.Path + utils.STAGE_SUFFIX
-		stageAppEntry.Id = utils.AppId(string(appEntry.Id) + utils.STAGE_SUFFIX)
+		stageAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_STG + string(appEntry.Id)[len(utils.ID_PREFIX_APP_PRD):])
 		stageAppEntry.MainApp = appEntry.Id
 		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
 			return nil, err
@@ -480,6 +494,10 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 	return application, nil
 }
 
+func (s *Server) GetAllApps(includeInternal bool) ([]utils.AppPathDomain, error) {
+	return s.db.GetAllApps(includeInternal)
+}
+
 func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, error) {
 	application, err := s.apps.GetApp(pathDomain)
 	if err != nil {
@@ -562,7 +580,7 @@ func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, pathDomain uti
 func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppPathDomain, error) {
 	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
 	var pathDomain utils.AppPathDomain
-	pathDomains, err := s.db.GetAllApps()
+	pathDomains, err := s.db.GetAllApps(true)
 	if err != nil {
 		return pathDomain, err
 	}

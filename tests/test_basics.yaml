@@ -1,11 +1,9 @@
 tests:
   basic010:
     command: ../clace app list /invalid # Connects over UDS
-    stderr: "error: app not found"
     stdout:
-      line-count: 0
-    exit-code: 1
-
+      line-count: 1 # Only header is printed
+    exit-code: 0
   basic020:
     command: ../clace app list --server_uri=http://localhost:9154 /invalid # Wrong password
     stderr:
@@ -24,7 +22,7 @@ tests:
 
   basic040:
     command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd /invalid # Test TLS
-    stderr: 'Get "https://localhost:9155/_clace/app/invalid": tls: failed to verify certificate'
+    stderr: "tls: failed to verify certificate"
     stdout:
       line-count: 0
     exit-code: 1
@@ -118,4 +116,48 @@ tests:
     stdout: "Clace version"
     stderr:
       line-count: 0
+    exit-code: 0
+
+  basic500: # Test app list command
+    command: ../clace app list
+    stderr:
+      line-count: 0
+    stdout:
+      line-count: 4
+      contains:
+        - "IsDev	Domain:Path"
+        - "false	/test1"
+    exit-code: 0
+  basic510: # Test app list command with internal
+    command: ../clace app list --internal
+    stderr:
+      line-count: 0
+    stdout:
+      line-count: 6 # two prod mode apps have an staging app each
+      contains:
+        - "IsDev	Domain:Path"
+        - "false	/test1"
+        - "app_stg_"
+    exit-code: 0
+
+  basic520: # Test app list command with filter
+    command: ../clace app list "*"
+    stdout:
+      line-count: 4
+  basic530: # Test app list command with domain filter
+    command: ../clace app list "invalid:*"
+    stdout:
+      line-count: 1
+    exit-code: 0
+  basic540: # Test app list command with app filter
+    command: ../clace app list /test2*
+    stdout:
+      line-count: 2
+    exit-code: 0
+  basic550: # Test app list command with jsonl format
+    command: ../clace app list --format jsonl /test2*
+    stdout:
+      contains:
+        - '"is_dev":false,'
+      line-count: 1
     exit-code: 0

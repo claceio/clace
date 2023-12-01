@@ -37,3 +37,12 @@ type CreateAppRequest struct {
 	GitCommit   string       `json:"git_commit"`
 	GitAuthName string       `json:"git_auth_name"`
 }
+
+type AppResponse struct {
+	AppEntry
+	// TODO add git info from version info
+}
+
+type AppListResponse struct {
+	Apps []AppResponse `json:"apps"`
+}

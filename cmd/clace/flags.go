@@ -11,6 +11,14 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
+const (
+	FORMAT_TABLE        = "table"
+	FORMAT_JSON         = "json"
+	FORMAT_JSONL        = "jsonl"
+	FORMAT_JSONL_PRETTY = "jsonl_pretty"
+	FORMAT_CSV          = "csv"
+)
+
 func envString(name string) string {
 	return fmt.Sprintf("CL_%s", strings.ToUpper(strings.ReplaceAll(name, ".", "_")))
 }

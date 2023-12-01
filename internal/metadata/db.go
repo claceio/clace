@@ -219,7 +219,7 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 }
 
 func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id utils.AppId) error {
-	stageAppId := utils.AppId(string(id) + utils.STAGE_SUFFIX)
+	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STG, string(id)[len(utils.ID_PREFIX_APP_PRD):])
 	if _, err := tx.ExecContext(ctx, `delete from apps where id = ? or id = ?`, id, stageAppId); err != nil {
 		return fmt.Errorf("error deleting app : %w", err)
 	}
@@ -266,8 +266,13 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 	return paths, nil
 }
 
-func (m *Metadata) GetAllApps() ([]utils.AppPathDomain, error) {
-	stmt, err := m.db.Prepare(`select domain, path from apps`)
+func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppPathDomain, error) {
+	sql := `select domain, path from apps`
+	if !includeInternal {
+		sql += ` where main_app = ''`
+	}
+
+	stmt, err := m.db.Prepare(sql)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}

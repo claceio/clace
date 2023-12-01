@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -110,33 +111,73 @@ Create app for specified domain, no auth : clace app create --domain clace.examp
 func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("domain", "", "The domain to list apps from", ""))
+	flags = append(flags, newBoolFlag("internal", "i", "Include internal apps", false))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
 
 	return &cli.Command{
 		Name:      "list",
-		Usage:     "List an app or apps",
+		Usage:     "List apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path>",
 		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() != 1 {
-				return fmt.Errorf("require one argument: <app_path>")
+			values := url.Values{}
+			values.Add("internal", fmt.Sprintf("%t", cCtx.Bool("internal")))
+			if cCtx.NArg() > 0 {
+				values.Add("appPath", cCtx.Args().Get(0))
 			}
 
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
-			values := url.Values{}
-			if cCtx.IsSet("domain") {
-				values.Add("domain", cCtx.String("domain"))
-			}
-
-			resp := make(map[string]any)
-			err := client.Get("/_clace/app"+cCtx.Args().Get(0), values, &resp)
+			var appListResponse utils.AppListResponse
+			err := client.Get("/_clace/apps", values, &appListResponse)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "%s", resp)
+			printAppList(cCtx, appListResponse.Apps, cCtx.String("format"))
 			return nil
 		},
+	}
+}
+
+func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
+	switch format {
+	case FORMAT_JSON:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		enc.SetIndent("", "  ")
+		enc.Encode(apps)
+	case FORMAT_JSONL:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		for _, app := range apps {
+			enc.Encode(app)
+		}
+	case FORMAT_JSONL_PRETTY:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		enc.SetIndent("", "  ")
+		for _, app := range apps {
+			enc.Encode(app)
+			fmt.Fprintf(cCtx.App.Writer, "\n")
+		}
+	case FORMAT_TABLE:
+		formatStrHead := "%-35s\t%-5s\t%-30s\t%-30s\n"
+		formatStrData := "%-35s\t%-5t\t%-30s\t%-30s\n" // IsDev is %t instead of %s
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "IsDev", "Domain:Path", "SourceUrl")
+		for _, app := range apps {
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, app.IsDev, formatAppName(app.Domain, app.Path), app.SourceUrl)
+		}
+	case FORMAT_CSV:
+		for _, app := range apps {
+			fmt.Fprintf(cCtx.App.Writer, "%s,%t,%s,%s\n", app.Id, app.IsDev, formatAppName(app.Domain, app.Path), app.SourceUrl)
+		}
+	default:
+		panic(fmt.Errorf("unknown format %s", format))
+	}
+}
+
+func formatAppName(domain, path string) string {
+	if domain == "" {
+		return path
+	} else {
+		return domain + ":" + path
 	}
 }
 

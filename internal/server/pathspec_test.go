@@ -73,6 +73,12 @@ func TestParseAppSpec(t *testing.T) {
 			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
+		"Match empty": {
+			spec:      "",
+			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			wantError: nil,
+		},
 		"Match **:**": {
 			spec:      "**:**",
 			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
@@ -104,10 +110,6 @@ func TestParseAppSpecErrors(t *testing.T) {
 		spec      string
 		wantError error
 	}{
-		"Match empty": {
-			spec:      "",
-			wantError: fmt.Errorf("path spec cannot be empty"),
-		},
 		"Match *:": {
 			spec:      "*:",
 			wantError: fmt.Errorf("app path spec cannot be empty"),
