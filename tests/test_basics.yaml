@@ -161,3 +161,22 @@ tests:
         - '"is_dev":false,'
       line-count: 1
     exit-code: 0
+  basic560: # Test app list command with csv format
+    command: ../clace app list --format csv /test2*
+    stdout:
+      contains:
+        - "false,/test2"
+      line-count: 1
+    exit-code: 0
+  basic570: # Test app list command with json format
+    command: ../clace app list --format json /test2*
+    stdout:
+      contains:
+        - '"is_dev": false,'
+    exit-code: 0
+  basic580: # Test app list command with jsonl_pretty format
+    command: ../clace app list --format jsonl_pretty /test2*
+    stdout:
+      contains:
+        - '"is_dev": false,'
+    exit-code: 0
