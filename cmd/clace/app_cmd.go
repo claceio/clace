@@ -119,7 +119,21 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 		Usage:     "List apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<app_path>",
+		ArgsUsage: "<app_path_filter>",
+		UsageText: `args: <app_path_filter>
+
+The <app_path_filter> defaults to "*:**", which matches all apps across all domains, including no domain.
+The domain and path are separated by a ":". app_path_filter supports a glob pattern.
+In the glob, * matches any number of characters, ** matches any number of characters including /.
+To prevent shell expansion for *, placing the path in quotes is recommended.
+
+List all apps, across domains: clace app list
+List apps at the lop level with no domain specified: clace app list "*"
+List all apps in the domain clace.example.com: clace app list "clace.example.com:**"
+List all apps with no domain specified: clace app list "**"
+List all apps with no domain, under the /utils folder: clace app list "/utils/**"
+List all apps with no domain, including staging apps, under the /utils folder: clace app list --internal "/utils/**"
+List apps at the lop level with no domain specified, with jsonl format: clace app list --format jsonl "*"`,
 		Action: func(cCtx *cli.Context) error {
 			values := url.Values{}
 			values.Add("internal", fmt.Sprintf("%t", cCtx.Bool("internal")))
