@@ -125,8 +125,8 @@ tests:
     stdout:
       line-count: 4
       contains:
-        - "IsDev	Domain:Path"
-        - "false	/test1"
+        - "IsDev	Version"
+        - "false	1"
     exit-code: 0
   basic510: # Test app list command with internal
     command: ../clace app list --internal
@@ -135,8 +135,7 @@ tests:
     stdout:
       line-count: 6 # two prod mode apps have an staging app each
       contains:
-        - "IsDev	Domain:Path"
-        - "false	/test1"
+        - "IsDev	Version"
         - "app_stg_"
     exit-code: 0
 
@@ -165,7 +164,7 @@ tests:
     command: ../clace app list --format csv /test2*
     stdout:
       contains:
-        - "false,/test2"
+        - "false,1"
       line-count: 1
     exit-code: 0
   basic570: # Test app list command with json format
@@ -175,8 +174,45 @@ tests:
         - '"is_dev": false,'
     exit-code: 0
   basic580: # Test app list command with jsonl_pretty format
-    command: ../clace app list --format jsonl_pretty /test2*
+    command: ../clace app list --format jsonl_pretty /test2
     stdout:
       contains:
         - '"is_dev": false,'
+    exit-code: 0
+  basic590: # Reload one app
+    command: ../clace app reload /test2
+    exit-code: 0
+  basic600: # After reload, prod app should be at version 1
+    command: '../clace app list --format csv /test2 | grep ",1," | wc -l'
+    stdout:
+      exactly: "1"
+    exit-code: 0
+  basic601: # After reload, stage app should be at version 2
+    command: '../clace app list --internal --format csv /test2 | grep _stage | grep ",2," | wc -l'
+    stdout:
+      exactly: "1"
+    exit-code: 0
+  basic610: # Promote the change
+    command: ../clace app promote /test2
+    exit-code: 0
+  basic620: # After promote, both are on version 2
+    command: '../clace app list --internal --format csv /test2 | grep ",2," | wc -l'
+    stdout:
+      exactly: "2"
+    exit-code: 0
+  basic630: # Promote the change again, no op
+    command: ../clace app promote /test2
+    exit-code: 0
+  basic640: # After promote, both are on version 2
+    command: '../clace app list --internal --format csv /test2* | grep ",2," | wc -l'
+    stdout:
+      exactly: "2"
+    exit-code: 0
+  basic650: # Reload with promote option
+    command: ../clace app reload --promote /test2
+    exit-code: 0
+  basic660: # Both are on version 3
+    command: '../clace app list --internal --format csv /test2 | grep ",3," | wc -l'
+    stdout:
+      exactly: "2"
     exit-code: 0

@@ -170,15 +170,15 @@ func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s\t%-5s\t%-30s\t%-30s\n"
-		formatStrData := "%-35s\t%-5t\t%-30s\t%-30s\n" // IsDev is %t instead of %s
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "IsDev", "Domain:Path", "SourceUrl")
+		formatStrHead := "%-35s\t%-5s\t%-5s\t%-40s\t%-30s\t%-30s\n"
+		formatStrData := "%-35s\t%-5t\t%-5d\t%-40s\t%-30s\t%-30s\n" // IsDev is %t instead of %s
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "IsDev", "Version", "GitHash", "Domain:Path", "SourceUrl")
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, app.IsDev, &app.AppEntry, app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, app.IsDev, app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit, &app.AppEntry, app.SourceUrl)
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%t,%s,%s\n", app.Id, app.IsDev, &app.AppEntry, app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, "%s,%t,%d,%s,%s,%s\n", app.Id, app.IsDev, app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit, app.AppEntry.AppPathDomain(), app.SourceUrl)
 		}
 	default:
 		panic(fmt.Errorf("unknown format %s", format))

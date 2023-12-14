@@ -178,7 +178,7 @@ type AppEntry struct {
 	CreateTime *time.Time  `json:"create_time"`
 	UpdateTime *time.Time  `json:"update_time"`
 	Settings   AppSettings `json:"settings"` // settings are not version controlled
-	Metadata   AppMetadata `json:"config"`   // metadata is version controlled
+	Metadata   AppMetadata `json:"metadata"` // metadata is version controlled
 }
 
 func (ae *AppEntry) String() string {

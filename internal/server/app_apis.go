@@ -177,8 +177,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 
 	if !appEntry.IsDev {
 		// Update the prod app metadata, promote from stage
-		prodAppInfo := utils.AppInfo{AppPathDomain: utils.AppPathDomain{Path: appEntry.Path, Domain: appEntry.Domain}, Id: appEntry.Id, IsDev: appEntry.IsDev}
-		if _, err := s.promoteApps(ctx, tx, []utils.AppInfo{prodAppInfo}); err != nil {
+		_, err = s.promoteApp(ctx, tx, &stageAppEntry, appEntry)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -214,10 +214,6 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System)
 
 	return application, nil
-}
-
-func (s *Server) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
-	return s.db.GetAllApps(includeInternal)
 }
 
 func (s *Server) GetAppEntry(ctx context.Context, tx metadata.Transaction, pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
@@ -639,11 +635,50 @@ func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction
 }
 
 func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.AppInfo, error) {
-	apps, err := s.GetAllApps(includeInternal)
+	apps, err := s.db.GetAllApps(includeInternal)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSpecFromInfo(appPathSpec, apps)
+
+	linkedApps := make(map[string]utils.AppInfo)
+	var mainApps []utils.AppInfo
+	if includeInternal {
+		mainApps = make([]utils.AppInfo, 0, len(apps))
+
+		for _, appInfo := range apps {
+			if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) || strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_DEV) {
+				mainApps = append(mainApps, appInfo)
+			} else {
+				linkedApps[appInfo.String()] = appInfo
+			}
+		}
+	} else {
+		mainApps = apps
+	}
+	// Filter based on path spec. This is done on the main apps path only.
+	filteredApps, err := ParseSpecFromInfo(appPathSpec, mainApps)
+	if err != nil {
+		return nil, err
+	}
+
+	if !includeInternal {
+		return filteredApps, nil
+	}
+
+	// Include staging apps for prod apps
+	result := make([]utils.AppInfo, 0, 2*len(filteredApps))
+	for _, appInfo := range filteredApps {
+		result = append(result, appInfo)
+		if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) {
+			stageAppPath := utils.AppPathDomain{Domain: appInfo.Domain, Path: appInfo.Path + utils.STAGE_SUFFIX}
+
+			if linkedApp, ok := linkedApps[stageAppPath.String()]; ok {
+				result = append(result, linkedApp)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([]utils.AppResponse, error) {
@@ -661,283 +696,4 @@ func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([
 		ret = append(ret, utils.AppResponse{AppEntry: *retApp.AppEntry})
 	}
 	return ret, nil
-}
-
-func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promote bool) (*utils.AppReloadResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
-	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-	}
-
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	auditResults := make([]utils.AuditResult, 0, len(filteredApps))
-	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
-
-	prodAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
-	stageAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
-	devAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
-
-	// Track the staging and prod apps
-	for _, appInfo := range filteredApps {
-		if appInfo.IsDev {
-			// Dev mode app, reload from disk
-			var devAppEntry *utils.AppEntry
-			if devAppEntry, err = s.GetAppEntry(ctx, tx, appInfo.AppPathDomain); err != nil {
-				return nil, err
-			}
-			if err := s.loadAppCode(ctx, tx, devAppEntry); err != nil {
-				return nil, fmt.Errorf("error loading app %s code: %w", appInfo, err)
-			}
-
-			// Dev app code loaded
-			devAppEntries = append(prodAppEntries, devAppEntry)
-			continue
-		}
-		prodAppEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
-		if err != nil {
-			return nil, err
-		}
-		prodAppEntries = append(prodAppEntries, prodAppEntry)
-
-		stageAppPath := appInfo.AppPathDomain
-		stageAppPath.Path = stageAppPath.Path + utils.STAGE_SUFFIX
-		stageAppEntry, err := s.GetAppEntry(ctx, tx, stageAppPath)
-		if err != nil {
-			return nil, err
-		}
-		stageAppEntries = append(stageAppEntries, stageAppEntry)
-	}
-
-	stageApps := make([]*app.App, 0, len(stageAppEntries))
-	// Load code for all staging apps into the transaction context
-	for index, stageAppEntry := range stageAppEntries {
-		if err := s.loadAppCode(ctx, tx, stageAppEntry); err != nil {
-			return nil, err
-		}
-
-		// Persist the metadata so that any git info is saved
-		if err := s.db.UpdateAppMetadata(ctx, tx, stageAppEntry); err != nil {
-			return nil, err
-		}
-
-		stageApp, err := s.setupApp(stageAppEntry, tx)
-		if err != nil {
-			return nil, fmt.Errorf("error setting up stage app %s: %w", stageAppEntry, err)
-		}
-		stageApps = append(stageApps, stageApp)
-
-		auditResult, err := stageApp.Audit()
-		if err != nil {
-			return nil, fmt.Errorf("error auditing app %s: %w", stageAppEntry, err)
-		}
-		auditResults = append(auditResults, *auditResult)
-
-		if auditResult.NeedsApproval {
-			if !approve {
-				return nil, fmt.Errorf("app %s needs approval", stageAppEntry)
-			} else {
-				stageApp.AppEntry.Metadata.Loads = auditResult.NewLoads
-				stageApp.AppEntry.Metadata.Permissions = auditResult.NewPermissions
-				if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if promote {
-			var promoted bool
-			prodAppEntry := prodAppEntries[index]
-			if promoted, err = s.promoteApp(ctx, tx, stageAppEntry, prodAppEntry); err != nil {
-				return nil, err
-			}
-
-			if promoted {
-				promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
-			}
-		}
-	}
-
-	prodApps := make([]*app.App, 0, len(filteredApps))
-	devApps := make([]*app.App, 0, len(filteredApps))
-
-	for _, stageApp := range stageApps {
-		if _, err := stageApp.Reload(true, true); err != nil {
-			return nil, fmt.Errorf("error reloading stage app %s: %w", stageApp.AppEntry, err)
-		}
-	}
-
-	if promote {
-		for _, prodAppEntry := range prodAppEntries {
-			prodApp, err := s.setupApp(prodAppEntry, tx)
-			if err != nil {
-				return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
-			}
-			prodApps = append(prodApps, prodApp)
-			if _, err := prodApp.Reload(true, true); err != nil {
-				return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
-			}
-		}
-	}
-
-	for _, devAppEntry := range devAppEntries {
-		devApp, err := s.setupApp(devAppEntry, tx)
-		if err != nil {
-			return nil, fmt.Errorf("error setting up app %s: %w", devAppEntry, err)
-		}
-		devApps = append(devApps, devApp)
-
-		auditResult, err := devApp.Audit()
-		if err != nil {
-			return nil, fmt.Errorf("error auditing dev app %s: %w", devAppEntry, err)
-		}
-
-		if auditResult.NeedsApproval {
-			if !approve {
-				return nil, fmt.Errorf("app %s needs approval", devAppEntry)
-			} else {
-				devApp.AppEntry.Metadata.Loads = auditResult.NewLoads
-				devApp.AppEntry.Metadata.Permissions = auditResult.NewPermissions
-				if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if _, err := devApp.Reload(true, true); err != nil {
-			return nil, fmt.Errorf("error reloading dev app %s: %w", devApp.AppEntry, err)
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	// Update the in memory app cache. This is done after the changes are committed
-	s.apps.UpdateApps(devApps)
-	s.apps.UpdateApps(stageApps)
-	if promote {
-		s.apps.UpdateApps(prodApps)
-	}
-
-	ret := &utils.AppReloadResponse{
-		AuditResults:   auditResults,
-		PromoteResults: promoteResults,
-	}
-
-	return ret, nil
-}
-
-func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) error {
-	s.Info().Msgf("Reloading app %v", appEntry)
-
-	if appEntry.IsDev {
-		app, err := s.GetApp(utils.AppPathDomain{Path: appEntry.Domain, Domain: appEntry.Path}, false)
-		if err != nil {
-			return err
-		}
-		// Reload dev mode app from disk
-		// TODO : notify other server instances to reload
-		_, err = app.Reload(true, true)
-		return err
-	} else if isGit(appEntry.SourceUrl) {
-		// Checkout the git repo locally and load into database
-		if err := s.loadSourceFromGit(ctx, tx, appEntry); err != nil {
-			return err
-		}
-	} else {
-		// App is loaded from disk (not git), load files into DB
-		if err := s.loadSourceFromDisk(ctx, tx, appEntry); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *Server) PromoteApps(ctx context.Context, pathSpec string) (*utils.AppPromoteResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
-	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-	}
-
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	ret, err := s.promoteApps(ctx, tx, filteredApps)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return &utils.AppPromoteResponse{PromoteResults: ret}, nil
-}
-
-func (s *Server) promoteApps(ctx context.Context, tx metadata.Transaction, apps []utils.AppInfo) ([]utils.AppPathDomain, error) {
-	result := make([]utils.AppPathDomain, 0, len(apps))
-	for _, appInfo := range apps {
-		if !strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) {
-			// Not a prod app, skip
-			continue
-		}
-
-		prodApp, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
-		if err != nil {
-			return nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
-		}
-
-		stagingAppPath := appInfo.AppPathDomain
-		stagingAppPath.Path = appInfo.Path + utils.STAGE_SUFFIX
-		stagingApp, err := s.GetAppEntry(ctx, tx, stagingAppPath)
-		if err != nil {
-			return nil, err
-		}
-
-		var promoted bool
-		if promoted, err = s.promoteApp(ctx, tx, stagingApp, prodApp); err != nil {
-			return nil, err
-		}
-		if !promoted {
-			continue
-		}
-
-		result = append(result, appInfo.AppPathDomain)
-	}
-	return result, nil
-}
-
-func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) (bool, error) {
-	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
-
-	if stagingApp.Metadata.VersionMetadata.Version != 1 &&
-		prodApp.Metadata.VersionMetadata.Version == stagingApp.Metadata.VersionMetadata.Version {
-		s.Info().Msgf("App %s:%s already in sync, no promotion required", prodApp.Domain, prodApp.Path)
-		return false, nil
-	}
-	prevVersion := prodApp.Metadata.VersionMetadata.Version
-	newVersion := stagingApp.Metadata.VersionMetadata.Version
-
-	prodApp.Metadata = stagingApp.Metadata
-	prodApp.Metadata.VersionMetadata.PreviousVersion = prevVersion
-	prodApp.Metadata.VersionMetadata.Version = newVersion // the prod app version after promote is the same as the staging app version
-	// there might be some gaps in the prod app version numbers, but that is ok, the attempt is to have the version number in
-	// sync with the staging app version number when a promote is done
-
-	if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, prodApp.Metadata.VersionMetadata); err != nil {
-		return false, err
-	}
-
-	if err := s.db.UpdateAppMetadata(ctx, tx, prodApp); err != nil {
-		return false, err
-	}
-	return true, nil
 }

@@ -298,7 +298,7 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	h.Trace().Str("appPath", pathSpec).Msg("Deleted app successfully")
+	h.Trace().Str("pathSpec", pathSpec).Msg("Deleted app successfully")
 	return nil, nil
 }
 
@@ -349,7 +349,7 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 }
 
 func (h *Handler) promoteApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("appPath")
+	pathSpec := r.URL.Query().Get("pathSpec")
 	ret, err := h.server.PromoteApps(r.Context(), pathSpec)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
