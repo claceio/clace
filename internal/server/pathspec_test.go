@@ -12,7 +12,7 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-func TestParseAppSpec(t *testing.T) {
+func TestParsePathSpec(t *testing.T) {
 	tests := map[string]struct {
 		spec      string
 		apps      []utils.AppPathDomain
@@ -95,7 +95,7 @@ func TestParseAppSpec(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotApps, gotError := parseAppPathSpec(tc.spec, tc.apps)
+			gotApps, gotError := ParseSpec(tc.spec, tc.apps)
 			testutil.AssertEqualsError(t, "error", gotError, tc.wantError)
 			result := slices.Equal(gotApps, tc.want)
 			if !result {
@@ -105,7 +105,7 @@ func TestParseAppSpec(t *testing.T) {
 	}
 }
 
-func TestParseAppSpecErrors(t *testing.T) {
+func TestParsePathSpecErrors(t *testing.T) {
 	tests := map[string]struct {
 		spec      string
 		wantError error
@@ -129,7 +129,7 @@ func TestParseAppSpecErrors(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, gotError := parseAppPathSpec(tc.spec, []utils.AppPathDomain{{Domain: "", Path: "/app1"}})
+			_, gotError := ParseSpec(tc.spec, []utils.AppPathDomain{{Domain: "", Path: "/app1"}})
 			testutil.AssertErrorContains(t, gotError, tc.wantError.Error())
 		})
 	}

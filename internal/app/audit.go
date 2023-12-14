@@ -117,11 +117,12 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 
 	perms := []utils.Permission{}
 	results := utils.AuditResult{
+		AppPathDomain:       a.AppEntry.AppPathDomain(),
 		Id:                  a.Id,
 		NewLoads:            loads,
 		NewPermissions:      perms,
-		ApprovedLoads:       a.Loads,
-		ApprovedPermissions: a.Permissions,
+		ApprovedLoads:       a.Metadata.Loads,
+		ApprovedPermissions: a.Metadata.Permissions,
 	}
 	permissions, err := appDef.Attr("permissions")
 	if err != nil {

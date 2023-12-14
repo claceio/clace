@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -66,7 +68,7 @@ func panicRecovery(next http.Handler) http.Handler {
 		defer func() {
 			if rvr := recover(); rvr != nil && rvr != http.ErrAbortHandler {
 				msg := fmt.Sprint(rvr)
-				//logger.Error().Str("recover", msg).Str("trace", string(debug.Stack())).Msg("Error during request processing")
+				fmt.Fprintf(os.Stderr, "Panic %s: %s\n", msg, string(debug.Stack()))
 				// TODO log
 				http.Error(w, msg, http.StatusInternalServerError)
 			}
@@ -143,7 +145,7 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.server.serveApp(w, r, matchedApp)
+	h.server.serveApp(w, r, matchedApp.AppPathDomain)
 }
 
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
@@ -160,40 +162,31 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.createApp)
 	}))
-	r.Post("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.createApp)
-	}))
 
 	// Delete app
 	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.deleteApp)
-	}))
-	r.Delete("/app/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.deleteApp)
+		h.apiHandler(w, r, enableBasicAuth, h.deleteApps)
 	}))
 
 	// API to audit the plugin usage and permissions for the app
 	r.Post("/audit", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.auditApp)
+		h.apiHandler(w, r, enableBasicAuth, h.auditApps)
 	}))
-	r.Post("/audit/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.auditApp)
+
+	// API to reload apps
+	r.Post("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.reloadApps)
+	}))
+
+	// API to promote apps
+	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.promoteApps)
 	}))
 
 	return r
 }
 
-func normalizePath(inp string) string {
-	if len(inp) == 0 || inp[0] != '/' {
-		inp = "/" + inp
-	}
-	if len(inp) > 1 {
-		inp = strings.TrimRight(inp, "/")
-	}
-	return inp
-}
-
-func validatePath(inp string) error {
+func validatePathForCreate(inp string) error {
 	if strings.Contains(inp, "/..") {
 		return fmt.Errorf("path cannot contain '/..'")
 	}
@@ -251,64 +244,37 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}
 }
 
-func (h *Handler) getApps(r *http.Request) (any, error) {
-	appPath := r.URL.Query().Get("appPath")
-	internalStr := r.URL.Query().Get("internal")
-	internal := false
-	if internalStr != "" {
-		var err error
-		if internal, err = strconv.ParseBool(internalStr); err != nil {
-			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+func parseBoolArg(arg string, defaultValue bool) (bool, error) {
+	if arg != "" {
+		ret, err := strconv.ParseBool(arg)
+		if err != nil {
+			return defaultValue, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 		}
+		return ret, nil
 	}
+	return defaultValue, nil
+}
 
-	apps, err := h.server.GetAllApps(internal)
+func (h *Handler) getApps(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	internal, err := parseBoolArg(r.URL.Query().Get("internal"), false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusNotFound)
+		return nil, err
 	}
 
-	filteredApps, err := parseAppPathSpec(appPath, apps)
+	filteredApps, err := h.server.GetApps(r.Context(), pathSpec, internal)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	ret := utils.AppListResponse{Apps: make([]utils.AppResponse, 0, len(filteredApps))}
-	for _, app := range filteredApps {
-		retApp, err := h.server.GetApp(app, false)
-		if err != nil {
-			return nil, utils.CreateRequestError(err.Error(), http.StatusInternalServerError)
-		}
-		ret.Apps = append(ret.Apps, utils.AppResponse{AppEntry: *retApp.AppEntry})
-	}
-
-	return ret, nil
+	return &utils.AppListResponse{Apps: filteredApps}, nil
 }
 
 func (h *Handler) createApp(r *http.Request) (any, error) {
-	appPath := chi.URLParam(r, "*")
-	domain := r.URL.Query().Get("domain")
-	approveStr := r.URL.Query().Get("approve")
-	approve := false
-	if approveStr != "" {
-		var err error
-		if approve, err = strconv.ParseBool(approveStr); err != nil {
-			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-		}
-	}
-
-	appPath = normalizePath(appPath)
-	if err := validatePath(appPath); err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-	}
-
-	matchedApp, err := h.server.MatchAppForDomain(domain, appPath)
+	appPath := r.URL.Query().Get("appPath")
+	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
 	if err != nil {
-		return nil, utils.CreateRequestError(
-			fmt.Sprintf("error matching app: %s", err), http.StatusInternalServerError)
-	}
-	if matchedApp != "" {
-		return nil, utils.CreateRequestError(
-			fmt.Sprintf("App already exists at %s", matchedApp), http.StatusBadRequest)
+		return nil, err
 	}
 
 	var appRequest utils.CreateAppRequest
@@ -316,65 +282,35 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	var appEntry utils.AppEntry
-	appEntry.Path = appPath
-	appEntry.Domain = domain
-	appEntry.SourceUrl = appRequest.SourceUrl
-	appEntry.IsDev = appRequest.IsDev
-	appEntry.AutoSync = appRequest.AutoSync
-	appEntry.AutoReload = appRequest.AutoReload
-	if appRequest.AppAuthn != "" {
-		authType := utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
-		if authType != utils.AppAuthnDefault && authType != utils.AppAuthnNone {
-			return nil, utils.CreateRequestError("Invalid auth type: "+string(authType), http.StatusBadRequest)
-		}
-		appEntry.Rules.AuthnType = utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
-	} else {
-		appEntry.Rules.AuthnType = utils.AppAuthnDefault
-	}
 
-	appEntry.Metadata = utils.Metadata{
-		Version:     1,
-		GitBranch:   appRequest.GitBranch,
-		GitCommit:   appRequest.GitCommit,
-		GitAuthName: appRequest.GitAuthName,
-	}
-
-	auditResult, err := h.server.CreateApp(r.Context(), &appEntry, approve)
+	results, err := h.server.CreateApp(r.Context(), appPath, approve, appRequest)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	return auditResult, nil
+
+	return results, nil
 }
 
-func (h *Handler) deleteApp(r *http.Request) (any, error) {
-	appPath := chi.URLParam(r, "*")
-	domain := r.URL.Query().Get("domain")
+func (h *Handler) deleteApps(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
 
-	appPath = normalizePath(appPath)
-	err := h.server.DeleteApp(r.Context(), utils.CreateAppPathDomain(appPath, domain))
+	err := h.server.DeleteApps(r.Context(), pathSpec)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	h.Trace().Str("appPath", appPath).Msg("Deleted app successfully")
+	h.Trace().Str("appPath", pathSpec).Msg("Deleted app successfully")
 	return nil, nil
 }
 
-func (h *Handler) auditApp(r *http.Request) (any, error) {
-	appPath := chi.URLParam(r, "*")
-	domain := r.URL.Query().Get("domain")
-	approveStr := r.URL.Query().Get("approve")
-	approve := false
-	if approveStr != "" {
-		var err error
-		if approve, err = strconv.ParseBool(approveStr); err != nil {
-			return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-		}
+func (h *Handler) auditApps(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
+	if err != nil {
+		return nil, err
 	}
 
-	appPath = normalizePath(appPath)
-	auditResult, err := h.server.AuditApp(r.Context(), utils.CreateAppPathDomain(appPath, domain), approve)
-	return auditResult, err
+	auditResult, err := h.server.AuditApps(r.Context(), pathSpec, approve)
+	return utils.AppAuditResponse{AuditResults: auditResult}, err
 }
 
 func AddVaryHeader(next http.Handler) http.Handler {
@@ -390,4 +326,34 @@ func AddVaryHeader(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
+}
+
+func (h *Handler) reloadApps(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
+	if err != nil {
+		return nil, err
+	}
+
+	promote, err := parseBoolArg(r.URL.Query().Get("promote"), false)
+	if err != nil {
+		return nil, err
+	}
+
+	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, promote)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
+func (h *Handler) promoteApps(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("appPath")
+	ret, err := h.server.PromoteApps(r.Context(), pathSpec)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
 }

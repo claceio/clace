@@ -97,7 +97,7 @@ func (m *Metadata) VersionUpgrade() error {
 		if _, err := tx.ExecContext(ctx, `insert into version values (1, datetime('now'))`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `create table apps(id text, path text, domain text, source_url text, fs_path text, is_dev bool, auto_sync bool, auto_reload bool, user_id text, create_time datetime, update_time datetime, rules json, metadata json, loads json, permissions json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `create table apps(id text, path text, domain text, source_url text, is_dev bool, main_app text, user_id text, create_time datetime, update_time datetime, settings json, metadata json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
 			return err
 		}
 	}
@@ -114,7 +114,8 @@ func (m *Metadata) VersionUpgrade() error {
 
 	if version < 3 {
 		m.Info().Msg("Upgrading to version 3")
-		if _, err := tx.ExecContext(ctx, `alter table apps add column main_app text default ""`); err != nil {
+
+		if _, err := tx.ExecContext(ctx, `alter table app_versions add column previous_version int default 0`); err != nil {
 			return err
 		}
 
@@ -134,7 +135,7 @@ func (m *Metadata) initFileTables(ctx context.Context, tx Transaction) error {
 	if _, err := tx.ExecContext(ctx, `create table files (sha text, compression_type text, content blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `create table app_versions (appid text, version int, git_sha text, git_branch text, commit_message text, user_id text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
+	if _, err := tx.ExecContext(ctx, `create table app_versions (appid text, version int, user_id text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `create table app_files (appid text, version int, name text, sha text, uncompressed_size int, create_time datetime, PRIMARY KEY(appid, version, name))`); err != nil {
@@ -145,16 +146,17 @@ func (m *Metadata) initFileTables(ctx context.Context, tx Transaction) error {
 }
 
 func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
-	rulesJson, err := json.Marshal(app.Rules)
+	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
-		return fmt.Errorf("error marshalling rules: %w", err)
+		return fmt.Errorf("error marshalling settings: %w", err)
 	}
 	metadataJson, err := json.Marshal(app.Metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT into apps(id, path, domain, main_app, source_url, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata) values(?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`, app.Id, app.Path, app.Domain, app.MainApp, app.SourceUrl, app.IsDev, app.AutoSync, app.AutoReload, app.UserID, rulesJson, metadataJson)
+	_, err = tx.ExecContext(ctx, `INSERT into apps(id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata) values(?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`,
+		app.Id, app.Path, app.Domain, app.MainApp, app.SourceUrl, app.IsDev, app.UserID, settingsJson, metadataJson)
 	if err != nil {
 		return fmt.Errorf("error inserting app: %w", err)
 	}
@@ -162,15 +164,23 @@ func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *utils.App
 }
 
 func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
-	stmt, err := m.db.Prepare(`select id, path, domain, main_app, source_url, is_dev, auto_sync, auto_reload, user_id, create_time, update_time, rules, metadata, loads, permissions from apps where path = ? and domain = ?`)
+	tx, err := m.BeginTransaction(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return m.GetAppTx(context.Background(), tx, pathDomain)
+}
+
+func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
+	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
 	var app utils.AppEntry
-	var loads, permissions sql.NullString
-	var rules, metadata sql.NullString
-	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.AutoSync, &app.AutoReload, &app.UserID, &app.CreateTime, &app.UpdateTime, &rules, &metadata, &loads, &permissions)
+	var settings, metadata sql.NullString
+	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.UserID, &app.CreateTime, &app.UpdateTime, &settings, &metadata)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("app not found")
@@ -179,40 +189,18 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 		return nil, fmt.Errorf("error querying app: %w", err)
 	}
 
-	if loads.Valid && loads.String != "" {
-		err = json.Unmarshal([]byte(loads.String), &app.Loads)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling loads: %w", err)
-		}
-	} else {
-		app.Loads = []string{}
-	}
-
-	if permissions.Valid && permissions.String != "" {
-		err = json.Unmarshal([]byte(permissions.String), &app.Permissions)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling permissions: %w", err)
-		}
-	} else {
-		app.Permissions = []utils.Permission{}
-	}
-
-	if rules.Valid && rules.String != "" {
-		err = json.Unmarshal([]byte(rules.String), &app.Rules)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling rules: %w", err)
-		}
-	} else {
-		app.Rules = utils.Rules{AuthnType: utils.AppAuthnDefault}
-	}
-
 	if metadata.Valid && metadata.String != "" {
 		err = json.Unmarshal([]byte(metadata.String), &app.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
 		}
-	} else {
-		app.Metadata = utils.Metadata{}
+	}
+
+	if settings.Valid && settings.String != "" {
+		err = json.Unmarshal([]byte(settings.String), &app.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling settings: %w", err)
+		}
 	}
 
 	return &app, nil
@@ -266,8 +254,8 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 	return paths, nil
 }
 
-func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppPathDomain, error) {
-	sql := `select domain, path from apps`
+func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
+	sql := `select domain, path, is_dev, id from apps`
 	if !includeInternal {
 		sql += ` where main_app = ''`
 	}
@@ -280,51 +268,17 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppPathDomain, erro
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
-	pathDomains := make([]utils.AppPathDomain, 0)
+	apps := make([]utils.AppInfo, 0)
 	for rows.Next() {
-		var path, domain string
-		err = rows.Scan(&domain, &path)
+		var path, domain, id string
+		var isDev bool
+		err = rows.Scan(&domain, &path, &isDev, &id)
 		if err != nil {
 			return nil, fmt.Errorf("error querying apps: %w", err)
 		}
-		pathDomains = append(pathDomains, utils.CreateAppPathDomain(path, domain))
+		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev))
 	}
-	return pathDomains, nil
-}
-
-func (m *Metadata) UpdateAppPermissions(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
-	loadsJson, err := json.Marshal(app.Loads)
-	if err != nil {
-		return fmt.Errorf("error marshalling loads: %w", err)
-	}
-	permissionsJson, err := json.Marshal(app.Permissions)
-	if err != nil {
-		return fmt.Errorf("error marshalling permissions: %w", err)
-	}
-
-	_, err = tx.ExecContext(ctx, `UPDATE apps set loads = ?, permissions = ? where path = ? and domain = ?`, string(loadsJson), string(permissionsJson), app.Path, app.Domain)
-	if err != nil {
-		return fmt.Errorf("error updating app: %w", err)
-	}
-	return nil
-}
-
-func (m *Metadata) UpdateAppRules(app *utils.AppEntry) error {
-	stmt, err := m.db.Prepare(`UPDATE apps set rules = ? where path = ? and domain = ?`)
-	if err != nil {
-		return fmt.Errorf("error preparing statement: %w", err)
-	}
-
-	rulesJson, err := json.Marshal(app.Rules)
-	if err != nil {
-		return fmt.Errorf("error marshalling rules: %w", err)
-	}
-
-	_, err = stmt.Exec(string(rulesJson), app.Path, app.Domain)
-	if err != nil {
-		return fmt.Errorf("error updating app: %w", err)
-	}
-	return nil
+	return apps, nil
 }
 
 func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
@@ -334,6 +288,24 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *u
 	}
 
 	_, err = tx.ExecContext(ctx, `UPDATE apps set metadata = ? where path = ? and domain = ?`, string(metadataJson), app.Path, app.Domain)
+	if err != nil {
+		return fmt.Errorf("error updating app: %w", err)
+	}
+	return nil
+}
+
+func (m *Metadata) UpdateAppSettings(app *utils.AppEntry) error {
+	stmt, err := m.db.Prepare(`UPDATE apps set settings = ? where path = ? and domain = ?`)
+	if err != nil {
+		return fmt.Errorf("error preparing statement: %w", err)
+	}
+
+	settingsJson, err := json.Marshal(app.Settings)
+	if err != nil {
+		return fmt.Errorf("error marshalling settings: %w", err)
+	}
+
+	_, err = stmt.Exec(string(settingsJson), app.Path, app.Domain)
 	if err != nil {
 		return fmt.Errorf("error updating app: %w", err)
 	}

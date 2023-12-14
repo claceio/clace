@@ -24,7 +24,6 @@ type Request struct {
 	PageUrl     string
 	Method      string
 	IsDev       bool
-	AutoReload  bool
 	IsPartial   bool
 	PushEvents  bool
 	HtmxVersion string
@@ -53,8 +52,6 @@ func (r Request) Attr(name string) (starlark.Value, error) {
 		return starlark.String(r.Method), nil
 	case "IsDev":
 		return starlark.Bool(r.IsDev), nil
-	case "AutoReload":
-		return starlark.Bool(r.AutoReload), nil
 	case "IsPartial":
 		return starlark.Bool(r.IsPartial), nil
 	case "PushEvents":
@@ -81,7 +78,7 @@ func (r Request) Attr(name string) (starlark.Value, error) {
 }
 
 func (r Request) AttrNames() []string {
-	return []string{"AppName", "AppPath", "AppUrl", "PagePath", "PageUrl", "Method", "IsDev", "AutoReload", "IsPartial", "PushEvents", "HtmxVersion", "Headers", "RemoteIP", "UrlParams", "Form", "Query", "PostForm", "Data"}
+	return []string{"AppName", "AppPath", "AppUrl", "PagePath", "PageUrl", "Method", "IsDev", "IsPartial", "PushEvents", "HtmxVersion", "Headers", "RemoteIP", "UrlParams", "Form", "Query", "PostForm", "Data"}
 }
 
 func (r Request) String() string {

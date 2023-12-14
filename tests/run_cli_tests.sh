@@ -12,7 +12,7 @@ unset SSH_AUTH_SOCK
 # Enabling verbose is useful for debugging but the commander command seems to
 # return exit code of 0 when verbose is enabled, even if tests fails. So verbose
 # is disabled by default.
-#export CL_TEST_VERBOSE="--verbose"
+# export CL_TEST_VERBOSE="--verbose"
 
 trap "error_handler" ERR
 

@@ -13,13 +13,13 @@
   {{ if fileNonEmpty "gen/lib/htmx.min.js" }}
     <script src="{{ static "gen/lib/htmx.min.js" }}"></script>
   {{ end }}
-  {{ if or .IsDev .AutoReload .PushEvents }}
+  {{ if or .IsDev .PushEvents }}
     {{ if fileNonEmpty "gen/lib/sse.js" }}
       <script src="{{ static "gen/lib/sse.js" }}"></script>
     {{ end }}
   {{ end }}
 
-  {{ if or .IsDev .AutoReload }}
+  {{ if .IsDev }}
     <div
       id="cl_reload_listener"
       hx-ext="sse"

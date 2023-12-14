@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -20,28 +21,28 @@ import (
 )
 
 type FileStore struct {
-	appId   utils.AppId
-	version int
-	db      *sql.DB
-	initTx  Transaction // This is the transaction for the initial setup of the app, before it is committed to the database.
+	appId    utils.AppId
+	version  int
+	metadata *Metadata
+	db       *sql.DB
+	initTx   Transaction // This is the transaction for the initial setup of the app, before it is committed to the database.
 	// After app is committed to database, this is not used, auto-commit transactions are used for reads
 }
 
 func NewFileStore(appId utils.AppId, version int, metadata *Metadata, tx Transaction) *FileStore {
-	return &FileStore{appId: appId, version: version, db: metadata.db, initTx: tx}
+	return &FileStore{appId: appId, version: version, metadata: metadata, db: metadata.db, initTx: tx}
 }
 
-func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version int, gitSha, gitBranch, commit_message string, checkoutDir string) error {
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, f.appId, version, gitSha, gitBranch, commit_message); err != nil {
-		return err
+func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, versionMetadata utils.VersionMetadata, checkoutDir string) error {
+	metadataJson, err := json.Marshal(versionMetadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STG, string(f.appId)[len(utils.ID_PREFIX_APP_PRD):])
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, version, git_sha, git_branch, commit_message, create_time) values (?, ?, ?, ?, ?, datetime('now'))`, stageAppId, version, gitSha, gitBranch, commit_message); err != nil {
-		return err
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
+		return fmt.Errorf("error inserting app version: %w", err)
 	}
 
-	var err error
 	var insertFileStmt *sql.Stmt
 	if insertFileStmt, err = tx.PrepareContext(ctx, `insert or ignore into files (sha, compression_type, content, create_time) values (?, ?, ?, datetime('now'))`); err != nil {
 		return err
@@ -109,11 +110,7 @@ func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version i
 			return fmt.Errorf("error inserting file: %w", err)
 		}
 
-		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, version, path, hashHex, len(buf)); err != nil {
-			return fmt.Errorf("error inserting app file: %w", err)
-		}
-
-		if _, err := insertAppFileStmt.ExecContext(ctx, stageAppId, version, path, hashHex, len(buf)); err != nil {
+		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, versionMetadata.Version, path, hashHex, len(buf)); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
 
@@ -122,14 +119,24 @@ func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, version i
 	return nil
 }
 
-func (f *FileStore) GetFileBySha(sha string) ([]byte, string, error) {
-	var stmt *sql.Stmt
-	var err error
+func (f *FileStore) GetFileByShaTx(sha string) ([]byte, string, error) {
+	var tx Transaction
 	if f.initTx.IsInitialized() {
-		stmt, err = f.initTx.Prepare("SELECT compression_type , content FROM files where sha = ?")
+		tx = f.initTx
 	} else {
-		stmt, err = f.db.Prepare("SELECT compression_type , content FROM files where sha = ?")
+		var err error
+		tx, err = f.metadata.BeginTransaction(context.Background())
+		if err != nil {
+			return nil, "", fmt.Errorf("error starting transaction: %w", err)
+		}
+		defer tx.Rollback()
 	}
+
+	return f.GetFileBySha(context.Background(), tx, sha)
+}
+
+func (f *FileStore) GetFileBySha(ctx context.Context, tx Transaction, sha string) ([]byte, string, error) {
+	stmt, err := tx.PrepareContext(ctx, "SELECT compression_type , content FROM files where sha = ?")
 	if err != nil {
 		return nil, "", fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -143,14 +150,23 @@ func (f *FileStore) GetFileBySha(sha string) ([]byte, string, error) {
 	return content, compressionType, nil
 }
 
-func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {
-	var stmt *sql.Stmt
-	var err error
+func (f *FileStore) getFileInfoTx() (map[string]DbFileInfo, error) {
+	var tx Transaction
 	if f.initTx.IsInitialized() {
-		stmt, err = f.initTx.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+		tx = f.initTx
 	} else {
-		stmt, err = f.db.Prepare(`select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+		var err error
+		tx, err = f.metadata.BeginTransaction(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("error starting transaction: %w", err)
+		}
+		defer tx.Rollback()
 	}
+	return f.getFileInfo(context.Background(), tx)
+}
+
+func (f *FileStore) getFileInfo(ctx context.Context, tx Transaction) (map[string]DbFileInfo, error) {
+	stmt, err := tx.PrepareContext(ctx, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -171,4 +187,53 @@ func (f *FileStore) getFileInfo() (map[string]DbFileInfo, error) {
 	}
 
 	return fileInfo, nil
+}
+
+func (f *FileStore) GetHighestVersion(ctx context.Context, tx Transaction, appId utils.AppId) (int, error) {
+	var maxId int
+	row := tx.QueryRowContext(ctx, `select max(version) from app_versions where appid = ?`, appId)
+	if err := row.Scan(&maxId); err != nil {
+		return 0, nil // No versions found
+	}
+	return maxId, nil
+}
+
+func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId utils.AppId, versionMetadata utils.VersionMetadata) error {
+	metadataJson, err := json.Marshal(versionMetadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
+		return err
+	}
+
+	var insertStmt, selectStmt *sql.Stmt
+	if insertStmt, err = tx.PrepareContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
+		return err
+	}
+
+	if selectStmt, err = tx.PrepareContext(ctx, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`); err != nil {
+		return fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := selectStmt.Query(f.appId, f.version)
+	if err != nil {
+		return fmt.Errorf("error querying files: %w", err)
+	}
+
+	for rows.Next() {
+		var name, sha string
+		var size int64
+		var modTime time.Time
+		err = rows.Scan(&name, &sha, &size, &modTime)
+		if err != nil {
+			return fmt.Errorf("error querying files: %w", err)
+		}
+
+		// Copy entries from staging to prod app
+		if _, err := insertStmt.ExecContext(ctx, prodAppId, versionMetadata.Version, name, sha, size); err != nil {
+			return fmt.Errorf("error inserting app file: %w", err)
+		}
+	}
+
+	return nil
 }

@@ -289,7 +289,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 }
 
 func (a *App) createInternalRoutes(router *chi.Mux) error {
-	if a.IsDev || a.AutoReload || a.Config.Routing.PushEvents {
+	if a.IsDev || a.Config.Routing.PushEvents {
 		router.Get(utils.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
 	}
 
@@ -329,7 +329,6 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			PageUrl:     appUrl + pagePath,
 			Method:      r.Method,
 			IsDev:       a.IsDev,
-			AutoReload:  a.AutoReload,
 			IsPartial:   isHtmxRequest,
 			PushEvents:  a.Config.Routing.PushEvents,
 			HtmxVersion: a.Config.Htmx.Version,

@@ -100,11 +100,11 @@ func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger, 
 func (a *App) Initialize() error {
 	var reloaded bool
 	var err error
-	if reloaded, err = a.Reload(false); err != nil {
+	if reloaded, err = a.Reload(false, true); err != nil {
 		return err
 	}
 
-	if reloaded && (a.IsDev || a.AutoSync || a.AutoReload) {
+	if reloaded && a.IsDev {
 		if err := a.startWatcher(); err != nil {
 			a.Info().Msgf("error starting watcher: %s", err)
 			return err
@@ -129,7 +129,7 @@ func (a *App) Close() error {
 	return nil
 }
 
-func (a *App) Reload(force bool) (bool, error) {
+func (a *App) Reload(force, immediate bool) (bool, error) {
 	requestTime := time.Now()
 
 	a.initMutex.Lock()
@@ -144,10 +144,12 @@ func (a *App) Reload(force bool) (bool, error) {
 		return false, nil
 	}
 
-	// Sleep to allow for multiple file changes to be processed together
-	// For slower machines, this can be increased, default is 300ms. The tailwind watcher
-	// especially might need a higher value
-	time.Sleep(time.Duration(a.systemConfig.FileWatcherDebounceMillis) * time.Millisecond)
+	if !immediate {
+		// Sleep to allow for multiple file changes to be processed together
+		// For slower machines, this can be increased, default is 300ms. The tailwind watcher
+		// especially might need a higher value
+		time.Sleep(time.Duration(a.systemConfig.FileWatcherDebounceMillis) * time.Millisecond)
+	}
 	a.reloadStartTime = time.Now()
 
 	var err error
@@ -227,7 +229,7 @@ func (a *App) Reload(force bool) (bool, error) {
 	}
 	a.initialized = true
 
-	if a.IsDev || a.AutoReload {
+	if a.IsDev {
 		a.notifyClients()
 	}
 	return true, nil
@@ -274,7 +276,7 @@ func (a *App) startWatcher() error {
 				if event.Op == fsnotify.Chmod {
 					continue
 				}
-				_, err := a.Reload(true)
+				_, err := a.Reload(true, false)
 				if err != nil {
 					a.Error().Err(err).Msg("Error reloading app")
 				}

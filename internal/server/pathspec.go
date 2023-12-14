@@ -12,9 +12,41 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-// parseAppPathSpec parses a path spec in the format of domain:path. If domain is not specified, it will match empty domain.
+// createPathDomain creates a slice of AppPathDomain from a slice of AppInfo
+func createPathDomain(apps []utils.AppInfo) []utils.AppPathDomain {
+	ret := make([]utils.AppPathDomain, 0, len(apps))
+	for _, app := range apps {
+		ret = append(ret, app.AppPathDomain)
+	}
+
+	return ret
+}
+
+// ParseSpecFromInfo parses a path spec in the format of domain:path.  If domain is not specified, it will match empty domain.
 // glob patters are supported, *:** matches all apps.
-func parseAppPathSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDomain, error) {
+func ParseSpecFromInfo(pathSpec string, apps []utils.AppInfo) ([]utils.AppInfo, error) {
+	appPathDomain := createPathDomain(apps)
+	pathDomains, error := ParseSpec(pathSpec, appPathDomain)
+	if error != nil {
+		return nil, error
+	}
+	found := map[string]bool{}
+	for _, pathDomain := range pathDomains {
+		found[pathDomain.String()] = true
+	}
+
+	ret := make([]utils.AppInfo, 0, len(found))
+	for _, app := range apps {
+		if found[app.AppPathDomain.String()] {
+			ret = append(ret, app)
+		}
+	}
+	return ret, nil
+}
+
+// ParseSpec parses a path spec in the format of domain:path. If domain is not specified, it will match empty domain.
+// glob patters are supported, *:** matches all apps.
+func ParseSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDomain, error) {
 	if pathSpec == "" {
 		pathSpec = "*:**"
 	}

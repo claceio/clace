@@ -106,13 +106,35 @@ type AppPathDomain struct {
 }
 
 func (a AppPathDomain) String() string {
-	return a.Domain + ":" + a.Path
+	if a.Domain == "" {
+		return a.Path
+	} else {
+		return a.Domain + ":" + a.Path
+	}
+}
+
+// AppInfo is the basic info for an app
+type AppInfo struct {
+	AppPathDomain
+	Id    AppId
+	IsDev bool
 }
 
 func CreateAppPathDomain(path, domain string) AppPathDomain {
 	return AppPathDomain{
 		Path:   path,
 		Domain: domain,
+	}
+}
+
+func CreateAppInfo(id AppId, path, domain string, isDev bool) AppInfo {
+	return AppInfo{
+		AppPathDomain: AppPathDomain{
+			Path:   path,
+			Domain: domain,
+		},
+		Id:    id,
+		IsDev: isDev,
 	}
 }
 
@@ -132,46 +154,58 @@ const (
 	AppAuthnNone    AppAuthnType = "none"    // No auth
 )
 
-// Rules contains the authentication and authorization rules for an app
-type Rules struct {
-	AuthnType AppAuthnType `json:"authn_type"`
-}
-
-// Metadata contains the metadata for an app
-type Metadata struct {
-	Version     int    `json:"version"`
-	GitBranch   string `json:"git_branch"`
-	GitCommit   string `json:"git_commit"`
-	GitAuthName string `json:"git_auth_name"`
-}
-
-// AuditResult represents the result of an app audit
-type AuditResult struct {
-	Id                  AppId        `json:"id"`
-	NewLoads            []string     `json:"new_loads"`
-	NewPermissions      []Permission `json:"new_permissions"`
-	ApprovedLoads       []string     `json:"approved_loads"`
-	ApprovedPermissions []Permission `json:"approved_permissions"`
-	NeedsApproval       bool         `json:"needs_approval"`
+// VersionMetadata contains the metadata for an app
+type VersionMetadata struct {
+	Version            int    `json:"version"`
+	PreviousVersion    int    `json:"previous_version"`
+	GitSha             string `json:"git_sha"`
+	GitBranch          string `json:"git_branch"`
+	GitCommit          string `json:"git_commit"`
+	GitCommitRequested string `json:"git_commit_requested"`
+	GitMessage         string `json:"git_message"`
+	GitAuthName        string `json:"git_auth_name"`
 }
 
 // AppEntry is the application configuration in the DB
 type AppEntry struct {
-	Id          AppId        `json:"id"`
-	Path        string       `json:"path"`
-	MainApp     AppId        `json:"linked_app"` // the id of the app that this app is linked to
-	Domain      string       `json:"domain"`
-	SourceUrl   string       `json:"source_url"`
-	IsDev       bool         `json:"is_dev"`
-	AutoSync    bool         `json:"auto_sync"`
-	AutoReload  bool         `json:"auto_reload"`
-	UserID      string       `json:"user_id"`
-	CreateTime  *time.Time   `json:"create_time"`
-	UpdateTime  *time.Time   `json:"update_time"`
-	Rules       Rules        `json:"rules"`
-	Metadata    Metadata     `json:"metadata"`
-	Loads       []string     `json:"loads"`
-	Permissions []Permission `json:"permissions"`
+	Id         AppId       `json:"id"`
+	Path       string      `json:"path"`
+	MainApp    AppId       `json:"linked_app"` // the id of the app that this app is linked to
+	Domain     string      `json:"domain"`
+	SourceUrl  string      `json:"source_url"`
+	IsDev      bool        `json:"is_dev"`
+	UserID     string      `json:"user_id"`
+	CreateTime *time.Time  `json:"create_time"`
+	UpdateTime *time.Time  `json:"update_time"`
+	Settings   AppSettings `json:"settings"` // settings are not version controlled
+	Metadata   AppMetadata `json:"config"`   // metadata is version controlled
+}
+
+func (ae *AppEntry) String() string {
+	if ae.Domain == "" {
+		return ae.Path
+	} else {
+		return ae.Domain + ":" + ae.Path
+	}
+}
+
+func (ae *AppEntry) AppPathDomain() AppPathDomain {
+	return AppPathDomain{
+		Path:   ae.Path,
+		Domain: ae.Domain,
+	}
+}
+
+// AppMetadata contains the configuration for an app. App configurations are version controlled.
+type AppMetadata struct {
+	VersionMetadata VersionMetadata `json:"version_metadata"`
+	Loads           []string        `json:"loads"`
+	Permissions     []Permission    `json:"permissions"`
+}
+
+// AppSettings contains the settings for an app. Settings are not version controlled.
+type AppSettings struct {
+	AuthnType AppAuthnType `json:"authn_type"`
 }
 
 // WritableFS is the interface for the writable underlying file system used by AppFS

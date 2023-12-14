@@ -42,7 +42,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 
 	// File is cached, should be served from cache even if file server is closed
 	testServer.Close()
-	ok, err := a.Reload(true)
+	ok, err := a.Reload(true, true)
 	if !ok || err != nil {
 		t.Fatalf("Error %s", err)
 	}

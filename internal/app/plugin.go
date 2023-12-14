@@ -64,7 +64,7 @@ func (a *App) loader(thread *starlark.Thread, module string) (starlark.StringDic
 		return a.loadStarlark(thread, module, a.starlarkCache)
 	}
 
-	if a.Loads == nil || !slices.Contains(a.Loads, module) {
+	if a.Metadata.Loads == nil || !slices.Contains(a.Metadata.Loads, module) {
 		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions", a.Path, module)
 	}
 
@@ -103,12 +103,12 @@ func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) 
 	hook := func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		a.Trace().Msgf("Plugin called: %s.%s", module, function)
 
-		if a.Permissions == nil {
+		if a.Metadata.Permissions == nil {
 			return nil, fmt.Errorf("app %s has no permissions configured, plugin call %s.%s is blocked. Audit the app and approve permissions", a.Path, module, function)
 		}
 		approved := false
 		var lastError error
-		for _, p := range a.Permissions {
+		for _, p := range a.Metadata.Permissions {
 			a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, module, function)
 			if p.Plugin == module && p.Method == function {
 				if len(p.Arguments) > 0 {
