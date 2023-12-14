@@ -147,8 +147,8 @@ tests:
     exit-code: 1
   test0290: # Create app, valid commit id
     command: ../clace app create --approve --commit fdda2c5dce481bee052810ad300adc23a9a53170 /ghload5 https://github.com/claceio/clace/examples/disk_usage
-    stderr: "App created. Permissions have been approved"
-    #exit-code: 0
+    stdout: "App created. Permissions have been approved"
+    exit-code: 0
 
   test0900: # cleanup
     command: rm -rf ./disk_usage || true
