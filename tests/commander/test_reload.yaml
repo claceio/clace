@@ -1,0 +1,98 @@
+config:
+  env:
+    CL_CONFIG_FILE: clace.toml
+tests:
+  reload0010: # copy sample app
+    command: cp -r ./testapp reloadtest
+  reload0020: # create dev app
+    command: ../clace app create --is_dev /reload_dev ./reloadtest
+  reload0030: # create local1 app
+    command: ../clace app create /reload_local1 ./reloadtest
+  reload0040: # create local2 app
+    command: ../clace app create /reload_local2 ./reloadtest
+  reload0050: # create domain level app
+    command: ../clace app create reload.localhost:/ ./reloadtest
+  reload0060: # check curl
+    command: curl -su "admin:qwerty" reload.localhost:25222/test1
+    stdout: "111"
+  reload0070: # Update code
+    command: perl -i -pe 's/111/222/g' ./reloadtest/app.star
+  reload0080: # Reload one app, without promote
+    command: ../clace app reload reload.localhost:/
+  reload0090: # check stage is updated
+    command: curl -su "admin:qwerty" reload.localhost:25222/_cl_stage/test1
+    stdout: "222"
+  reload0091: # check versions
+    command: ../clace app list --internal --format csv reload.localhost:/ | grep reload | grep ",2," | wc -l
+    stdout:
+      exactly: "1"
+  reload0100: # check prod is still old
+    command: curl -su "admin:qwerty" reload.localhost:25222/test1
+    stdout: "111"
+  reload0110: # Promote app
+    command: ../clace app promote reload.localhost:/
+  reload0120: # check prod is updated now
+    command: curl -su "admin:qwerty" reload.localhost:25222/test1
+    stdout: "222"
+  reload0130: # check versions
+    command: ../clace app list --internal --format csv reload.localhost:/ | grep reload | grep ",2," | wc -l
+    stdout:
+      exactly: "2"
+  reload0200: # check curl
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1/test1
+    stdout: "111"
+  reload0210: # Reload apps with promote
+    command: ../clace app reload --promote "*:/reload*"
+  reload0220: # Check versions
+    command: ../clace app list --format csv "*:/reload*" | grep -v Path | grep ",2," | wc -l
+    stdout:
+      exactly: "2" # two apps are at version 2, dev stays at version 1
+
+  # Audit checks, change in app perms requires an approval
+  reload0300: # Added plugin permission
+    command: perl -i -pe 's/# ace.permission/  ace.permission/g' ./reloadtest/app.star
+  reload0310: # Update code
+    command: perl -i -pe 's/222/333/g' ./reloadtest/app.star
+  reload0320: # check curl
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1_cl_stage/test1
+    stdout: "222"
+  reload0330: # app reload without approve
+    command: ../clace app reload /reload_local1
+    exit-code: 1
+  reload0340: # check curl
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1_cl_stage/test1
+    stdout: "222"
+  reload0350: # app reload with approve
+    command: ../clace app reload --approve /reload_local1
+  reload0360: # check curl is updated now
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1_cl_stage/test1
+    stdout: "333"
+  reload0370: # Check versions
+    command: ../clace app list --format csv "/reload_local*" | grep -v Path | grep ",2," | wc -l
+    stdout:
+      exactly: "2" # both prod apps are still at version 2
+  reload0375: # check curl for prod is still old
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1/test1
+    stdout: "222"
+  reload0380: # promote app
+    command: ../clace app promote  /reload_local1
+  reload0390: # check curl for prod is updated now
+    command: curl -su "admin:qwerty" localhost:25222/reload_local1/test1
+    stdout: "333"
+  reload0391: # Check versions
+    command: ../clace app list --format csv "/reload_local*" | grep -v Path | grep ",3," | wc -l
+    stdout:
+      exactly: "1" # local1 prod app is at version 3 now
+  reload0392: # app reload with approve and promote
+    command: ../clace app reload --approve --promote "/reload_local*"
+  reload0393: # check curl for local2 prod is updated now
+    command: curl -su "admin:qwerty" localhost:25222/reload_local2/test1
+    stdout: "333"
+  reload0394: # Check versions
+    command: ../clace app list --format csv "/reload_local2" | grep -v Path | grep ",3," | wc -l
+    stdout:
+      exactly: "1" # local2 prod app is at version 3 now
+  # TODO test reload stdout messages and github access
+
+  reload_cleanup: # Cleanup
+    command: rm -rf ./reloadtest && ../clace app delete "*:reload*" && ../clace app delete "reload*:**"

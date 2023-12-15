@@ -187,7 +187,7 @@ func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEn
 	s.Info().Msgf("Reloading app %v", appEntry)
 
 	if appEntry.IsDev {
-		app, err := s.GetApp(utils.AppPathDomain{Path: appEntry.Domain, Domain: appEntry.Path}, false)
+		app, err := s.GetApp(appEntry.AppPathDomain(), true)
 		if err != nil {
 			return err
 		}

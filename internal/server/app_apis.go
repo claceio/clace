@@ -338,6 +338,10 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppInfo, error) {
 
 		if strings.HasPrefix(matchPath, appInfo.Path) {
 			if len(appInfo.Path) == 1 || len(appInfo.Path) == len(matchPath) || matchPath[len(appInfo.Path)] == '/' {
+				if appInfo.Path == "/" && strings.HasPrefix(matchPath, "/"+utils.STAGE_SUFFIX) {
+					// Do not match /_cl_stage to /
+					continue
+				}
 				s.Debug().Msgf("Matched app %s for path %s", appInfo, matchPath)
 				return appInfo, nil
 			}

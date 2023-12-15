@@ -163,6 +163,7 @@ func (a *App) initRouter() error {
 	router.Handle(staticPattern, http.StripPrefix(a.Path, util.FileServer(a.sourceFS)))
 
 	a.appRouter = chi.NewRouter()
+	a.Trace().Msgf("Mounting app %s at %s", a.Name, a.Path)
 	a.appRouter.Mount(a.Path, router)
 
 	chi.Walk(a.appRouter, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
