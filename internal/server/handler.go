@@ -340,7 +340,7 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, promote)
+	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

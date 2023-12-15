@@ -156,14 +156,12 @@ const (
 
 // VersionMetadata contains the metadata for an app
 type VersionMetadata struct {
-	Version            int    `json:"version"`
-	PreviousVersion    int    `json:"previous_version"`
-	GitSha             string `json:"git_sha"`
-	GitBranch          string `json:"git_branch"`
-	GitCommit          string `json:"git_commit"`
-	GitCommitRequested string `json:"git_commit_requested"`
-	GitMessage         string `json:"git_message"`
-	GitAuthName        string `json:"git_auth_name"`
+	Version         int    `json:"version"`
+	PreviousVersion int    `json:"previous_version"`
+	GitBranch       string `json:"git_branch"`
+	GitCommit       string `json:"git_commit"`
+	GitMessage      string `json:"git_message"`
+	GitAuthName     string `json:"git_auth_name"`
 }
 
 // AppEntry is the application configuration in the DB

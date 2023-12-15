@@ -92,7 +92,72 @@ tests:
     command: ../clace app list --format csv "/reload_local2" | grep -v Path | grep ",3," | wc -l
     stdout:
       exactly: "1" # local2 prod app is at version 3 now
-  # TODO test reload stdout messages and github access
 
+  # Test git based apps
+  reload0400: # create git app from commit
+    command: ../clace app create --commit 1c119e7c5845e19845dd1d794268b350ced5b71b /reload_git1 https://github.com/claceio/clace/tests/testapp
+  reload0410: # create git app from main
+    command: ../clace app create /reload_git2 https://github.com/claceio/clace/tests/testapp
+  reload0420: # check curl for app1 stage
+    command: curl -su "admin:qwerty" localhost:25222/reload_git1_cl_stage/test1
+    stdout: "555"
+  reload0421: # check curl for app1
+    command: curl -su "admin:qwerty" localhost:25222/reload_git1/test1
+    stdout: "555"
+  reload0430: # check curl for app2 stage
+    command: curl -su "admin:qwerty" localhost:25222/reload_git2_cl_stage/test1
+    stdout: "111"
+  reload0431: # check curl for app2
+    command: curl -su "admin:qwerty" localhost:25222/reload_git2/test1
+    stdout: "111"
+  reload0432: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | grep -v main | wc -l'
+    stdout:
+      exactly: "2" # first app and its stag are at 1c119e7c5845e19845dd1d794268b350ced5b71b, branch name is not included
+  reload0440: # app reload
+    command: ../clace app reload "/reload_git*"
+  reload0441: # check curl for app1 stage, updated
+    command: curl -su "admin:qwerty" localhost:25222/reload_git1_cl_stage/test1
+    stdout: "111"
+  reload0442: # check curl for app1, not updated since promote not done
+    command: curl -su "admin:qwerty" localhost:25222/reload_git1/test1
+    stdout: "555"
+  reload0443: # check curl for app2 stage, updated
+    command: curl -su "admin:qwerty" localhost:25222/reload_git2_cl_stage/test1
+    stdout: "111"
+  reload0444: # check curl for app2
+    command: curl -su "admin:qwerty" localhost:25222/reload_git2/test1
+    stdout: "111"
+  reload0445: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "1" # prod apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0446: # app reload
+    command: ../clace app promote "/reload_git*"
+  reload0447: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0448: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep reload_git | wc -l'
+    stdout:
+      exactly: "4" # all apps are on main
+  reload0500: # app reload with commit id
+    command: ../clace app reload --commit 1c119e7c5845e19845dd1d794268b350ced5b71b --promote "/reload_git*"
+  reload0501: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "4" # all apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0502: # app reload branch name
+    command: ../clace app reload --branch main --promote "/reload_git*"
+  reload0503: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0504: # app reload with invalid auth
+    command: ../clace app reload --git_auth=abc  "/reload_git*"
+    exit-code: 1
+
+  # TODO test reload stdout messages
   reload_cleanup: # Cleanup
     command: rm -rf ./reloadtest && ../clace app delete "*:reload*" && ../clace app delete "reload*:**"

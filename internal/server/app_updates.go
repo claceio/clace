@@ -14,7 +14,7 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promote bool) (*utils.AppReloadResponse, error) {
+func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promote bool, branch, commit, gitAuth string) (*utils.AppReloadResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -41,8 +41,14 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 			if devAppEntry, err = s.GetAppEntry(ctx, tx, appInfo.AppPathDomain); err != nil {
 				return nil, err
 			}
-			if err := s.loadAppCode(ctx, tx, devAppEntry); err != nil {
-				return nil, fmt.Errorf("error loading app %s code: %w", appInfo, err)
+
+			app, err := s.GetApp(appInfo.AppPathDomain, true)
+			if err != nil {
+				return nil, err
+			}
+			// TODO : notify other server instances to reload
+			if _, err = app.Reload(true, true); err != nil {
+				return nil, fmt.Errorf("error reloading app %s: %w", appInfo, err)
 			}
 
 			// Dev app code loaded
@@ -67,7 +73,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	stageApps := make([]*app.App, 0, len(stageAppEntries))
 	// Load code for all staging apps into the transaction context
 	for index, stageAppEntry := range stageAppEntries {
-		if err := s.loadAppCode(ctx, tx, stageAppEntry); err != nil {
+		if err := s.loadAppCode(ctx, tx, stageAppEntry, branch, commit, gitAuth); err != nil {
 			return nil, err
 		}
 
@@ -183,21 +189,12 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	return ret, nil
 }
 
-func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) error {
-	s.Info().Msgf("Reloading app %v", appEntry)
+func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, branch, commit, gitAuth string) error {
+	s.Info().Msgf("Reloading app code %v", appEntry)
 
-	if appEntry.IsDev {
-		app, err := s.GetApp(appEntry.AppPathDomain(), true)
-		if err != nil {
-			return err
-		}
-		// Reload dev mode app from disk
-		// TODO : notify other server instances to reload
-		_, err = app.Reload(true, true)
-		return err
-	} else if isGit(appEntry.SourceUrl) {
+	if isGit(appEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
-		if err := s.loadSourceFromGit(ctx, tx, appEntry); err != nil {
+		if err := s.loadSourceFromGit(ctx, tx, appEntry, branch, commit, gitAuth); err != nil {
 			return err
 		}
 	} else {

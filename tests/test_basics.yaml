@@ -125,8 +125,8 @@ tests:
     stdout:
       line-count: 4
       contains:
-        - "IsDev	Version"
-        - "false	1"
+        - "Type Version"
+        - "PROD 1"
     exit-code: 0
   basic510: # Test app list command with internal
     command: ../clace app list --internal
@@ -135,7 +135,7 @@ tests:
     stdout:
       line-count: 6 # two prod mode apps have an staging app each
       contains:
-        - "IsDev	Version"
+        - "Type Version"
         - "app_stg_"
     exit-code: 0
 
@@ -164,7 +164,7 @@ tests:
     command: ../clace app list --format csv /test2*
     stdout:
       contains:
-        - "false,1"
+        - "PROD,1"
       line-count: 1
     exit-code: 0
   basic570: # Test app list command with json format

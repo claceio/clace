@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
@@ -170,18 +171,35 @@ func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s\t%-5s\t%-5s\t%-40s\t%-30s\t%-30s\n"
-		formatStrData := "%-35s\t%-5t\t%-5d\t%-40s\t%-30s\t%-30s\n" // IsDev is %t instead of %s
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "IsDev", "Version", "GitHash", "Domain:Path", "SourceUrl")
+		formatStrHead := "%-35s %-4s %-7s %-40s %-15s %-30s %-30s\n"
+		formatStrData := "%-35s %-4s %-7d %-40s %-15s %-30s %-30s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version",
+			"GitCommit", "GitBranch", "Domain:Path", "SourceUrl")
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, app.IsDev, app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit, &app.AppEntry, app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, appType(app),
+				app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit,
+				app.Metadata.VersionMetadata.GitBranch, &app.AppEntry, app.SourceUrl)
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%t,%d,%s,%s,%s\n", app.Id, app.IsDev, app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit, app.AppEntry.AppPathDomain(), app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,%s,%s\n", app.Id, appType(app),
+				app.Metadata.VersionMetadata.Version, app.Metadata.VersionMetadata.GitCommit, app.Metadata.VersionMetadata.GitBranch,
+				app.AppEntry.AppPathDomain(), app.SourceUrl)
 		}
 	default:
 		panic(fmt.Errorf("unknown format %s", format))
+	}
+}
+
+func appType(app utils.AppResponse) string {
+	if app.IsDev {
+		return "DEV"
+	} else {
+		if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PRD) {
+			return "PROD"
+		} else {
+			return "STG"
+		}
 	}
 }
 
@@ -272,6 +290,9 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
 	flags = append(flags, newBoolFlag("promote", "", "Promote the change from stage to prod", false))
+	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", ""))
+	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
+	flags = append(flags, newStringFlag("git_auth", "", "The name of the git_auth entry to use", ""))
 
 	return &cli.Command{
 		Name:      "reload",
@@ -289,6 +310,9 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
+			values.Add("branch", cCtx.String("branch"))
+			values.Add("commit", cCtx.String("commit"))
+			values.Add("gitAuth", cCtx.String("git_auth"))
 
 			var response map[string]any
 			err := client.Post("/_clace/reload", values, nil, &response)
