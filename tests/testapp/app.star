@@ -4,7 +4,7 @@ def handler(req):
 
 
 def json_handler(req):
-    return {"val": "555"}
+    return {"val": "111"}
 
 
 app = ace.app("TestApp",
