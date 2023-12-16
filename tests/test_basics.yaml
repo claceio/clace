@@ -5,7 +5,7 @@ tests:
       line-count: 1 # Only header is printed
     exit-code: 0
   basic020:
-    command: ../clace app list --server_uri=http://localhost:9154 /invalid # Wrong password
+    command: ../clace app list --server-uri=http://localhost:9154 /invalid # Wrong password
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
     stdout:
@@ -13,7 +13,7 @@ tests:
     exit-code: 1
 
   basic030:
-    command: ../clace app list --server_uri=http://localhost:9154 --admin_password=abcd /invalid # No app
+    command: ../clace app list --server-uri=http://localhost:9154 --admin-password=abcd /invalid # No app
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
     stdout:
@@ -21,14 +21,14 @@ tests:
     exit-code: 1
 
   basic040:
-    command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd /invalid # Test TLS
+    command: ../clace app list --server-uri=https://localhost:9155 --admin-password=abcd /invalid # Test TLS
     stderr: "tls: failed to verify certificate"
     stdout:
       line-count: 0
     exit-code: 1
 
   basic050:
-    command: ../clace app list --server_uri=https://localhost:9155 --admin_password=abcd --skip_cert_check /invalid # TLS with skip_cert_check
+    command: ../clace app list --server-uri=https://localhost:9155 --admin-password=abcd --skip-cert-check /invalid # TLS with skip_cert_check
     stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
@@ -58,7 +58,7 @@ tests:
       exactly: "Authentication failed"
 
   basic160: ## create test2 app with authentication disabled
-    command: ../clace app create --auth_type=none /test2 ./testapp
+    command: ../clace app create --auth-type=none /test2 ./testapp
     exit-code: 0
 
   basic161: ## Check static files are using optimized fetch path (no compression/decompression)
@@ -88,8 +88,8 @@ tests:
     command: rm -rf ./testapp/static/gen ./testapp/index_gen.go.html ./testapp/config_gen.lock ./testapp/clace_gen.go.html
     exit-code: 0
 
-  basic260: # create test3 app with auth specifically enabled. is_dev is used to check if files are created fine
-    command: ../clace app create --is_dev --auth_type=default /test3 ./testapp
+  basic260: # create test3 app with auth specifically enabled. dev is used to check if files are created fine
+    command: ../clace app create --dev --auth-type=default /test3 ./testapp
     exit-code: 0
 
   basic270: # check curl works with password

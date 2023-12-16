@@ -5,7 +5,7 @@ tests:
   reload0010: # copy sample app
     command: cp -r ./testapp reloadtest
   reload0020: # create dev app
-    command: ../clace app create --is_dev /reload_dev ./reloadtest
+    command: ../clace app create --dev /reload_dev ./reloadtest
   reload0030: # create local1 app
     command: ../clace app create /reload_local1 ./reloadtest
   reload0040: # create local2 app
@@ -155,7 +155,7 @@ tests:
     stdout:
       exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0504: # app reload with invalid auth
-    command: ../clace app reload --git_auth=abc  "/reload_git*"
+    command: ../clace app reload --git-auth=abc  "/reload_git*"
     exit-code: 1
 
   # TODO test reload stdout messages

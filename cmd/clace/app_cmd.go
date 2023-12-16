@@ -33,12 +33,12 @@ func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newBoolFlag("is_dev", "", "Is the application in development mode", false))
-	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
-	flags = append(flags, newStringFlag("auth_type", "", "The authentication type to use: can be default or none", "default"))
-	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", "main"))
-	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
-	flags = append(flags, newStringFlag("git_auth", "", "The name of the git_auth entry to use", ""))
+	flags = append(flags, newBoolFlag("dev", "d", "Is the application in development mode", false))
+	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
+	flags = append(flags, newStringFlag("auth-type", "", "The authentication type to use: can be default or none", "default"))
+	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
+	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
+	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
 
 	return &cli.Command{
 		Name:      "create",
@@ -50,12 +50,12 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 
 Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
-Create app for development (source has to be disk): clace app create --approve --is_dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
+Create app for development (source has to be disk): clace app create --approve --dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
 Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
 Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
-Create app using git url, with git private key auth: clace app create --approve --git_auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
-Create app for specified domain, no auth : clace app create --approve --auth_type=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
+Create app using git url, with git private key auth: clace app create --approve --git-auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
+Create app for specified domain, no auth : clace app create --approve --auth-type=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
@@ -68,11 +68,11 @@ Create app for specified domain, no auth : clace app create --approve --auth_typ
 
 			body := utils.CreateAppRequest{
 				SourceUrl:   cCtx.Args().Get(1),
-				IsDev:       cCtx.Bool("is_dev"),
-				AppAuthn:    utils.AppAuthnType(cCtx.String("auth_type")),
+				IsDev:       cCtx.Bool("dev"),
+				AppAuthn:    utils.AppAuthnType(cCtx.String("auth-type")),
 				GitBranch:   cCtx.String("branch"),
 				GitCommit:   cCtx.String("commit"),
-				GitAuthName: cCtx.String("git_auth"),
+				GitAuthName: cCtx.String("git-auth"),
 			}
 			var auditResult utils.AuditResult
 			err := client.Post("/_clace/app", values, body, &auditResult)
@@ -235,7 +235,7 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 func appAuditCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
+	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 
 	return &cli.Command{
 		Name:      "audit",
@@ -288,11 +288,12 @@ func appAuditCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *
 func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newBoolFlag("approve", "", "Approve the app permissions", false))
-	flags = append(flags, newBoolFlag("promote", "", "Promote the change from stage to prod", false))
-	flags = append(flags, newStringFlag("branch", "", "The branch to checkout if using git source", ""))
-	flags = append(flags, newStringFlag("commit", "", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
-	flags = append(flags, newStringFlag("git_auth", "", "The name of the git_auth entry to use", ""))
+	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
+	flags = append(flags, newBoolFlag("promote", "p", "Promote the change from stage to prod", false))
+	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", ""))
+	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
+	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
+	flags = append(flags, newBoolFlag("dry-run", "n", "Whether to run in dry run (check only) mode", false))
 
 	return &cli.Command{
 		Name:      "reload",
@@ -312,7 +313,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
 			values.Add("branch", cCtx.String("branch"))
 			values.Add("commit", cCtx.String("commit"))
-			values.Add("gitAuth", cCtx.String("git_auth"))
+			values.Add("gitAuth", cCtx.String("git-auth"))
 
 			var response map[string]any
 			err := client.Post("/_clace/reload", values, nil, &response)

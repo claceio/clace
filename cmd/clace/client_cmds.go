@@ -15,10 +15,10 @@ func getClientCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error)
 	}
 
 	flags := []cli.Flag{
-		newAltStringFlag("server_uri", "s", "The server connection uri", defaultClientConfig.ServerUri, &clientConfig.ServerUri),
-		newAltStringFlag("admin_user", "u", "The admin user name", defaultClientConfig.AdminUser, &clientConfig.AdminUser),
-		newAltStringFlag("admin_password", "w", "The admin user password", defaultClientConfig.AdminPassword, &clientConfig.AdminPassword),
-		newAltBoolFlag("skip_cert_check", "k", "Skip TLS certificate verification", defaultClientConfig.SkipCertCheck, &clientConfig.SkipCertCheck),
+		newAltStringFlag("server-uri", "s", "The server connection uri", defaultClientConfig.ServerUri, &clientConfig.ServerUri),
+		newAltStringFlag("admin-user", "u", "The admin user name", defaultClientConfig.AdminUser, &clientConfig.AdminUser),
+		newAltStringFlag("admin-password", "w", "The admin user password", defaultClientConfig.AdminPassword, &clientConfig.AdminPassword),
+		newAltBoolFlag("skip-cert-check", "k", "Skip TLS certificate verification", defaultClientConfig.SkipCertCheck, &clientConfig.SkipCertCheck),
 	}
 
 	commands := make([]*cli.Command, 0, 6)

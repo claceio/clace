@@ -5,7 +5,7 @@ tests:
   load0010: # copy sample app
     command: cp -r ../examples/disk_usage .
   load0020: # create dev app
-    command: ../clace app create --is_dev /disk_usage_dev ./disk_usage
+    command: ../clace app create --dev /disk_usage_dev ./disk_usage
     stderr:
       line-count: 0
     stdout: "App audit results /disk_usage_dev : app"
@@ -86,12 +86,12 @@ tests:
     exit-code: 0
   load0070: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
-  load0080: # with --is_dev, changes are picked up immediately
+  load0080: # with --dev, changes are picked up immediately
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stderr:
       line-count: 0
     stdout: "DiskTest Usage"
-  load0090: # without --is_dev, changes are not picked up
+  load0090: # without --dev, changes are not picked up
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod
     stderr:
       line-count: 0
