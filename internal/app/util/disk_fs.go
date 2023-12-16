@@ -81,6 +81,10 @@ func (d *DiskReadFS) Glob(pattern string) (matches []string, err error) {
 	return fs.Glob(d.fs, pattern)
 }
 
+func (d *DiskReadFS) Reset() {
+	// do nothing
+}
+
 func (d *DiskWriteFS) Write(name string, bytes []byte) error {
 	name, err := d.makeAbsolute(name)
 	if err != nil {

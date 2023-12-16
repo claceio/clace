@@ -19,7 +19,7 @@ var (
 	gitVersion string // gitVersion is the build tag
 )
 
-const configFileFlagName = "config_file"
+const configFileFlagName = "config-file"
 
 func getAllCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command

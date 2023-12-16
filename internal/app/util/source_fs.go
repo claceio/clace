@@ -236,7 +236,7 @@ func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "404 page not found", http.StatusNotFound)
 		return
 	} else if err != nil {
-		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, "500 Error serving static file: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer f.Close()

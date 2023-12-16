@@ -60,6 +60,7 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 	defer a.mu.Unlock()
 
 	for _, app := range apps {
+		app.ResetFS() // clear the transaction for DbFS
 		a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
 	}
 }

@@ -318,7 +318,7 @@ type Transaction struct {
 	*sql.Tx
 }
 
-func (t Transaction) IsInitialized() bool {
+func (t *Transaction) IsInitialized() bool {
 	return t.Tx != nil
 }
 

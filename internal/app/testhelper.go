@@ -157,6 +157,10 @@ func (f *TestReadFS) Stat(name string) (fs.FileInfo, error) {
 	return &TestFileInfo{file}, nil
 }
 
+func (f *TestReadFS) Reset() {
+	// do nothing
+}
+
 func (f *TestWriteFS) Write(name string, bytes []byte) error {
 	name = strings.TrimPrefix(name, "/")
 	f.fileData[name] = string(bytes)

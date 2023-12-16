@@ -220,3 +220,7 @@ func (d *DbFs) Glob(pattern string) (matches []string, err error) {
 
 	return matchedFiles, nil
 }
+
+func (d *DbFs) Reset() {
+	d.fileStore.Reset()
+}

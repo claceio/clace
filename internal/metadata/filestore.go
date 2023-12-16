@@ -237,3 +237,8 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 
 	return nil
 }
+
+func (f *FileStore) Reset() {
+	// Unlink the file store from the transaction used during init
+	f.initTx = Transaction{}
+}

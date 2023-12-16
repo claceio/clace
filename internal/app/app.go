@@ -129,6 +129,10 @@ func (a *App) Close() error {
 	return nil
 }
 
+func (a *App) ResetFS() {
+	a.sourceFS.Reset()
+}
+
 func (a *App) Reload(force, immediate bool) (bool, error) {
 	requestTime := time.Now()
 
