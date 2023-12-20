@@ -69,10 +69,6 @@ tests:
     command: curl -vsu "admin:qwerty" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
     stdout: "Vary: HX-Request"
     exit-code: 0
-  #load0055: # check Response compression header
-  #  command: curl -vsu "admin:qwerty" -H "Accept-Encoding:gzip" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep "Content-Encoding"
-  #  stdout: "Content-Encoding: gzip"
-  #  exit-code: 0
   load0060: # audit prod app
     command: ../clace app audit --approve /disk_usage_prod
     stdout:

@@ -263,7 +263,7 @@ func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If this is a request without Range headers and gzip encoding is accepted,
+	// If this is a request without Range headers and brotli encoding is accepted,
 	// Return the data which is already in a compressed form
 	served, err := h.serveCompressed(w, r, filename, fi.ModTime(), seeker)
 	if err != nil {
@@ -277,7 +277,7 @@ func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, filename, fi.ModTime(), seeker)
 }
 
-const COMPRESSION_TYPE = "gzip"
+const COMPRESSION_TYPE = "br" // brotli uses br as the encoding type
 
 func (h *fsHandler) canServeCompressed(r *http.Request) bool {
 	rangeHeader := r.Header.Get("Range")
@@ -288,28 +288,27 @@ func (h *fsHandler) canServeCompressed(r *http.Request) bool {
 
 	encodingHeader := r.Header.Get("Accept-Encoding")
 	acceptedEncodings := strings.Split(strings.ToLower(encodingHeader), ",")
-	gzipMatchFound := false
+	brotliMatchFound := false
 
 	for _, acceptedEncoding := range acceptedEncodings {
 		if strings.TrimSpace(acceptedEncoding) == COMPRESSION_TYPE {
-			gzipMatchFound = true
+			brotliMatchFound = true
 			break
 		}
 	}
 
-	return gzipMatchFound
+	return brotliMatchFound
 }
 
 var unixEpochTime = time.Unix(0, 0)
 
 // serveCompressed checks if the compressed file data can be streamed directly to the client, without
-// the need to decompress and then recompress. If the client accepts gzipped data and there are no range headers, then this
-// optimization can be used.
+// the need to decompress and then recompress. If the client accepts brotli compressed data and there are no
+// range headers, then this optimization can be used.
 func (h *fsHandler) serveCompressed(w http.ResponseWriter, r *http.Request, filename string, modtime time.Time, content io.ReadSeeker) (bool, error) {
 	if !h.canServeCompressed(r) {
 		return false, nil
 	}
-
 	compressedReader, ok := content.(utils.CompressedReader)
 	if !ok {
 		return false, nil
@@ -321,7 +320,7 @@ func (h *fsHandler) serveCompressed(w http.ResponseWriter, r *http.Request, file
 	}
 
 	if compressionType != COMPRESSION_TYPE {
-		// the data is not compressed with gzip, fallback to http.ServeContent
+		// the data is not compressed with brotli, fallback to http.ServeContent
 		return false, nil
 	}
 
@@ -337,6 +336,7 @@ func (h *fsHandler) serveCompressed(w http.ResponseWriter, r *http.Request, file
 	w.Header().Set("Content-Encoding", COMPRESSION_TYPE)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 	w.Header().Set("X-Clace-Compressed", "true")
+	w.Header().Add("Vary", "Accept-Encoding")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 

@@ -5,7 +5,6 @@ package metadata
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -17,7 +16,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andybalholm/brotli"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
+)
+
+const (
+	COMPRESSION_THRESHOLD = 0 // files above this size are stored compressed. The chi Compress middleware does not have a threshold,
+	// so the threshold is set to zero here
+	BROTLI_COMPRESSION_LEVEL = 9 // https://paulcalvano.com/2018-07-25-brotli-compression-how-much-will-it-reduce-your-content/ seems
+	// to indicate that level 9 is a good level.
 )
 
 type FileStore struct {
@@ -89,16 +97,16 @@ func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, versionMe
 		hashHex := hex.EncodeToString(hash[:])
 		compressionType := ""
 		storeBuf := buf
-		if len(buf) > 1024 {
-			compressionType = "gzip"
+		if len(buf) > COMPRESSION_THRESHOLD {
+			compressionType = util.COMPRESSION_TYPE
 			byteBuf.Reset()
-			gz := gzip.NewWriter(&byteBuf)
+			br := brotli.NewWriterLevel(&byteBuf, BROTLI_COMPRESSION_LEVEL)
 
-			if _, err := gz.Write(buf); err != nil {
-				gz.Close()
+			if _, err := br.Write(buf); err != nil {
+				br.Close()
 				return err
 			}
-			if err := gz.Close(); err != nil {
+			if err := br.Close(); err != nil {
 				return err
 			}
 			storeBuf = byteBuf.Bytes()

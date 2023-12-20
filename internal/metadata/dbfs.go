@@ -5,13 +5,14 @@ package metadata
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"io/fs"
 	"path"
 	"time"
 
+	"github.com/andybalholm/brotli"
+	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -91,13 +92,9 @@ func NewbFileReader(compressionType string, data []byte) *DbFileReader {
 func (f *DbFileReader) uncompress() error {
 	if f.compressionType == "" {
 		f.uncompressedReader = f.compressedReader
-	} else if f.compressionType == "gzip" {
-		gz, err := gzip.NewReader(f.compressedReader)
-		if err != nil {
-			return err
-		}
-		defer gz.Close()
-		uncompressed, err := io.ReadAll(gz)
+	} else if f.compressionType == util.COMPRESSION_TYPE {
+		br := brotli.NewReader(f.compressedReader)
+		uncompressed, err := io.ReadAll(br)
 		if err != nil {
 			return err
 		}
@@ -184,14 +181,10 @@ func (d *DbFs) ReadFile(name string) ([]byte, error) {
 		return nil, err
 	}
 	if compressionType != "" {
-		if compressionType != "gzip" {
+		if compressionType != util.COMPRESSION_TYPE {
 			return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
 		}
-		gz, err := gzip.NewReader(bytes.NewReader(fileBytes))
-		if err != nil {
-			return nil, err
-		}
-		defer gz.Close()
+		gz := brotli.NewReader(bytes.NewReader(fileBytes))
 		fileBytes, err = io.ReadAll(gz)
 		if err != nil {
 			return nil, err
