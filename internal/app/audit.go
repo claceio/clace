@@ -15,7 +15,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-func (a *App) Audit() (*utils.AuditResult, error) {
+func (a *App) Approve() (*utils.ApproveResult, error) {
 	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %s file: %w", util.APP_FILE_NAME, err)
@@ -85,10 +85,10 @@ func (a *App) Audit() (*utils.AuditResult, error) {
 		return nil, fmt.Errorf("source init failed %v", err)
 	}
 
-	return a.createAuditResponse(loads, globals)
+	return a.createApproveResponse(loads, globals)
 }
 
-func needsApproval(a *utils.AuditResult) bool {
+func needsApproval(a *utils.ApproveResult) bool {
 	if !slices.Equal(a.NewLoads, a.ApprovedLoads) {
 		return true
 	}
@@ -107,7 +107,7 @@ func needsApproval(a *utils.AuditResult) bool {
 	return !slices.EqualFunc(a.NewPermissions, a.ApprovedPermissions, permEquals)
 }
 
-func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (*utils.AuditResult, error) {
+func (a *App) createApproveResponse(loads []string, globals starlark.StringDict) (*utils.ApproveResult, error) {
 	// the App entry should not get updated during the audit call, since there
 	// can be audit calls when the app is running.
 	appDef, err := verifyConfig(globals)
@@ -116,7 +116,7 @@ func (a *App) createAuditResponse(loads []string, globals starlark.StringDict) (
 	}
 
 	perms := []utils.Permission{}
-	results := utils.AuditResult{
+	results := utils.ApproveResult{
 		AppPathDomain:       a.AppEntry.AppPathDomain(),
 		Id:                  a.Id,
 		NewLoads:            loads,

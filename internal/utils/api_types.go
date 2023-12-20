@@ -38,8 +38,8 @@ type CreateAppRequest struct {
 	GitAuthName string       `json:"git_auth_name"`
 }
 
-// AuditResult represents the result of an app audit
-type AuditResult struct {
+// ApproveResult represents the result of an app approval audit
+type ApproveResult struct {
 	Id                  AppId         `json:"id"`
 	AppPathDomain       AppPathDomain `json:"app_path_domain"`
 	NewLoads            []string      `json:"new_loads"`
@@ -49,8 +49,8 @@ type AuditResult struct {
 	NeedsApproval       bool          `json:"needs_approval"`
 }
 
-type AppAuditResponse struct {
-	AuditResults []AuditResult `json:"audit_results"`
+type AppApproveResponse struct {
+	ApproveResults []ApproveResult `json:"approve_results"`
 }
 
 type AppResponse struct {
@@ -63,7 +63,7 @@ type AppListResponse struct {
 }
 
 type AppReloadResponse struct {
-	AuditResults   []AuditResult   `json:"audit_results"`
+	ApproveResults []ApproveResult `json:"approve_results"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
 }
 

@@ -26,7 +26,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	}
 	defer tx.Rollback()
 
-	auditResults := make([]utils.AuditResult, 0, len(filteredApps))
+	approveResults := make([]utils.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
 
 	prodAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
@@ -88,18 +88,18 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		}
 		stageApps = append(stageApps, stageApp)
 
-		auditResult, err := stageApp.Audit()
+		approveResult, err := stageApp.Approve()
 		if err != nil {
-			return nil, fmt.Errorf("error auditing app %s: %w", stageAppEntry, err)
+			return nil, fmt.Errorf("error approving app %s: %w", stageAppEntry, err)
 		}
-		auditResults = append(auditResults, *auditResult)
+		approveResults = append(approveResults, *approveResult)
 
-		if auditResult.NeedsApproval {
+		if approveResult.NeedsApproval {
 			if !approve {
 				return nil, fmt.Errorf("app %s needs approval", stageAppEntry)
 			} else {
-				stageApp.AppEntry.Metadata.Loads = auditResult.NewLoads
-				stageApp.AppEntry.Metadata.Permissions = auditResult.NewPermissions
+				stageApp.AppEntry.Metadata.Loads = approveResult.NewLoads
+				stageApp.AppEntry.Metadata.Permissions = approveResult.NewPermissions
 				if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
 					return nil, err
 				}
@@ -148,17 +148,17 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		}
 		devApps = append(devApps, devApp)
 
-		auditResult, err := devApp.Audit()
+		approveResult, err := devApp.Approve()
 		if err != nil {
 			return nil, fmt.Errorf("error auditing dev app %s: %w", devAppEntry, err)
 		}
 
-		if auditResult.NeedsApproval {
+		if approveResult.NeedsApproval {
 			if !approve {
 				return nil, fmt.Errorf("app %s needs approval", devAppEntry)
 			} else {
-				devApp.AppEntry.Metadata.Loads = auditResult.NewLoads
-				devApp.AppEntry.Metadata.Permissions = auditResult.NewPermissions
+				devApp.AppEntry.Metadata.Loads = approveResult.NewLoads
+				devApp.AppEntry.Metadata.Permissions = approveResult.NewPermissions
 				if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
 					return nil, err
 				}
@@ -182,7 +182,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	}
 
 	ret := &utils.AppReloadResponse{
-		AuditResults:   auditResults,
+		ApproveResults: approveResults,
 		PromoteResults: promoteResults,
 	}
 

@@ -19,6 +19,7 @@ import (
 
 const (
 	VARY_HEADER = "Vary"
+	DRY_RUN_ARG = "dryRun"
 )
 
 var (
@@ -168,9 +169,9 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 		h.apiHandler(w, r, enableBasicAuth, h.deleteApps)
 	}))
 
-	// API to audit the plugin usage and permissions for the app
-	r.Post("/audit", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.auditApps)
+	// API to approve the plugin usage and permissions for the app
+	r.Post("/approve", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.approveApps)
 	}))
 
 	// API to reload apps
@@ -302,15 +303,15 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 	return nil, nil
 }
 
-func (h *Handler) auditApps(r *http.Request) (any, error) {
+func (h *Handler) approveApps(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
-	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
 	}
 
-	auditResult, err := h.server.AuditApps(r.Context(), pathSpec, approve)
-	return utils.AppAuditResponse{AuditResults: auditResult}, err
+	approveResult, err := h.server.ApproveApps(r.Context(), pathSpec, dryRun)
+	return utils.AppApproveResponse{ApproveResults: approveResult}, err
 }
 
 func AddVaryHeader(next http.Handler) http.Handler {

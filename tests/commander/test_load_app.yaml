@@ -20,12 +20,15 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   load0041: # check audit output
-    command: ../clace app audit /disk_usage_dev
+    command: ../clace app approve --dry-run /disk_usage_dev
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions need to be approved...\n"
+      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n\ndry-run mode, changes have NOT been committed.\n"
     exit-code: 0
+  load0041a: # test dev app, make sure dry run did not update the in memory cache
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
+    stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   load0042: # approve audit
-    command: ../clace app audit --approve /disk_usage_dev
+    command: ../clace app approve /disk_usage_dev
     stdout:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
@@ -38,7 +41,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   load0046: # approve audit, no more run permissions
-    command: ../clace app audit --approve /disk_usage_dev
+    command: ../clace app approve /disk_usage_dev
     stdout:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\nApp permissions have been approved.\n"
     exit-code: 0
@@ -48,7 +51,7 @@ tests:
   load0048: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star && perl -i -pe 's/\["du"\]/["cat"]/g' ./disk_usage/app.star
   load0049: # approve audit, run permissions but for cat instead of du
-    command: ../clace app audit --approve /disk_usage_dev
+    command: ../clace app approve /disk_usage_dev
     stdout:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
@@ -58,7 +61,7 @@ tests:
   load0051: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
   load0052: # approve audit, run permissions but for du
-    command: ../clace app audit --approve /disk_usage_dev
+    command: ../clace app approve /disk_usage_dev
     stdout:
       exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0
@@ -70,7 +73,7 @@ tests:
     stdout: "Vary: HX-Request"
     exit-code: 0
   load0060: # audit prod app
-    command: ../clace app audit --approve /disk_usage_prod
+    command: ../clace app approve /disk_usage_prod
     stdout:
       exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
     exit-code: 0

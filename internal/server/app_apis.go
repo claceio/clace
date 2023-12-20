@@ -52,7 +52,7 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, appPath string, approve bool, appRequest utils.CreateAppRequest) (*utils.AuditResult, error) {
+func (s *Server) CreateApp(ctx context.Context, appPath string, approve bool, appRequest utils.CreateAppRequest) (*utils.ApproveResult, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve bool, ap
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approve bool, branch, commit, gitAuth string) (*utils.AuditResult, error) {
+func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approve bool, branch, commit, gitAuth string) (*utils.ApproveResult, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -378,17 +378,13 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 	return matchedApp, nil
 }
 
-func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*utils.AuditResult, error) {
-	auditResult, err := app.Audit()
+func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*utils.ApproveResult, error) {
+	auditResult, err := app.Approve()
 	if err != nil {
 		return nil, err
 	}
 
 	if approve {
-		if err != nil {
-			return nil, err
-		}
-
 		app.AppEntry.Metadata.Loads = auditResult.NewLoads
 		app.AppEntry.Metadata.Permissions = auditResult.NewPermissions
 		if err := s.db.UpdateAppMetadata(ctx, tx, app.AppEntry); err != nil {
@@ -400,44 +396,57 @@ func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app
 	return auditResult, nil
 }
 
-func (s *Server) AuditApps(ctx context.Context, pathSpec string, approve bool) ([]utils.AuditResult, error) {
+func (s *Server) ApproveApps(ctx context.Context, pathSpec string, dryRun bool) ([]utils.ApproveResult, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	ret, err := s.AuditAppsTx(ctx, tx, pathSpec, approve)
+	ret, apps, err := s.AuditAppsTx(ctx, tx, pathSpec)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = tx.Commit(); err != nil {
+	if dryRun {
+		return ret, nil
+	}
+
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+
+	// Update the in memory cache
+	s.apps.UpdateApps(apps)
 	return ret, nil
 }
 
-func (s *Server) AuditAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, approve bool) ([]utils.AuditResult, error) {
+func (s *Server) AuditAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string) ([]utils.ApproveResult, []*app.App, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	results := make([]utils.AuditResult, 0, len(filteredApps))
+	results := make([]utils.ApproveResult, 0, len(filteredApps))
+	apps := make([]*app.App, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
-		app, err := s.GetApp(appInfo.AppPathDomain, false)
+		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		result, err := s.auditApp(ctx, tx, app, approve)
+		app, err := s.setupApp(appEntry, tx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		apps = append(apps, app)
+		result, err := s.auditApp(ctx, tx, app, true)
+		if err != nil {
+			return nil, nil, err
 		}
 		results = append(results, *result)
 	}
 
-	return results, nil
+	return results, apps, nil
 }
 
 func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {

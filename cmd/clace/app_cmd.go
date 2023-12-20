@@ -15,6 +15,12 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
+const (
+	DRY_RUN_FLAG    = "dry-run"
+	DRY_RUN_ARG     = "dryRun"
+	DRY_RUN_MESSAGE = "\ndry-run mode, changes have NOT been committed.\n"
+)
+
 func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "app",
@@ -23,11 +29,15 @@ func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 			appCreateCommand(commonFlags, clientConfig),
 			appListCommand(commonFlags, clientConfig),
 			appDeleteCommand(commonFlags, clientConfig),
-			appAuditCommand(commonFlags, clientConfig),
+			appApproveCommand(commonFlags, clientConfig),
 			appReloadCommand(commonFlags, clientConfig),
 			appPromoteCommand(commonFlags, clientConfig),
 		},
 	}
+}
+
+func dryRunFlag() *cli.BoolFlag {
+	return newBoolFlag(DRY_RUN_FLAG, "", "Verify command but don't commit any changes", false)
 }
 
 func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
@@ -39,6 +49,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "create",
@@ -65,6 +76,7 @@ Create app for specified domain, no auth : clace app create --approve --auth-typ
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().Get(0))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			body := utils.CreateAppRequest{
 				SourceUrl:   cCtx.Args().Get(1),
@@ -74,22 +86,22 @@ Create app for specified domain, no auth : clace app create --approve --auth-typ
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
 			}
-			var auditResult utils.AuditResult
-			err := client.Post("/_clace/app", values, body, &auditResult)
+			var approveResult utils.ApproveResult
+			err := client.Post("/_clace/app", values, body, &approveResult)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("App audit results %s : %s\n", cCtx.Args().First(), auditResult.Id)
+			fmt.Printf("App audit results %s : %s\n", cCtx.Args().First(), approveResult.Id)
 			fmt.Printf("  Plugins :\n")
-			for _, load := range auditResult.NewLoads {
+			for _, load := range approveResult.NewLoads {
 				fmt.Printf("    %s\n", load)
 			}
 			fmt.Printf("  Permissions:\n")
-			for _, perm := range auditResult.NewPermissions {
+			for _, perm := range approveResult.NewPermissions {
 				fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
 			}
 
-			if auditResult.NeedsApproval {
+			if approveResult.NeedsApproval {
 				if cCtx.Bool("approve") {
 					fmt.Print("App created. Permissions have been approved\n")
 				} else {
@@ -206,6 +218,7 @@ func appType(app utils.AppResponse) string {
 func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "delete",
@@ -221,6 +234,7 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			err := client.Delete("/_clace/app", values)
 			if err != nil {
@@ -232,14 +246,14 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	}
 }
 
-func appAuditCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
-		Name:      "audit",
-		Usage:     "Audit app permissions",
+		Name:      "approve",
+		Usage:     "Approve app permissions",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec>",
@@ -251,33 +265,33 @@ func appAuditCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
-			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var auditResponse utils.AppAuditResponse
-			err := client.Post("/_clace/audit", values, nil, &auditResponse)
+			var approveResponse utils.AppApproveResponse
+			err := client.Post("/_clace/approve", values, nil, &approveResponse)
 			if err != nil {
 				return err
 			}
-			for _, auditResult := range auditResponse.AuditResults {
-				fmt.Printf("App audit: %s\n", auditResult.AppPathDomain)
+			for _, approveResult := range approveResponse.ApproveResults {
+				fmt.Printf("App audit: %s\n", approveResult.AppPathDomain)
 				fmt.Printf("  Plugins :\n")
-				for _, load := range auditResult.NewLoads {
+				for _, load := range approveResult.NewLoads {
 					fmt.Printf("    %s\n", load)
 				}
 				fmt.Printf("  Permissions:\n")
-				for _, perm := range auditResult.NewPermissions {
+				for _, perm := range approveResult.NewPermissions {
 					fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
 				}
 
-				if auditResult.NeedsApproval {
-					if cCtx.Bool("approve") {
-						fmt.Printf("App permissions have been approved.\n")
-					} else {
-						fmt.Printf("App permissions need to be approved...\n")
-					}
+				if approveResult.NeedsApproval {
+					fmt.Printf("App permissions have been approved.\n")
 				} else {
 					fmt.Printf("App permissions are current, no approval required.\n")
 				}
+			}
+
+			if cCtx.Bool(DRY_RUN_FLAG) {
+				fmt.Print(DRY_RUN_MESSAGE)
 			}
 
 			return nil
@@ -293,7 +307,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", ""))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
-	flags = append(flags, newBoolFlag("dry-run", "n", "Whether to run in dry run (check only) mode", false))
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "reload",
@@ -314,6 +328,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("branch", cCtx.String("branch"))
 			values.Add("commit", cCtx.String("commit"))
 			values.Add("gitAuth", cCtx.String("git-auth"))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var response map[string]any
 			err := client.Post("/_clace/reload", values, nil, &response)
@@ -329,6 +344,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "promote",
@@ -344,6 +360,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var response map[string]any
 			err := client.Post("/_clace/promote", values, nil, &response)
