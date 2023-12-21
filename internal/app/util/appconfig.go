@@ -12,6 +12,7 @@ type RouteConfig struct {
 	TemplateLocations []string `json:"template_locations"`
 	StaticDir         string   `json:"static_dir"`
 	PushEvents        bool     `json:"push_events"`
+	EarlyHints        bool     `json:"early_hints"`
 }
 
 type HtmxConfig struct {
@@ -28,6 +29,7 @@ func NewAppConfig() *AppConfig {
 			TemplateLocations: []string{"*.go.html"},
 			StaticDir:         "static",
 			PushEvents:        false,
+			EarlyHints:        true,
 		},
 		Htmx: HtmxConfig{
 			Version: "1.9.2",

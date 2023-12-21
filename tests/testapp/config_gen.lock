@@ -4,7 +4,8 @@
       "*.go.html"
     ],
     "static_dir": "static",
-    "push_events": false
+    "push_events": false,
+    "early_hints": true
   },
   "htmx": {
     "version": "1.9.2"

@@ -336,7 +336,8 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
 
-		if !a.IsDev && r.Method == http.MethodGet && r.Header.Get("sec-fetch-mode") == "navigate" &&
+		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
+			r.Header.Get("sec-fetch-mode") == "navigate" &&
 			!(strings.ToLower(rtype) == "json") && !(isHtmxRequest && block != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
