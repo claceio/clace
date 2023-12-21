@@ -307,16 +307,17 @@ func getRequestUrl(r *http.Request) string {
 
 func (a *App) earlyHints(w http.ResponseWriter, r *http.Request) {
 	sendHint := false
-	a.Info().Msgf("Sending early hints for %s", a.sourceFS.StaticFiles())
 	for _, f := range a.sourceFS.StaticFiles() {
 		if strings.HasSuffix(f, ".css") {
 			sendHint = true
 			w.Header().Add("Link", fmt.Sprintf("<%s>; rel=preload; as=style",
 				path.Join(a.Path, a.sourceFS.HashName(f))))
 		} else if strings.HasSuffix(f, ".js") {
-			sendHint = true
-			w.Header().Add("Link", fmt.Sprintf("<%s>; rel=preload; as=script",
-				path.Join(a.Path, a.sourceFS.HashName(f))))
+			if !strings.HasSuffix(f, "sse.js") {
+				sendHint = true
+				w.Header().Add("Link", fmt.Sprintf("<%s>; rel=preload; as=script",
+					path.Join(a.Path, a.sourceFS.HashName(f))))
+			}
 		}
 	}
 
