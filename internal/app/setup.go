@@ -305,6 +305,27 @@ func getRequestUrl(r *http.Request) string {
 	}
 }
 
+func (a *App) earlyHints(w http.ResponseWriter, r *http.Request) {
+	sendHint := false
+	a.Info().Msgf("Sending early hints for %s", a.sourceFS.StaticFiles())
+	for _, f := range a.sourceFS.StaticFiles() {
+		if strings.HasSuffix(f, ".css") {
+			sendHint = true
+			w.Header().Add("Link", fmt.Sprintf("<%s>; rel=preload; as=style",
+				path.Join(a.Path, a.sourceFS.HashName(f))))
+		} else if strings.HasSuffix(f, ".js") {
+			sendHint = true
+			w.Header().Add("Link", fmt.Sprintf("<%s>; rel=preload; as=script",
+				path.Join(a.Path, a.sourceFS.HashName(f))))
+		}
+	}
+
+	if sendHint {
+		a.Trace().Msg("Sending early hints for static files")
+		w.WriteHeader(http.StatusEarlyHints)
+	}
+}
+
 func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, rtype string) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
@@ -313,6 +334,13 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		}
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
+
+		if !a.IsDev && r.Method == http.MethodGet && r.Header.Get("sec-fetch-mode") == "navigate" &&
+			!(strings.ToLower(rtype) == "json") && !(isHtmxRequest && block != "") {
+			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
+			a.earlyHints(w, r)
+		}
+
 		appPath := a.Path
 		if appPath == "/" {
 			appPath = ""

@@ -213,7 +213,8 @@ type ReadableFS interface {
 	fs.GlobFS
 	// Stat returns the stats for the named file.
 	Stat(name string) (fs.FileInfo, error)
-	Reset() // Used to reset the file system transaction for the DbFs, no-op for others
+	Reset()                // Used to reset the file system transaction for the DbFs, no-op for others
+	StaticFiles() []string // Return list of static files
 }
 
 type CompressedReader interface {

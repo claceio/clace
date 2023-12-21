@@ -81,6 +81,10 @@ func (d *DiskReadFS) Glob(pattern string) (matches []string, err error) {
 	return fs.Glob(d.fs, pattern)
 }
 
+func (d *DiskReadFS) StaticFiles() []string {
+	return []string{} // Not implemented for disk fs, used only in prod mode
+}
+
 func (d *DiskReadFS) Reset() {
 	// do nothing
 }

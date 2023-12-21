@@ -29,9 +29,10 @@ type SourceFs struct {
 	Root  string
 	isDev bool
 
-	mu         sync.RWMutex
-	nameToHash map[string]string    // lookup (path to hash path)
-	hashToName map[string][2]string // reverse lookup (hash path to path)
+	staticFiles []string
+	mu          sync.RWMutex
+	nameToHash  map[string]string    // lookup (path to hash path)
+	hashToName  map[string][2]string // reverse lookup (hash path to path)
 }
 
 var _ utils.ReadableFS = (*SourceFs)(nil)
@@ -64,16 +65,27 @@ func (w *WritableSourceFs) Remove(name string) error {
 	return wfs.Remove(name)
 }
 
-func NewSourceFs(dir string, fs utils.ReadableFS, isDev bool) *SourceFs {
+func NewSourceFs(dir string, fs utils.ReadableFS, isDev bool) (*SourceFs, error) {
+	var staticFiles []string
+	if !isDev {
+		// For prod mode, get the list of static files for early hints
+		staticFiles = fs.StaticFiles()
+	}
+
 	return &SourceFs{
-		Root:       dir,
-		ReadableFS: fs,
-		isDev:      isDev,
+		Root:        dir,
+		ReadableFS:  fs,
+		isDev:       isDev,
+		staticFiles: staticFiles,
 
 		// File hashing code based on https://github.com/benbjohnson/hashfs/blob/main/hashfs.go
 		// Copyright (c) 2020 Ben Johnson. MIT License
 		nameToHash: make(map[string]string),
-		hashToName: make(map[string][2]string)}
+		hashToName: make(map[string][2]string)}, nil
+}
+
+func (f *SourceFs) StaticFiles() []string {
+	return f.staticFiles
 }
 
 func (f *SourceFs) ClearCache() {

@@ -34,10 +34,13 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 	} else {
 		fs = &TestReadFS{fileData: fileData}
 	}
-	sourceFS := util.NewSourceFs("", fs, isDev)
+	sourceFS, err := util.NewSourceFs("", fs, isDev)
+	if err != nil {
+		return nil, nil, err
+	}
 	workFS := util.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig)
-	err := a.Initialize()
+	err = a.Initialize()
 	return a, workFS, err
 }
 
@@ -155,6 +158,10 @@ func (f *TestReadFS) Stat(name string) (fs.FileInfo, error) {
 
 	file := CreateTestFile(name, f.fileData[name])
 	return &TestFileInfo{file}, nil
+}
+
+func (d *TestReadFS) StaticFiles() []string {
+	return []string{} // Not implemented for disk fs, used only in prod mode
 }
 
 func (f *TestReadFS) Reset() {

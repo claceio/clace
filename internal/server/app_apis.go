@@ -198,12 +198,19 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 		if err != nil {
 			return nil, err
 		}
-		sourceFS = util.NewSourceFs("", dbFs, false)
+		sourceFS, err = util.NewSourceFs("", dbFs, false)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		// Dev mode, use local disk as source
-		sourceFS = util.NewSourceFs(appEntry.SourceUrl,
+		var err error
+		sourceFS, err = util.NewSourceFs(appEntry.SourceUrl,
 			&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
 			appEntry.IsDev)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)

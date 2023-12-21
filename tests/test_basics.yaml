@@ -80,6 +80,10 @@ tests:
       exactly: "1" # X-Clace-Compressed is not set, encoding is not set
     exit-code: 0
 
+  basic164: ## Check HTTP early hints
+    command: 'curl -kv -H "sec-fetch-mode: navigate" —http2 https://localhost:9155/test2?aaaa'
+    stderr: "HTTP/2 103"
+
   basic170: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test2
     stdout: "Test app body"

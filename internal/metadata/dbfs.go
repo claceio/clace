@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -212,6 +213,16 @@ func (d *DbFs) Glob(pattern string) (matches []string, err error) {
 	}
 
 	return matchedFiles, nil
+}
+
+func (d *DbFs) StaticFiles() []string {
+	staticFiles := []string{}
+	for name := range d.fileInfo {
+		if strings.HasPrefix(name, "static/") {
+			staticFiles = append(staticFiles, name)
+		}
+	}
+	return staticFiles
 }
 
 func (d *DbFs) Reset() {
