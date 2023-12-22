@@ -52,7 +52,7 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, appPath string, approve bool, appRequest utils.CreateAppRequest) (*utils.ApproveResult, error) {
+func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun bool, appRequest utils.CreateAppRequest) (*utils.AppCreateResponse, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
@@ -87,17 +87,17 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve bool, ap
 	}
 
 	appEntry.Metadata.VersionMetadata = utils.VersionMetadata{
-		Version: 1,
+		Version: 0,
 	}
 
-	auditResult, err := s.createApp(ctx, &appEntry, approve, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
+	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approve bool, branch, commit, gitAuth string) (*utils.ApproveResult, error) {
+func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*utils.AppCreateResponse, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -138,24 +138,26 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 		stageAppEntry.Path = appEntry.Path + utils.STAGE_SUFFIX
 		stageAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_STG + string(appEntry.Id)[len(utils.ID_PREFIX_APP_PRD):])
 		stageAppEntry.MainApp = appEntry.Id
+		stageAppEntry.Metadata.VersionMetadata.Version = 1
 		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
 			return nil, err
 		}
 		workEntry = &stageAppEntry // Work on the stage app for prod apps, it will be promoted later
 	}
 
-	if isGit(appEntry.SourceUrl) {
+	if isGit(workEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
 		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth); err != nil {
 			return nil, err
 		}
-	} else if !appEntry.IsDev {
+	} else if !workEntry.IsDev {
 		// App is loaded from disk (not git) and not in dev mode, load files into DB
 		if err := s.loadSourceFromDisk(ctx, tx, workEntry); err != nil {
 			return nil, err
 		}
 	}
 
+	// Create the in memory app object
 	application, err := s.setupApp(workEntry, tx)
 	if err != nil {
 		return nil, err
@@ -172,19 +174,41 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 		return nil, err
 	}
 
-	if !appEntry.IsDev {
+	results := []utils.ApproveResult{*auditResult}
+	if !workEntry.IsDev {
 		// Update the prod app metadata, promote from stage
 		_, err = s.promoteApp(ctx, tx, &stageAppEntry, appEntry)
 		if err != nil {
 			return nil, err
 		}
+
+		prodApp, err := s.setupApp(appEntry, tx)
+		if err != nil {
+			return nil, err
+		}
+
+		prodAuditResult, err := s.auditApp(ctx, tx, prodApp, approve)
+		if err != nil {
+			return nil, fmt.Errorf("App %s audit failed: %s", appEntry.Id, err)
+		}
+		results = append(results, *prodAuditResult)
+	}
+
+	ret := &utils.AppCreateResponse{
+		DryRun:         dryRun,
+		ApproveResults: results,
+	}
+
+	if dryRun {
+		return ret, nil
 	}
 
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 
-	return auditResult, nil
+	// In memory app cache is not updated. The next GetApp call will load the new app
+	return ret, nil
 }
 
 func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*app.App, error) {
@@ -252,31 +276,53 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 	return application, nil
 }
 
-func (s *Server) DeleteApps(ctx context.Context, pathSpec string) error {
+func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppDeleteResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback()
 
 	for _, appInfo := range filteredApps {
 		if err := s.db.DeleteApp(ctx, tx, appInfo.Id); err != nil {
-			return err
-		}
-		if err := s.apps.DeleteApp(appInfo.AppPathDomain); err != nil {
-			return fmt.Errorf("error deleting app: %s", err)
+			return nil, err
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		return err
+	ret := &utils.AppDeleteResponse{
+		DryRun:  dryRun,
+		AppInfo: filteredApps,
 	}
-	return nil
+
+	if dryRun {
+		return ret, nil
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	// Remove from in memory app cache
+	for _, appInfo := range filteredApps {
+		if err := s.apps.DeleteApp(appInfo.AppPathDomain); err != nil {
+			return nil, fmt.Errorf("error deleting app: %s", err)
+		}
+
+		if !appInfo.IsDev {
+			// Prod app, delete the stage app as well
+			stageAppPath := utils.AppPathDomain{Domain: appInfo.Domain, Path: appInfo.Path + utils.STAGE_SUFFIX}
+			if err := s.apps.DeleteApp(stageAppPath); err != nil {
+				return nil, fmt.Errorf("error deleting stage app: %s", err)
+			}
+		}
+	}
+
+	return ret, nil
 }
 
 func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, appInfo utils.AppPathDomain) {
@@ -403,57 +449,37 @@ func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app
 	return auditResult, nil
 }
 
-func (s *Server) ApproveApps(ctx context.Context, pathSpec string, dryRun bool) ([]utils.ApproveResult, error) {
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	ret, apps, err := s.AuditAppsTx(ctx, tx, pathSpec)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, apps []*app.App, dryRun bool) error {
 	if dryRun {
-		return ret, nil
+		return nil
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Update the in memory cache
-	s.apps.UpdateApps(apps)
-	return ret, nil
+	if apps != nil {
+		s.apps.UpdateApps(apps)
+	}
+	return nil
 }
 
-func (s *Server) AuditAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string) ([]utils.ApproveResult, []*app.App, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) getStageApp(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) (*utils.AppEntry, error) {
+	if appEntry.IsDev {
+		return nil, fmt.Errorf("cannot get stage for dev app %s", appEntry.AppPathDomain())
+	}
+	if strings.HasSuffix(appEntry.Path, utils.STAGE_SUFFIX) {
+		return nil, fmt.Errorf("app is already a stage app %s", appEntry.AppPathDomain())
+	}
+
+	stageAppPath := utils.AppPathDomain{Domain: appEntry.Domain, Path: appEntry.Path + utils.STAGE_SUFFIX}
+	stageAppEntry, err := s.db.GetAppTx(ctx, tx, stageAppPath)
 	if err != nil {
-		return nil, nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, err
 	}
 
-	results := make([]utils.ApproveResult, 0, len(filteredApps))
-	apps := make([]*app.App, 0, len(filteredApps))
-	for _, appInfo := range filteredApps {
-		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
-		if err != nil {
-			return nil, nil, err
-		}
-		app, err := s.setupApp(appEntry, tx)
-		if err != nil {
-			return nil, nil, err
-		}
-		apps = append(apps, app)
-		result, err := s.auditApp(ctx, tx, app, true)
-		if err != nil {
-			return nil, nil, err
-		}
-		results = append(results, *result)
-	}
-
-	return results, apps, nil
+	return stageAppEntry, nil
 }
 
 func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {

@@ -71,8 +71,8 @@ func (h *HttpClient) Post(url string, params url.Values, input any, output any) 
 	return h.request(http.MethodPost, url, params, input, output)
 }
 
-func (h *HttpClient) Delete(url string, params url.Values) error {
-	return h.request(http.MethodDelete, url, params, nil, nil)
+func (h *HttpClient) Delete(url string, params url.Values, output any) error {
+	return h.request(http.MethodDelete, url, params, nil, output)
 }
 
 func (h *HttpClient) request(method, apiPath string, params url.Values, input any, output any) error {

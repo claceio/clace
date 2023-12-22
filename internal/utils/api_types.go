@@ -49,24 +49,37 @@ type ApproveResult struct {
 	NeedsApproval       bool          `json:"needs_approval"`
 }
 
-type AppApproveResponse struct {
-	ApproveResults []ApproveResult `json:"approve_results"`
-}
-
 type AppResponse struct {
 	AppEntry
-	// TODO add git info from version info
 }
 
 type AppListResponse struct {
 	Apps []AppResponse `json:"apps"`
 }
 
+type AppCreateResponse struct {
+	DryRun         bool            `json:"dry_run"`
+	ApproveResults []ApproveResult `json:"approve_results"`
+}
+
+type AppDeleteResponse struct {
+	DryRun  bool      `json:"dry_run"`
+	AppInfo []AppInfo `json:"app_info"`
+}
+
+type AppApproveResponse struct {
+	DryRun         bool            `json:"dry_run"`
+	ApproveResults []ApproveResult `json:"approve_results"`
+}
+
 type AppReloadResponse struct {
+	DryRun         bool            `json:"dry_run"`
+	ReloadResults  []AppPathDomain `json:"reload_results"`
 	ApproveResults []ApproveResult `json:"approve_results"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
 }
 
 type AppPromoteResponse struct {
+	DryRun         bool            `json:"dry_run"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
 }

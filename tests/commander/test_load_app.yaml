@@ -8,29 +8,29 @@ tests:
     command: ../clace app create --dev /disk_usage_dev ./disk_usage
     stderr:
       line-count: 0
-    stdout: "App audit results /disk_usage_dev : app"
+    stdout: "App audit results /disk_usage_dev - app"
     exit-code: 0
   load0030: # create prod app
     command: ../clace app create /disk_usage_prod ./disk_usage
     stderr:
       line-count: 0
-    stdout: "App audit results /disk_usage_prod : app"
+    stdout: "App audit results /disk_usage_prod - app"
     exit-code: 0
   load0040: # test dev app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   load0041: # check audit output
-    command: ../clace app approve --dry-run /disk_usage_dev
+    command: '../clace app approve --dry-run /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n\ndry-run mode, changes have NOT been committed.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n\n*** dry-run mode, changes have NOT been committed. ***\n"
     exit-code: 0
   load0041a: # test dev app, make sure dry run did not update the in memory cache
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
   load0042: # approve audit
-    command: ../clace app approve /disk_usage_dev
+    command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
     exit-code: 0
   load0043: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
@@ -41,9 +41,9 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   load0046: # approve audit, no more run permissions
-    command: ../clace app approve /disk_usage_dev
+    command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\nApp permissions have been approved.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n1 app(s) audited, 1 app(s) approved\n"
     exit-code: 0
   load0047: # check curl
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
@@ -51,9 +51,9 @@ tests:
   load0048: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star && perl -i -pe 's/\["du"\]/["cat"]/g' ./disk_usage/app.star
   load0049: # approve audit, run permissions but for cat instead of du
-    command: ../clace app approve /disk_usage_dev
+    command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
     exit-code: 0
   load0050: # check curl
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
@@ -61,9 +61,9 @@ tests:
   load0051: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
   load0052: # approve audit, run permissions but for du
-    command: ../clace app approve /disk_usage_dev
+    command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_dev\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
     exit-code: 0
   load0053: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
@@ -73,16 +73,18 @@ tests:
     stdout: "Vary: HX-Request"
     exit-code: 0
   load0060: # audit prod app
-    command: ../clace app approve /disk_usage_prod
+    command: '../clace app approve /disk_usage_prod | sed "s/app_stg_.*/YYY/g"'
     stdout:
-      exactly: "App audit: /disk_usage_prod\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\nApp permissions have been approved.\n"
+      exactly: "App permissions have been approved /disk_usage_prod_cl_stage - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
     exit-code: 0
   load0061: # test prod app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/
-    stderr:
-      line-count: 0
+    stdout: "/disk_usage_prod is not permitted to load plugin exec.in"
+  load0062: # promote prod app
+    command: "../clace app reload --approve --promote /disk_usage_prod"
+  load0063: # test prod app
+    command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/
     stdout: "Disk Usage"
-    exit-code: 0
   load0070: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
   load0080: # with --dev, changes are picked up immediately

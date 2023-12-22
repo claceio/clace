@@ -18,7 +18,7 @@ import (
 const (
 	DRY_RUN_FLAG    = "dry-run"
 	DRY_RUN_ARG     = "dryRun"
-	DRY_RUN_MESSAGE = "\ndry-run mode, changes have NOT been committed.\n"
+	DRY_RUN_MESSAGE = "\n*** dry-run mode, changes have NOT been committed. ***\n"
 )
 
 func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
@@ -86,12 +86,17 @@ Create app for specified domain, no auth : clace app create --approve --auth-typ
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
 			}
-			var approveResult utils.ApproveResult
-			err := client.Post("/_clace/app", values, body, &approveResult)
+			var createResult utils.AppCreateResponse
+			err := client.Post("/_clace/app", values, body, &createResult)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("App audit results %s : %s\n", cCtx.Args().First(), approveResult.Id)
+
+			approveResult := createResult.ApproveResults[0]
+			if len(createResult.ApproveResults) == 2 {
+				fmt.Printf("App audit results %s - %s\n", createResult.ApproveResults[1].AppPathDomain, createResult.ApproveResults[1].Id)
+			}
+			fmt.Printf("App audit results %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
 			fmt.Printf("  Plugins :\n")
 			for _, load := range approveResult.NewLoads {
 				fmt.Printf("    %s\n", load)
@@ -109,6 +114,10 @@ Create app for specified domain, no auth : clace app create --approve --auth-typ
 				}
 			} else {
 				fmt.Print("App created. No approval required\n")
+			}
+
+			if createResult.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
 			}
 
 			return nil
@@ -236,11 +245,20 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			err := client.Delete("/_clace/app", values)
+			var deleteResult utils.AppDeleteResponse
+			err := client.Delete("/_clace/app", values, &deleteResult)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "App deleted %s\n", cCtx.Args().Get(0))
+
+			for _, appInfo := range deleteResult.AppInfo {
+				fmt.Fprintf(cCtx.App.Writer, "Deleting %s - %s\n", appInfo.AppPathDomain, appInfo.Id)
+			}
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) deleted\n", len(deleteResult.AppInfo))
+
+			if deleteResult.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
 			return nil
 		},
 	}
@@ -272,25 +290,27 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			if err != nil {
 				return err
 			}
-			for _, approveResult := range approveResponse.ApproveResults {
-				fmt.Printf("App audit: %s\n", approveResult.AppPathDomain)
-				fmt.Printf("  Plugins :\n")
-				for _, load := range approveResult.NewLoads {
-					fmt.Printf("    %s\n", load)
-				}
-				fmt.Printf("  Permissions:\n")
-				for _, perm := range approveResult.NewPermissions {
-					fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
-				}
 
-				if approveResult.NeedsApproval {
-					fmt.Printf("App permissions have been approved.\n")
+			approvedCount := 0
+			for _, approveResult := range approveResponse.ApproveResults {
+				if !approveResult.NeedsApproval {
+					fmt.Printf("No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
 				} else {
-					fmt.Printf("App permissions are current, no approval required.\n")
+					approvedCount += 1
+					fmt.Printf("App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+					fmt.Printf("  Plugins :\n")
+					for _, load := range approveResult.NewLoads {
+						fmt.Printf("    %s\n", load)
+					}
+					fmt.Printf("  Permissions:\n")
+					for _, perm := range approveResult.NewPermissions {
+						fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
+					}
 				}
 			}
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved\n", len(approveResponse.ApproveResults), approvedCount)
 
-			if cCtx.Bool(DRY_RUN_FLAG) {
+			if approveResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}
 
@@ -330,12 +350,61 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("gitAuth", cCtx.String("git-auth"))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var response map[string]any
-			err := client.Post("/_clace/reload", values, nil, &response)
+			var reloadResponse utils.AppReloadResponse
+			err := client.Post("/_clace/reload", values, nil, &reloadResponse)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "App reloaded %s\n", response)
+
+			if len(reloadResponse.ReloadResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Reloaded apps: ")
+				for i, reloadResult := range reloadResponse.ReloadResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", reloadResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			if len(reloadResponse.ApproveResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Approved apps:\n")
+				for _, approveResult := range reloadResponse.ApproveResults {
+					if !approveResult.NeedsApproval {
+						// Server does not return these for reload to reduce the noise
+						fmt.Printf("No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+					} else {
+						fmt.Printf("App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+						fmt.Printf("  Plugins :\n")
+						for _, load := range approveResult.NewLoads {
+							fmt.Printf("    %s\n", load)
+						}
+						fmt.Printf("  Permissions:\n")
+						for _, perm := range approveResult.NewPermissions {
+							fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
+						}
+					}
+				}
+			}
+
+			if len(reloadResponse.PromoteResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")
+				for i, promoteResult := range reloadResponse.PromoteResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", promoteResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
+				len(reloadResponse.ReloadResults), len(reloadResponse.ApproveResults), len(reloadResponse.PromoteResults))
+
+			if reloadResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
 			return nil
 		},
 	}
@@ -362,12 +431,20 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var response map[string]any
-			err := client.Post("/_clace/promote", values, nil, &response)
+			var promoteResponse utils.AppPromoteResponse
+			err := client.Post("/_clace/promote", values, nil, &promoteResponse)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cCtx.App.ErrWriter, "App(s) promoted %s\n", response)
+
+			for _, approveResult := range promoteResponse.PromoteResults {
+				fmt.Printf("Promoting %s\n", approveResult)
+			}
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) promoted\n", len(promoteResponse.PromoteResults))
+
+			if promoteResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
 			return nil
 		},
 	}

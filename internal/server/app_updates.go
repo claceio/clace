@@ -7,14 +7,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
 )
 
-func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promote bool, branch, commit, gitAuth string) (*utils.AppReloadResponse, error) {
+func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*utils.AppReloadResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -26,6 +25,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	}
 	defer tx.Rollback()
 
+	reloadResults := make([]utils.AppPathDomain, 0, len(filteredApps))
 	approveResults := make([]utils.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
 
@@ -36,23 +36,12 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 	// Track the staging and prod apps
 	for _, appInfo := range filteredApps {
 		if appInfo.IsDev {
-			// Dev mode app, reload from disk
 			var devAppEntry *utils.AppEntry
 			if devAppEntry, err = s.GetAppEntry(ctx, tx, appInfo.AppPathDomain); err != nil {
 				return nil, err
 			}
 
-			app, err := s.GetApp(appInfo.AppPathDomain, true)
-			if err != nil {
-				return nil, err
-			}
-			// TODO : notify other server instances to reload
-			if _, err = app.Reload(true, true); err != nil {
-				return nil, fmt.Errorf("error reloading app %s: %w", appInfo, err)
-			}
-
-			// Dev app code loaded
-			devAppEntries = append(prodAppEntries, devAppEntry)
+			devAppEntries = append(devAppEntries, devAppEntry)
 			continue
 		}
 		prodAppEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
@@ -61,9 +50,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		}
 		prodAppEntries = append(prodAppEntries, prodAppEntry)
 
-		stageAppPath := appInfo.AppPathDomain
-		stageAppPath.Path = stageAppPath.Path + utils.STAGE_SUFFIX
-		stageAppEntry, err := s.GetAppEntry(ctx, tx, stageAppPath)
+		stageAppEntry, err := s.getStageApp(ctx, tx, prodAppEntry)
 		if err != nil {
 			return nil, err
 		}
@@ -76,6 +63,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		if err := s.loadAppCode(ctx, tx, stageAppEntry, branch, commit, gitAuth); err != nil {
 			return nil, err
 		}
+		reloadResults = append(reloadResults, stageAppEntry.AppPathDomain())
 
 		// Persist the metadata so that any git info is saved
 		if err := s.db.UpdateAppMetadata(ctx, tx, stageAppEntry); err != nil {
@@ -88,22 +76,22 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		}
 		stageApps = append(stageApps, stageApp)
 
-		approveResult, err := stageApp.Approve()
+		stageResult, err := stageApp.Approve()
 		if err != nil {
 			return nil, fmt.Errorf("error approving app %s: %w", stageAppEntry, err)
 		}
-		approveResults = append(approveResults, *approveResult)
 
-		if approveResult.NeedsApproval {
+		if stageResult.NeedsApproval {
 			if !approve {
 				return nil, fmt.Errorf("app %s needs approval", stageAppEntry)
 			} else {
-				stageApp.AppEntry.Metadata.Loads = approveResult.NewLoads
-				stageApp.AppEntry.Metadata.Permissions = approveResult.NewPermissions
+				stageApp.AppEntry.Metadata.Loads = stageResult.NewLoads
+				stageApp.AppEntry.Metadata.Permissions = stageResult.NewPermissions
 				if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
 					return nil, err
 				}
 			}
+			approveResults = append(approveResults, *stageResult)
 		}
 
 		if promote {
@@ -146,23 +134,25 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		if err != nil {
 			return nil, fmt.Errorf("error setting up app %s: %w", devAppEntry, err)
 		}
+		reloadResults = append(reloadResults, devAppEntry.AppPathDomain())
 		devApps = append(devApps, devApp)
 
-		approveResult, err := devApp.Approve()
+		devResult, err := devApp.Approve()
 		if err != nil {
 			return nil, fmt.Errorf("error auditing dev app %s: %w", devAppEntry, err)
 		}
 
-		if approveResult.NeedsApproval {
+		if devResult.NeedsApproval {
 			if !approve {
 				return nil, fmt.Errorf("app %s needs approval", devAppEntry)
 			} else {
-				devApp.AppEntry.Metadata.Loads = approveResult.NewLoads
-				devApp.AppEntry.Metadata.Permissions = approveResult.NewPermissions
+				devApp.AppEntry.Metadata.Loads = devResult.NewLoads
+				devApp.AppEntry.Metadata.Permissions = devResult.NewPermissions
 				if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
 					return nil, err
 				}
 			}
+			approveResults = append(approveResults, *devResult)
 		}
 
 		if _, err := devApp.Reload(true, true); err != nil {
@@ -170,18 +160,21 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, promo
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
+	updatedApps := make([]*app.App, 0, len(stageApps)+len(prodApps)+len(devApps))
+	updatedApps = append(updatedApps, devApps...)
+	updatedApps = append(updatedApps, stageApps...)
+	if promote {
+		updatedApps = append(updatedApps, prodApps...)
+	}
+
+	// Commit the transaction if not dry run and update the in memory app store
+	if err := s.CompleteTransaction(ctx, tx, updatedApps, dryRun); err != nil {
 		return nil, err
 	}
 
-	// Update the in memory app cache. This is done after the changes are committed
-	s.apps.UpdateApps(devApps)
-	s.apps.UpdateApps(stageApps)
-	if promote {
-		s.apps.UpdateApps(prodApps)
-	}
-
 	ret := &utils.AppReloadResponse{
+		DryRun:         dryRun,
+		ReloadResults:  reloadResults,
 		ApproveResults: approveResults,
 		PromoteResults: promoteResults,
 	}
@@ -207,7 +200,69 @@ func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEn
 	return nil
 }
 
-func (s *Server) PromoteApps(ctx context.Context, pathSpec string) (*utils.AppPromoteResponse, error) {
+func (s *Server) ApproveApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppApproveResponse, error) {
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	result, apps, err := s.ApproveAppsTx(ctx, tx, pathSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := &utils.AppApproveResponse{
+		DryRun:         dryRun,
+		ApproveResults: result,
+	}
+
+	if err := s.CompleteTransaction(ctx, tx, apps, dryRun); err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func (s *Server) ApproveAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string) ([]utils.ApproveResult, []*app.App, error) {
+	filteredApps, err := s.FilterApps(pathSpec, false)
+	if err != nil {
+		return nil, nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	results := make([]utils.ApproveResult, 0, len(filteredApps))
+	apps := make([]*app.App, 0, len(filteredApps))
+	for _, appInfo := range filteredApps {
+		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
+		}
+
+		if !appEntry.IsDev {
+			// For prod apps, approve the staging app
+			appEntry, err = s.getStageApp(ctx, tx, appEntry)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		app, err := s.setupApp(appEntry, tx)
+		if err != nil {
+			return nil, nil, err
+		}
+		apps = append(apps, app)
+		result, err := s.auditApp(ctx, tx, app, true)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		results = append(results, *result)
+	}
+
+	return results, apps, nil
+}
+
+func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppPromoteResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -222,7 +277,7 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string) (*utils.AppPr
 	result := make([]utils.AppPathDomain, 0, len(filteredApps))
 	newApps := make([]*app.App, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
-		if !strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) {
+		if appInfo.IsDev {
 			// Not a prod app, skip
 			continue
 		}
@@ -232,9 +287,7 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string) (*utils.AppPr
 			return nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
 		}
 
-		stagingAppPath := appInfo.AppPathDomain
-		stagingAppPath.Path = appInfo.Path + utils.STAGE_SUFFIX
-		stagingApp, err := s.GetAppEntry(ctx, tx, stagingAppPath)
+		stagingApp, err := s.getStageApp(ctx, tx, prodAppEntry)
 		if err != nil {
 			return nil, err
 		}
@@ -258,19 +311,19 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string) (*utils.AppPr
 		result = append(result, appInfo.AppPathDomain)
 	}
 
-	if err = tx.Commit(); err != nil {
+	if err = s.CompleteTransaction(ctx, tx, newApps, dryRun); err != nil {
 		return nil, err
 	}
 
-	s.apps.UpdateApps(newApps)
-	return &utils.AppPromoteResponse{PromoteResults: result}, nil
+	return &utils.AppPromoteResponse{
+		DryRun:         dryRun,
+		PromoteResults: result}, nil
 }
 
 func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) (bool, error) {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
 
-	if stagingApp.Metadata.VersionMetadata.Version != 1 &&
-		prodApp.Metadata.VersionMetadata.Version == stagingApp.Metadata.VersionMetadata.Version {
+	if prodApp.Metadata.VersionMetadata.Version == stagingApp.Metadata.VersionMetadata.Version {
 		s.Info().Msgf("App %s:%s already in sync, no promotion required", prodApp.Domain, prodApp.Path)
 		return false, nil
 	}

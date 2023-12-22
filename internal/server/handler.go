@@ -149,44 +149,6 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 	h.server.serveApp(w, r, matchedApp.AppPathDomain)
 }
 
-func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
-
-	// These API's are mounted at /_clace
-	r := chi.NewRouter()
-
-	// Get apps
-	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.getApps)
-	}))
-
-	// Create app
-	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.createApp)
-	}))
-
-	// Delete app
-	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.deleteApps)
-	}))
-
-	// API to approve the plugin usage and permissions for the app
-	r.Post("/approve", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.approveApps)
-	}))
-
-	// API to reload apps
-	r.Post("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.reloadApps)
-	}))
-
-	// API to promote apps
-	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.promoteApps)
-	}))
-
-	return r
-}
-
 func validatePathForCreate(inp string) error {
 	if strings.Contains(inp, "/..") {
 		return fmt.Errorf("path cannot contain '/..'")
@@ -277,6 +239,10 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
 
 	var appRequest utils.CreateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&appRequest)
@@ -284,7 +250,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	results, err := h.server.CreateApp(r.Context(), appPath, approve, appRequest)
+	results, err := h.server.CreateApp(r.Context(), appPath, approve, dryRun, appRequest)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -294,13 +260,16 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 
 func (h *Handler) deleteApps(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
 
-	err := h.server.DeleteApps(r.Context(), pathSpec)
+	results, err := h.server.DeleteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-	h.Trace().Str("pathSpec", pathSpec).Msg("Deleted app successfully")
-	return nil, nil
+	return results, nil
 }
 
 func (h *Handler) approveApps(r *http.Request) (any, error) {
@@ -311,7 +280,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 	}
 
 	approveResult, err := h.server.ApproveApps(r.Context(), pathSpec, dryRun)
-	return utils.AppApproveResponse{ApproveResults: approveResult}, err
+	return approveResult, err
 }
 
 func AddVaryHeader(next http.Handler) http.Handler {
@@ -335,13 +304,17 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
 
 	promote, err := parseBoolArg(r.URL.Query().Get("promote"), false)
 	if err != nil {
 		return nil, err
 	}
 
-	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
+	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -351,10 +324,52 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 
 func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
-	ret, err := h.server.PromoteApps(r.Context(), pathSpec)
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	ret, err := h.server.PromoteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
+}
+
+func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
+
+	// These API's are mounted at /_clace
+	r := chi.NewRouter()
+
+	// Get apps
+	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.getApps)
+	}))
+
+	// Create app
+	r.Post("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.createApp)
+	}))
+
+	// Delete app
+	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.deleteApps)
+	}))
+
+	// API to approve the plugin usage and permissions for the app
+	r.Post("/approve", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.approveApps)
+	}))
+
+	// API to reload apps
+	r.Post("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.reloadApps)
+	}))
+
+	// API to promote apps
+	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.promoteApps)
+	}))
+
+	return r
 }

@@ -4,15 +4,15 @@ config:
 tests:
   domain010: ## create test1 domain app
     command: ../clace app create test1.clace.io:/ ./testapp
-    stdout: "App audit results test1.clace.io:/ : app"
+    stdout: "App audit results test1.clace.io:/ - app"
     exit-code: 0
   domain020: # create test2 app
     command: ../clace app create test2.clace.io:/ ./testapp
-    stdout: "App audit results test2.clace.io:/ : app"
+    stdout: "App audit results test2.clace.io:/ - app"
     exit-code: 0
   domain030: # create test3 app in /test
     command: ../clace app create test3.clace.io:/test ./testapp
-    stdout: "App audit results test3.clace.io:/test : app"
+    stdout: "App audit results test3.clace.io:/test - app"
     exit-code: 0
   domain040: # create new app should fail since root path is already used
     command: ../clace app create test1.clace.io:/test2 ./testapp
@@ -28,11 +28,11 @@ tests:
     exit-code: 1
   domain042: # create new app for test3 domain works
     command: ../clace app create test3.clace.io:/test2 ./testapp
-    stdout: "App audit results test3.clace.io:/test2 : app"
+    stdout: "App audit results test3.clace.io:/test2 - app"
     exit-code: 0
   domain050: # create new app for test3 domain works
     command: ../clace app create test3.clace.io:/te ./testapp
-    stdout: "App audit results test3.clace.io:/te : app"
+    stdout: "App audit results test3.clace.io:/te - app"
     exit-code: 0
   domain060: # create new app should fail since /test is already used
     command: ../clace app create test3.clace.io:/ ./testapp
@@ -45,5 +45,5 @@ tests:
     exit-code: 0
   domain080: # create new app works after delete
     command: ../clace app create test3.clace.io:/test/other ./testapp
-    stdout: "App audit results test3.clace.io:/test/other : app"
+    stdout: "App audit results test3.clace.io:/test/other - app"
     exit-code: 0
