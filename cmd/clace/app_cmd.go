@@ -59,14 +59,15 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		ArgsUsage: "<app_path> <app_source_url>",
 		UsageText: `args: <app_path> <app_source_url>
 
-Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
-Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
-Create app for development (source has to be disk): clace app create --approve --dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
-Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
-Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
-Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
-Create app using git url, with git private key auth: clace app create --approve --git-auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
-Create app for specified domain, no auth : clace app create --approve --auth-type=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
+Examples:
+  Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
+  Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
+  Create app for development (source has to be disk): clace app create --approve --dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
+  Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
+  Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
+  Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
+  Create app using git url, with git private key auth: clace app create --approve --git-auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
+  Create app for specified domain, no auth : clace app create --approve --auth-type=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
@@ -139,18 +140,19 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 		ArgsUsage: "<pathSpec>",
 		UsageText: `args: <pathSpec>
 
-The <pathSpec> defaults to "*:**", which matches all apps across all domains, including no domain.
+<pathSpec> defaults to "*:**" (same as "all", without quotes) for the list command, which matches all apps across all domains, including no domain.
 The domain and path are separated by a ":". pathSpec supports a glob pattern.
 In the glob, * matches any number of characters, ** matches any number of characters including /.
 To prevent shell expansion for *, placing the path in quotes is recommended.
 
-List all apps, across domains: clace app list
-List apps at the lop level with no domain specified: clace app list "*"
-List all apps in the domain clace.example.com: clace app list "clace.example.com:**"
-List all apps with no domain specified: clace app list "**"
-List all apps with no domain, under the /utils folder: clace app list "/utils/**"
-List all apps with no domain, including staging apps, under the /utils folder: clace app list --internal "/utils/**"
-List apps at the lop level with no domain specified, with jsonl format: clace app list --format jsonl "*"`,
+Examples:
+  List all apps, across domains: clace app list
+  List apps at the lop level with no domain specified: clace app list "*"
+  List all apps in the domain clace.example.com: clace app list "clace.example.com:**"
+  List all apps with no domain specified: clace app list "**"
+  List all apps with no domain, under the /utils folder: clace app list "/utils/**"
+  List all apps with no domain, including staging apps, under the /utils folder: clace app list --internal "/utils/**"
+  List apps at the lop level with no domain specified, with jsonl format: clace app list --format jsonl "*"`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() > 1 {
 				return fmt.Errorf("only one argument expected: <pathSpec>")
@@ -235,6 +237,18 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec>",
+
+		UsageText: `args: <pathSpec>
+
+<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
+In the glob, * matches any number of characters, ** matches any number of characters including /.
+all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
+To prevent shell expansion for *, placing the path in quotes is recommended.
+
+Examples:
+  Delete all apps, across domains, in dry-run mode: clace app delete --dry-run all
+  Delete apps in the example.com domain: clace app delete "example.com:**"`,
+
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("requires one argument: <pathSpec>")
@@ -275,6 +289,19 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec>",
+
+		UsageText: `args: <pathSpec>
+
+	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
+	In the glob, * matches any number of characters, ** matches any number of characters including /.
+	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
+	To prevent shell expansion for *, placing the path in quotes is recommended.
+
+	Examples:
+	  Approve all apps, across domains: clace app approve all
+	  Approve apps in the example.com domain: clace app approve "example.com:**"
+		`,
+
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("requires one argument: <pathSpec>")
@@ -335,6 +362,27 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec>",
+
+		UsageText: `args: <pathSpec>
+
+	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
+	In the glob, * matches any number of characters, ** matches any number of characters including /.
+	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
+	To prevent shell expansion for *, placing the path in quotes is recommended.
+
+	Dev apps are reloaded from disk. For prod apps, the stage app is reloaded from git (or from local disk if git is not used).
+	If --approve option is specified, the app permissions are audited and approved. If --approve is not specified and the app needs additional
+	permissions, the reload will fail. If --promote is specified, the stage app is promoted to prod after reload. If --promote is not specified,
+	the stage app is reloaded but not promoted. If --approve and --promote are both specified, the stage app is promoted to prod after approval.
+
+	Examples:
+	  Reload all apps, across domains: clace app reload all
+	  Reload apps in the example.com domain: clace app reload "example.com:**"
+	  Reload and promote apps in the example.com domain: clace app reload --promote "example.com:**"
+	  Reload, approve and promote apps in the example.com domain: clace app reload --approve --promote "example.com:**"
+	  Reload all apps from main branch: clace app reload --branch main all
+	  Reload an app from particular commit: clace app reload --commit 1c119e7c5845e19845dd1d794268b350ced5b71b /myapp1`,
+
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("requires one argument: <pathSpec>")
@@ -421,6 +469,17 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec>",
+		UsageText: `args: <pathSpec>
+
+	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
+	In the glob, * matches any number of characters, ** matches any number of characters including /.
+	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
+	To prevent shell expansion for *, placing the path in quotes is recommended.
+
+	Examples:
+	  Promote all apps, across domains: clace app promote all
+	  Promote apps in the example.com domain: clace app promote "example.com:**"`,
+
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("requires one argument: <pathSpec>")
