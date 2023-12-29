@@ -187,7 +187,32 @@ tests:
     command: ../clace app delete /reload_git1
     stdout: "1 app(s) deleted."
 
-  reload0600: # app reload with invalid auth
+  # Test dry-run mode
+  reload061: # Save stdout
+    command: "../clace app list --internal all > dryout_out1.log"
+  reload062: # Approve dryrun
+    command: ../clace app approve --dry-run "/reload_local*"
+    stdout: "dry-run mode"
+  reload063: # Promote dryrun
+    command: ../clace app promote --dry-run "/reload_local*"
+    stdout: "dry-run mode"
+  reload064: # Reload dryrun
+    command: ../clace app reload --dry-run "/reload_local*"
+    stdout: "dry-run mode"
+  reload065: # Reload promote dryrun
+    command: ../clace app reload --approve --promote --dry-run "/reload_local*"
+    stdout: "dry-run mode"
+  reload066: # Delete dryrun
+    command: ../clace app delete --dry-run "/reload_local*"
+    stdout: "dry-run mode"
+  reload067: # Save stdout
+    command: "../clace app list -i all > dryout_out2.log"
+  reload068: # Check diff
+    command: diff -cb dryout_out1.log dryout_out2.log
+  reload069:
+    command: rm dryout_out1.log dryout_out2.log
+
+  reload0700: # app reload with invalid auth
     command: ../clace app reload --git-auth=abc  "/reload_git*"
     exit-code: 1
 
