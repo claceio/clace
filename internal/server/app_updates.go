@@ -69,6 +69,9 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		if err := s.db.UpdateAppMetadata(ctx, tx, stageAppEntry); err != nil {
 			return nil, err
 		}
+		if err := s.db.UpdateAppSettings(ctx, tx, stageAppEntry); err != nil {
+			return nil, err
+		}
 
 		stageApp, err := s.setupApp(stageAppEntry, tx)
 		if err != nil {

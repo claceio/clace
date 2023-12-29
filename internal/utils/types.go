@@ -161,7 +161,6 @@ type VersionMetadata struct {
 	GitBranch       string `json:"git_branch"`
 	GitCommit       string `json:"git_commit"`
 	GitMessage      string `json:"git_message"`
-	GitAuthName     string `json:"git_auth_name"`
 }
 
 // AppEntry is the application configuration in the DB
@@ -203,7 +202,8 @@ type AppMetadata struct {
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
 type AppSettings struct {
-	AuthnType AppAuthnType `json:"authn_type"`
+	AuthnType   AppAuthnType `json:"authn_type"`
+	GitAuthName string       `json:"git_auth_name"`
 }
 
 // WritableFS is the interface for the writable underlying file system used by AppFS

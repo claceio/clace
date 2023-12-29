@@ -290,26 +290,22 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *u
 
 	_, err = tx.ExecContext(ctx, `UPDATE apps set metadata = ? where path = ? and domain = ?`, string(metadataJson), app.Path, app.Domain)
 	if err != nil {
-		return fmt.Errorf("error updating app: %w", err)
+		return fmt.Errorf("error updating app metadata: %w", err)
 	}
 	return nil
 }
 
-func (m *Metadata) UpdateAppSettings(app *utils.AppEntry) error {
-	stmt, err := m.db.Prepare(`UPDATE apps set settings = ? where path = ? and domain = ?`)
-	if err != nil {
-		return fmt.Errorf("error preparing statement: %w", err)
-	}
-
+func (m *Metadata) UpdateAppSettings(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
 	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
 		return fmt.Errorf("error marshalling settings: %w", err)
 	}
 
-	_, err = stmt.Exec(string(settingsJson), app.Path, app.Domain)
+	_, err = tx.ExecContext(ctx, `UPDATE apps set settings = ? where path = ? and domain = ?`, string(settingsJson), app.Path, app.Domain)
 	if err != nil {
-		return fmt.Errorf("error updating app: %w", err)
+		return fmt.Errorf("error updating app settings: %w", err)
 	}
+
 	return nil
 }
 

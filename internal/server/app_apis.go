@@ -174,6 +174,11 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 		return nil, err
 	}
 
+	// Persist the settings
+	if err := s.db.UpdateAppSettings(ctx, tx, workEntry); err != nil {
+		return nil, err
+	}
+
 	results := []utils.ApproveResult{*auditResult}
 	if !workEntry.IsDev {
 		// Update the prod app metadata, promote from stage
@@ -574,7 +579,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction,
 
 	if gitAuth == "" {
 		// If not auth is specified, use the previous one used
-		gitAuth = appEntry.Metadata.VersionMetadata.GitAuthName
+		gitAuth = appEntry.Settings.GitAuthName
 	}
 
 	if commit == "" {
@@ -643,7 +648,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction,
 	} else {
 		appEntry.Metadata.VersionMetadata.GitBranch = branch
 	}
-	appEntry.Metadata.VersionMetadata.GitAuthName = gitAuth
+	appEntry.Settings.GitAuthName = gitAuth
 
 	s.Info().Msgf("Cloned git repo %s %s:%s folder %s to %s, commit %s: %s", repo, appEntry.Metadata.VersionMetadata.GitBranch, appEntry.Metadata.VersionMetadata.GitCommit, folder, tmpDir, newCommit.Hash.String(), newCommit.Message)
 	checkoutFolder := tmpDir
@@ -675,7 +680,7 @@ func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction
 	s.Info().Msgf("Loading app sources from %s", appEntry.SourceUrl)
 	appEntry.Metadata.VersionMetadata.GitBranch = ""
 	appEntry.Metadata.VersionMetadata.GitCommit = ""
-	appEntry.Metadata.VersionMetadata.GitAuthName = ""
+	appEntry.Settings.GitAuthName = ""
 	appEntry.Metadata.VersionMetadata.GitMessage = ""
 
 	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
