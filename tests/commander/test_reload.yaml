@@ -154,15 +154,42 @@ tests:
     stdout:
       exactly: "4" # all apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0502: # app reload branch name
-    command: ../clace app reload --branch main --promote "/reload_git*"
-  reload0503: # check app list
+    command: ../clace app reload --branch main "/reload_git*"
+  reload0503: # check app list for staging apps
+    command: '../clace app list --internal "/reload_git*" | grep _cl_stage | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "0" # no staging apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0504: # check app list
+    command: '../clace app list --internal "/reload_git*" | grep -v _cl_stage | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    stdout:
+      exactly: "2" # prod apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0505: # promote changes
+    command: ../clace app promote "/reload_git*"
+  reload0506: # check app list
     command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
     stdout:
       exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
-  reload0504: # app reload with invalid auth
+
+  # Verify stdout messages
+  reload0507: # reload stdout
+    command: ../clace app reload "/reload_git*"
+    stdout: "2 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted."
+  reload0508: # promote stdout
+    command: ../clace app promote "/reload_git*"
+    stdout: "2 app(s) promoted."
+  reload0509: # reload with promote stdout
+    command: ../clace app reload --promote "/reload_git*"
+    stdout: "2 app(s) reloaded, 0 app(s) approved, 2 app(s) promoted."
+  reload0510: # audit stdout
+    command: ../clace app approve "/reload_git*"
+    stdout: "2 app(s) audited, 0 app(s) approved."
+  reload0511: # delete stdout
+    command: ../clace app delete /reload_git1
+    stdout: "1 app(s) deleted."
+
+  reload0600: # app reload with invalid auth
     command: ../clace app reload --git-auth=abc  "/reload_git*"
     exit-code: 1
 
-  # TODO test reload stdout messages
   reload_cleanup: # Cleanup
     command: rm -rf ./reloadtest && ../clace app delete "*:reload*" && ../clace app delete "reload*:**"

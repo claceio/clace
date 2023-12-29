@@ -47,7 +47,7 @@ func ParseSpecFromInfo(pathSpec string, apps []utils.AppInfo) ([]utils.AppInfo, 
 // ParseSpec parses a path spec in the format of domain:path. If domain is not specified, it will match empty domain.
 // glob patters are supported, *:** matches all apps.
 func ParseSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDomain, error) {
-	if pathSpec == "" {
+	if pathSpec == "" || strings.ToLower(pathSpec) == "all" {
 		pathSpec = "*:**"
 	}
 	split := strings.Split(pathSpec, ":")

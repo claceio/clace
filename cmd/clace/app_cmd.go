@@ -254,7 +254,7 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			for _, appInfo := range deleteResult.AppInfo {
 				fmt.Fprintf(cCtx.App.Writer, "Deleting %s - %s\n", appInfo.AppPathDomain, appInfo.Id)
 			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) deleted\n", len(deleteResult.AppInfo))
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) deleted.\n", len(deleteResult.AppInfo))
 
 			if deleteResult.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
@@ -308,7 +308,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 					}
 				}
 			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved\n", len(approveResponse.ApproveResults), approvedCount)
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved.\n", len(approveResponse.ApproveResults), approvedCount)
 
 			if approveResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
@@ -440,7 +440,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			for _, approveResult := range promoteResponse.PromoteResults {
 				fmt.Printf("Promoting %s\n", approveResult)
 			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) promoted\n", len(promoteResponse.PromoteResults))
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) promoted.\n", len(promoteResponse.PromoteResults))
 
 			if promoteResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

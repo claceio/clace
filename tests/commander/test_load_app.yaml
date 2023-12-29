@@ -22,7 +22,7 @@ tests:
   load0041: # check audit output
     command: '../clace app approve --dry-run /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n\n*** dry-run mode, changes have NOT been committed. ***\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved.\n\n*** dry-run mode, changes have NOT been committed. ***\n"
     exit-code: 0
   load0041a: # test dev app, make sure dry run did not update the in memory cache
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
@@ -30,7 +30,7 @@ tests:
   load0042: # approve audit
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved.\n"
     exit-code: 0
   load0043: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
@@ -43,7 +43,7 @@ tests:
   load0046: # approve audit, no more run permissions
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n1 app(s) audited, 1 app(s) approved\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n1 app(s) audited, 1 app(s) approved.\n"
     exit-code: 0
   load0047: # check curl
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
@@ -53,7 +53,7 @@ tests:
   load0049: # approve audit, run permissions but for cat instead of du
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved.\n"
     exit-code: 0
   load0050: # check curl
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
@@ -63,7 +63,7 @@ tests:
   load0052: # approve audit, run permissions but for du
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved.\n"
     exit-code: 0
   load0053: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
@@ -75,7 +75,7 @@ tests:
   load0060: # audit prod app
     command: '../clace app approve /disk_usage_prod | sed "s/app_stg_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_prod_cl_stage - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved\n"
+      exactly: "App permissions have been approved /disk_usage_prod_cl_stage - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du]\n    exec.in.run [readlink]\n1 app(s) audited, 1 app(s) approved.\n"
     exit-code: 0
   load0061: # test prod app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/

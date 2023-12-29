@@ -73,6 +73,12 @@ func TestParsePathSpec(t *testing.T) {
 			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
+		"Match all": {
+			spec:      "all",
+			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			wantError: nil,
+		},
 		"Match empty": {
 			spec:      "",
 			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
