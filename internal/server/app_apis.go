@@ -125,7 +125,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	if appEntry.IsDev {
 		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_DEV + id.String())
 	} else {
-		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PRD + id.String())
+		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PROD + id.String())
 	}
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	workEntry := appEntry
 	if !appEntry.IsDev {
 		stageAppEntry.Path = appEntry.Path + utils.STAGE_SUFFIX
-		stageAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_STG + string(appEntry.Id)[len(utils.ID_PREFIX_APP_PRD):])
+		stageAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_STAGE + string(appEntry.Id)[len(utils.ID_PREFIX_APP_PROD):])
 		stageAppEntry.MainApp = appEntry.Id
 		stageAppEntry.Metadata.VersionMetadata.Version = 1
 		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
@@ -714,7 +714,7 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 		mainApps = make([]utils.AppInfo, 0, len(apps))
 
 		for _, appInfo := range apps {
-			if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) || strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_DEV) {
+			if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_DEV) {
 				mainApps = append(mainApps, appInfo)
 			} else {
 				linkedApps[appInfo.String()] = appInfo
@@ -737,7 +737,7 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 	result := make([]utils.AppInfo, 0, 2*len(filteredApps))
 	for _, appInfo := range filteredApps {
 		result = append(result, appInfo)
-		if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PRD) {
+		if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PROD) {
 			stageAppPath := utils.AppPathDomain{Domain: appInfo.Domain, Path: appInfo.Path + utils.STAGE_SUFFIX}
 
 			if linkedApp, ok := linkedApps[stageAppPath.String()]; ok {

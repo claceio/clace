@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -106,6 +107,7 @@ func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) 
 		if a.Metadata.Permissions == nil {
 			return nil, fmt.Errorf("app %s has no permissions configured, plugin call %s.%s is blocked. Audit the app and approve permissions", a.Path, module, function)
 		}
+
 		approved := false
 		var lastError error
 		for _, p := range a.Metadata.Permissions {
@@ -132,6 +134,29 @@ func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) 
 						continue
 					}
 				}
+
+				if a.MainApp != "" {
+					var isRead bool
+					if p.IsRead != nil {
+						// Permission defines isRead, use that
+						isRead = *p.IsRead
+					} else {
+						// Use the plugin defined isRead value
+						isRead = pluginFunc.isRead
+					}
+
+					if !isRead {
+						// Write API, check if stage/preview has write access
+						if strings.HasPrefix(string(a.Id), utils.ID_PREFIX_APP_STAGE) && !a.Settings.StageWriteAccess {
+							return nil, fmt.Errorf("stage app %s is not permitted to call %s.%s args %v. Stage app does not have access to write operations", a.Path, module, function, p.Arguments)
+						}
+
+						if strings.HasPrefix(string(a.Id), utils.ID_PREFIX_APP_PREVIEW) && !a.Settings.PreviewWriteAccess {
+							return nil, fmt.Errorf("preview app %s is not permitted to call %s.%s args %v. Preview app does not have access to write operations", a.Path, module, function, p.Arguments)
+						}
+					}
+				}
+
 				approved = true
 				break
 			}

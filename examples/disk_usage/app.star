@@ -33,7 +33,7 @@ def handler(req):
     # Descending sort on size, limit to 20 dirs
     dirs = sorted(dirs, key=lambda d: d["Size"], reverse=True)[:20]
     if len(dirs) > 1 and dirs[1]["Dir"] == current:
-        # swap current dir to the top (if not already), required when a child is at same level as current
+        # swap current dir to the top (if not already), useful when a child is at same usage level as current
         dirs[0], dirs[1] = dirs[1], dirs[0]
 
     return {"Current": current, "Dirs": dirs, "Error": "", "MaxSize": dirs[0]["Size"] if dirs else 0}
@@ -42,8 +42,8 @@ def handler(req):
 app = ace.app("Disk Usage",
               pages=[ace.page("/", partial="du_table_block")],
               permissions=[
-                  ace.permission("exec.in", "run", ["du"]),
-                  ace.permission("exec.in", "run", ["readlink"])
+                  ace.permission("exec.in", "run", ["du"], type="READ"),
+                  ace.permission("exec.in", "run", ["readlink"], type="READ")
               ],
               style=ace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
               )

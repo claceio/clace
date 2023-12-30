@@ -38,6 +38,23 @@ type CreateAppRequest struct {
 	GitAuthName string       `json:"git_auth_name"`
 }
 
+// UpdateAppRequest is the request body for updating an app settings
+type UpdateAppRequest struct {
+	AuthnType          StringValue `json:"authn_type"`
+	GitAuthName        StringValue `json:"git_auth_name"`
+	StageWriteAccess   BoolValue   `json:"stage_write_access"`
+	PreviewWriteAccess BoolValue   `json:"preview_write_access"`
+}
+
+func CreateUpdateAppRequest() UpdateAppRequest {
+	return UpdateAppRequest{
+		AuthnType:          StringValueUndefined,
+		GitAuthName:        StringValueUndefined,
+		StageWriteAccess:   BoolValueUndefined,
+		PreviewWriteAccess: BoolValueUndefined,
+	}
+}
+
 // ApproveResult represents the result of an app approval audit
 type ApproveResult struct {
 	Id                  AppId         `json:"id"`
@@ -82,4 +99,9 @@ type AppReloadResponse struct {
 type AppPromoteResponse struct {
 	DryRun         bool            `json:"dry_run"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
+}
+
+type AppUpdateSettingsResponse struct {
+	DryRun        bool            `json:"dry_run"`
+	UpdateResults []AppPathDomain `json:"update_results"`
 }

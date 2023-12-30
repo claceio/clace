@@ -210,8 +210,9 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var plugin, method starlark.String
 	var arguments *starlark.List
+	var rtype starlark.String
 	if err := starlark.UnpackArgs(PERMISSION, args, kwargs, "plugin", &plugin, "method", &method,
-		"arguments?", &arguments); err != nil {
+		"arguments?", &arguments, "type?", &rtype); err != nil {
 		return nil, err
 	}
 
@@ -224,6 +225,15 @@ func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starl
 		"method":    method,
 		"arguments": arguments,
 	}
+
+	if rtype == "READ" {
+		fields["is_read"] = starlark.True
+	} else if rtype == "WRITE" {
+		fields["is_read"] = starlark.False
+	} else if rtype != "" {
+		return nil, fmt.Errorf("invalid permission type specified : %s", rtype)
+	}
+
 	return starlarkstruct.FromStringDict(starlark.String(PERMISSION), fields), nil
 }
 

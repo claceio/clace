@@ -207,7 +207,7 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain util
 }
 
 func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id utils.AppId) error {
-	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STG, string(id)[len(utils.ID_PREFIX_APP_PRD):])
+	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STAGE, string(id)[len(utils.ID_PREFIX_APP_PROD):])
 	if _, err := tx.ExecContext(ctx, `delete from apps where id = ? or id = ?`, id, stageAppId); err != nil {
 		return fmt.Errorf("error deleting app : %w", err)
 	}
@@ -279,6 +279,49 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 		}
 		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev))
 	}
+	return apps, nil
+}
+
+// GetLinkedApps gets all the apps linked to the given main app (staging and preview apps)
+func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId utils.AppId) ([]*utils.AppEntry, error) {
+	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where main_app = ?`)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := stmt.Query(mainAppId)
+	if err != nil {
+		return nil, fmt.Errorf("error querying apps: %w", err)
+	}
+	apps := make([]*utils.AppEntry, 0)
+	for rows.Next() {
+		var app utils.AppEntry
+		var settings, metadata sql.NullString
+		err = rows.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.UserID, &app.CreateTime, &app.UpdateTime, &settings, &metadata)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, errors.New("app not found")
+			}
+			m.Error().Err(err).Msgf("query %s", mainAppId)
+			return nil, fmt.Errorf("error querying appy: %w", err)
+		}
+
+		if metadata.Valid && metadata.String != "" {
+			err = json.Unmarshal([]byte(metadata.String), &app.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+			}
+		}
+
+		if settings.Valid && settings.String != "" {
+			err = json.Unmarshal([]byte(settings.String), &app.Settings)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling settings: %w", err)
+			}
+		}
+
+		apps = append(apps, &app)
+	}
+
 	return apps, nil
 }
 

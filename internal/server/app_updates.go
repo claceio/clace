@@ -348,3 +348,101 @@ func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagin
 	}
 	return true, nil
 }
+
+func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun bool, updateAppRequest utils.UpdateAppRequest) (*utils.AppUpdateSettingsResponse, error) {
+	filteredApps, err := s.FilterApps(pathSpec, false)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	results := make([]utils.AppPathDomain, 0, len(filteredApps))
+	for _, appInfo := range filteredApps {
+		_, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
+		if err != nil {
+			return nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
+		}
+
+		appResults, err := s.updateAppSettings(ctx, tx, appInfo.AppPathDomain, updateAppRequest)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, appResults...)
+	}
+
+	ret := &utils.AppUpdateSettingsResponse{
+		DryRun:        dryRun,
+		UpdateResults: results,
+	}
+
+	if dryRun {
+		return ret, nil
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	s.apps.DeleteApps(results) // Delete instead of update to avoid having to initialize all the linked apps
+	// Apps will get reloaded on the next request
+	return ret, nil
+}
+
+func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction, appPathDomain utils.AppPathDomain, updateAppRequest utils.UpdateAppRequest) ([]utils.AppPathDomain, error) {
+	mainAppEntry, err := s.db.GetAppTx(ctx, tx, appPathDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	linkedApps, err := s.db.GetLinkedApps(ctx, tx, mainAppEntry.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	linkedApps = append(linkedApps, mainAppEntry) // Include the main app
+
+	ret := make([]utils.AppPathDomain, 0, len(linkedApps))
+	for _, linkedApp := range linkedApps {
+		if updateAppRequest.StageWriteAccess != utils.BoolValueUndefined {
+			if updateAppRequest.StageWriteAccess == utils.BoolValueTrue {
+				linkedApp.Settings.StageWriteAccess = true
+			} else {
+				linkedApp.Settings.StageWriteAccess = false
+			}
+		}
+
+		if updateAppRequest.PreviewWriteAccess != utils.BoolValueUndefined {
+			if updateAppRequest.PreviewWriteAccess == utils.BoolValueTrue {
+				linkedApp.Settings.PreviewWriteAccess = true
+			} else {
+				linkedApp.Settings.PreviewWriteAccess = false
+			}
+		}
+
+		if updateAppRequest.AuthnType != utils.StringValueUndefined {
+			authnType := utils.AppAuthnType(updateAppRequest.AuthnType)
+			if authnType != utils.AppAuthnDefault && authnType != utils.AppAuthnNone {
+				return nil, fmt.Errorf("invalid authentication type %s", updateAppRequest.AuthnType)
+			}
+			linkedApp.Settings.AuthnType = utils.AppAuthnType(updateAppRequest.AuthnType)
+		}
+
+		if updateAppRequest.GitAuthName != utils.StringValueUndefined {
+			linkedApp.Settings.GitAuthName = string(updateAppRequest.GitAuthName)
+		}
+
+		if err := s.db.UpdateAppSettings(ctx, tx, linkedApp); err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, linkedApp.AppPathDomain())
+	}
+
+	return ret, nil
+}

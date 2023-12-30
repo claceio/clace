@@ -9,13 +9,15 @@ import (
 )
 
 const (
-	ID_PREFIX_APP_PRD       = "app_prd_"
+	ID_PREFIX_APP_PROD      = "app_prd_"
 	ID_PREFIX_APP_DEV       = "app_dev_"
-	ID_PREFIX_APP_STG       = "app_stg_"
+	ID_PREFIX_APP_STAGE     = "app_stg_"
+	ID_PREFIX_APP_PREVIEW   = "app_pre_"
 	INTERNAL_URL_PREFIX     = "/_clace"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
 	INTERNAL_APP_DELIM      = "_cl_"
 	STAGE_SUFFIX            = INTERNAL_APP_DELIM + "stage"
+	PREVIEW_SUFFIX          = INTERNAL_APP_DELIM + "preview"
 )
 
 // Config entries shared between client and server
@@ -141,9 +143,11 @@ func CreateAppInfo(id AppId, path, domain string, isDev bool) AppInfo {
 // Permission represents a permission granted to an app to run
 // a plugin method with the given arguments
 type Permission struct {
-	Plugin    string
-	Method    string
-	Arguments []string
+	Plugin    string   `json:"plugin"`
+	Method    string   `json:"method"`
+	Arguments []string `json:"arguments"`
+	IsRead    *bool    `json:"is_read,omitempty"` // Whether the call is a Read operation or Write operation.
+	// nil value means go with the default as set in the plugin code
 }
 
 // AppAuthnType is the app level authentication type
@@ -167,7 +171,7 @@ type VersionMetadata struct {
 type AppEntry struct {
 	Id         AppId       `json:"id"`
 	Path       string      `json:"path"`
-	MainApp    AppId       `json:"linked_app"` // the id of the app that this app is linked to
+	MainApp    AppId       `json:"main_app"` // the id of the app that this app is linked to
 	Domain     string      `json:"domain"`
 	SourceUrl  string      `json:"source_url"`
 	IsDev      bool        `json:"is_dev"`
@@ -202,8 +206,10 @@ type AppMetadata struct {
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
 type AppSettings struct {
-	AuthnType   AppAuthnType `json:"authn_type"`
-	GitAuthName string       `json:"git_auth_name"`
+	AuthnType          AppAuthnType `json:"authn_type"`
+	GitAuthName        string       `json:"git_auth_name"`
+	StageWriteAccess   bool         `json:"stage_write_access"`
+	PreviewWriteAccess bool         `json:"preview_write_access"`
 }
 
 // WritableFS is the interface for the writable underlying file system used by AppFS
@@ -227,3 +233,17 @@ type WritableFS interface {
 	Write(name string, bytes []byte) error
 	Remove(name string) error
 }
+
+type BoolValue int
+
+const (
+	BoolValueUndefined BoolValue = iota
+	BoolValueTrue
+	BoolValueFalse
+)
+
+type StringValue string
+
+const (
+	StringValueUndefined StringValue = "<CL_UNDEFINED>"
+)

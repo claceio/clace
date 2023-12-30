@@ -265,6 +265,10 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 		return nil, err
 	}
 
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
 	results, err := h.server.DeleteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -277,6 +281,10 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
+	}
+
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
 	approveResult, err := h.server.ApproveApps(r.Context(), pathSpec, dryRun)
@@ -304,6 +312,10 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
@@ -328,6 +340,11 @@ func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
 	ret, err := h.server.PromoteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -336,8 +353,32 @@ func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	return ret, nil
 }
 
-func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
+func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
 
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
+	var updateAppRequest utils.UpdateAppRequest
+	err = json.NewDecoder(r.Body).Decode(&updateAppRequest)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	ret, err := h.server.UpdateAppSettings(r.Context(), pathSpec, dryRun, updateAppRequest)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
+func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
 
@@ -369,6 +410,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to promote apps
 	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.promoteApps)
+	}))
+
+	// API to update app settings
+	r.Post("/app_settings", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.updateAppSettings)
 	}))
 
 	return r

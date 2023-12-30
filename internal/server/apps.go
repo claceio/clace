@@ -55,6 +55,15 @@ func (a *AppStore) DeleteApp(pathDomain utils.AppPathDomain) error {
 	return nil
 }
 
+func (a *AppStore) DeleteApps(pathDomain []utils.AppPathDomain) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for _, pd := range pathDomain {
+		delete(a.appMap, pd)
+	}
+}
+
 func (a *AppStore) UpdateApps(apps []*app.App) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

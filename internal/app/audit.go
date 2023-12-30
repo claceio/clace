@@ -82,7 +82,7 @@ func (a *App) Approve() (*utils.ApproveResult, error) {
 	// to avoid any potential side effects from script
 	globals, err := prog.Init(thread, builtin)
 	if err != nil {
-		return nil, fmt.Errorf("source init failed %v", err)
+		return nil, fmt.Errorf("source init failed: %v", err)
 	}
 
 	return a.createApproveResponse(loads, globals)
@@ -141,27 +141,37 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 	count := -1
 	for iter.Next(&val) {
 		count++
-		var perm *starlarkstruct.Struct
-		if perm, ok = val.(*starlarkstruct.Struct); !ok {
+		var permStruct *starlarkstruct.Struct
+		if permStruct, ok = val.(*starlarkstruct.Struct); !ok {
 			return nil, fmt.Errorf("permissions entry %d is not a struct", count)
 		}
-		a.Info().Msgf("perm: %+v", perm)
 		var pluginStr, methodStr string
 		var args []string
-		if pluginStr, err = util.GetStringAttr(perm, "plugin"); err != nil {
+		if pluginStr, err = util.GetStringAttr(permStruct, "plugin"); err != nil {
 			return nil, err
 		}
-		if methodStr, err = util.GetStringAttr(perm, "method"); err != nil {
+		if methodStr, err = util.GetStringAttr(permStruct, "method"); err != nil {
 			return nil, err
 		}
-		if args, err = util.GetListStringAttr(perm, "arguments", true); err != nil {
+		if args, err = util.GetListStringAttr(permStruct, "arguments", true); err != nil {
 			return nil, err
 		}
-		perms = append(perms, utils.Permission{
+
+		perm := utils.Permission{
 			Plugin:    pluginStr,
 			Method:    methodStr,
 			Arguments: args,
-		})
+		}
+
+		if slices.Contains(permStruct.AttrNames(), "is_read") {
+			isRead, err := util.GetBoolAttr(permStruct, "is_read")
+			if err != nil {
+				return nil, err
+			}
+			perm.IsRead = &isRead
+		}
+
+		perms = append(perms, perm)
 
 	}
 	results.NewPermissions = perms
