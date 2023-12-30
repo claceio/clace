@@ -189,7 +189,7 @@ tests:
 
   # Test dry-run mode
   reload061: # Save stdout
-    command: "../clace app list --internal all > dryout_out1.log"
+    command: "../clace app list --internal -f jsonl all > dryrun_out1.log"
   reload062: # Approve dryrun
     command: ../clace app approve --dry-run "/reload_local*"
     stdout: "dry-run mode"
@@ -205,16 +205,28 @@ tests:
   reload066: # Delete dryrun
     command: ../clace app delete --dry-run "/reload_local*"
     stdout: "dry-run mode"
-  reload067: # Save stdout
-    command: "../clace app list -i all > dryout_out2.log"
-  reload068: # Check diff
-    command: diff -cb dryout_out1.log dryout_out2.log
-  reload069:
-    command: rm dryout_out1.log dryout_out2.log
+  reload067: # Update stage-write-access dryrun
+    command: ../clace app update stage-write-access --dry-run "/reload_local*" true
+    stdout: "dry-run mode"
+  reload068: # Update preview write access dryrun
+    command: ../clace app update preview-write-access --dry-run "/reload_local*" true
+    stdout: "dry-run mode"
+  reload069: # Update git-auth dryrun
+    command: ../clace app update git-auth --dry-run "/reload_local*" testgit
+    stdout: "dry-run mode"
+  reload070: # Delete auth-type dryrun
+    command: ../clace app update auth-type --dry-run "/reload_local*" none
+    stdout: "dry-run mode"
+  reload071: # Save stdout
+    command: "../clace app list -i -f jsonl all > dryrun_out2.log"
+  reload072: # Check diff
+    command: diff -cb dryrun_out1.log dryrun_out2.log
+  reload073:
+    command: rm dryrun_out1.log dryrun_out2.log
 
   # Test permission checks
 
-  reload0700: # app reload with invalid auth
+  reload0800: # app reload with invalid auth
     command: ../clace app reload --git-auth=abc  "/reload_git*"
     exit-code: 1
 
