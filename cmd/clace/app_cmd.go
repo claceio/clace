@@ -99,14 +99,7 @@ Examples:
 				fmt.Printf("App audit results %s - %s\n", createResult.ApproveResults[1].AppPathDomain, createResult.ApproveResults[1].Id)
 			}
 			fmt.Printf("App audit results %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-			fmt.Printf("  Plugins :\n")
-			for _, load := range approveResult.NewLoads {
-				fmt.Printf("    %s\n", load)
-			}
-			fmt.Printf("  Permissions:\n")
-			for _, perm := range approveResult.NewPermissions {
-				fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
-			}
+			printApproveResult(approveResult)
 
 			if approveResult.NeedsApproval {
 				if cCtx.Bool("approve") {
@@ -227,6 +220,29 @@ func appType(app utils.AppResponse) string {
 	}
 }
 
+func permType(perm utils.Permission) string {
+	permType := ""
+	if perm.IsRead != nil {
+		if *perm.IsRead {
+			permType = "<READ>"
+		} else {
+			permType = "<WRITE>"
+		}
+	}
+	return permType
+}
+
+func printApproveResult(approveResult utils.ApproveResult) {
+	fmt.Printf("  Plugins :\n")
+	for _, load := range approveResult.NewLoads {
+		fmt.Printf("    %s\n", load)
+	}
+	fmt.Printf("  Permissions:\n")
+	for _, perm := range approveResult.NewPermissions {
+		fmt.Printf("    %s.%s %s %s\n", perm.Plugin, perm.Method, perm.Arguments, permType(perm))
+	}
+}
+
 func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
@@ -326,14 +342,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 				} else {
 					approvedCount += 1
 					fmt.Printf("App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-					fmt.Printf("  Plugins :\n")
-					for _, load := range approveResult.NewLoads {
-						fmt.Printf("    %s\n", load)
-					}
-					fmt.Printf("  Permissions:\n")
-					for _, perm := range approveResult.NewPermissions {
-						fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
-					}
+					printApproveResult(approveResult)
 				}
 			}
 			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved.\n", len(approveResponse.ApproveResults), approvedCount)
@@ -424,14 +433,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 						fmt.Printf("No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
 					} else {
 						fmt.Printf("App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-						fmt.Printf("  Plugins :\n")
-						for _, load := range approveResult.NewLoads {
-							fmt.Printf("    %s\n", load)
-						}
-						fmt.Printf("  Permissions:\n")
-						for _, perm := range approveResult.NewPermissions {
-							fmt.Printf("    %s.%s %s\n", perm.Plugin, perm.Method, perm.Arguments)
-						}
+						printApproveResult(approveResult)
 					}
 				}
 			}

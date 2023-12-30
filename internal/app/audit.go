@@ -97,6 +97,15 @@ func needsApproval(a *utils.ApproveResult) bool {
 		if a.Plugin != b.Plugin || a.Method != b.Method {
 			return false
 		}
+
+		if a.IsRead == nil && b.IsRead != nil || a.IsRead != nil && b.IsRead == nil {
+			return false
+		}
+
+		if a.IsRead != nil && b.IsRead != nil && *a.IsRead != *b.IsRead {
+			return false
+		}
+
 		if !slices.Equal(a.Arguments, b.Arguments) {
 			return false
 		}

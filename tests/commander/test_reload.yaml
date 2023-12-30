@@ -212,6 +212,8 @@ tests:
   reload069:
     command: rm dryout_out1.log dryout_out2.log
 
+  # Test permission checks
+
   reload0700: # app reload with invalid auth
     command: ../clace app reload --git-auth=abc  "/reload_git*"
     exit-code: 1
