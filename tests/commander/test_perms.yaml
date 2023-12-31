@@ -1,0 +1,42 @@
+config:
+  env:
+    CL_CONFIG_FILE: clace.toml
+tests:
+  perms0100: # copy disk usage app
+    command: cp -r ../examples/disk_usage ./perms_disk_usage
+  perms0102: # Update code to WRITE type
+    command: perl -i -pe 's/type="READ"/type="WRITE"/g' ./perms_disk_usage/app.star
+  perms0103: # Create app1
+    command: ../clace app create --approve /perms1 ./perms_disk_usage
+  perms0104: # Create app2
+    command: ../clace app create --approve /perms2 ./perms_disk_usage
+  perms0105: # test prod app
+    command: curl -su "admin:qwerty" localhost:25222/perms1
+    stdout: "Disk Usage"
+  perms0106: # test stage app
+    command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
+    stdout: "Stage app does not have access to write operation"
+  perms0107: # Update stage perms
+    command: ../clace app update stage-write-access "/perms*" true
+  perms0108: # test stage app
+    command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
+    stdout: "Disk Usage"
+  perms0109: # Update stage perms again to disallow write
+    command: ../clace app update stage-write-access "/perms*" false
+  perms0110: # test stage app
+    command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
+    stdout: "Stage app does not have access to write operation"
+  perms0111: # test prod app
+    command: curl -su "admin:qwerty" localhost:25222/perms1
+    stdout: "Disk Usage"
+  perms0112: # Update code to change plugin call to be READ type
+    command: perl -i -pe 's/type="WRITE"/type="READ"/g' ./perms_disk_usage/app.star
+  perms0113: # Reload apps
+    command: ../clace app reload --approve "/perms*"
+    stdout: "2 app(s) reloaded, 2 app(s) approved, 0 app(s) promoted."
+  perms0114: # test stage app
+    command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
+    stdout: "Disk Usage"
+
+  perms_cleanup: # Cleanup
+    command: rm -rf ./perms_disk_usage && ../clace app delete "/perms*"
