@@ -15,7 +15,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-func (a *App) Approve() (*utils.ApproveResult, error) {
+func (a *App) Audit() (*utils.ApproveResult, error) {
 	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %s file: %w", util.APP_FILE_NAME, err)

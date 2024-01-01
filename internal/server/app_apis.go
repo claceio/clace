@@ -314,16 +314,8 @@ func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (
 
 	// Remove from in memory app cache
 	for _, appInfo := range filteredApps {
-		if err := s.apps.DeleteApp(appInfo.AppPathDomain); err != nil {
+		if err := s.apps.DeleteLinkedApps(appInfo.AppPathDomain); err != nil {
 			return nil, fmt.Errorf("error deleting app: %s", err)
-		}
-
-		if !appInfo.IsDev {
-			// Prod app, delete the stage app as well
-			stageAppPath := utils.AppPathDomain{Domain: appInfo.Domain, Path: appInfo.Path + utils.STAGE_SUFFIX}
-			if err := s.apps.DeleteApp(stageAppPath); err != nil {
-				return nil, fmt.Errorf("error deleting stage app: %s", err)
-			}
 		}
 	}
 
@@ -437,7 +429,7 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 }
 
 func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*utils.ApproveResult, error) {
-	auditResult, err := app.Approve()
+	auditResult, err := app.Audit()
 	if err != nil {
 		return nil, err
 	}
@@ -708,16 +700,16 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 		return nil, err
 	}
 
-	linkedApps := make(map[string]utils.AppInfo)
+	linkedApps := make(map[string][]utils.AppInfo)
 	var mainApps []utils.AppInfo
 	if includeInternal {
 		mainApps = make([]utils.AppInfo, 0, len(apps))
 
 		for _, appInfo := range apps {
-			if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_DEV) {
-				mainApps = append(mainApps, appInfo)
+			if appInfo.MainApp != "" {
+				linkedApps[string(appInfo.MainApp)] = append(linkedApps[string(appInfo.MainApp)], appInfo)
 			} else {
-				linkedApps[appInfo.String()] = appInfo
+				mainApps = append(mainApps, appInfo)
 			}
 		}
 	} else {
@@ -733,17 +725,11 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 		return filteredApps, nil
 	}
 
-	// Include staging apps for prod apps
+	// Include staging and preview apps for prod apps
 	result := make([]utils.AppInfo, 0, 2*len(filteredApps))
 	for _, appInfo := range filteredApps {
 		result = append(result, appInfo)
-		if strings.HasPrefix(string(appInfo.Id), utils.ID_PREFIX_APP_PROD) {
-			stageAppPath := utils.AppPathDomain{Domain: appInfo.Domain, Path: appInfo.Path + utils.STAGE_SUFFIX}
-
-			if linkedApp, ok := linkedApps[stageAppPath.String()]; ok {
-				result = append(result, linkedApp)
-			}
-		}
+		result = append(result, linkedApps[string(appInfo.Id)]...)
 	}
 
 	return result, nil
@@ -763,5 +749,93 @@ func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([
 		}
 		ret = append(ret, utils.AppResponse{AppEntry: *retApp.AppEntry})
 	}
+	return ret, nil
+}
+
+func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, approve, dryRun bool) (*utils.AppPreviewResponse, error) {
+	mainAppPathDomain, err := parseAppPath(mainAppPath)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	mainAppEntry, err := s.db.GetAppTx(ctx, tx, mainAppPathDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isGit(mainAppEntry.SourceUrl) {
+		return nil, fmt.Errorf("cannot preview app %s, source is not git", mainAppPath)
+	}
+
+	previewAppEntry := *mainAppEntry
+	previewAppEntry.Path = mainAppEntry.Path + utils.PREVIEW_SUFFIX + "_" + commitId
+	previewAppEntry.MainApp = mainAppEntry.Id
+	previewAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PREVIEW + string(mainAppEntry.Id)[len(utils.ID_PREFIX_APP_PROD):])
+
+	// Check if it already exists
+	if _, err = s.db.GetAppTx(ctx, tx, previewAppEntry.AppPathDomain()); err == nil {
+		return nil, fmt.Errorf("preview app %s already exists", previewAppEntry.AppPathDomain())
+	}
+
+	previewAppEntry.Metadata.VersionMetadata = utils.VersionMetadata{
+		Version: 0,
+	}
+
+	if err := s.db.CreateApp(ctx, tx, &previewAppEntry); err != nil {
+		return nil, err
+	}
+
+	// Checkout the git repo locally and load into database
+	if err := s.loadSourceFromGit(ctx, tx, &previewAppEntry, "", commitId, previewAppEntry.Settings.GitAuthName); err != nil {
+		return nil, err
+	}
+
+	// Create the in memory app object
+	application, err := s.setupApp(&previewAppEntry, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Debug().Msgf("Created preview app %s %s", previewAppEntry.Path, previewAppEntry.Id)
+	auditResult, err := s.auditApp(ctx, tx, application, approve)
+	if err != nil {
+		return nil, fmt.Errorf("app %s audit failed: %s", previewAppEntry.Id, err)
+	}
+
+	// Persist the metadata so that any git info is saved
+	if err := s.db.UpdateAppMetadata(ctx, tx, &previewAppEntry); err != nil {
+		return nil, err
+	}
+
+	// Persist the settings
+	if err := s.db.UpdateAppSettings(ctx, tx, &previewAppEntry); err != nil {
+		return nil, err
+	}
+
+	ret := &utils.AppPreviewResponse{
+		DryRun:        dryRun,
+		ApproveResult: *auditResult,
+		Success:       true,
+	}
+
+	if auditResult.NeedsApproval && !approve {
+		ret.Success = false // Needs approval but not approved, do not create the preview app
+		return ret, nil
+	}
+
+	if dryRun {
+		return ret, nil
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	return ret, nil
 }

@@ -32,6 +32,7 @@ func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 			appApproveCommand(commonFlags, clientConfig),
 			appReloadCommand(commonFlags, clientConfig),
 			appPromoteCommand(commonFlags, clientConfig),
+			appPreviewCommand(commonFlags, clientConfig),
 			appUpdateSettingsCommand(commonFlags, clientConfig),
 		},
 	}
@@ -59,6 +60,11 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<app_path> <app_source_url>",
 		UsageText: `args: <app_path> <app_source_url>
+
+<app_path> is a required first argument. The optional domain and path are separated by a ":". If no domain is specified, the app is created for the default domain.
+<app_source_url> is a required second argument. The source url can be a git url or a local disk path on the Clace server. For local path, the path can be absolute or relative
+ to the Clace server working directory. If using a non public git repo, the git_auth flag must be specified, which points to the git key as configured in the
+ Clace server config file.
 
 Examples:
   Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
@@ -214,8 +220,12 @@ func appType(app utils.AppResponse) string {
 	} else {
 		if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) {
 			return "PROD"
-		} else {
+		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PREVIEW) {
+			return "VIEW"
+		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
 			return "STG"
+		} else {
+			return "----"
 		}
 	}
 }
@@ -512,260 +522,69 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 	}
 }
 
-func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
-	return &cli.Command{
-		Name:  "update",
-		Usage: "Update Clace apps settings",
-		Subcommands: []*cli.Command{
-			appUpdateStageWrite(commonFlags, clientConfig),
-			appUpdatePreviewWrite(commonFlags, clientConfig),
-			appUpdateAuthnType(commonFlags, clientConfig),
-			appUpdateGitAuth(commonFlags, clientConfig),
-		},
-	}
-}
-
-func appUpdateStageWrite(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appPreviewCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
+	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
-		Name:      "stage-write-access",
-		Usage:     "Update write access permission for staging app",
+		Name:      "preview",
+		Usage:     "Create a preview version of the app from specified git commit id",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:true|false>",
+		ArgsUsage: "<appPath> <gitCommitId>",
+		UsageText: `args: <appPath> <gitCommitId>
 
-		UsageText: `args: <pathSpec> <value:true|false>
-
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a boolean value, true or false.
+    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which the preview app is to be created.
+    <gitCommitId> is a required second argument. This is the commit from which the preview app is to be created.
 
 	Examples:
-	  Update all apps, across domains: clace app update stage-write-access all true
-	  Update apps in the example.com domain: clace app stage-write-access "example.com:**" false`,
-
+	  Preview and approve: clace app preview --approve /myapp 86c24c88ceda21589801895e9f871617a716ad47
+	  Preview app in dryrun mode: clace app preview --dry-run example.com:/myapp 86c24c88ceda21589801895e9f871617a716ad47`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two arguments: <appPath> <gitCommitId>")
 			}
 
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("appPath", cCtx.Args().First())
+			values.Add("commitId", cCtx.Args().Get(1))
+			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateUpdateAppRequest()
-			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
+			var previewResponse utils.AppPreviewResponse
+			err := client.Post("/_clace/preview", values, nil, &previewResponse)
 			if err != nil {
-				return fmt.Errorf("invalid value %s for stage-write-access, expected true or false", cCtx.Args().Get(1))
+				return err
 			}
-			if boolValue {
-				body.StageWriteAccess = utils.BoolValueTrue
+
+			approveResult := previewResponse.ApproveResult
+			fmt.Printf("App audit results %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+			printApproveResult(approveResult)
+
+			status := "failed"
+			if previewResponse.Success {
+				status = "succeeded"
+			}
+			if approveResult.NeedsApproval {
+				if cCtx.Bool("approve") {
+					fmt.Printf("App creation %s. Permissions have been approved\n", status)
+				} else {
+					fmt.Printf("App creation %s, permissions need to be approved, add the --approve option\n", status)
+				}
 			} else {
-				body.StageWriteAccess = utils.BoolValueFalse
+				fmt.Printf("App creation %s. No approval required\n", status)
 			}
 
-			var updateResponse utils.AppUpdateSettingsResponse
-			err = client.Post("/_clace/app_settings", values, body, &updateResponse)
-			if err != nil {
-				return err
-			}
-
-			for _, updateResult := range updateResponse.UpdateResults {
-				fmt.Printf("Updating %s\n", updateResult)
-			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.UpdateResults))
-
-			if updateResponse.DryRun {
+			if previewResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}
 
-			return nil
-		},
-	}
-}
-
-func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
-	flags := make([]cli.Flag, 0, len(commonFlags)+2)
-	flags = append(flags, commonFlags...)
-	flags = append(flags, dryRunFlag())
-
-	return &cli.Command{
-		Name:      "preview-write-access",
-		Usage:     "Update write access permission for preview apps",
-		Flags:     flags,
-		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:true|false>",
-
-		UsageText: `args: <pathSpec> <value:true|false>
-
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a boolean value, true or false.
-
-	Examples:
-	  Update all apps, across domains: clace app update preview-write-access all true
-	  Update apps in the example.com domain: clace app preview-write-access "example.com:**" false`,
-
-		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+			if !previewResponse.Success {
+				return fmt.Errorf("preview app creation failed")
 			}
-
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
-			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
-			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
-
-			body := utils.CreateUpdateAppRequest()
-			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
-			if err != nil {
-				return fmt.Errorf("invalid value %s for preview-write-access, expected true or false", cCtx.Args().Get(1))
-			}
-			if boolValue {
-				body.PreviewWriteAccess = utils.BoolValueTrue
-			} else {
-				body.PreviewWriteAccess = utils.BoolValueFalse
-			}
-
-			var updateResponse utils.AppUpdateSettingsResponse
-			err = client.Post("/_clace/app_settings", values, body, &updateResponse)
-			if err != nil {
-				return err
-			}
-
-			for _, updateResult := range updateResponse.UpdateResults {
-				fmt.Printf("Updating %s\n", updateResult)
-			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.UpdateResults))
-
-			if updateResponse.DryRun {
-				fmt.Print(DRY_RUN_MESSAGE)
-			}
-
-			return nil
-		},
-	}
-}
-
-func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
-	flags := make([]cli.Flag, 0, len(commonFlags)+2)
-	flags = append(flags, commonFlags...)
-	flags = append(flags, dryRunFlag())
-
-	return &cli.Command{
-		Name:      "auth-type",
-		Usage:     "Update authentication type for apps",
-		Flags:     flags,
-		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:default|none>",
-
-		UsageText: `args: <pathSpec> <value:default|none>
-
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a string, default or none.
-
-	Examples:
-	  Update all apps, across domains: clace app update auth-type all default
-	  Update apps in the example.com domain: clace app auth-type "example.com:**" none`,
-
-		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
-			}
-
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
-			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
-			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
-
-			body := utils.CreateUpdateAppRequest()
-			body.AuthnType = utils.StringValue(cCtx.Args().Get(1))
-
-			var updateResponse utils.AppUpdateSettingsResponse
-			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
-				return err
-			}
-
-			for _, updateResult := range updateResponse.UpdateResults {
-				fmt.Printf("Updating %s\n", updateResult)
-			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.UpdateResults))
-
-			if updateResponse.DryRun {
-				fmt.Print(DRY_RUN_MESSAGE)
-			}
-
-			return nil
-		},
-	}
-}
-
-func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
-	flags := make([]cli.Flag, 0, len(commonFlags)+2)
-	flags = append(flags, commonFlags...)
-	flags = append(flags, dryRunFlag())
-
-	return &cli.Command{
-		Name:      "git-auth",
-		Usage:     "Update git-auth entry for apps",
-		Flags:     flags,
-		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value>",
-
-		UsageText: `args: <pathSpec> <value:default|none>
-
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a string. Specify the git_auth entry key name as configured in the clace.toml config.
-
-	Examples:
-	  Update all apps, across domains: clace app update git-auth all mygit
-	  Update apps in the example.com domain: clace app git-auth "example.com:**" gitentrykey`,
-
-		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
-			}
-
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
-			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
-			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
-
-			body := utils.CreateUpdateAppRequest()
-			body.GitAuthName = utils.StringValue(cCtx.Args().Get(1))
-
-			var updateResponse utils.AppUpdateSettingsResponse
-			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
-				return err
-			}
-
-			for _, updateResult := range updateResponse.UpdateResults {
-				fmt.Printf("Updating %s\n", updateResult)
-			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.UpdateResults))
-
-			if updateResponse.DryRun {
-				fmt.Print(DRY_RUN_MESSAGE)
-			}
-
 			return nil
 		},
 	}

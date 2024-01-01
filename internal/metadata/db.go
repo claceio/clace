@@ -207,21 +207,16 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain util
 }
 
 func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id utils.AppId) error {
-	stageAppId := fmt.Sprintf("%s%s", utils.ID_PREFIX_APP_STAGE, string(id)[len(utils.ID_PREFIX_APP_PROD):])
-	if _, err := tx.ExecContext(ctx, `delete from apps where id = ? or id = ?`, id, stageAppId); err != nil {
-		return fmt.Errorf("error deleting app : %w", err)
-	}
-
-	if _, err := tx.ExecContext(ctx, `delete from apps where main_app = ? `, id); err != nil {
-		return fmt.Errorf("error deleting linked apps : %w", err)
-	}
-
-	if _, err := tx.ExecContext(ctx, `delete from app_versions where appid=? or appid = ?`, id, stageAppId); err != nil {
+	if _, err := tx.ExecContext(ctx, `delete from app_versions where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, `delete from app_files where appid=? or appid = ?`, id, stageAppId); err != nil {
+	if _, err := tx.ExecContext(ctx, `delete from app_files where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
 		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `delete from apps where id = ? or main_app = ? `, id, id); err != nil {
+		return fmt.Errorf("error deleting apps : %w", err)
 	}
 
 	// Clean up unused files. This can be done more aggressively, when older versions are deleted.
@@ -255,7 +250,7 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 }
 
 func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
-	sql := `select domain, path, is_dev, id from apps`
+	sql := `select domain, path, is_dev, id, main_app from apps`
 	if !includeInternal {
 		sql += ` where main_app = ''`
 	}
@@ -271,13 +266,13 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 	}
 	apps := make([]utils.AppInfo, 0)
 	for rows.Next() {
-		var path, domain, id string
+		var path, domain, id, mainApp string
 		var isDev bool
-		err = rows.Scan(&domain, &path, &isDev, &id)
+		err = rows.Scan(&domain, &path, &isDev, &id, &mainApp)
 		if err != nil {
 			return nil, fmt.Errorf("error querying apps: %w", err)
 		}
-		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev))
+		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev, utils.AppId(mainApp)))
 	}
 	return apps, nil
 }

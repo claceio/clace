@@ -353,6 +353,32 @@ func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) previewApp(r *http.Request) (any, error) {
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+	commitId := r.URL.Query().Get("commitId")
+	if commitId == "" {
+		return nil, utils.CreateRequestError("commitId is required", http.StatusBadRequest)
+	}
+	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
+	if err != nil {
+		return nil, err
+	}
+
+	ret, err := h.server.PreviewApp(r.Context(), appPath, commitId, approve, dryRun)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
 func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
@@ -410,6 +436,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to promote apps
 	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.promoteApps)
+	}))
+
+	// API to create a preview version of an app
+	r.Post("/preview", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.previewApp)
 	}))
 
 	// API to update app settings

@@ -118,8 +118,9 @@ func (a AppPathDomain) String() string {
 // AppInfo is the basic info for an app
 type AppInfo struct {
 	AppPathDomain
-	Id    AppId
-	IsDev bool
+	Id      AppId
+	IsDev   bool
+	MainApp AppId
 }
 
 func CreateAppPathDomain(path, domain string) AppPathDomain {
@@ -129,14 +130,15 @@ func CreateAppPathDomain(path, domain string) AppPathDomain {
 	}
 }
 
-func CreateAppInfo(id AppId, path, domain string, isDev bool) AppInfo {
+func CreateAppInfo(id AppId, path, domain string, isDev bool, mainApp AppId) AppInfo {
 	return AppInfo{
 		AppPathDomain: AppPathDomain{
 			Path:   path,
 			Domain: domain,
 		},
-		Id:    id,
-		IsDev: isDev,
+		Id:      id,
+		IsDev:   isDev,
+		MainApp: mainApp,
 	}
 }
 

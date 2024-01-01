@@ -5,6 +5,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/claceio/clace/internal/app"
@@ -47,9 +48,16 @@ func (a *AppStore) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 	return app, nil
 }
 
-func (a *AppStore) DeleteApp(pathDomain utils.AppPathDomain) error {
+func (a *AppStore) DeleteLinkedApps(pathDomain utils.AppPathDomain) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	linkedAppPrefix := pathDomain.Path + utils.INTERNAL_APP_DELIM
+	for key, app := range a.appMap {
+		if app.Domain == pathDomain.Domain && strings.HasPrefix(app.Path, linkedAppPrefix) {
+			delete(a.appMap, key)
+		}
+	}
 
 	delete(a.appMap, pathDomain)
 	return nil

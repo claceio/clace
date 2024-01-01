@@ -79,7 +79,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		}
 		stageApps = append(stageApps, stageApp)
 
-		stageResult, err := stageApp.Approve()
+		stageResult, err := stageApp.Audit()
 		if err != nil {
 			return nil, fmt.Errorf("error approving app %s: %w", stageAppEntry, err)
 		}
@@ -140,7 +140,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		reloadResults = append(reloadResults, devAppEntry.AppPathDomain())
 		devApps = append(devApps, devApp)
 
-		devResult, err := devApp.Approve()
+		devResult, err := devApp.Audit()
 		if err != nil {
 			return nil, fmt.Errorf("error auditing dev app %s: %w", devAppEntry, err)
 		}

@@ -105,3 +105,9 @@ type AppUpdateSettingsResponse struct {
 	DryRun        bool            `json:"dry_run"`
 	UpdateResults []AppPathDomain `json:"update_results"`
 }
+
+type AppPreviewResponse struct {
+	DryRun        bool          `json:"dry_run"`
+	Success       bool          `json:"success"`
+	ApproveResult ApproveResult `json:"approve_result"`
+}
