@@ -54,7 +54,8 @@ The deployment features supported currently by Clace are:
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
 - Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function), enabling aggressive static content caching.
 - [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
-- Staging mode for app updates, to verify whether changes work before making them live.
+- Staging mode for app updates, to verify whether code and config changes work on prod before making them live.
+- Preview app creation support, for reviewing code changes.
 
 ## Roadmap
 
