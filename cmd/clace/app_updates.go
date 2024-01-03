@@ -115,7 +115,7 @@ func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *utils.ClientCon
 
 	Examples:
 	  Update all apps, across domains: clace app update preview-write-access all true
-	  Update apps in the example.com domain: clace app preview-write-access "example.com:**" false`,
+	  Update apps in the example.com domain: clace app update preview-write-access "example.com:**" false`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {

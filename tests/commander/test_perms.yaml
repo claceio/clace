@@ -44,7 +44,7 @@ tests:
   perms0201: # Create preview app from git
     command: ../clace app create --approve /permsgit2 github.com/claceio/clace/examples/disk_usage
   perms0202: # Create preview app
-    command: ../clace app preview --approve /permsgit1 12862a5d56f5557b8ff77f56cb055faf97fe20ed
+    command: ../clace preview create --approve /permsgit1 12862a5d56f5557b8ff77f56cb055faf97fe20ed
   perms0203: # test preview app
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_12862a5d56f5557b8ff77f56cb055faf97fe20ed
     stdout: "Preview app does not have access to write operation"
@@ -54,7 +54,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_12862a5d56f5557b8ff77f56cb055faf97fe20ed
     stdout: "Disk Usage"
   perms0206: # Create preview app for non git
-    command: ../clace app preview /perms1 12862a5d56f5557b8ff77f56cb055faf97fe20ed
+    command: ../clace preview create /perms1 12862a5d56f5557b8ff77f56cb055faf97fe20ed
     stderr: "source is not git"
     exit-code: 1
 
