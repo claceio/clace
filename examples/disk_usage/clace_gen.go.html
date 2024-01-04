@@ -11,11 +11,11 @@
   {{ end }}
 
   {{ if fileNonEmpty "gen/lib/htmx.min.js" }}
-    <script defer src="{{ static "gen/lib/htmx.min.js" }}"></script>
+    <script src="{{ static "gen/lib/htmx.min.js" }}"></script>
   {{ end }}
   {{ if or .IsDev .PushEvents }}
     {{ if fileNonEmpty "gen/lib/sse.js" }}
-      <script defer src="{{ static "gen/lib/sse.js" }}"></script>
+      <script src="{{ static "gen/lib/sse.js" }}"></script>
     {{ end }}
   {{ end }}
 

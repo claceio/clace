@@ -176,7 +176,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents <script defer src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script> .`
+	want := `Template contents <script src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script> .`
 	fmt.Println(response.Body.String())
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
@@ -291,8 +291,8 @@ def handler(req):
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>testApp</title>
-		<script defer src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script>
-		<script defer src="/test/static/gen/lib/sse-66dadc2c017a266e589ea23d6825f7806f75317056ef29a56e5da01ea312f6e5.js"></script>
+		<script src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script>
+		<script src="/test/static/gen/lib/sse-66dadc2c017a266e589ea23d6825f7806f75317056ef29a56e5da01ea312f6e5.js"></script>
 		<div id="cl_reload_listener" hx-ext="sse"
 		sse-connect="/test/_clace_app/sse" sse-swap="clace_reload"
 		hx-trigger="sse:clace_reload"></div>
