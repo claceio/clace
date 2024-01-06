@@ -256,7 +256,7 @@ func (a *App) loadSchemaInfo(sourceFS *util.SourceFs) error {
 		return nil // Ignore absence of schema file
 	}
 
-	a.dbInfo, err = db.ReadDBInfo(schemaInfoData)
+	a.dbInfo, err = db.ReadDBInfo(util.SCHEMA_FILE_NAME, schemaInfoData)
 	if err != nil {
 		return fmt.Errorf("error reading schema info: %w", err)
 	}

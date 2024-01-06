@@ -92,18 +92,18 @@ var _ starlark.Value = (*StarlarkType)(nil)
 
 type TypeBuilder struct {
 	Name   string
-	Fields map[string]TypeName
+	Fields []DBField
 }
 
 func (s *TypeBuilder) CreateType(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	unpackArgs := make([]any, 0, 2*len(s.Fields))
-	for fieldName, argType := range s.Fields {
+	for _, f := range s.Fields {
 
 		// Unpack takes field name followed by a pointer to the value
-		unpackArgs = append(unpackArgs, fieldName)
+		unpackArgs = append(unpackArgs, f.Name)
 		var value starlark.Value
 
-		switch argType {
+		switch f.Type {
 		case INT:
 			var v starlark.Int
 			value = v
@@ -121,7 +121,7 @@ func (s *TypeBuilder) CreateType(thread *starlark.Thread, _ *starlark.Builtin, a
 			var v *starlark.Dict
 			value = v
 		default:
-			return nil, fmt.Errorf("unknown type %s", argType)
+			return nil, fmt.Errorf("unknown type %s for %s", f.Type, f.Name)
 		}
 
 		// Add value pointer

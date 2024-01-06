@@ -3,49 +3,49 @@
 
 package db
 
-import (
-	"bytes"
-	"encoding/json"
-)
-
 type TypeName string
 
 const (
-	INT     TypeName = "int"
-	STRING  TypeName = "string"
-	BOOLEAN TypeName = "boolean"
-	LIST    TypeName = "list"
-	DICT    TypeName = "dict"
+	INT     TypeName = "INT"
+	STRING  TypeName = "STRING"
+	BOOLEAN TypeName = "BOOLEAN"
+	LIST    TypeName = "LIST"
+	DICT    TypeName = "DICT"
 	//DATETIME TypeName = "datetime"
 )
 
 type DBInfo struct {
-	Types []DBType `json:"types"`
+	Types []DBType
 }
 
 type DBType struct {
-	Name    string              `json:"name"`
-	Fields  map[string]TypeName `json:"fields"`
-	Persist bool                `json:"persist"`
-	Indexes []Index             `json:"indexes"`
+	Name    string
+	Fields  []DBField
+	Indexes []Index
+}
+
+type DBField struct {
+	Name    string
+	Type    TypeName
+	Default any
 }
 
 type Index struct {
-	Columns []string `json:"columns"`
-	Unique  bool     `json:"unique"`
+	Fields []string
+	Unique bool
 }
 
-func ReadDBInfo(inp []byte) (*DBInfo, error) {
-	var dbInfo DBInfo
-	if err := json.NewDecoder(bytes.NewReader(inp)).Decode(&dbInfo); err != nil {
+func ReadDBInfo(fileName string, inp []byte) (*DBInfo, error) {
+	dbInfo, err := LoadDBInfo(fileName, inp)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validateDBInfo(&dbInfo); err != nil {
+	if err := validateDBInfo(dbInfo); err != nil {
 		return nil, err
 	}
 
-	return &dbInfo, nil
+	return dbInfo, nil
 }
 
 func validateDBInfo(dbInfo *DBInfo) error {

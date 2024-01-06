@@ -431,21 +431,15 @@ def handler(req):
 func TestSchemaLoad(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
-		"schema.json": `
-		{
-			"types": [ 
-			{
-			   "name": "mytype",
-			   "persist": false,
-			   "fields": {
-				   "aint": "int",
-				   "astring": "string",
-				   "abool": "boolean",
-				   "alist": "list",
-				   "adict": "dict"
-			   }
-			}]
-		}
+		"schema.star": `
+
+type("mytype", fields=[
+			field("aint", INT),
+			field("astring", STRING),
+			field("abool", BOOLEAN),
+			field("alist", LIST),
+			field("adict", DICT),
+		])
 		`,
 		"app.star": `
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])

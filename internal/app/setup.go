@@ -127,11 +127,7 @@ func (a *App) createBuiltin() (starlark.StringDict, error) {
 }
 
 func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, error) {
-	if a.dbInfo == nil {
-		return builtin, nil
-	}
-
-	if len(a.dbInfo.Types) == 0 {
+	if a.dbInfo == nil || len(a.dbInfo.Types) == 0 {
 		return builtin, nil
 	}
 
@@ -145,7 +141,6 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	for _, t := range a.dbInfo.Types {
 		tb := db.TypeBuilder{Name: t.Name, Fields: t.Fields}
 		typeDict[t.Name] = starlark.NewBuiltin(t.Name, tb.CreateType)
-		a.Info().Msg("Adding type ********" + t.Name)
 	}
 
 	typeModule := starlarkstruct.Module{
