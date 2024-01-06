@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/claceio/clace/internal/app/db"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
@@ -40,6 +41,7 @@ type App struct {
 	reloadStartTime time.Time
 	appDev          *dev.AppDev
 	systemConfig    *utils.SystemConfig
+	dbInfo          *db.DBInfo
 
 	globals       starlark.StringDict
 	appDef        *starlarkstruct.Struct
@@ -163,6 +165,11 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 	a.sourceFS.ClearCache()
 	clear(a.starlarkCache)
 
+	err = a.loadSchemaInfo(a.sourceFS)
+	if err != nil {
+		return false, err
+	}
+
 	configData, err := a.sourceFS.ReadFile(util.CONFIG_LOCK_FILE_NAME)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
@@ -237,6 +244,25 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		a.notifyClients()
 	}
 	return true, nil
+}
+
+func (a *App) loadSchemaInfo(sourceFS *util.SourceFs) error {
+	// Load the schema info
+	schemaInfoData, err := sourceFS.ReadFile(util.SCHEMA_FILE_NAME)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
+			return err
+		}
+		return nil // Ignore absence of schema file
+	}
+
+	a.dbInfo, err = db.ReadDBInfo(schemaInfoData)
+	if err != nil {
+		return fmt.Errorf("error reading schema info: %w", err)
+	}
+
+	return nil
+
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -390,9 +416,9 @@ func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[str
 			return nil, err
 		}
 
-		builtin := util.CreateBuiltin()
-		if builtin == nil {
-			return nil, errors.New("error creating builtin")
+		builtin, err := a.createBuiltin()
+		if err != nil {
+			return nil, err
 		}
 		globals, err := starlark.ExecFile(thread, module, buf, builtin)
 		cacheEntry = &starlarkCacheEntry{globals, err}

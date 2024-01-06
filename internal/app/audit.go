@@ -4,7 +4,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -59,9 +58,9 @@ func (a *App) Audit() (*utils.ApproveResult, error) {
 		Load:  auditLoader,
 	}
 
-	builtin := util.CreateBuiltin()
-	if builtin == nil {
-		return nil, errors.New("error creating builtin")
+	builtin, err := a.createBuiltin()
+	if err != nil {
+		return nil, err
 	}
 
 	_, prog, err := starlark.SourceProgram(util.APP_FILE_NAME, buf, builtin.Has)

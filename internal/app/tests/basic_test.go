@@ -427,3 +427,49 @@ def handler(req):
 	testutil.AssertEqualsString(t, "retarget", response.Header().Get("HX-Retarget"), "#abc")
 	testutil.AssertEqualsString(t, "reswap", response.Header().Get("HX-Reswap"), "outerHTML")
 }
+
+func TestSchemaLoad(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"schema.json": `
+		{
+			"types": [ 
+			{
+			   "name": "mytype",
+			   "persist": false,
+			   "fields": {
+				   "aint": "int",
+				   "astring": "string",
+				   "abool": "boolean",
+				   "alist": "list",
+				   "adict": "dict"
+			   }
+			}]
+		}
+		`,
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
+
+def handler(req):
+    myt = type.mytype(aint=1, astring="abc", alist=[1,2,3], adict={"a": 1, "b": 2}, abool=False)
+    myt.aint=2
+    myt.astring="abc2"
+    myt.abool=True
+    myt.alist[1]=4
+    myt.adict["a"]=3
+    return myt
+`,
+		"index.go.html": `Template. ABC {{.Data}}`,
+	}
+	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "Template. ABC map[abool:true adict:map[a:3 b:2] aint:2 alist:[1 4 3] astring:abc2")
+}

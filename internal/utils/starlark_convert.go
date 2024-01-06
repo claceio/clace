@@ -155,8 +155,18 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 			err = fmt.Errorf("constructor object from *starlarkstruct.Struct not supported Marshaler to starlark object: %s", v.Constructor().Type())
 		}
 	default:
-		fmt.Println("errbadtype:", x.Type())
-		err = fmt.Errorf("unrecognized starlark type: %s", x.Type())
+		if _var, ok := v.(TypeUnmarshaler); ok {
+			var ret any
+			ret, err = _var.UnmarshalStarlarkType()
+			if err != nil {
+				err = fmt.Errorf("failed marshal %q to Starlark object : %w", v.Type(), err)
+				return
+			}
+			val = ret
+		} else {
+			err = fmt.Errorf("unrecognized starlark type: %s", x.Type())
+		}
+
 	}
 	return
 }
@@ -298,4 +308,10 @@ type Unmarshaler interface {
 type Marshaler interface {
 	// MarshalStarlark marshal a custom type to starlark object.
 	MarshalStarlark() (starlark.Value, error)
+}
+
+// Unmarshaler is the interface use to unmarshal starlark custom types.
+type TypeUnmarshaler interface {
+	// UnmarshalStarlark unmarshals a starlark object to go object
+	UnmarshalStarlarkType() (any, error)
 }
