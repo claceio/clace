@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package db
+package store
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ const (
 	INDEX = "index"
 )
 
-func LoadDBInfo(fileName string, data []byte) (*DBInfo, error) {
+func LoadStoreInfo(fileName string, data []byte) (*StoreInfo, error) {
 	definedTypes := make(map[string]starlark.Value)
 
 	typeBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -71,11 +71,11 @@ func LoadDBInfo(fileName string, data []byte) (*DBInfo, error) {
 		return nil, fmt.Errorf("error loading app schema: %w", err)
 	}
 
-	return createDBInfo(definedTypes)
+	return createStoreInfo(definedTypes)
 }
 
-func createDBInfo(definedTypes map[string]starlark.Value) (*DBInfo, error) {
-	types := make([]DBType, 0, len(definedTypes))
+func createStoreInfo(definedTypes map[string]starlark.Value) (*StoreInfo, error) {
+	types := make([]StoreType, 0, len(definedTypes))
 	for _, t := range definedTypes {
 		typeStruct, ok := t.(*starlarkstruct.Struct)
 		if !ok {
@@ -96,19 +96,19 @@ func createDBInfo(definedTypes map[string]starlark.Value) (*DBInfo, error) {
 			return nil, fmt.Errorf("error getting indexes in type %s: %s", typeName, err)
 		}
 
-		types = append(types, DBType{
+		types = append(types, StoreType{
 			Name:    string(typeName),
 			Fields:  fields,
 			Indexes: indexes,
 		})
 	}
 
-	return &DBInfo{
+	return &StoreInfo{
 		Types: types,
 	}, nil
 }
 
-func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]DBField, error) {
+func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]StoreField, error) {
 	fieldsAttr, err := typeStruct.Attr(key)
 	if err != nil {
 		return nil, fmt.Errorf("error getting %s attribute in type %s: %s", key, typeName, err)
@@ -123,7 +123,7 @@ func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) (
 	iter := fieldsList.Iterate()
 	var val starlark.Value
 
-	ret := make([]DBField, 0, fields.Len())
+	ret := make([]StoreField, 0, fields.Len())
 	for iter.Next(&val) {
 		fieldStruct, ok := val.(*starlarkstruct.Struct)
 		if !ok {
@@ -140,7 +140,7 @@ func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) (
 			return nil, err
 		}
 
-		field := DBField{
+		field := StoreField{
 			Name: string(fieldName),
 			Type: TypeName(fieldType),
 		}

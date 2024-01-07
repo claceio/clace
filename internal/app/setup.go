@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/claceio/clace/internal/app/db"
 	"github.com/claceio/clace/internal/app/dev"
+	"github.com/claceio/clace/internal/app/store"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
@@ -127,7 +127,7 @@ func (a *App) createBuiltin() (starlark.StringDict, error) {
 }
 
 func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, error) {
-	if a.dbInfo == nil || len(a.dbInfo.Types) == 0 {
+	if a.storeInfo == nil || len(a.storeInfo.Types) == 0 {
 		return builtin, nil
 	}
 
@@ -138,8 +138,8 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	}
 
 	typeDict := starlark.StringDict{}
-	for _, t := range a.dbInfo.Types {
-		tb := db.TypeBuilder{Name: t.Name, Fields: t.Fields}
+	for _, t := range a.storeInfo.Types {
+		tb := store.TypeBuilder{Name: t.Name, Fields: t.Fields}
 		typeDict[t.Name] = starlark.NewBuiltin(t.Name, tb.CreateType)
 	}
 

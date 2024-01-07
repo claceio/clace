@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package db
+package store
 
 import (
 	"fmt"
@@ -92,7 +92,7 @@ var _ starlark.Value = (*StarlarkType)(nil)
 
 type TypeBuilder struct {
 	Name   string
-	Fields []DBField
+	Fields []StoreField
 }
 
 func (s *TypeBuilder) CreateType(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {

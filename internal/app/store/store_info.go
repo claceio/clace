@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package db
+package store
 
 type TypeName string
 
@@ -14,17 +14,17 @@ const (
 	//DATETIME TypeName = "datetime"
 )
 
-type DBInfo struct {
-	Types []DBType
+type StoreInfo struct {
+	Types []StoreType
 }
 
-type DBType struct {
+type StoreType struct {
 	Name    string
-	Fields  []DBField
+	Fields  []StoreField
 	Indexes []Index
 }
 
-type DBField struct {
+type StoreField struct {
 	Name    string
 	Type    TypeName
 	Default any
@@ -35,21 +35,21 @@ type Index struct {
 	Unique bool
 }
 
-func ReadDBInfo(fileName string, inp []byte) (*DBInfo, error) {
-	dbInfo, err := LoadDBInfo(fileName, inp)
+func ReadStoreInfo(fileName string, inp []byte) (*StoreInfo, error) {
+	storeInfo, err := LoadStoreInfo(fileName, inp)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := validateDBInfo(dbInfo); err != nil {
+	if err := validateStoreInfo(storeInfo); err != nil {
 		return nil, err
 	}
 
-	return dbInfo, nil
+	return storeInfo, nil
 }
 
-func validateDBInfo(dbInfo *DBInfo) error {
-	if err := validateTypes(dbInfo.Types); err != nil {
+func validateStoreInfo(storeInfo *StoreInfo) error {
+	if err := validateTypes(storeInfo.Types); err != nil {
 		return err
 	}
 
@@ -57,7 +57,7 @@ func validateDBInfo(dbInfo *DBInfo) error {
 	return nil
 }
 
-func validateTypes(types []DBType) error {
+func validateTypes(types []StoreType) error {
 	// TODO: validate types
 	return nil
 }
