@@ -61,3 +61,8 @@ func validateTypes(types []StoreType) error {
 	// TODO: validate types
 	return nil
 }
+
+func validateCollectionName(name string) error {
+	// TODO: validate collection name
+	return nil
+}
