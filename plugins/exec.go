@@ -18,8 +18,9 @@ import (
 const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
 
 func init() {
-	app.RegisterPlugin("exec", []app.PluginFunc{
-		app.CreatePluginApi("run", false, run),
+	e := &ExecPlugin{}
+	app.RegisterPlugin("exec", NewExecPlugin, []app.PluginFunc{
+		app.CreatePluginApi(e.Run, false),
 	})
 }
 
@@ -63,7 +64,14 @@ func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execR
 	}
 }
 
-func run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+type ExecPlugin struct {
+}
+
+func NewExecPlugin(_ *app.PluginContext) (any, error) {
+	return &ExecPlugin{}, nil
+}
+
+func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		path           starlark.String
 		cmdArgs        *starlark.List

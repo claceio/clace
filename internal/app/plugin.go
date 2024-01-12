@@ -5,15 +5,26 @@ package app
 
 import (
 	"fmt"
+	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
+
+type PluginContext struct {
+	Connection *any
+	Config     map[string]any
+}
+
+type NewPluginFunc func(pluginContext *PluginContext) (any, error)
 
 var (
 	loaderInitMutex sync.Mutex
@@ -25,36 +36,89 @@ func init() {
 }
 
 // RegisterPlugin registers a plugin with Clace
-func RegisterPlugin(name string, funcs []PluginFunc) {
+func RegisterPlugin(name string, builder NewPluginFunc, funcs []PluginFunc) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
 	pluginName := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
 	pluginMap := make(PluginMap)
 	for _, f := range funcs {
-		pluginMap[f.name] = f
+		info := PluginInfo{
+			moduleName:  name,
+			funcName:    f.name,
+			isRead:      f.isRead,
+			handlerName: f.functionName,
+			builder:     builder,
+		}
+
+		pluginMap[f.name] = &info
 	}
 
 	builtInPlugins[pluginName] = pluginMap
 }
 
 // PluginMap is the plugin function mapping to PluginFuncs
-type PluginMap map[string]PluginFunc
+type PluginMap map[string]*PluginInfo
 
 // PluginFunc is the Clace plugin function mapping to starlark function
 type PluginFunc struct {
-	name     string
-	isRead   bool
-	function *starlark.Builtin
+	name         string
+	isRead       bool
+	functionName string
 }
 
-// CreatePluginApi creates a Clace plugin function
-func CreatePluginApi(name string, isRead bool,
-	function func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)) PluginFunc {
+// PluginFuncInfo is the Clace plugin function info for the starlark function
+type PluginInfo struct {
+	moduleName  string
+	funcName    string
+	isRead      bool
+	handlerName string
+	builder     NewPluginFunc
+}
+
+func CreatePluginApi(
+	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
+	isRead bool,
+) PluginFunc {
+
+	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
+	if funcVal == nil {
+		panic(fmt.Errorf("function not found during plugin register"))
+	}
+
+	parts := strings.Split(funcVal.Name(), "/")
+	nameParts := strings.Split(parts[len(parts)-1], ".")
+	funcName := strings.TrimSuffix(nameParts[len(nameParts)-1], "-fm") // -fm denotes function value
+
+	return CreatePluginApiName(f, isRead, strings.ToLower(funcName))
+}
+
+// CreatePluginApiName creates a Clace plugin function
+func CreatePluginApiName(
+	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
+	isRead bool,
+	name string) PluginFunc {
+	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
+	if funcVal == nil {
+		panic(fmt.Errorf("function %s not found during plugin register", name))
+	}
+
+	parts := strings.Split(funcVal.Name(), "/")
+	nameParts := strings.Split(parts[len(parts)-1], ".")
+	funcName := strings.TrimSuffix(nameParts[len(nameParts)-1], "-fm") // -fm denotes function value
+
+	if len(funcName) == 0 {
+		panic(fmt.Errorf("function %s not found during plugin register", name))
+	}
+	rune, _ := utf8.DecodeRuneInString(funcName)
+	if !unicode.IsUpper(rune) {
+		panic(fmt.Errorf("function %s is not an exported method during plugin register", funcName))
+	}
+
 	return PluginFunc{
-		name:     name,
-		isRead:   isRead,
-		function: starlark.NewBuiltin(name, function),
+		name:         name,
+		isRead:       isRead,
+		functionName: funcName,
 	}
 }
 
@@ -80,8 +144,8 @@ func (a *App) loader(thread *starlark.Thread, module string) (starlark.StringDic
 	// verify if the application has approval to call the specified function.
 	// The audit loader will replace the builtins with dummy methods, so the hook is not added for the audit loader
 	hookedDict := make(starlark.StringDict)
-	for funcName, pluginFunc := range plugin {
-		hookedDict[funcName] = a.pluginHook(module, funcName, pluginFunc)
+	for funcName, pluginInfo := range plugin {
+		hookedDict[funcName] = a.pluginHook(module, funcName, pluginInfo)
 	}
 
 	ret := make(starlark.StringDict)
@@ -100,7 +164,7 @@ func (a *App) pluginLookup(_ *starlark.Thread, module string) (PluginMap, error)
 	return pluginDict, nil
 }
 
-func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) *starlark.Builtin {
+func (a *App) pluginHook(module string, function string, pluginInfo *PluginInfo) *starlark.Builtin {
 	hook := func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		a.Trace().Msgf("Plugin called: %s.%s", module, function)
 
@@ -142,7 +206,7 @@ func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) 
 						isRead = *p.IsRead
 					} else {
 						// Use the plugin defined isRead value
-						isRead = pluginFunc.isRead
+						isRead = pluginInfo.isRead
 					}
 
 					if !isRead {
@@ -170,7 +234,26 @@ func (a *App) pluginHook(module string, function string, pluginFunc PluginFunc) 
 			}
 		}
 
-		val, err := pluginFunc.function.CallInternal(thread, args, kwargs)
+		// Get the plugin from the app config
+		plugin, err := a.plugins.GetPlugin(pluginInfo)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get the plugin function using reflection
+		pluginValue := reflect.ValueOf(plugin).MethodByName(pluginInfo.handlerName)
+		if pluginValue.IsNil() {
+			return nil, fmt.Errorf("plugin func %s.%s cannot be resolved", module, function)
+		}
+
+		builtinFunc, ok := pluginValue.Interface().(func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error))
+		if !ok {
+			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", module, function)
+		}
+
+		// Call the builtin function
+		newBuiltin := starlark.NewBuiltin(function, builtinFunc)
+		val, err := newBuiltin.CallInternal(thread, args, kwargs)
 		return val, err
 	}
 

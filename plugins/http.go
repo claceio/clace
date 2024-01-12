@@ -36,21 +36,60 @@ const (
 )
 
 func init() {
-	h := &httpPlugin{client: http.DefaultClient}
+	h := &httpPlugin{}
 	pluginFuncs := []app.PluginFunc{
-		app.CreatePluginApi("get", true, h.reqMethod("get")),
-		app.CreatePluginApi("head", true, h.reqMethod("head")),
-		app.CreatePluginApi("options", true, h.reqMethod("options")),
-		app.CreatePluginApi("post", false, h.reqMethod("post")),
-		app.CreatePluginApi("put", false, h.reqMethod("put")),
-		app.CreatePluginApi("delete", false, h.reqMethod("delete")),
-		app.CreatePluginApi("patch", false, h.reqMethod("patch")),
+		app.CreatePluginApi(h.Get, true),
+		app.CreatePluginApi(h.Head, true),
+		app.CreatePluginApi(h.Options, true),
+		app.CreatePluginApi(h.Post, false),
+		app.CreatePluginApi(h.Put, false),
+		app.CreatePluginApi(h.Delete, false),
+		app.CreatePluginApi(h.Patch, false),
 	}
-	app.RegisterPlugin("http", pluginFuncs)
+	app.RegisterPlugin("http", NewHttpPlugin, pluginFuncs)
 }
 
 type httpPlugin struct {
 	client *http.Client
+}
+
+func NewHttpPlugin(pluginContext *app.PluginContext) (any, error) {
+	return &httpPlugin{client: http.DefaultClient}, nil
+}
+
+func (h *httpPlugin) Get(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("get")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Head(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("head")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Options(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("options")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Post(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("post")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Put(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("put")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("delete")
+	return httpFunc(thread, builtin, args, kwargs)
+}
+
+func (h *httpPlugin) Patch(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	httpFunc := h.reqMethod("patch")
+	return httpFunc(thread, builtin, args, kwargs)
 }
 
 // reqMethod is a factory function for generating starlark builtin functions for different http request methods

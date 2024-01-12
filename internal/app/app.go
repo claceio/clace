@@ -42,6 +42,7 @@ type App struct {
 	appDev          *dev.AppDev
 	systemConfig    *utils.SystemConfig
 	storeInfo       *store.StoreInfo
+	plugins         *AppPlugins
 
 	globals       starlark.StringDict
 	appDef        *starlarkstruct.Struct
@@ -70,6 +71,7 @@ func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger, 
 		AppEntry:      appEntry,
 		systemConfig:  systemConfig,
 		starlarkCache: map[string]*starlarkCacheEntry{},
+		plugins:       NewAppPlugins(),
 	}
 
 	if appEntry.IsDev {
