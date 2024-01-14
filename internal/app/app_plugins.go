@@ -69,6 +69,6 @@ func (p *AppPlugins) GetPlugin(pluginInfo *PluginInfo, accountName string) (any,
 		return nil, fmt.Errorf("error creating plugin %s: %w", pluginInfo.funcName, err)
 	}
 
-	p.plugins[pluginInfo.moduleName] = plugin
+	p.plugins[pluginInfo.pluginPath] = plugin
 	return plugin, nil
 }
