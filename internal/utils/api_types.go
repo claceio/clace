@@ -111,3 +111,12 @@ type AppPreviewResponse struct {
 	Success       bool          `json:"success"`
 	ApproveResult ApproveResult `json:"approve_result"`
 }
+
+type AppLinkAccountResponse struct {
+	DryRun      bool            `json:"dry_run"`
+	LinkResults []AppPathDomain `json:"link_results"`
+}
+
+type AppGetResponse struct {
+	AppEntry AppEntry `json:"app_entry"`
+}

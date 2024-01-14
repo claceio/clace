@@ -21,7 +21,7 @@ import (
 
 type PluginContext struct {
 	Connection *any
-	Config     map[string]any
+	Config     utils.PluginSettings
 }
 
 type NewPluginFunc func(pluginContext *PluginContext) (any, error)
@@ -40,11 +40,12 @@ func RegisterPlugin(name string, builder NewPluginFunc, funcs []PluginFunc) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
-	pluginName := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
+	pluginPath := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
 	pluginMap := make(PluginMap)
 	for _, f := range funcs {
 		info := PluginInfo{
 			moduleName:  name,
+			pluginPath:  pluginPath,
 			funcName:    f.name,
 			isRead:      f.isRead,
 			handlerName: f.functionName,
@@ -54,7 +55,7 @@ func RegisterPlugin(name string, builder NewPluginFunc, funcs []PluginFunc) {
 		pluginMap[f.name] = &info
 	}
 
-	builtInPlugins[pluginName] = pluginMap
+	builtInPlugins[pluginPath] = pluginMap
 }
 
 // PluginMap is the plugin function mapping to PluginFuncs
@@ -69,8 +70,9 @@ type PluginFunc struct {
 
 // PluginFuncInfo is the Clace plugin function info for the starlark function
 type PluginInfo struct {
-	moduleName  string
-	funcName    string
+	moduleName  string // exec
+	pluginPath  string // exec.in
+	funcName    string // run
 	isRead      bool
 	handlerName string
 	builder     NewPluginFunc
@@ -123,35 +125,45 @@ func CreatePluginApiName(
 }
 
 // loader is the starlark loader function
-func (a *App) loader(thread *starlark.Thread, module string) (starlark.StringDict, error) {
-	if strings.HasSuffix(module, util.STARLARK_FILE_SUFFIX) {
+func (a *App) loader(thread *starlark.Thread, moduleFullPath string) (starlark.StringDict, error) {
+	if strings.HasSuffix(moduleFullPath, util.STARLARK_FILE_SUFFIX) {
 		// Load the starlark file rather than the plugin
-		return a.loadStarlark(thread, module, a.starlarkCache)
+		return a.loadStarlark(thread, moduleFullPath, a.starlarkCache)
 	}
 
-	if a.Metadata.Loads == nil || !slices.Contains(a.Metadata.Loads, module) {
-		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions", a.Path, module)
+	if a.Metadata.Loads == nil || !slices.Contains(a.Metadata.Loads, moduleFullPath) {
+		return nil, fmt.Errorf("app %s is not permitted to load plugin %s. Audit the app and approve permissions", a.Path, moduleFullPath)
 	}
 
-	plugin, err := a.pluginLookup(thread, module)
+	modulePath, moduleName, accountName := parseModulePath(moduleFullPath)
+	plugin, err := a.pluginLookup(thread, modulePath)
 	if err != nil {
 		return nil, err
 	}
-
-	moduleName := strings.TrimSuffix(module, "."+util.BUILTIN_PLUGIN_SUFFIX)
 
 	// Add calls to the hook function, which will do the permission checks at invocation time to
 	// verify if the application has approval to call the specified function.
 	// The audit loader will replace the builtins with dummy methods, so the hook is not added for the audit loader
 	hookedDict := make(starlark.StringDict)
 	for funcName, pluginInfo := range plugin {
-		hookedDict[funcName] = a.pluginHook(module, funcName, pluginInfo)
+		hookedDict[funcName] = a.pluginHook(moduleFullPath, accountName, funcName, pluginInfo)
 	}
 
 	ret := make(starlark.StringDict)
 	ret[moduleName] = starlarkstruct.FromStringDict(starlarkstruct.Default, hookedDict)
 	return ret, nil
 
+}
+
+func parseModulePath(moduleFullPath string) (string, string, string) {
+	parts := strings.Split(moduleFullPath, util.ACCOUNT_SEPERATOR)
+	modulePath := parts[0]
+	moduleName := strings.TrimSuffix(modulePath, "."+util.BUILTIN_PLUGIN_SUFFIX)
+	accountName := ""
+	if len(parts) > 1 {
+		accountName = parts[1]
+	}
+	return modulePath, moduleName, accountName
 }
 
 // pluginLookup looks up the plugin. Audit checks need to be done by the caller
@@ -164,29 +176,29 @@ func (a *App) pluginLookup(_ *starlark.Thread, module string) (PluginMap, error)
 	return pluginDict, nil
 }
 
-func (a *App) pluginHook(module string, function string, pluginInfo *PluginInfo) *starlark.Builtin {
+func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInfo *PluginInfo) *starlark.Builtin {
 	hook := func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		a.Trace().Msgf("Plugin called: %s.%s", module, function)
+		a.Trace().Msgf("Plugin called: %s.%s", modulePath, functionName)
 
 		if a.Metadata.Permissions == nil {
-			return nil, fmt.Errorf("app %s has no permissions configured, plugin call %s.%s is blocked. Audit the app and approve permissions", a.Path, module, function)
+			return nil, fmt.Errorf("app %s has no permissions configured, plugin call %s.%s is blocked. Audit the app and approve permissions", a.Path, modulePath, functionName)
 		}
 
 		approved := false
 		var lastError error
 		for _, p := range a.Metadata.Permissions {
-			a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, module, function)
-			if p.Plugin == module && p.Method == function {
+			a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, modulePath, functionName)
+			if p.Plugin == modulePath && p.Method == functionName {
 				if len(p.Arguments) > 0 {
 					if len(p.Arguments) > len(args) {
-						lastError = fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required (permissions checks are not supported for kwargs). Audit the app and approve permissions", a.Path, module, function, len(args), len(p.Arguments))
+						lastError = fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required (permissions checks are not supported for kwargs). Audit the app and approve permissions", a.Path, modulePath, functionName, len(args), len(p.Arguments))
 						continue
 					}
 					argMismatch := false
 					for i, arg := range p.Arguments {
 						expect := fmt.Sprintf("%q", arg)
 						if args[i].String() != fmt.Sprintf("%q", arg) {
-							lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value %s, expected %s. Update the app or audit and approve permissions", a.Path, module, function, i, args[i].String(), expect)
+							lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value %s, expected %s. Update the app or audit and approve permissions", a.Path, modulePath, functionName, i, args[i].String(), expect)
 							argMismatch = true
 							break
 						}
@@ -212,11 +224,11 @@ func (a *App) pluginHook(module string, function string, pluginInfo *PluginInfo)
 					if !isRead {
 						// Write API, check if stage/preview has write access
 						if strings.HasPrefix(string(a.Id), utils.ID_PREFIX_APP_STAGE) && !a.Settings.StageWriteAccess {
-							return nil, fmt.Errorf("stage app %s is not permitted to call %s.%s args %v. Stage app does not have access to write operations", a.Path, module, function, p.Arguments)
+							return nil, fmt.Errorf("stage app %s is not permitted to call %s.%s args %v. Stage app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
 						}
 
 						if strings.HasPrefix(string(a.Id), utils.ID_PREFIX_APP_PREVIEW) && !a.Settings.PreviewWriteAccess {
-							return nil, fmt.Errorf("preview app %s is not permitted to call %s.%s args %v. Preview app does not have access to write operations", a.Path, module, function, p.Arguments)
+							return nil, fmt.Errorf("preview app %s is not permitted to call %s.%s args %v. Preview app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
 						}
 					}
 				}
@@ -230,12 +242,12 @@ func (a *App) pluginHook(module string, function string, pluginInfo *PluginInfo)
 			if lastError != nil {
 				return nil, lastError
 			} else {
-				return nil, fmt.Errorf("app %s is not permitted to call %s.%s. Audit the app and approve permissions", a.Path, module, function)
+				return nil, fmt.Errorf("app %s is not permitted to call %s.%s. Audit the app and approve permissions", a.Path, modulePath, functionName)
 			}
 		}
 
 		// Get the plugin from the app config
-		plugin, err := a.plugins.GetPlugin(pluginInfo)
+		plugin, err := a.plugins.GetPlugin(pluginInfo, accountName)
 		if err != nil {
 			return nil, err
 		}
@@ -243,19 +255,19 @@ func (a *App) pluginHook(module string, function string, pluginInfo *PluginInfo)
 		// Get the plugin function using reflection
 		pluginValue := reflect.ValueOf(plugin).MethodByName(pluginInfo.handlerName)
 		if pluginValue.IsNil() {
-			return nil, fmt.Errorf("plugin func %s.%s cannot be resolved", module, function)
+			return nil, fmt.Errorf("plugin func %s.%s cannot be resolved", modulePath, functionName)
 		}
 
 		builtinFunc, ok := pluginValue.Interface().(func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error))
 		if !ok {
-			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", module, function)
+			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", modulePath, functionName)
 		}
 
 		// Call the builtin function
-		newBuiltin := starlark.NewBuiltin(function, builtinFunc)
+		newBuiltin := starlark.NewBuiltin(functionName, builtinFunc)
 		val, err := newBuiltin.CallInternal(thread, args, kwargs)
 		return val, err
 	}
 
-	return starlark.NewBuiltin(function, hook)
+	return starlark.NewBuiltin(functionName, hook)
 }

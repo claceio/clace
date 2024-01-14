@@ -33,7 +33,7 @@ type Store interface {
 	GetByKey(collection string, key EntryId) (*Entry, error)
 
 	// Get returns the entries matching the filter
-	Get(collection string, filter map[string]any, sort map[string]int) (EntryIterator, error)
+	Get(collection string, filter map[string]any, sort map[string]int, offset, limit int64) (EntryIterator, error)
 
 	// Update an existing entry in the store
 	Update(collection string, Entry *Entry) error

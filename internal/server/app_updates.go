@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
@@ -326,23 +327,22 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) (bool, error) {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
 
-	if prodApp.Metadata.VersionMetadata.Version == stagingApp.Metadata.VersionMetadata.Version {
-		s.Info().Msgf("App %s:%s already in sync, no promotion required", prodApp.Domain, prodApp.Path)
-		return false, nil
-	}
 	prevVersion := prodApp.Metadata.VersionMetadata.Version
 	newVersion := stagingApp.Metadata.VersionMetadata.Version
 
 	prodApp.Metadata = stagingApp.Metadata
-	prodApp.Metadata.VersionMetadata.PreviousVersion = prevVersion
-	prodApp.Metadata.VersionMetadata.Version = newVersion // the prod app version after promote is the same as the staging app version
-	// there might be some gaps in the prod app version numbers, but that is ok, the attempt is to have the version number in
-	// sync with the staging app version number when a promote is done
+	if prevVersion != newVersion {
+		prodApp.Metadata.VersionMetadata.PreviousVersion = prevVersion
+		prodApp.Metadata.VersionMetadata.Version = newVersion // the prod app version after promote is the same as the staging app version
+		// there might be some gaps in the prod app version numbers, but that is ok, the attempt is to have the version number in
+		// sync with the staging app version number when a promote is done
 
-	if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, prodApp.Metadata.VersionMetadata); err != nil {
-		return false, err
+		if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, prodApp.Metadata.VersionMetadata); err != nil {
+			return false, err
+		}
 	}
 
+	// Even if there is no version change, promotion is done to update other metadata settings like account links
 	if err := s.db.UpdateAppMetadata(ctx, tx, prodApp); err != nil {
 		return false, err
 	}
@@ -444,5 +444,77 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 		ret = append(ret, linkedApp.AppPathDomain())
 	}
 
+	return ret, nil
+}
+
+func (s *Server) LinkAccount(ctx context.Context, mainAppPath, plugin, account string, dryRun bool) (*utils.AppLinkAccountResponse, error) {
+	mainAppPathDomain, err := parseAppPath(mainAppPath)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	mainAppEntry, err := s.db.GetAppTx(ctx, tx, mainAppPathDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	appEntry := mainAppEntry
+	if strings.HasPrefix(string(mainAppEntry.Id), utils.ID_PREFIX_APP_PROD) {
+		// For prod app, update the staging app
+		appEntry, err = s.getStageApp(ctx, tx, mainAppEntry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if appEntry.Metadata.Accounts == nil {
+		appEntry.Metadata.Accounts = []utils.AccountLink{}
+	}
+
+	matchIndex := -1
+	for i, accountLink := range appEntry.Metadata.Accounts {
+		if accountLink.Plugin == plugin {
+			// Update existing value
+			accountLink.AccountName = account
+			matchIndex = i
+			break
+		}
+	}
+	if matchIndex == -1 {
+		// Add new value
+		appEntry.Metadata.Accounts = append(appEntry.Metadata.Accounts, utils.AccountLink{
+			Plugin:      plugin,
+			AccountName: account,
+		})
+	} else {
+		// Update existing value
+		appEntry.Metadata.Accounts[matchIndex].AccountName = account
+	}
+
+	// Persist the updated metadata
+	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
+		return nil, err
+	}
+
+	ret := &utils.AppLinkAccountResponse{
+		DryRun:      dryRun,
+		LinkResults: []utils.AppPathDomain{appEntry.AppPathDomain()},
+	}
+
+	if dryRun {
+		return ret, nil
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	s.apps.DeleteApps(ret.LinkResults) // Delete from in memory cache
 	return ret, nil
 }

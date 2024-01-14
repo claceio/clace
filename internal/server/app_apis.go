@@ -244,9 +244,31 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
 	workFS := util.NewWorkFs(appPath, &util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appPath)})
-	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System)
+	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins)
 
 	return application, nil
+}
+
+func (s *Server) GetAppApi(ctx context.Context, appPath string) (*utils.AppGetResponse, error) {
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	pathDomain, err := parseAppPath(appPath)
+	if err != nil {
+		return nil, err
+	}
+
+	appEntry, error := s.db.GetAppTx(ctx, tx, pathDomain)
+	if error != nil {
+		return nil, error
+	}
+
+	return &utils.AppGetResponse{
+		AppEntry: *appEntry,
+	}, nil
 }
 
 func (s *Server) GetAppEntry(ctx context.Context, tx metadata.Transaction, pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {

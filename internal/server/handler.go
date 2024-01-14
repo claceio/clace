@@ -379,6 +379,23 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) getApp(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.GetAppApi(r.Context(), appPath)
+	if err != nil {
+		fmt.Println("aaa2", err)
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	fmt.Println("aaa", ret)
+
+	return ret, nil
+}
+
 func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
@@ -404,6 +421,31 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) linkAccount(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if appPath == "" {
+		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	plugin := r.URL.Query().Get("plugin")
+	account := r.URL.Query().Get("account")
+	if plugin == "" || account == "" {
+		return nil, utils.CreateRequestError("plugin and account are required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.LinkAccount(r.Context(), appPath, plugin, account, dryRun)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
@@ -411,6 +453,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// Get apps
 	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.getApps)
+	}))
+
+	// Get app
+	r.Get("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.getApp)
 	}))
 
 	// Create app
@@ -446,6 +493,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to update app settings
 	r.Post("/app_settings", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.updateAppSettings)
+	}))
+
+	// API to change account links
+	r.Post("/link_account", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.linkAccount)
 	}))
 
 	return r

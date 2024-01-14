@@ -10,7 +10,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// StarlarkType represents a Starlark type created from the JSON type definition.
+// StarlarkType represents a Starlark type created from the schema type definition.
 type StarlarkType struct {
 	name string
 	data map[string]starlark.Value

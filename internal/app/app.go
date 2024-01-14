@@ -64,14 +64,16 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger, appEntry *utils.AppEntry, systemConfig *utils.SystemConfig) *App {
+func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger,
+	appEntry *utils.AppEntry, systemConfig *utils.SystemConfig,
+	plugins map[string]utils.PluginSettings) *App {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,
 		AppEntry:      appEntry,
 		systemConfig:  systemConfig,
 		starlarkCache: map[string]*starlarkCacheEntry{},
-		plugins:       NewAppPlugins(),
+		plugins:       NewAppPlugins(plugins, appEntry.Metadata.Accounts),
 	}
 
 	if appEntry.IsDev {

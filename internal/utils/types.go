@@ -30,13 +30,14 @@ type GlobalConfig struct {
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
 	GlobalConfig
-	Http     HttpConfig              `toml:"http"`
-	Https    HttpsConfig             `toml:"https"`
-	Security SecurityConfig          `toml:"security"`
-	Metadata MetadataConfig          `toml:"metadata"`
-	Log      LogConfig               `toml:"logging"`
-	System   SystemConfig            `toml:"system"`
-	GitAuth  map[string]GitAuthEntry `toml:"git_auth"`
+	Http     HttpConfig                `toml:"http"`
+	Https    HttpsConfig               `toml:"https"`
+	Security SecurityConfig            `toml:"security"`
+	Metadata MetadataConfig            `toml:"metadata"`
+	Log      LogConfig                 `toml:"logging"`
+	System   SystemConfig              `toml:"system"`
+	GitAuth  map[string]GitAuthEntry   `toml:"git_auth"`
+	Plugins  map[string]PluginSettings `toml:"plugin"`
 }
 
 // HttpConfig is the configuration for the HTTP server
@@ -90,6 +91,8 @@ type GitAuthEntry struct {
 	KeyFilePath string `toml:"key_file_path"` // the path to the private key file
 	Password    string `toml:"password"`      // the password for the private key file
 }
+
+type PluginSettings map[string]any
 
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
@@ -204,6 +207,7 @@ type AppMetadata struct {
 	VersionMetadata VersionMetadata `json:"version_metadata"`
 	Loads           []string        `json:"loads"`
 	Permissions     []Permission    `json:"permissions"`
+	Accounts        []AccountLink   `json:"accounts"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
@@ -212,6 +216,12 @@ type AppSettings struct {
 	GitAuthName        string       `json:"git_auth_name"`
 	StageWriteAccess   bool         `json:"stage_write_access"`
 	PreviewWriteAccess bool         `json:"preview_write_access"`
+}
+
+// AccountLink links the account to use for each plugin
+type AccountLink struct {
+	Plugin      string `json:"plugin"`
+	AccountName string `json:"account_name"`
 }
 
 // WritableFS is the interface for the writable underlying file system used by AppFS

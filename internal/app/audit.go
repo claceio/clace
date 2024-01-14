@@ -21,27 +21,29 @@ func (a *App) Audit() (*utils.ApproveResult, error) {
 	}
 
 	starlarkCache := map[string]*starlarkCacheEntry{}
-	auditLoader := func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
+	auditLoader := func(thread *starlark.Thread, moduleFullPath string) (starlark.StringDict, error) {
 
-		if strings.HasSuffix(module, util.STARLARK_FILE_SUFFIX) {
+		if strings.HasSuffix(moduleFullPath, util.STARLARK_FILE_SUFFIX) {
 			// Load the starlark file rather than the plugin
-			return a.loadStarlark(thread, module, starlarkCache)
+			return a.loadStarlark(thread, moduleFullPath, starlarkCache)
 		}
 
 		// The loader in audit mode is used to track the modules that are loaded.
 		// A copy of the real loader's response is returned, with builtins replaced with dummy methods,
 		// so that the audit can be run without any side effects
-		pluginMap, err := a.pluginLookup(thread, module)
+
+		modulePath, moduleName, _ := parseModulePath(moduleFullPath)
+
+		pluginMap, err := a.pluginLookup(thread, modulePath)
 		if err != nil {
 			return nil, err
 		}
-		moduleName := strings.TrimSuffix(module, "."+util.BUILTIN_PLUGIN_SUFFIX)
 
 		// Replace all the builtins with dummy methods
 		dummyDict := make(starlark.StringDict)
 		for name := range pluginMap {
 			dummyDict[name] = starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-				a.Info().Msgf("Plugin called during audit: %s.%s", module, name)
+				a.Info().Msgf("Plugin called during audit: %s.%s", modulePath, name)
 				return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
 			})
 		}

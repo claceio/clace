@@ -39,7 +39,7 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 		return nil, nil, err
 	}
 	workFS := util.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
-	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig)
+	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig, map[string]utils.PluginSettings{})
 	err = a.Initialize()
 	return a, workFS, err
 }
