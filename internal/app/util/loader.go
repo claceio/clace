@@ -1,12 +1,11 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package store
+package util
 
 import (
 	"fmt"
 
-	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -18,7 +17,7 @@ const (
 	INDEX = "index"
 )
 
-func LoadStoreInfo(fileName string, data []byte) (*StoreInfo, error) {
+func LoadStoreInfo(fileName string, data []byte) (*utils.StoreInfo, error) {
 	definedTypes := make(map[string]starlark.Value)
 
 	typeBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -48,14 +47,14 @@ func LoadStoreInfo(fileName string, data []byte) (*StoreInfo, error) {
 	}
 
 	builtins := starlark.StringDict{
-		TYPE:            starlark.NewBuiltin(TYPE, typeBuiltin),
-		FIELD:           starlark.NewBuiltin(FIELD, createFieldBuiltin),
-		INDEX:           starlark.NewBuiltin(INDEX, createIndexBuiltin),
-		string(INT):     starlark.String(INT),
-		string(STRING):  starlark.String(STRING),
-		string(BOOLEAN): starlark.String(BOOLEAN),
-		string(DICT):    starlark.String(DICT),
-		string(LIST):    starlark.String(LIST),
+		TYPE:                  starlark.NewBuiltin(TYPE, typeBuiltin),
+		FIELD:                 starlark.NewBuiltin(FIELD, createFieldBuiltin),
+		INDEX:                 starlark.NewBuiltin(INDEX, createIndexBuiltin),
+		string(utils.INT):     starlark.String(utils.INT),
+		string(utils.STRING):  starlark.String(utils.STRING),
+		string(utils.BOOLEAN): starlark.String(utils.BOOLEAN),
+		string(utils.DICT):    starlark.String(utils.DICT),
+		string(utils.LIST):    starlark.String(utils.LIST),
 	}
 
 	thread := &starlark.Thread{
@@ -74,15 +73,15 @@ func LoadStoreInfo(fileName string, data []byte) (*StoreInfo, error) {
 	return createStoreInfo(definedTypes)
 }
 
-func createStoreInfo(definedTypes map[string]starlark.Value) (*StoreInfo, error) {
-	types := make([]StoreType, 0, len(definedTypes))
+func createStoreInfo(definedTypes map[string]starlark.Value) (*utils.StoreInfo, error) {
+	types := make([]utils.StoreType, 0, len(definedTypes))
 	for _, t := range definedTypes {
 		typeStruct, ok := t.(*starlarkstruct.Struct)
 		if !ok {
 			return nil, fmt.Errorf("invalid type definition: %s", t.String())
 		}
 
-		typeName, err := util.GetStringAttr(typeStruct, "name")
+		typeName, err := GetStringAttr(typeStruct, "name")
 		if err != nil {
 			return nil, err
 		}
@@ -96,19 +95,19 @@ func createStoreInfo(definedTypes map[string]starlark.Value) (*StoreInfo, error)
 			return nil, fmt.Errorf("error getting indexes in type %s: %s", typeName, err)
 		}
 
-		types = append(types, StoreType{
+		types = append(types, utils.StoreType{
 			Name:    string(typeName),
 			Fields:  fields,
 			Indexes: indexes,
 		})
 	}
 
-	return &StoreInfo{
+	return &utils.StoreInfo{
 		Types: types,
 	}, nil
 }
 
-func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]StoreField, error) {
+func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]utils.StoreField, error) {
 	fieldsAttr, err := typeStruct.Attr(key)
 	if err != nil {
 		return nil, fmt.Errorf("error getting %s attribute in type %s: %s", key, typeName, err)
@@ -123,26 +122,26 @@ func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) (
 	iter := fieldsList.Iterate()
 	var val starlark.Value
 
-	ret := make([]StoreField, 0, fields.Len())
+	ret := make([]utils.StoreField, 0, fields.Len())
 	for iter.Next(&val) {
 		fieldStruct, ok := val.(*starlarkstruct.Struct)
 		if !ok {
 			return nil, fmt.Errorf("invalid field definition: %s", val.String())
 		}
 
-		fieldName, err := util.GetStringAttr(fieldStruct, "name")
+		fieldName, err := GetStringAttr(fieldStruct, "name")
 		if err != nil {
 			return nil, err
 		}
 
-		fieldType, err := util.GetStringAttr(fieldStruct, "type")
+		fieldType, err := GetStringAttr(fieldStruct, "type")
 		if err != nil {
 			return nil, err
 		}
 
-		field := StoreField{
+		field := utils.StoreField{
 			Name: string(fieldName),
-			Type: TypeName(fieldType),
+			Type: utils.TypeName(fieldType),
 		}
 
 		defaultValue, err := fieldStruct.Attr("default")
@@ -160,14 +159,14 @@ func getFields(typeName string, typeStruct *starlarkstruct.Struct, key string) (
 	return ret, nil
 }
 
-func getIndexes(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]Index, error) {
+func getIndexes(typeName string, typeStruct *starlarkstruct.Struct, key string) ([]utils.Index, error) {
 	indexesAttr, err := typeStruct.Attr(key)
 	if err != nil {
-		return []Index{}, nil // no indexes
+		return []utils.Index{}, nil // no indexes
 	}
 
 	if indexesAttr == nil || indexesAttr == starlark.None {
-		return []Index{}, nil
+		return []utils.Index{}, nil
 	}
 
 	indexes, ok := indexesAttr.(*starlark.List)
@@ -179,24 +178,24 @@ func getIndexes(typeName string, typeStruct *starlarkstruct.Struct, key string) 
 	iter := indexesList.Iterate()
 	var val starlark.Value
 
-	ret := make([]Index, 0, indexes.Len())
+	ret := make([]utils.Index, 0, indexes.Len())
 	for iter.Next(&val) {
 		indexStruct, ok := val.(*starlarkstruct.Struct)
 		if !ok {
 			return nil, fmt.Errorf("invalid index definition: %s", val.String())
 		}
 
-		fields, err := util.GetListStringAttr(indexStruct, "fields", false)
+		fields, err := GetListStringAttr(indexStruct, "fields", false)
 		if err != nil {
 			return nil, err
 		}
 
-		unique, err := util.GetBoolAttr(indexStruct, "unique")
+		unique, err := GetBoolAttr(indexStruct, "unique")
 		if err != nil {
 			return nil, err
 		}
 
-		ret = append(ret, Index{
+		ret = append(ret, utils.Index{
 			Fields: fields,
 			Unique: unique,
 		})

@@ -20,8 +20,7 @@ import (
 )
 
 type PluginContext struct {
-	Connection *any
-	Config     utils.PluginSettings
+	Config utils.PluginSettings
 }
 
 type NewPluginFunc func(pluginContext *PluginContext) (any, error)

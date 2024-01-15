@@ -17,7 +17,6 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/dev"
-	"github.com/claceio/clace/internal/app/store"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
@@ -41,7 +40,7 @@ type App struct {
 	reloadStartTime time.Time
 	appDev          *dev.AppDev
 	systemConfig    *utils.SystemConfig
-	storeInfo       *store.StoreInfo
+	storeInfo       *utils.StoreInfo
 	plugins         *AppPlugins
 
 	globals       starlark.StringDict
@@ -260,7 +259,7 @@ func (a *App) loadSchemaInfo(sourceFS *util.SourceFs) error {
 		return nil // Ignore absence of schema file
 	}
 
-	a.storeInfo, err = store.ReadStoreInfo(util.SCHEMA_FILE_NAME, schemaInfoData)
+	a.storeInfo, err = util.ReadStoreInfo(util.SCHEMA_FILE_NAME, schemaInfoData)
 	if err != nil {
 		return fmt.Errorf("error reading schema info: %w", err)
 	}

@@ -12,7 +12,6 @@ import (
 	"path"
 
 	"github.com/claceio/clace/internal/app/dev"
-	"github.com/claceio/clace/internal/app/store"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
@@ -139,7 +138,7 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 
 	typeDict := starlark.StringDict{}
 	for _, t := range a.storeInfo.Types {
-		tb := store.TypeBuilder{Name: t.Name, Fields: t.Fields}
+		tb := utils.TypeBuilder{Name: t.Name, Fields: t.Fields}
 		typeDict[t.Name] = starlark.NewBuiltin(t.Name, tb.CreateType)
 	}
 

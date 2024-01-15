@@ -387,11 +387,8 @@ func (h *Handler) getApp(r *http.Request) (any, error) {
 
 	ret, err := h.server.GetAppApi(r.Context(), appPath)
 	if err != nil {
-		fmt.Println("aaa2", err)
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
-
-	fmt.Println("aaa", ret)
 
 	return ret, nil
 }

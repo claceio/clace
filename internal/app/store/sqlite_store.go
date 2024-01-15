@@ -27,6 +27,11 @@ func NewSqliteStore(logger *utils.Logger, config *utils.ServerConfig, db *sql.DB
 	}, nil
 }
 
+func validateCollectionName(name string) error {
+	// TODO: validate collection name
+	return nil
+}
+
 func (s *SqliteStore) genTableName(collection string) (string, error) {
 	err := validateCollectionName(collection)
 	if err != nil {

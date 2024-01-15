@@ -493,8 +493,13 @@ func (s *Server) LinkAccount(ctx context.Context, mainAppPath, plugin, account s
 			AccountName: account,
 		})
 	} else {
-		// Update existing value
-		appEntry.Metadata.Accounts[matchIndex].AccountName = account
+		if account == "-" {
+			// Delete the entry
+			appEntry.Metadata.Accounts = append(appEntry.Metadata.Accounts[:matchIndex], appEntry.Metadata.Accounts[matchIndex+1:]...)
+		} else {
+			// Update existing value
+			appEntry.Metadata.Accounts[matchIndex].AccountName = account
+		}
 	}
 
 	// Persist the updated metadata
