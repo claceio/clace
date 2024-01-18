@@ -144,10 +144,10 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	}
 
 	typeModule := starlarkstruct.Module{
-		Name:    util.TYPE_MODULE,
+		Name:    util.STARLARK_TYPE_MODULE,
 		Members: typeDict,
 	}
-	newBuiltins[util.TYPE_MODULE] = &typeModule
+	newBuiltins[util.STARLARK_TYPE_MODULE] = &typeModule
 
 	// Add table module for referencing table names
 	tableDict := starlark.StringDict{}
@@ -160,7 +160,6 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 		Members: tableDict,
 	}
 	newBuiltins[util.TABLE_MODULE] = &tableModule
-	a.Trace().Msgf("********Added %d types to builtins", len(a.storeInfo.Types))
 
 	return newBuiltins, nil
 }

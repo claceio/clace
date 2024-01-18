@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/utils"
@@ -128,6 +129,9 @@ func (s *SqlStore) Insert(collection string, entry *Entry) (EntryId, error) {
 		return -1, err
 	}
 
+	entry.CreatedAt = time.Now()
+	entry.CreatedBy = "admin" // TODO update userid
+
 	var err error
 	collection, err = s.genTableName(collection)
 	if err != nil {
@@ -140,7 +144,7 @@ func (s *SqlStore) Insert(collection string, entry *Entry) (EntryId, error) {
 	}
 
 	createStmt := "INSERT INTO " + collection + " (version, created_by, updated_by, created_at, updated_at, data) VALUES (?, ?, ?, ?, ?, ?)"
-	result, err := s.db.Exec(createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt, entry.UpdatedAt, dataJson)
+	result, err := s.db.Exec(createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.Unix(), entry.UpdatedAt.Unix(), dataJson)
 	if err != nil {
 		return -1, nil
 	}
@@ -167,10 +171,10 @@ func (s *SqlStore) SelectById(collection string, key EntryId) (*Entry, error) {
 	query := "SELECT id, version, created_by, updated_by, created_at, updated_at, data FROM " + collection + " WHERE id = ?"
 	row := s.db.QueryRow(query, key)
 
-	var dataStr string
 	entry := &Entry{}
-
-	err = row.Scan(&entry.Id, &entry.Version, &entry.CreatedBy, &entry.UpdatedBy, &entry.CreatedAt, &entry.UpdatedAt, dataStr)
+	var dataStr string
+	var createdAt, updatedAt int64
+	err = row.Scan(&entry.Id, &entry.Version, &entry.CreatedBy, &entry.UpdatedBy, &createdAt, &updatedAt, &dataStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("entry %d not found in collection %s", key, collection)
@@ -184,6 +188,8 @@ func (s *SqlStore) SelectById(collection string, key EntryId) (*Entry, error) {
 		}
 	}
 
+	entry.CreatedAt = time.Unix(createdAt, 0)
+	entry.UpdatedAt = time.Unix(updatedAt, 0)
 	return entry, nil
 }
 

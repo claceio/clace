@@ -445,7 +445,7 @@ type("mytype", fields=[
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
-    myt = type.mytype(aint=1, astring="abc", alist=[1,2,3], adict={"a": 1, "b": 2}, abool=False)
+    myt = star.mytype(aint=1, astring="abc", alist=[1,2,3], adict={"a": 1, "b": 2}, abool=False)
     myt.aint=2
     myt.astring="abc2"
     myt.abool=True

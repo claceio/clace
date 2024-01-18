@@ -15,7 +15,7 @@ import (
 
 const (
 	DEFAULT_MODULE        = "ace"
-	TYPE_MODULE           = "type"
+	STARLARK_TYPE_MODULE  = "star"
 	TABLE_MODULE          = "table"
 	APP                   = "app"
 	PAGE                  = "page"

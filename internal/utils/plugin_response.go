@@ -78,7 +78,7 @@ func (r *PluginResponse) Freeze() {
 }
 
 func (r *PluginResponse) Truth() starlark.Bool {
-	return r.errorCode != 0
+	return r.err == nil
 }
 
 func (r *PluginResponse) Hash() (uint32, error) {
