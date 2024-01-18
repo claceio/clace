@@ -60,6 +60,11 @@ func (a *App) Audit() (*utils.ApproveResult, error) {
 		Load:  auditLoader,
 	}
 
+	err = a.loadSchemaInfo(a.sourceFS)
+	if err != nil {
+		return nil, err
+	}
+
 	builtin, err := a.createBuiltin()
 	if err != nil {
 		return nil, err

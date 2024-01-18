@@ -465,5 +465,11 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringContains(t, response.Body.String(), "Template. ABC map[abool:true adict:map[a:3 b:2] aint:2 alist:[1 4 3] astring:abc2")
+	testutil.AssertStringContains(t, response.Body.String(), "Template. ABC map[")
+	testutil.AssertStringContains(t, response.Body.String(), "abool:true")
+	testutil.AssertStringContains(t, response.Body.String(), "adict:map[a:3 b:2]")
+	testutil.AssertStringContains(t, response.Body.String(), "aint:2")
+	testutil.AssertStringContains(t, response.Body.String(), "alist:[1 4 3]")
+	testutil.AssertStringContains(t, response.Body.String(), "astring:abc2")
+	testutil.AssertStringContains(t, response.Body.String(), "_created_at:0 _created_by: _id:0 _updated_at:")
 }

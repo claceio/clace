@@ -7,10 +7,9 @@ import (
 	"fmt"
 
 	"go.starlark.net/starlark"
-	"go.starlark.net/starlarkstruct"
 )
 
-func GetStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
+func GetStringAttr(s starlark.HasAttrs, key string) (string, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return "", fmt.Errorf("error getting %s: %s", key, err)
@@ -23,7 +22,7 @@ func GetStringAttr(s *starlarkstruct.Struct, key string) (string, error) {
 	return vs.GoString(), nil
 }
 
-func GetIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
+func GetIntAttr(s starlark.HasAttrs, key string) (int64, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return 0, fmt.Errorf("error getting %s: %s", key, err)
@@ -40,7 +39,7 @@ func GetIntAttr(s *starlarkstruct.Struct, key string) (int64, error) {
 	return intVal, nil
 }
 
-func GetBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
+func GetBoolAttr(s starlark.HasAttrs, key string) (bool, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return false, fmt.Errorf("error getting %s: %s", key, err)
@@ -53,7 +52,7 @@ func GetBoolAttr(s *starlarkstruct.Struct, key string) (bool, error) {
 	return bool(vb), nil
 }
 
-func GetListStringAttr(s *starlarkstruct.Struct, key string, optional bool) ([]string, error) {
+func GetListStringAttr(s starlark.HasAttrs, key string, optional bool) ([]string, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		if optional {
@@ -82,4 +81,18 @@ func GetListStringAttr(s *starlarkstruct.Struct, key string, optional bool) ([]s
 	}
 
 	return ret, nil
+}
+
+func GetMapAttr(s starlark.HasAttrs, key string) (bool, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return false, fmt.Errorf("error getting %s: %s", key, err)
+	}
+
+	var vb starlark.Bool
+	var ok bool
+	if vb, ok = v.(starlark.Bool); !ok {
+		return false, fmt.Errorf("%s is not a bool", key)
+	}
+	return bool(vb), nil
 }

@@ -14,18 +14,21 @@ import (
 
 type AppPlugins struct {
 	sync.Mutex
-	plugins      map[string]any
+	plugins map[string]any
+
+	app          *App
 	pluginConfig map[string]utils.PluginSettings // pluginName -> accountName -> PluginSettings
 	accountMap   map[string]string               // pluginName -> accountName
 }
 
-func NewAppPlugins(pluginConfig map[string]utils.PluginSettings, appAccounts []utils.AccountLink) *AppPlugins {
+func NewAppPlugins(app *App, pluginConfig map[string]utils.PluginSettings, appAccounts []utils.AccountLink) *AppPlugins {
 	accountMap := make(map[string]string)
 	for _, entry := range appAccounts {
 		accountMap[entry.Plugin] = entry.AccountName
 	}
 
 	return &AppPlugins{
+		app:          app,
 		plugins:      make(map[string]any),
 		pluginConfig: pluginConfig,
 		accountMap:   accountMap,
@@ -63,7 +66,12 @@ func (p *AppPlugins) GetPlugin(pluginInfo *PluginInfo, accountName string) (any,
 		appConfig = p.pluginConfig[pluginAccount]
 	}
 
-	pluginContext := &PluginContext{Config: appConfig}
+	pluginContext := &PluginContext{
+		Logger:    p.app.Logger,
+		AppId:     p.app.AppEntry.Id,
+		StoreInfo: p.app.storeInfo,
+		Config:    appConfig,
+	}
 	plugin, err := pluginInfo.builder(pluginContext)
 	if err != nil {
 		return nil, fmt.Errorf("error creating plugin %s: %w", pluginInfo.funcName, err)

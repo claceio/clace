@@ -72,8 +72,8 @@ func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger,
 		AppEntry:      appEntry,
 		systemConfig:  systemConfig,
 		starlarkCache: map[string]*starlarkCacheEntry{},
-		plugins:       NewAppPlugins(plugins, appEntry.Metadata.Accounts),
 	}
+	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 
 	if appEntry.IsDev {
 		newApp.appDev = dev.NewAppDev(logger, &util.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)

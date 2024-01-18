@@ -25,7 +25,12 @@ func TestGetPlugin(t *testing.T) {
 		{Plugin: "plugin2.in", AccountName: "account2"},
 		{Plugin: "plugin2.in#account2", AccountName: "plugin2.in#account3"},
 	}
-	appPlugins := NewAppPlugins(pluginConfig, appAccounts)
+
+	app := &App{
+		Logger:   utils.NewLogger(&utils.LogConfig{}),
+		AppEntry: &utils.AppEntry{Id: "testApp", Path: "/test", Domain: "", SourceUrl: ".", IsDev: false},
+	}
+	appPlugins := NewAppPlugins(app, pluginConfig, appAccounts)
 
 	// Define the pluginInfo and accountName for testing
 	pluginInfo := &PluginInfo{

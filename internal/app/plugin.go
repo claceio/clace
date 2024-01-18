@@ -20,7 +20,10 @@ import (
 )
 
 type PluginContext struct {
-	Config utils.PluginSettings
+	Logger    *utils.Logger
+	AppId     utils.AppId
+	StoreInfo *utils.StoreInfo
+	Config    utils.PluginSettings
 }
 
 type NewPluginFunc func(pluginContext *PluginContext) (any, error)

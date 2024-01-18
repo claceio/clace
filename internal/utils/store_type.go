@@ -12,12 +12,13 @@ import (
 type TypeName string
 
 const (
-	INT     TypeName = "INT"
-	STRING  TypeName = "STRING"
-	BOOLEAN TypeName = "BOOLEAN"
-	LIST    TypeName = "LIST"
-	DICT    TypeName = "DICT"
-	//DATETIME TypeName = "datetime"
+	INT      TypeName = "INT"
+	FLOAT    TypeName = "FLOAT"
+	DATETIME TypeName = "DATETIME"
+	STRING   TypeName = "STRING"
+	BOOLEAN  TypeName = "BOOLEAN"
+	LIST     TypeName = "LIST"
+	DICT     TypeName = "DICT"
 )
 
 type StoreInfo struct {
@@ -58,13 +59,18 @@ func (s *TypeBuilder) CreateType(thread *starlark.Thread, _ *starlark.Builtin, a
 		case INT:
 			var v starlark.Int
 			value = v
+		case FLOAT:
+			var v starlark.Float
+			value = v
+		case DATETIME:
+			var v starlark.Int
+			value = v
 		case STRING:
 			var v starlark.String
 			value = v
 		case BOOLEAN:
 			var v starlark.Bool
 			value = v
-		// TODO: add support for datetime
 		case LIST:
 			var v *starlark.List
 			value = v
@@ -94,6 +100,13 @@ func (s *TypeBuilder) CreateType(thread *starlark.Thread, _ *starlark.Builtin, a
 		}
 		valueMap[argName] = *val
 	}
+
+	valueMap["_id"] = starlark.MakeInt(0)
+	valueMap["_version"] = starlark.MakeInt(0)
+	valueMap["_created_by"] = starlark.String("")
+	valueMap["_updated_by"] = starlark.String("")
+	valueMap["_created_at"] = starlark.MakeInt(0)
+	valueMap["_updated_at"] = starlark.MakeInt(0)
 
 	return NewStarlarkType(s.Name, valueMap), nil
 }

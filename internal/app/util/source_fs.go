@@ -144,7 +144,7 @@ func (f *SourceFs) HashName(name string) string {
 	// Read file contents. Return original filename if we receive an error.
 	buf, err := fs.ReadFile(f.ReadableFS, name)
 	if err != nil {
-		fmt.Printf("HashName readfile error: %s\n", err) //TODO: log
+		fmt.Printf("HashName readfile error: %s %s\n", err, name) //TODO: log
 		return name
 	}
 

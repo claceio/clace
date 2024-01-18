@@ -22,7 +22,8 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
 
-	_ "github.com/claceio/clace/plugins" // Register builtin plugins
+	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
+	_ "github.com/claceio/clace/plugins"            // Register builtin plugins
 )
 
 const (

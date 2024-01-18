@@ -42,6 +42,9 @@ func (d *DiskReadFS) Open(name string) (fs.File, error) {
 
 func (d *DiskReadFS) ReadFile(name string) ([]byte, error) {
 	if dir, ok := d.fs.(fs.ReadFileFS); ok {
+		if name[0] == '/' {
+			name = name[1:]
+		}
 		return dir.ReadFile(name)
 	}
 

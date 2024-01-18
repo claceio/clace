@@ -16,6 +16,7 @@ import (
 const (
 	DEFAULT_MODULE        = "ace"
 	TYPE_MODULE           = "type"
+	TABLE_MODULE          = "table"
 	APP                   = "app"
 	PAGE                  = "page"
 	FRAGMENT              = "fragment"
