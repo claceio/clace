@@ -84,7 +84,7 @@ type("test1", fields=[
 			{Plugin: "store.in", Method: "delete_by_id"},
 		}, map[string]utils.PluginSettings{
 			"store.in": {
-				"db_connection": "sqlite:$CL_HOME/clace_app.db?_journal_mode=WAL",
+				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
 			},
 		})
 	if err != nil {
