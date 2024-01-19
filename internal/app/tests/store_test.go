@@ -5,7 +5,6 @@ package app_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -97,8 +96,6 @@ type("test1", fields=[
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	ss := response.Body.String()
-	fmt.Print(ss)
 	ret := make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
 
