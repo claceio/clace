@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package app_test
 
 import (
 	"io/fs"
@@ -10,23 +10,31 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
+
+	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
+	_ "github.com/claceio/clace/plugins"            // Register builtin plugins
 )
 
-func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true)
+func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, true, nil, nil, nil)
 }
 
-func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
-	return CreateTestAppInt(logger, "/test", fileData, false)
+func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*App, *util.WorkFs, error) {
-	return CreateTestAppInt(logger, "/", fileData, false)
+func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool) (*App, *util.WorkFs, error) {
+func CreateTestAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, false, plugins, permissions, pluginConfig)
+}
+
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
 	var fs utils.ReadableFS
 	if isDev {
@@ -38,19 +46,37 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 	if err != nil {
 		return nil, nil, err
 	}
+
+	if plugins == nil {
+		plugins = []string{}
+	}
+	if permissions == nil {
+		permissions = []utils.Permission{}
+	}
+
+	if pluginConfig == nil {
+		pluginConfig = map[string]utils.PluginSettings{}
+	}
+
+	metadata := utils.AppMetadata{
+		Loads:       plugins,
+		Permissions: permissions,
+	}
 	workFS := util.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
-	a := NewApp(sourceFS, workFS, logger, createTestAppEntry(path, isDev), &systemConfig, map[string]utils.PluginSettings{})
+	a := app.NewApp(sourceFS, workFS, logger,
+		createTestAppEntry(path, isDev, metadata), &systemConfig, pluginConfig)
 	err = a.Initialize()
 	return a, workFS, err
 }
 
-func createTestAppEntry(path string, isDev bool) *utils.AppEntry {
+func createTestAppEntry(path string, isDev bool, metadata utils.AppMetadata) *utils.AppEntry {
 	return &utils.AppEntry{
-		Id:        "testApp",
+		Id:        "app_prd_testapp",
 		Path:      path,
 		Domain:    "",
 		SourceUrl: ".",
 		IsDev:     isDev,
+		Metadata:  metadata,
 	}
 }
 

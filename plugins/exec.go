@@ -11,6 +11,7 @@ import (
 	"os/exec"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -19,7 +20,7 @@ const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
 
 func init() {
 	e := &ExecPlugin{}
-	app.RegisterPlugin("exec", NewExecPlugin, []app.PluginFunc{
+	app.RegisterPlugin("exec", NewExecPlugin, []utils.PluginFunc{
 		app.CreatePluginApi(e.Run, false),
 	})
 }
@@ -67,7 +68,7 @@ func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execR
 type ExecPlugin struct {
 }
 
-func NewExecPlugin(_ *app.PluginContext) (any, error) {
+func NewExecPlugin(_ *utils.PluginContext) (any, error) {
 	return &ExecPlugin{}, nil
 }
 

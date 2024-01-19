@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -22,7 +21,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 settings={"style":{"library": ""}})`,
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -50,7 +49,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 		"static/mystyle.css": `mystyle contents`,
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -71,7 +70,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 		        style=ace.style(library="tailwindcss"))`,
 	}
 
-	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
+	_, workFS, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -93,7 +92,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 				style=ace.style(library="daisyui"))`,
 	}
 
-	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
+	_, workFS, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -115,7 +114,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 				style=ace.style(library="daisyui", themes=["dark", "cupcake"]))`,
 	}
 
-	_, workFS, err := app.CreateDevModeTestApp(logger, fileData)
+	_, workFS, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -138,7 +137,7 @@ app = ace.app("testApp", custom_layout=False, pages = [ace.page("/")])`,
 		"app.go.html":          `{{block "clace_body" .}}ABC{{end}}`,
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -161,6 +160,6 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
                 style=ace.style(library="unknown"))`,
 	}
 
-	_, _, err := app.CreateDevModeTestApp(logger, fileData)
+	_, _, err := CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "invalid style library config : unknown")
 }

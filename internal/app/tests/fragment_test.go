@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -24,7 +23,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -74,7 +73,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -126,7 +125,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -180,7 +179,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}
 		{{ block "ff2" . }} {{if contains "frag2" .PagePath}} {{.PagePath}} frag2data {{ end }} {{end}}`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -236,7 +235,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	_, _, err := app.CreateTestApp(logger, fileData)
+	_, _, err := CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "got int, want list")
 
 	fileData = map[string]string{
@@ -249,7 +248,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	_, _, err = app.CreateTestApp(logger, fileData)
+	_, _, err = CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "page 1 fragment 1 is not a struct")
 
 	fileData = map[string]string{
@@ -262,7 +261,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	_, _, err = app.CreateTestApp(logger, fileData)
+	_, _, err = CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "unexpected keyword argument \"abc\"")
 
 	fileData = map[string]string{
@@ -273,7 +272,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	_, _, err = app.CreateTestApp(logger, fileData)
+	_, _, err = CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "for parameter \"handler\": got int, want callable")
 }
 
@@ -290,7 +289,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template main {{ .Data.key }}. {{ block "ff" . }} fragdata {{ .Data.key2 }} {{ end }}`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

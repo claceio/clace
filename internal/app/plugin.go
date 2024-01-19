@@ -19,71 +19,42 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-type PluginContext struct {
-	Logger    *utils.Logger
-	AppId     utils.AppId
-	StoreInfo *utils.StoreInfo
-	Config    utils.PluginSettings
-}
-
-type NewPluginFunc func(pluginContext *PluginContext) (any, error)
-
 var (
 	loaderInitMutex sync.Mutex
-	builtInPlugins  map[string]PluginMap
+	builtInPlugins  map[string]utils.PluginMap
 )
 
 func init() {
-	builtInPlugins = make(map[string]PluginMap)
+	builtInPlugins = make(map[string]utils.PluginMap)
 }
 
 // RegisterPlugin registers a plugin with Clace
-func RegisterPlugin(name string, builder NewPluginFunc, funcs []PluginFunc) {
+func RegisterPlugin(name string, builder utils.NewPluginFunc, funcs []utils.PluginFunc) {
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
 	pluginPath := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
-	pluginMap := make(PluginMap)
+	pluginMap := make(utils.PluginMap)
 	for _, f := range funcs {
-		info := PluginInfo{
-			moduleName:  name,
-			pluginPath:  pluginPath,
-			funcName:    f.name,
-			isRead:      f.isRead,
-			handlerName: f.functionName,
-			builder:     builder,
+		info := utils.PluginInfo{
+			ModuleName:  name,
+			PluginPath:  pluginPath,
+			FuncName:    f.Name,
+			IsRead:      f.IsRead,
+			HandlerName: f.FunctionName,
+			Builder:     builder,
 		}
 
-		pluginMap[f.name] = &info
+		pluginMap[f.Name] = &info
 	}
 
 	builtInPlugins[pluginPath] = pluginMap
 }
 
-// PluginMap is the plugin function mapping to PluginFuncs
-type PluginMap map[string]*PluginInfo
-
-// PluginFunc is the Clace plugin function mapping to starlark function
-type PluginFunc struct {
-	name         string
-	isRead       bool
-	functionName string
-}
-
-// PluginFuncInfo is the Clace plugin function info for the starlark function
-type PluginInfo struct {
-	moduleName  string // exec
-	pluginPath  string // exec.in
-	funcName    string // run
-	isRead      bool
-	handlerName string
-	builder     NewPluginFunc
-}
-
 func CreatePluginApi(
 	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
 	isRead bool,
-) PluginFunc {
+) utils.PluginFunc {
 
 	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
 	if funcVal == nil {
@@ -101,7 +72,7 @@ func CreatePluginApi(
 func CreatePluginApiName(
 	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
 	isRead bool,
-	name string) PluginFunc {
+	name string) utils.PluginFunc {
 	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
 	if funcVal == nil {
 		panic(fmt.Errorf("function %s not found during plugin register", name))
@@ -119,10 +90,10 @@ func CreatePluginApiName(
 		panic(fmt.Errorf("function %s is not an exported method during plugin register", funcName))
 	}
 
-	return PluginFunc{
-		name:         name,
-		isRead:       isRead,
-		functionName: funcName,
+	return utils.PluginFunc{
+		Name:         name,
+		IsRead:       isRead,
+		FunctionName: funcName,
 	}
 }
 
@@ -169,7 +140,7 @@ func parseModulePath(moduleFullPath string) (string, string, string) {
 }
 
 // pluginLookup looks up the plugin. Audit checks need to be done by the caller
-func (a *App) pluginLookup(_ *starlark.Thread, module string) (PluginMap, error) {
+func (a *App) pluginLookup(_ *starlark.Thread, module string) (utils.PluginMap, error) {
 	pluginDict, ok := builtInPlugins[module]
 	if !ok {
 		return nil, fmt.Errorf("module %s not found", module) // TODO extend loading
@@ -178,7 +149,7 @@ func (a *App) pluginLookup(_ *starlark.Thread, module string) (PluginMap, error)
 	return pluginDict, nil
 }
 
-func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInfo *PluginInfo) *starlark.Builtin {
+func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInfo *utils.PluginInfo) *starlark.Builtin {
 	hook := func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		a.Trace().Msgf("Plugin called: %s.%s", modulePath, functionName)
 
@@ -220,7 +191,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						isRead = *p.IsRead
 					} else {
 						// Use the plugin defined isRead value
-						isRead = pluginInfo.isRead
+						isRead = pluginInfo.IsRead
 					}
 
 					if !isRead {
@@ -255,7 +226,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 		}
 
 		// Get the plugin function using reflection
-		pluginValue := reflect.ValueOf(plugin).MethodByName(pluginInfo.handlerName)
+		pluginValue := reflect.ValueOf(plugin).MethodByName(pluginInfo.HandlerName)
 		if pluginValue.IsNil() {
 			return nil, fmt.Errorf("plugin func %s.%s cannot be resolved", modulePath, functionName)
 		}

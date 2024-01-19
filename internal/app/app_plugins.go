@@ -35,29 +35,29 @@ func NewAppPlugins(app *App, pluginConfig map[string]utils.PluginSettings, appAc
 	}
 }
 
-func (p *AppPlugins) GetPlugin(pluginInfo *PluginInfo, accountName string) (any, error) {
+func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string) (any, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	plugin, ok := p.plugins[pluginInfo.moduleName]
+	plugin, ok := p.plugins[pluginInfo.ModuleName]
 	if ok {
 		// Already initialized, use that
 		return plugin, nil
 	}
 
 	// If account name is specified, use that to lookup the account map
-	accountLookupName := pluginInfo.pluginPath
+	accountLookupName := pluginInfo.PluginPath
 	if accountName != "" {
-		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.pluginPath, util.ACCOUNT_SEPERATOR, accountName)
+		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, accountName)
 	}
 
-	pluginAccount := pluginInfo.pluginPath
+	pluginAccount := pluginInfo.PluginPath
 	_, ok = p.accountMap[accountLookupName]
 	if ok {
 		pluginAccount = p.accountMap[accountLookupName]
 		// If it is just account name, make it full plugin path
 		if !strings.Contains(pluginAccount, util.ACCOUNT_SEPERATOR) {
-			pluginAccount = fmt.Sprintf("%s%s%s", pluginInfo.pluginPath, util.ACCOUNT_SEPERATOR, pluginAccount)
+			pluginAccount = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, pluginAccount)
 		}
 	}
 
@@ -66,17 +66,17 @@ func (p *AppPlugins) GetPlugin(pluginInfo *PluginInfo, accountName string) (any,
 		appConfig = p.pluginConfig[pluginAccount]
 	}
 
-	pluginContext := &PluginContext{
+	pluginContext := &utils.PluginContext{
 		Logger:    p.app.Logger,
 		AppId:     p.app.AppEntry.Id,
 		StoreInfo: p.app.storeInfo,
 		Config:    appConfig,
 	}
-	plugin, err := pluginInfo.builder(pluginContext)
+	plugin, err := pluginInfo.Builder(pluginContext)
 	if err != nil {
-		return nil, fmt.Errorf("error creating plugin %s: %w", pluginInfo.funcName, err)
+		return nil, fmt.Errorf("error creating plugin %s: %w", pluginInfo.FuncName, err)
 	}
 
-	p.plugins[pluginInfo.pluginPath] = plugin
+	p.plugins[pluginInfo.PluginPath] = plugin
 	return plugin, nil
 }

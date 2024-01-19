@@ -66,13 +66,13 @@ func (e *Entry) Unpack(value starlark.Value) error {
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
-			e.CreatedAt = time.Unix(createdAt, 0)
+			e.CreatedAt = time.UnixMilli(createdAt)
 		case "_updated_at":
 			updatedAt, err := util.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
-			e.UpdatedAt = time.Unix(updatedAt, 0)
+			e.UpdatedAt = time.UnixMilli(updatedAt)
 		default:
 			dataVal, err := v.Attr(attr)
 			if err != nil {
@@ -107,10 +107,10 @@ type Store interface {
 	Select(table string, filter map[string]any, sort []string, offset, limit int64) (EntryIterator, error)
 
 	// Update an existing entry in the store
-	Update(table string, Entry *Entry) error
+	Update(table string, Entry *Entry) (int64, error)
 
 	// DeleteById an entry from the store by id
-	DeleteById(table string, id EntryId) error
+	DeleteById(table string, id EntryId) (int64, error)
 
 	// Delete entries from the store matching the filter
 	Delete(table string, filter map[string]any) error
@@ -123,8 +123,8 @@ func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
 	data["_version"] = starlark.MakeInt(int(entry.Version))
 	data["_created_by"] = starlark.String(string(entry.CreatedBy))
 	data["_updated_by"] = starlark.String(string(entry.UpdatedBy))
-	data["_created_at"] = starlark.MakeInt(int(entry.CreatedAt.Unix()))
-	data["_updated_at"] = starlark.MakeInt(int(entry.UpdatedAt.Unix()))
+	data["_created_at"] = starlark.MakeInt(int(entry.CreatedAt.UnixMilli()))
+	data["_updated_at"] = starlark.MakeInt(int(entry.UpdatedAt.UnixMilli()))
 
 	var err error
 	for k, v := range entry.Data {

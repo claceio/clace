@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -19,7 +18,7 @@ app = ace.app("testApp", custom_layout=True, pages = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test.star":     `testpage = [ace.page("/")]`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -42,7 +41,7 @@ app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 testpages = [mypage]`,
 		"test2.star": `mypage = ace.page("/")`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -64,7 +63,7 @@ app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 		"test1.star": `load ("app.star", "mypage")
 testpages = [mypage]`,
 	}
-	_, _, err := app.CreateTestAppRoot(logger, fileData)
+	_, _, err := CreateTestAppRoot(logger, fileData)
 	testutil.AssertErrorContains(t, err, "cycle in starlark load graph during load of test1.star")
 }
 
@@ -78,7 +77,7 @@ app = ace.app("testApp", custom_layout=True, pages = testpages)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star":    `testpages = [ace.page("/")]`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -105,6 +104,6 @@ app = ace.app("testApp", custom_layout=True, pages = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test.star":     `testpage = [ace.page("/")]`,
 	}
-	_, _, err := app.CreateTestAppRoot(logger, fileData)
+	_, _, err := CreateTestAppRoot(logger, fileData)
 	testutil.AssertErrorContains(t, err, "cannot load test2.star: file does not exist")
 }

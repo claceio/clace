@@ -33,70 +33,70 @@ func TestGetPlugin(t *testing.T) {
 	appPlugins := NewAppPlugins(app, pluginConfig, appAccounts)
 
 	// Define the pluginInfo and accountName for testing
-	pluginInfo := &PluginInfo{
-		moduleName: "plugin1",
-		pluginPath: "plugin1.in",
-		funcName:   "Plugin1Builder",
+	pluginInfo := &utils.PluginInfo{
+		ModuleName: "plugin1",
+		PluginPath: "plugin1.in",
+		FuncName:   "Plugin1Builder",
 	}
 
 	// Test with no account, no account link
-	pluginInfo.builder = func(pluginContext *PluginContext) (any, error) {
+	pluginInfo.Builder = func(pluginContext *utils.PluginContext) (any, error) {
 		testutil.AssertEqualsString(t, "match key", "v1", pluginContext.Config["key"].(string))
 		return nil, nil
 	}
 	plugin, err := appPlugins.GetPlugin(pluginInfo, "")
 	testutil.AssertNoError(t, err)
-	if plugin != appPlugins.plugins[pluginInfo.moduleName] {
-		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.moduleName], plugin)
+	if plugin != appPlugins.plugins[pluginInfo.ModuleName] {
+		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.ModuleName], plugin)
 	}
 
 	// Test with no account, with account link
-	pluginInfo.moduleName = "plugin2"
-	pluginInfo.pluginPath = "plugin2.in"
-	pluginInfo.builder = func(pluginContext *PluginContext) (any, error) {
+	pluginInfo.ModuleName = "plugin2"
+	pluginInfo.PluginPath = "plugin2.in"
+	pluginInfo.Builder = func(pluginContext *utils.PluginContext) (any, error) {
 		testutil.AssertEqualsString(t, "match key", "v5", pluginContext.Config["key"].(string))
 		return nil, nil
 	}
 	plugin, err = appPlugins.GetPlugin(pluginInfo, "")
 	testutil.AssertNoError(t, err)
-	if plugin != appPlugins.plugins[pluginInfo.moduleName] {
-		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.moduleName], plugin)
+	if plugin != appPlugins.plugins[pluginInfo.ModuleName] {
+		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.ModuleName], plugin)
 	}
 
 	// Test with account, with no account link
-	pluginInfo.pluginPath = "plugin2.in#account1"
-	pluginInfo.builder = func(pluginContext *PluginContext) (any, error) {
+	pluginInfo.PluginPath = "plugin2.in#account1"
+	pluginInfo.Builder = func(pluginContext *utils.PluginContext) (any, error) {
 		testutil.AssertEqualsString(t, "match key", "v4", pluginContext.Config["key"].(string))
 		return nil, nil
 	}
 	plugin, err = appPlugins.GetPlugin(pluginInfo, "")
 	testutil.AssertNoError(t, err)
-	if plugin != appPlugins.plugins[pluginInfo.moduleName] {
-		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.moduleName], plugin)
+	if plugin != appPlugins.plugins[pluginInfo.ModuleName] {
+		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.ModuleName], plugin)
 	}
 
 	// Test with account, with account link
-	pluginInfo.pluginPath = "plugin2.in#account2"
-	pluginInfo.builder = func(pluginContext *PluginContext) (any, error) {
+	pluginInfo.PluginPath = "plugin2.in#account2"
+	pluginInfo.Builder = func(pluginContext *utils.PluginContext) (any, error) {
 		testutil.AssertEqualsString(t, "match key", "v6", pluginContext.Config["key"].(string))
 		return nil, nil
 	}
 	plugin, err = appPlugins.GetPlugin(pluginInfo, "")
 	testutil.AssertNoError(t, err)
-	if plugin != appPlugins.plugins[pluginInfo.moduleName] {
-		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.moduleName], plugin)
+	if plugin != appPlugins.plugins[pluginInfo.ModuleName] {
+		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.ModuleName], plugin)
 	}
 
 	// Test with invalid account
-	pluginInfo.pluginPath = "plugin2.in#invalid"
-	pluginInfo.builder = func(pluginContext *PluginContext) (any, error) {
+	pluginInfo.PluginPath = "plugin2.in#invalid"
+	pluginInfo.Builder = func(pluginContext *utils.PluginContext) (any, error) {
 		// Config should have no entries
 		testutil.AssertEqualsInt(t, "match key", 0, len(pluginContext.Config))
 		return nil, nil
 	}
 	plugin, err = appPlugins.GetPlugin(pluginInfo, "")
 	testutil.AssertNoError(t, err)
-	if plugin != appPlugins.plugins[pluginInfo.moduleName] {
-		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.moduleName], plugin)
+	if plugin != appPlugins.plugins[pluginInfo.ModuleName] {
+		t.Errorf("Expected %v, got %v", appPlugins.plugins[pluginInfo.ModuleName], plugin)
 	}
 }

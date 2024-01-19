@@ -9,6 +9,35 @@ import (
 	"go.starlark.net/starlark"
 )
 
+type NewPluginFunc func(pluginContext *PluginContext) (any, error)
+
+// PluginMap is the plugin function mapping to PluginFuncs
+type PluginMap map[string]*PluginInfo
+
+// PluginFunc is the Clace plugin function mapping to starlark function
+type PluginFunc struct {
+	Name         string
+	IsRead       bool
+	FunctionName string
+}
+
+// PluginFuncInfo is the Clace plugin function info for the starlark function
+type PluginInfo struct {
+	ModuleName  string // exec
+	PluginPath  string // exec.in
+	FuncName    string // run
+	IsRead      bool
+	HandlerName string
+	Builder     NewPluginFunc
+}
+
+type PluginContext struct {
+	Logger    *Logger
+	AppId     AppId
+	StoreInfo *StoreInfo
+	Config    PluginSettings
+}
+
 // PluginResponse is a starlark.Value that represents the response to a plugin request
 type PluginResponse struct {
 	errorCode int

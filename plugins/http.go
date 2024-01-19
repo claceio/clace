@@ -37,7 +37,7 @@ const (
 
 func init() {
 	h := &httpPlugin{}
-	pluginFuncs := []app.PluginFunc{
+	pluginFuncs := []utils.PluginFunc{
 		app.CreatePluginApi(h.Get, true),
 		app.CreatePluginApi(h.Head, true),
 		app.CreatePluginApi(h.Options, true),
@@ -53,7 +53,7 @@ type httpPlugin struct {
 	client *http.Client
 }
 
-func NewHttpPlugin(pluginContext *app.PluginContext) (any, error) {
+func NewHttpPlugin(pluginContext *utils.PluginContext) (any, error) {
 	return &httpPlugin{client: http.DefaultClient}, nil
 }
 

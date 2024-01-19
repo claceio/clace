@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -28,7 +27,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=["%s"])`, testUrl),
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -64,7 +63,7 @@ func TestLibraryESM(t *testing.T) {
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=[ace.library("mylib", "1.0.0")])`,
 	}
-	_, _, err := app.CreateDevModeTestApp(logger, fileData)
+	_, _, err := CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Could not resolve "mylib-1.0.0.js"`)
 
 	fileData = map[string]string{
@@ -72,7 +71,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=["--minify"])])`,
 	}
-	_, _, err = app.CreateDevModeTestApp(logger, fileData)
+	_, _, err = CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Could not resolve "mylib-1.0.0.js"`) // flag got passed to esbuild
 
 	fileData = map[string]string{
@@ -80,7 +79,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=["--invalid"])])`,
 	}
-	_, _, err = app.CreateDevModeTestApp(logger, fileData)
+	_, _, err = CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `Invalid build flag: "--invalid"`) // esbuild did not like the arg
 
 	fileData = map[string]string{
@@ -88,6 +87,6 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=10)])`,
 	}
-	_, _, err = app.CreateDevModeTestApp(logger, fileData)
+	_, _, err = CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, `got int, want list`)
 }

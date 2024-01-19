@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -22,7 +21,7 @@ def handler(req):
 	return {"a": "aval", "b": 1}`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -48,7 +47,7 @@ app = ace.app("testApp", pages = [ace.page("/", type="json")])
 def handler(req):
 	return {"a": "aval", "b": 1}`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -74,7 +73,7 @@ app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -100,7 +99,7 @@ app = ace.app("testApp", pages = [ace.page("/")])
 def handler(req):
 	return ace.response({"a": "aval", "b": 1}, type="json")`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -126,7 +125,7 @@ app = ace.app("testApp", pages = [ace.page("/", type="json")])
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -152,7 +151,7 @@ app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -178,7 +177,7 @@ app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag")]
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -200,6 +199,6 @@ app = ace.app("testApp", pages = [ace.page("/", fragments=[ace.fragment("frag", 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
-	_, _, err := app.CreateDevModeTestApp(logger, fileData)
+	_, _, err := CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "invalid type specified : abc")
 }

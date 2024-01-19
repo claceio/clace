@@ -293,7 +293,7 @@ func MarshalStarlark(data interface{}) (v starlark.Value, err error) {
 	case Marshaler:
 		v, err = x.MarshalStarlark()
 	default:
-		return starlark.None, fmt.Errorf("unrecognized type: %#v", x)
+		return starlark.None, fmt.Errorf("unrecognized type: %#v %t", x, x)
 	}
 	return
 }

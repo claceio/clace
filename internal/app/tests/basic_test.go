@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/testutil"
 )
@@ -18,25 +17,25 @@ import (
 func TestAppLoadError(t *testing.T) {
 	logger := testutil.TestLogger()
 
-	_, _, err := app.CreateTestApp(logger, map[string]string{
+	_, _, err := CreateTestApp(logger, map[string]string{
 		"app.star":      ``,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "app not defined, check app.star")
 
-	_, _, err = app.CreateTestApp(logger, map[string]string{
+	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star":      `app = 1`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "app not of type ace.app in app.star")
 
-	_, _, err = app.CreateTestApp(logger, map[string]string{
+	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star":      `app = ace.app()`,
 		"index.go.html": `{{.}}`,
 	})
 	testutil.AssertErrorContains(t, err, "missing argument for name")
 
-	_, _, err = app.CreateTestApp(logger, map[string]string{
+	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star": `
 app = ace.app("testApp", pages = [ace.page("/")])
 handler = 10`,
@@ -44,7 +43,7 @@ handler = 10`,
 	})
 	testutil.AssertErrorContains(t, err, "handler is not a function")
 
-	_, _, err = app.CreateTestApp(logger, map[string]string{
+	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star": `
 app = ace.app("testApp", pages = [ace.page("/", handler=10)])`,
 		"index.go.html": `{{.}}`,
@@ -55,12 +54,12 @@ app = ace.app("testApp", pages = [ace.page("/", handler=10)])`,
 func TestAppPages(t *testing.T) {
 	logger := testutil.TestLogger()
 
-	_, _, err := app.CreateTestApp(logger, map[string]string{
+	_, _, err := CreateTestApp(logger, map[string]string{
 		"app.star": `app = ace.app("testApp", pages = 2)`,
 	})
 	testutil.AssertErrorContains(t, err, "got int, want list")
 
-	_, _, err = app.CreateTestApp(logger, map[string]string{
+	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star": `app = ace.app("testApp", pages = ["abc"])`,
 	})
 	testutil.AssertErrorContains(t, err, "pages entry 1 is not a struct")
@@ -77,7 +76,7 @@ def handler(req):
 		`,
 		"index.go.html": `Template got {{ .Data.key }}.`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -107,7 +106,7 @@ def handler(req):
 		"./templates/t1.tmpl":      `Template got {{ .Data.key }}.`,
 		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -137,7 +136,7 @@ def handler(req):
 		"./templates/t1.tmpl":      `Template got {{ .key }}.`,
 		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
-	a, _, err := app.CreateTestApp(logger, fileData)
+	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -166,7 +165,7 @@ def handler(req):
 	return {"key": "myvalue"}`,
 		"index.go.html": `Template contents {{template "clace_gen.go.html"}}.`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -190,7 +189,7 @@ app = ace.app("testApp", pages = [ace.page("/")])
 def handler(req):
 	return {"key": "myvalue"}`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -210,7 +209,7 @@ func TestNoHandler(t *testing.T) {
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.Data}}.`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -230,7 +229,7 @@ func TestFullData(t *testing.T) {
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -250,7 +249,7 @@ func TestFullDataRoot(t *testing.T) {
 app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -274,7 +273,7 @@ def handler(req):
 		"app.go.html": `{{block "clace_body" .}}ABC{{end}}`,
 	}
 
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -321,7 +320,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 def handler(req):
 	return ace.redirect("/new_url", code=302)`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -340,7 +339,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 def handler(req):
 	return ace.redirect("/new_url")`,
 	}
-	a, _, err = app.CreateDevModeTestApp(logger, fileData)
+	a, _, err = CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -361,7 +360,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/", method="POST
 def handler(req):
 	return ace.redirect("/new_url", code=302)`,
 	}
-	a, _, err := app.CreateDevModeTestApp(logger, fileData)
+	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -390,7 +389,7 @@ def handler(req):
 	return ace.response({"key": "myvalue"}, "testtmpl")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -413,7 +412,7 @@ def handler(req):
 	return ace.response({"key": "myvalue"}, "testtmpl", code=500, retarget="#abc", reswap="outerHTML")`,
 		"index.go.html": `Template. {{block "testtmpl" .}}ABC {{.Data.key}} {{end}}`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -455,7 +454,7 @@ def handler(req):
 `,
 		"index.go.html": `Template. ABC {{.Data}}`,
 	}
-	a, _, err := app.CreateTestAppRoot(logger, fileData)
+	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
