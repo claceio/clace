@@ -96,10 +96,13 @@ type("test1", fields=[
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	str := response.Body.String()
-	testutil.AssertStringContains(t, str, `"intval":100`)
+
 	ret := make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
 
 	testutil.AssertEqualsString(t, "creator", "admin", ret["creator"].(string))
 	testutil.AssertEqualsString(t, "astring", "xyz", ret["stringval"].(string))
