@@ -96,6 +96,8 @@ type("test1", fields=[
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	str := response.Body.String()
+	testutil.AssertStringContains(t, str, `"intval":100`)
 	ret := make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
 
