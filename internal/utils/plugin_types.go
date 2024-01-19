@@ -69,14 +69,14 @@ func NewResponse(data any) *PluginResponse {
 
 func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 	switch name {
-	case "ErrorCode":
+	case "error_code":
 		return starlark.MakeInt(r.errorCode), nil
-	case "Error":
+	case "error":
 		if r.err == nil {
 			return starlark.None, nil
 		}
 		return starlark.String(r.err.Error()), nil
-	case "Data":
+	case "data":
 		if r.data == nil {
 			return starlark.None, nil
 		}
@@ -92,7 +92,7 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 }
 
 func (r *PluginResponse) AttrNames() []string {
-	return []string{"ErrorCode", "Error", "Data"}
+	return []string{"error_code", "error", "data"}
 }
 
 func (r *PluginResponse) String() string {
@@ -113,13 +113,13 @@ func (r *PluginResponse) Truth() starlark.Bool {
 func (r *PluginResponse) Hash() (uint32, error) {
 	var err error
 	var errValue starlark.Value
-	errValue, err = r.Attr("Error")
+	errValue, err = r.Attr("error")
 	if err != nil {
 		return 0, err
 	}
 
 	var dataValue starlark.Value
-	dataValue, err = r.Attr("Data")
+	dataValue, err = r.Attr("data")
 	if err != nil {
 		return 0, err
 	}
@@ -128,9 +128,9 @@ func (r *PluginResponse) Hash() (uint32, error) {
 
 func (r *PluginResponse) UnmarshalStarlarkType() (any, error) {
 	return map[string]any{
-		"ErrorCode": r.errorCode,
-		"Error":     r.err,
-		"Data":      r.data,
+		"error_code": r.errorCode,
+		"error":      r.err,
+		"data":       r.data,
 	}, nil
 }
 

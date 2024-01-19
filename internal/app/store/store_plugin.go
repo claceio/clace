@@ -15,7 +15,7 @@ func init() {
 	h := &storePlugin{}
 	pluginFuncs := []utils.PluginFunc{
 		app.CreatePluginApi(h.Insert, false),
-		app.CreatePluginApiName(h.SelectById, false, "select_by_id"),
+		app.CreatePluginApiName(h.SelectById, true, "select_by_id"),
 		app.CreatePluginApi(h.Update, false),
 		app.CreatePluginApiName(h.DeleteById, false, "delete_by_id"),
 	}

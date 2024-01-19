@@ -5,6 +5,7 @@ package app_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -31,20 +32,20 @@ def handler(req):
 	myt = star.test1(aint=10, astring="abc", abool=False, alist=[1], adict={'a': 1})
 	ret = store.insert(table.test1, myt)
 	if not ret:
-		return {"error": ret.Error}
+		return {"error": ret.error}
 
-	id = ret.Data
+	id = ret.data
 	ret = store.select_by_id(table.test1, id)
 	if not ret:
-		return {"error": ret.Error}
+		return {"error": ret.error}
 
-	f = ret.Data
+	f = ret.data
 	f.aint = 100
 	f.astring = "xyz"
 
 	upd_status = store.update(table.test1, f)
 	if not upd_status:
-		return {"error": ret.Error}
+		return {"error": ret.error}
 
 	# Duplicate updates should fail (optimistic locking)
 	upd_status = store.update(table.test1, f)
@@ -55,14 +56,14 @@ def handler(req):
 
 	del_status = store.delete_by_id(table.test1, id)
 	if not del_status:
-		return {"error": ret.Error}
+		return {"error": ret.error}
 	del_status = store.delete_by_id(table.test1, id)
 	if del_status:
 		return {"error": "Expected delete to fail"}
 
-	return {"intval": ret.Data.aint, "stringval": ret.Data.astring,
-		"_id": ret.Data._id,
-		"creator": ret.Data._created_by, "created_at": ret.Data._created_at}
+	return {"intval": ret.data.aint, "stringval": ret.data.astring,
+		"_id": ret.data._id,
+		"creator": ret.data._created_by, "created_at": ret.data._created_at}
 	`,
 
 		"schema.star": `
@@ -96,6 +97,8 @@ type("test1", fields=[
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	ss := response.Body.String()
+	fmt.Print(ss)
 	ret := make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
 
