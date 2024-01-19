@@ -35,7 +35,7 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Test with Go
-        run: go test -json ./... > TestResults-${{ matrix.go-version }}.json
+        run: go test ./...
       - name: Test CLI
         env:
           CL_INFOCLACE_SSH: ${{ secrets.CL_INFOCLACE_SSH }}
