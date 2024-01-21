@@ -21,7 +21,7 @@ const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
 func init() {
 	e := &ExecPlugin{}
 	app.RegisterPlugin("exec", NewExecPlugin, []utils.PluginFunc{
-		app.CreatePluginApi(e.Run, false),
+		app.CreatePluginApi(e.Run, app.READ_WRITE),
 	})
 }
 

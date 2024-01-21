@@ -19,6 +19,14 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+type PluginFunctionType int
+
+const (
+	READ PluginFunctionType = iota
+	WRITE
+	READ_WRITE
+)
+
 var (
 	loaderInitMutex sync.Mutex
 	builtInPlugins  map[string]utils.PluginMap
@@ -53,7 +61,7 @@ func RegisterPlugin(name string, builder utils.NewPluginFunc, funcs []utils.Plug
 
 func CreatePluginApi(
 	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
-	isRead bool,
+	opType PluginFunctionType,
 ) utils.PluginFunc {
 
 	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
@@ -65,13 +73,13 @@ func CreatePluginApi(
 	nameParts := strings.Split(parts[len(parts)-1], ".")
 	funcName := strings.TrimSuffix(nameParts[len(nameParts)-1], "-fm") // -fm denotes function value
 
-	return CreatePluginApiName(f, isRead, strings.ToLower(funcName))
+	return CreatePluginApiName(f, opType, strings.ToLower(funcName))
 }
 
 // CreatePluginApiName creates a Clace plugin function
 func CreatePluginApiName(
 	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
-	isRead bool,
+	opType PluginFunctionType,
 	name string) utils.PluginFunc {
 	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
 	if funcVal == nil {
@@ -92,7 +100,7 @@ func CreatePluginApiName(
 
 	return utils.PluginFunc{
 		Name:         name,
-		IsRead:       isRead,
+		IsRead:       opType == READ,
 		FunctionName: funcName,
 	}
 }

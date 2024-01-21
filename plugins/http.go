@@ -38,13 +38,13 @@ const (
 func init() {
 	h := &httpPlugin{}
 	pluginFuncs := []utils.PluginFunc{
-		app.CreatePluginApi(h.Get, true),
-		app.CreatePluginApi(h.Head, true),
-		app.CreatePluginApi(h.Options, true),
-		app.CreatePluginApi(h.Post, false),
-		app.CreatePluginApi(h.Put, false),
-		app.CreatePluginApi(h.Delete, false),
-		app.CreatePluginApi(h.Patch, false),
+		app.CreatePluginApi(h.Get, app.READ),
+		app.CreatePluginApi(h.Head, app.READ),
+		app.CreatePluginApi(h.Options, app.READ),
+		app.CreatePluginApi(h.Post, app.WRITE),
+		app.CreatePluginApi(h.Put, app.WRITE),
+		app.CreatePluginApi(h.Delete, app.WRITE),
+		app.CreatePluginApi(h.Patch, app.WRITE),
 	}
 	app.RegisterPlugin("http", NewHttpPlugin, pluginFuncs)
 }

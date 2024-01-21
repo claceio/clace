@@ -14,10 +14,10 @@ import (
 func init() {
 	h := &storePlugin{}
 	pluginFuncs := []utils.PluginFunc{
-		app.CreatePluginApi(h.Insert, false),
-		app.CreatePluginApiName(h.SelectById, true, "select_by_id"),
-		app.CreatePluginApi(h.Update, false),
-		app.CreatePluginApiName(h.DeleteById, false, "delete_by_id"),
+		app.CreatePluginApi(h.Insert, app.WRITE),
+		app.CreatePluginApiName(h.SelectById, app.READ, "select_by_id"),
+		app.CreatePluginApi(h.Update, app.WRITE),
+		app.CreatePluginApiName(h.DeleteById, app.WRITE, "delete_by_id"),
 	}
 	app.RegisterPlugin("store", NewStorePlugin, pluginFuncs)
 }
