@@ -5,6 +5,7 @@ package app_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -24,21 +25,29 @@ permissions=[
 	ace.permission("store.in", "select_by_id"),
 	ace.permission("store.in", "update"),
 	ace.permission("store.in", "delete_by_id"),
+	ace.permission("store.in", "select"),
+	ace.permission("store.in", "delete"),
 ]
 )
 
 def handler(req):
+
+	rows = store.delete(table.test1, {})
 	myt = star.test1(aint=10, astring="abc", abool=False, alist=[1], adict={'a': 1})
 	ret = store.insert(table.test1, myt)
 	if not ret:
 		return {"error": ret.error}
+	myt.aint=20
+	ret2 = store.insert(table.test1, myt)
+	if not ret2:
+		return {"error": ret2.error}
 
-	id = ret.data
+	id = ret.value
 	ret = store.select_by_id(table.test1, id)
 	if not ret:
 		return {"error": ret.error}
 
-	f = ret.data
+	f = ret.value
 	f.aint = 100
 	f.astring = "xyz"
 
@@ -53,6 +62,13 @@ def handler(req):
 
 	ret = store.select_by_id(table.test1, id)
 
+	select_result = store.select(table.test1, {})
+
+	rows = []
+	for row in select_result.value:
+		print("rrr", row)
+		rows.append(row)
+
 	del_status = store.delete_by_id(table.test1, id)
 	if not del_status:
 		return {"error": ret.error}
@@ -60,9 +76,10 @@ def handler(req):
 	if del_status:
 		return {"error": "Expected delete to fail"}
 
-	return {"intval": ret.data.aint, "stringval": ret.data.astring,
-		"_id": ret.data._id,
-		"creator": ret.data._created_by, "created_at": ret.data._created_at}
+	return {"intval": ret.value.aint, "stringval": ret.value.astring,
+		"_id": ret.value._id,
+		"creator": ret.value._created_by, "created_at": ret.value._created_at,
+	    "rows": rows}
 	`,
 
 		"schema.star": `
@@ -82,6 +99,8 @@ type("test1", fields=[
 			{Plugin: "store.in", Method: "select_by_id"},
 			{Plugin: "store.in", Method: "update"},
 			{Plugin: "store.in", Method: "delete_by_id"},
+			{Plugin: "store.in", Method: "select"},
+			{Plugin: "store.in", Method: "delete"},
 		}, map[string]utils.PluginSettings{
 			"store.in": {
 				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
@@ -98,6 +117,8 @@ type("test1", fields=[
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 
 	ret := make(map[string]any)
+	str := response.Body.String()
+	fmt.Print(str)
 	json.NewDecoder(response.Body).Decode(&ret)
 
 	if _, ok := ret["error"]; ok {
@@ -109,5 +130,13 @@ type("test1", fields=[
 	id := ret["_id"].(float64)
 	if id <= 0 {
 		t.Errorf("Expected _id to be > 0, got %f", id)
+	}
+	testutil.AssertEqualsInt(t, "length", 2, len(ret["rows"].([]any)))
+	rows := ret["rows"].([]any)
+	if rows[0].(map[string]any)["aint"].(float64) != 100 {
+		t.Errorf("Expected aint to be 100, got %f", rows[0].(map[string]any)["aint"].(float64))
+	}
+	if rows[1].(map[string]any)["aint"].(float64) != 20 {
+		t.Errorf("Expected aint to be 20, got %f", rows[0].(map[string]any)["aint"].(float64))
 	}
 }

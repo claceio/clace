@@ -16,6 +16,8 @@ type StarlarkType struct {
 	keys []string
 }
 
+var _ starlark.Value = (*StarlarkType)(nil)
+
 func NewStarlarkType(name string, data map[string]starlark.Value) *StarlarkType {
 	keys := make([]string, 0, len(data))
 	for k := range data {
@@ -86,5 +88,3 @@ func (s *StarlarkType) UnmarshalStarlarkType() (any, error) {
 	}
 	return ret, nil
 }
-
-var _ starlark.Value = (*StarlarkType)(nil)

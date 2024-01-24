@@ -67,32 +67,23 @@ func GetListStringAttr(s starlark.HasAttrs, key string, optional bool) ([]string
 		return nil, fmt.Errorf("%s is not a list", key)
 	}
 
+	return GetStringList(list)
+}
+
+func GetStringList(list *starlark.List) ([]string, error) {
 	ret := []string{}
 	iter := list.Iterate()
+	var ok bool
 	var val starlark.Value
 	var vs starlark.String
 	count := -1
 	for iter.Next(&val) {
 		count++
 		if vs, ok = val.(starlark.String); !ok {
-			return nil, fmt.Errorf("iter %d in %s is not a string", count, key)
+			return nil, fmt.Errorf("entry %d in list is not a string", count)
 		}
 		ret = append(ret, string(vs))
 	}
 
 	return ret, nil
-}
-
-func GetMapAttr(s starlark.HasAttrs, key string) (bool, error) {
-	v, err := s.Attr(key)
-	if err != nil {
-		return false, fmt.Errorf("error getting %s: %s", key, err)
-	}
-
-	var vb starlark.Bool
-	var ok bool
-	if vb, ok = v.(starlark.Bool); !ok {
-		return false, fmt.Errorf("%s is not a bool", key)
-	}
-	return bool(vb), nil
 }

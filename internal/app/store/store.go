@@ -90,11 +90,6 @@ func (e *Entry) Unpack(value starlark.Value) error {
 	return nil
 }
 
-type EntryIterator interface {
-	HasMore() bool
-	Fetch() *Entry
-}
-
 // Store is the interface for a Clace document store. These API are exposed by the db plugin
 type Store interface {
 	// Insert a new entry in the store
@@ -104,7 +99,7 @@ type Store interface {
 	SelectById(table string, id EntryId) (*Entry, error)
 
 	// Select returns the entries matching the filter
-	Select(table string, filter map[string]any, sort []string, offset, limit int64) (EntryIterator, error)
+	Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
 
 	// Update an existing entry in the store
 	Update(table string, Entry *Entry) (int64, error)
@@ -113,7 +108,7 @@ type Store interface {
 	DeleteById(table string, id EntryId) (int64, error)
 
 	// Delete entries from the store matching the filter
-	Delete(table string, filter map[string]any) error
+	Delete(table string, filter map[string]any) (int64, error)
 }
 
 func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
@@ -132,6 +127,7 @@ func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO - add missing fields
 	}
 
 	return utils.NewStarlarkType(name, data), nil

@@ -237,7 +237,9 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
+
 	paths := make([]string, 0)
+	defer rows.Close()
 	for rows.Next() {
 		var path string
 		err = rows.Scan(&path)
@@ -246,6 +248,10 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 		}
 		paths = append(paths, path)
 	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
 	return paths, nil
 }
 
@@ -265,6 +271,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
 	apps := make([]utils.AppInfo, 0)
+	defer rows.Close()
 	for rows.Next() {
 		var path, domain, id, mainApp string
 		var isDev bool
@@ -273,6 +280,9 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 			return nil, fmt.Errorf("error querying apps: %w", err)
 		}
 		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev, utils.AppId(mainApp)))
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
 	}
 	return apps, nil
 }
@@ -288,6 +298,7 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId 
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
 	apps := make([]*utils.AppEntry, 0)
+	defer rows.Close()
 	for rows.Next() {
 		var app utils.AppEntry
 		var settings, metadata sql.NullString
@@ -315,6 +326,9 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId 
 		}
 
 		apps = append(apps, &app)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
 	}
 
 	return apps, nil

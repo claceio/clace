@@ -42,28 +42,28 @@ type PluginContext struct {
 type PluginResponse struct {
 	errorCode int
 	err       error
-	data      any
+	value     any
 }
 
 func NewErrorResponse(err error) *PluginResponse {
 	return &PluginResponse{
 		errorCode: 1,
 		err:       err,
-		data:      nil,
+		value:     nil,
 	}
 }
 
-func NewErrorCodeResponse(errorCode int, err error, data any) *PluginResponse {
+func NewErrorCodeResponse(errorCode int, err error, value any) *PluginResponse {
 	return &PluginResponse{
 		errorCode: errorCode,
 		err:       err,
-		data:      data,
+		value:     value,
 	}
 }
 
-func NewResponse(data any) *PluginResponse {
+func NewResponse(value any) *PluginResponse {
 	return &PluginResponse{
-		data: data,
+		value: value,
 	}
 }
 
@@ -76,15 +76,15 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 			return starlark.None, nil
 		}
 		return starlark.String(r.err.Error()), nil
-	case "data":
-		if r.data == nil {
+	case "value":
+		if r.value == nil {
 			return starlark.None, nil
 		}
 
-		if _, ok := r.data.(starlark.Value); ok {
-			return r.data.(starlark.Value), nil
+		if _, ok := r.value.(starlark.Value); ok {
+			return r.value.(starlark.Value), nil
 		}
-		return MarshalStarlark(r.data)
+		return MarshalStarlark(r.value)
 
 	default:
 		return starlark.None, fmt.Errorf("response has no attribute '%s'", name)
@@ -92,11 +92,11 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 }
 
 func (r *PluginResponse) AttrNames() []string {
-	return []string{"error_code", "error", "data"}
+	return []string{"error_code", "error", "value"}
 }
 
 func (r *PluginResponse) String() string {
-	return fmt.Sprintf("%d:%s:%s", r.errorCode, r.err, r.data)
+	return fmt.Sprintf("%d:%s:%s", r.errorCode, r.err, r.value)
 }
 
 func (r *PluginResponse) Type() string {
@@ -118,19 +118,19 @@ func (r *PluginResponse) Hash() (uint32, error) {
 		return 0, err
 	}
 
-	var dataValue starlark.Value
-	dataValue, err = r.Attr("data")
+	var value starlark.Value
+	value, err = r.Attr("value")
 	if err != nil {
 		return 0, err
 	}
-	return starlark.Tuple{starlark.MakeInt(r.errorCode), errValue, dataValue}.Hash()
+	return starlark.Tuple{starlark.MakeInt(r.errorCode), errValue, value}.Hash()
 }
 
 func (r *PluginResponse) UnmarshalStarlarkType() (any, error) {
 	return map[string]any{
 		"error_code": r.errorCode,
 		"error":      r.err,
-		"data":       r.data,
+		"value":      r.value,
 	}, nil
 }
 

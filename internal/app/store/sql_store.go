@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/utils"
+	"go.starlark.net/starlark"
 
 	_ "modernc.org/sqlite"
 )
 
 const (
 	DB_CONNECTION_CONFIG = "db_connection"
+	SELECT_MAX_LIMIT     = 100_000
+	SELECT_DEFAULT_LIMIT = 10_000
 )
 
 type SqlStore struct {
@@ -195,9 +198,50 @@ func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
 }
 
 // Select returns the entries matching the filter
-func (s *SqlStore) Select(table string, filter map[string]any, sort []string, offset, limit int64) (EntryIterator, error) {
-	return nil, nil
+func (s *SqlStore) Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
+	if err := s.initialize(); err != nil {
+		return nil, err
+	}
 
+	var err error
+	table, err = s.genTableName(table)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > SELECT_MAX_LIMIT {
+		return nil, fmt.Errorf("select limit %d exceeds max limit %d", limit, SELECT_MAX_LIMIT)
+	}
+	if limit <= 0 {
+		limit = SELECT_DEFAULT_LIMIT
+	}
+	if offset < 0 {
+		return nil, fmt.Errorf("select offset %d is invalid", offset)
+	}
+
+	limitOffsetStr := fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
+	// TODO handle sort
+
+	filterStr, params, err := parseQuery(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	whereStr := ""
+	if filterStr != "" {
+		whereStr = " WHERE " + filterStr
+	}
+
+	query := "SELECT id, version, created_by, updated_by, created_at, updated_at, data FROM " + table + whereStr + limitOffsetStr
+	s.Trace().Msgf("query: %s, params: %#v", query, params)
+	rows, err := s.db.Query(query, params...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return NewStoreEntryIterabe(s.Logger, table, rows), nil
 }
 
 // Update an existing entry in the store
@@ -267,6 +311,36 @@ func (s *SqlStore) DeleteById(table string, id EntryId) (int64, error) {
 }
 
 // Delete entries from the store matching the filter
-func (s *SqlStore) Delete(table string, filter map[string]any) error {
-	return nil
+func (s *SqlStore) Delete(table string, filter map[string]any) (int64, error) {
+	if err := s.initialize(); err != nil {
+		return 0, err
+	}
+
+	var err error
+	if table, err = s.genTableName(table); err != nil {
+		return 0, err
+	}
+
+	filterStr, params, err := parseQuery(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	whereStr := ""
+	if filterStr != "" {
+		whereStr = " WHERE " + filterStr
+	}
+
+	deleteStmt := "DELETE FROM " + table + whereStr
+	result, err := s.db.Exec(deleteStmt, params...)
+	if err != nil {
+		return 0, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rows, nil
 }

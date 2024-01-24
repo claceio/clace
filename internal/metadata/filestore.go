@@ -183,6 +183,7 @@ func (f *FileStore) getFileInfo(ctx context.Context, tx Transaction) (map[string
 		return nil, fmt.Errorf("error querying files: %w", err)
 	}
 	fileInfo := make(map[string]DbFileInfo)
+	defer rows.Close()
 	for rows.Next() {
 		var name, sha string
 		var size int64
@@ -192,6 +193,9 @@ func (f *FileStore) getFileInfo(ctx context.Context, tx Transaction) (map[string
 			return nil, fmt.Errorf("error querying files: %w", err)
 		}
 		fileInfo[name] = DbFileInfo{name: name, sha: sha, len: size, modTime: modTime}
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
 	}
 
 	return fileInfo, nil
@@ -228,6 +232,7 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 		return fmt.Errorf("error querying files: %w", err)
 	}
 
+	defer rows.Close()
 	for rows.Next() {
 		var name, sha string
 		var size int64
@@ -241,6 +246,9 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 		if _, err := insertStmt.ExecContext(ctx, prodAppId, versionMetadata.Version, name, sha, size); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return fmt.Errorf("error closing rows: %w", closeErr)
 	}
 
 	return nil
