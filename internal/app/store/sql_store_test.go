@@ -5,6 +5,8 @@ package store
 
 import (
 	"testing"
+
+	"github.com/claceio/clace/internal/utils"
 )
 
 func TestGenTableName(t *testing.T) {
@@ -27,13 +29,55 @@ func TestGenTableName(t *testing.T) {
 
 func TestGenSortString(t *testing.T) {
 	sort := []string{"field1:asc", "field2:DEsc", "_id"}
-
 	expected := "_json ->> 'field1' ASC, _json ->> 'field2' DESC, _id ASC"
-	result, err := genSortString(sort)
+
+	result, err := genSortString(sort, sqliteFieldMapper)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
+	if result != expected {
+		t.Errorf("Expected %s, but got %s", expected, result)
+	}
+
+	result, err = genSortString(sort, nil) // no field name mapping
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if result != "field1 ASC, field2 DESC, _id ASC" {
+		t.Errorf("Expected %s, but got %s", expected, result)
+	}
+}
+
+// test for createIndexStmt
+func TestCreateIndexStmt(t *testing.T) {
+	table := "prefix_table"
+	index := utils.Index{
+		Fields: []string{"field:asc", "_id:desc"},
+		Unique: false,
+	}
+
+	result, err := createIndexStmt(table, index)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected := "CREATE INDEX IF NOT EXISTS 'index_prefix_table_field_ASC__id_DESC' ON 'prefix_table' (_json ->> 'field' ASC, _id DESC)"
+	if result != expected {
+		t.Errorf("Expected %s, but got %s", expected, result)
+	}
+
+	index = utils.Index{
+		Fields: []string{"map.key", "_id:desc"},
+		Unique: true,
+	}
+	result, err = createIndexStmt(table, index)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	expected = "CREATE UNIQUE INDEX IF NOT EXISTS 'index_prefix_table_map.key_ASC__id_DESC' ON 'prefix_table' (_json ->> 'map.key' ASC, _id DESC)"
 	if result != expected {
 		t.Errorf("Expected %s, but got %s", expected, result)
 	}

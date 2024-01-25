@@ -47,6 +47,9 @@ def handler(req):
 	ret3 = store.insert(table.test1, myt)
 	if not ret3:
 		return {"error": ret3.error}
+	ret4 = store.insert(table.test1, myt)
+	if ret4: # Expect to fail
+		return {"error": "Expected duplicate insert to fail"}
 
 	id = ret.value
 	ret = store.select_by_id(table.test1, id)
@@ -116,7 +119,10 @@ type("test1", fields=[
     field("abool", BOOLEAN),
     field("alist", LIST),
     field("adict", DICT),
-])`,
+],
+indexes=[
+	index(["aint:asc", "astring:desc"], unique=True)
+	])`,
 		"index.go.html": ``,
 	}
 

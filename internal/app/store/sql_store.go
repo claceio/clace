@@ -51,8 +51,9 @@ func validateTableName(name string) error {
 	return nil
 }
 
-func genSortString(sortFields []string) (string, error) {
+func genSortString(sortFields []string, mapper fieldMapper) (string, error) {
 	var buf bytes.Buffer
+	var err error
 
 	for i, field := range sortFields {
 		if i > 0 {
@@ -62,20 +63,30 @@ func genSortString(sortFields []string) (string, error) {
 		lower := strings.ToLower(field)
 		if strings.HasSuffix(lower, ":"+SORT_DESCENDING) {
 			field = strings.TrimSpace(field[:len(field)-len(":"+SORT_DESCENDING)])
-			mapped, err := sqliteFieldMapper(field)
-			if err != nil {
-				return "", err
+
+			mapped := field
+			if mapper != nil {
+				mapped, err = mapper(field)
+				if err != nil {
+					return "", err
+				}
 			}
 			buf.WriteString(mapped)
 			buf.WriteString(" DESC")
+
 		} else {
 			if strings.HasSuffix(lower, ":"+SORT_ASCENDING) { // :ASC is optional
 				field = strings.TrimSpace(field[:len(field)-len(":"+SORT_ASCENDING)])
 			}
-			mapped, err := sqliteFieldMapper(field)
-			if err != nil {
-				return "", err
+
+			mapped := field
+			if mapper != nil {
+				mapped, err = mapper(field)
+				if err != nil {
+					return "", err
+				}
 			}
+
 			buf.WriteString(mapped)
 			buf.WriteString(" ASC")
 		}
@@ -157,9 +168,47 @@ func (s *SqlStore) initStore() error {
 			return fmt.Errorf("error creating table %s: %w", table, err)
 		}
 		s.Info().Msgf("Created table %s", table)
+
+		unquotedTable := strings.Trim(table, "'")
+		if storeType.Indexes != nil {
+			for _, index := range storeType.Indexes {
+
+				indexStmt, err := createIndexStmt(unquotedTable, index)
+				if err != nil {
+					return err
+				}
+
+				_, err = s.db.Exec(indexStmt)
+				s.Trace().Msgf("indexStmt: %s", indexStmt)
+				if err != nil {
+					return fmt.Errorf("error creating index on %s: %w", unquotedTable, err)
+				}
+			}
+		}
 	}
 
 	return nil
+}
+
+func createIndexStmt(unquotedTableName string, index utils.Index) (string, error) {
+	mappedColumns, err := genSortString(index.Fields, sqliteFieldMapper)
+	if err != nil {
+		return "", fmt.Errorf("error generating index columns for table %s: %w", unquotedTableName, err)
+	}
+	unmappedColumns, err := genSortString(index.Fields, nil)
+	if err != nil {
+		return "", fmt.Errorf("error generating index columns for table %s: %w", unquotedTableName, err)
+	}
+	indexName := fmt.Sprintf("index_%s_%s", unquotedTableName, strings.ReplaceAll(unmappedColumns, ", ", "_"))
+	indexName = strings.ReplaceAll(indexName, " ", "_")
+
+	unique := " "
+	if index.Unique {
+		unique = " UNIQUE "
+	}
+
+	indexStmt := fmt.Sprintf("CREATE%sINDEX IF NOT EXISTS '%s' ON '%s' (%s)", unique, indexName, unquotedTableName, mappedColumns)
+	return indexStmt, nil
 }
 
 // Insert a new entry in the store
@@ -185,12 +234,12 @@ func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
 	createStmt := "INSERT INTO " + table + " (_version, _created_by, _updated_by, _created_at, _updated_at, _json) VALUES (?, ?, ?, ?, ?, ?)"
 	result, err := s.db.Exec(createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.UnixMilli(), entry.UpdatedAt.UnixMilli(), dataJson)
 	if err != nil {
-		return -1, nil
+		return -1, err
 	}
 
 	insertId, err := result.LastInsertId()
 	if err != nil {
-		return -1, nil
+		return -1, err
 	}
 	return EntryId(insertId), nil
 }
@@ -258,7 +307,7 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 
 	var sortStr string
 	if len(sort) > 0 {
-		sortStr, err = genSortString(sort)
+		sortStr, err = genSortString(sort, sqliteFieldMapper)
 		if err != nil {
 			return nil, err
 		}
