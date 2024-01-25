@@ -4,6 +4,7 @@
 package store
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,8 @@ const (
 	DB_CONNECTION_CONFIG = "db_connection"
 	SELECT_MAX_LIMIT     = 100_000
 	SELECT_DEFAULT_LIMIT = 10_000
+	SORT_ASCENDING       = "asc"
+	SORT_DESCENDING      = "desc"
 )
 
 type SqlStore struct {
@@ -46,6 +49,38 @@ func NewSqlStore(pluginContext *utils.PluginContext) (*SqlStore, error) {
 func validateTableName(name string) error {
 	// TODO: validate table name
 	return nil
+}
+
+func genSortString(sortFields []string) (string, error) {
+	var buf bytes.Buffer
+
+	for i, field := range sortFields {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+
+		lower := strings.ToLower(field)
+		if strings.HasSuffix(lower, ":"+SORT_DESCENDING) {
+			field = strings.TrimSpace(field[:len(field)-len(":"+SORT_DESCENDING)])
+			mapped, err := sqliteFieldMapper(field)
+			if err != nil {
+				return "", err
+			}
+			buf.WriteString(mapped)
+			buf.WriteString(" DESC")
+		} else {
+			if strings.HasSuffix(lower, ":"+SORT_ASCENDING) { // :ASC is optional
+				field = strings.TrimSpace(field[:len(field)-len(":"+SORT_ASCENDING)])
+			}
+			mapped, err := sqliteFieldMapper(field)
+			if err != nil {
+				return "", err
+			}
+			buf.WriteString(mapped)
+			buf.WriteString(" ASC")
+		}
+	}
+	return buf.String(), nil
 }
 
 func (s *SqlStore) genTableName(table string) (string, error) {
@@ -221,7 +256,16 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 
 	limitOffsetStr := fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
-	// TODO handle sort
+	var sortStr string
+	if len(sort) > 0 {
+		sortStr, err = genSortString(sort)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if sortStr != "" {
+		sortStr = " ORDER BY " + sortStr
+	}
 
 	filterStr, params, err := parseQuery(filter, sqliteFieldMapper)
 	if err != nil {
@@ -233,7 +277,7 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 		whereStr = " WHERE " + filterStr
 	}
 
-	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr + limitOffsetStr
+	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr + sortStr + limitOffsetStr
 	s.Trace().Msgf("query: %s, params: %#v", query, params)
 	rows, err := s.db.Query(query, params...)
 

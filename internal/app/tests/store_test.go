@@ -87,6 +87,15 @@ def handler(req):
 	for row in select_result.value:
 		all_rows.append(row)
 
+	select_result = store.select(table.test1, {}, sort=["aint:asc"])
+	if not select_result:
+		return {"error": select_result.error}
+	index = 0
+	for row in select_result.value:
+		if row.aint != 20:
+			return {"error": "Expected first aint to be 20, got %d" % row.aint}
+		break
+
 	del_status = store.delete_by_id(table.test1, id)
 	if not del_status:
 		return {"error": ret.error}
