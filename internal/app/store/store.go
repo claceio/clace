@@ -12,6 +12,26 @@ import (
 	"go.starlark.net/starlark"
 )
 
+const (
+	ID_FIELD         = "_id"
+	VERSION_FIELD    = "_version"
+	CREATED_BY_FIELD = "_created_by"
+	UPDATED_BY_FIELD = "_updated_by"
+	CREATED_AT_FIELD = "_created_at"
+	UPDATED_AT_FIELD = "_updated_at"
+	JSON_FIELD       = "_json"
+)
+
+var RESERVED_FIELDS = map[string]bool{
+	ID_FIELD:         true,
+	VERSION_FIELD:    true,
+	CREATED_BY_FIELD: true,
+	UPDATED_BY_FIELD: true,
+	CREATED_AT_FIELD: true,
+	UPDATED_AT_FIELD: true,
+	JSON_FIELD:       true,
+}
+
 type EntryId int64
 type UserId string
 type Document map[string]any
@@ -38,36 +58,36 @@ func (e *Entry) Unpack(value starlark.Value) error {
 	entryData := make(map[string]any)
 	for _, attr := range v.AttrNames() {
 		switch attr {
-		case "_id":
+		case ID_FIELD:
 			id, err := util.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.Id = EntryId(id)
-		case "_version":
+		case VERSION_FIELD:
 			e.Version, err = util.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
-		case "_created_by":
+		case CREATED_BY_FIELD:
 			createdBy, err := util.GetStringAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.CreatedBy = UserId(createdBy)
-		case "_updated_by":
+		case UPDATED_BY_FIELD:
 			updatedBy, err := util.GetStringAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.UpdatedBy = UserId(updatedBy)
-		case "_created_at":
+		case CREATED_AT_FIELD:
 			createdAt, err := util.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.CreatedAt = time.UnixMilli(createdAt)
-		case "_updated_at":
+		case UPDATED_AT_FIELD:
 			updatedAt, err := util.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
@@ -101,6 +121,9 @@ type Store interface {
 	// Select returns the entries matching the filter
 	Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
 
+	// Count returns the count of entries matching the filter
+	Count(table string, filter map[string]any) (int64, error)
+
 	// Update an existing entry in the store
 	Update(table string, Entry *Entry) (int64, error)
 
@@ -114,12 +137,12 @@ type Store interface {
 func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
 	data := make(map[string]starlark.Value)
 
-	data["_id"] = starlark.MakeInt(int(entry.Id))
-	data["_version"] = starlark.MakeInt(int(entry.Version))
-	data["_created_by"] = starlark.String(string(entry.CreatedBy))
-	data["_updated_by"] = starlark.String(string(entry.UpdatedBy))
-	data["_created_at"] = starlark.MakeInt(int(entry.CreatedAt.UnixMilli()))
-	data["_updated_at"] = starlark.MakeInt(int(entry.UpdatedAt.UnixMilli()))
+	data[ID_FIELD] = starlark.MakeInt(int(entry.Id))
+	data[VERSION_FIELD] = starlark.MakeInt(int(entry.Version))
+	data[CREATED_BY_FIELD] = starlark.String(string(entry.CreatedBy))
+	data[UPDATED_BY_FIELD] = starlark.String(string(entry.UpdatedBy))
+	data[CREATED_AT_FIELD] = starlark.MakeInt(int(entry.CreatedAt.UnixMilli()))
+	data[UPDATED_AT_FIELD] = starlark.MakeInt(int(entry.UpdatedAt.UnixMilli()))
 
 	var err error
 	for k, v := range entry.Data {

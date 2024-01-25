@@ -12,7 +12,23 @@ import (
 
 func ParseQueryTest(t *testing.T, query map[string]any, expectedConditions string, expectedParams []any) {
 	t.Helper()
-	conditions, params, err := parseQuery(query)
+	conditions, params, err := parseQuery(query, nil)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if conditions != expectedConditions {
+		t.Errorf("Conditions do not match. Expected: %s, Got: %s.", expectedConditions, conditions)
+	}
+
+	if !slices.Equal(params, expectedParams) {
+		t.Errorf("Params do not match. Expected: %v, Got: %v.", expectedParams, params)
+	}
+}
+
+func ParseQueryMapperTest(t *testing.T, query map[string]any, expectedConditions string, expectedParams []any) {
+	t.Helper()
+	conditions, params, err := parseQuery(query, sqliteFieldMapper)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -28,7 +44,13 @@ func ParseQueryTest(t *testing.T, query map[string]any, expectedConditions strin
 
 func ParseQueryErrorTest(t *testing.T, query map[string]any, expected string) {
 	t.Helper()
-	_, _, err := parseQuery(query)
+	_, _, err := parseQuery(query, nil)
+	testutil.AssertErrorContains(t, err, expected)
+}
+
+func ParseMappedErrorTest(t *testing.T, query map[string]any, expected string) {
+	t.Helper()
+	_, _, err := parseQuery(query, sqliteFieldMapper)
 	testutil.AssertErrorContains(t, err, expected)
 }
 
@@ -78,4 +100,19 @@ func TestErrorQueries(t *testing.T) {
 	ParseQueryErrorTest(t, map[string]any{"age": map[string]any{"$gt": map[string]any{"a": 1}}}, "invalid query condition for age $gt, map not supported: map")
 	ParseQueryErrorTest(t, map[string]any{"age": map[string]any{"$or": []map[string]any{{"$gt": 1, "$lt": 10}}}}, "invalid logical condition for age $or, only one key supported: map")
 	ParseQueryErrorTest(t, map[string]any{"age": map[string]any{"$or": []map[string]any{{"$AA": 1}}}}, "invalid logical condition for age $AA, only operators supported: 1")
+}
+
+func TestMappedQueries(t *testing.T) {
+	ParseQueryMapperTest(t, nil, "", nil)
+	ParseQueryMapperTest(t, map[string]any{}, "", nil)
+	ParseQueryMapperTest(t, map[string]any{"age": 30, "city": "New York", "state": "California"}, "_json ->> 'age' = ? AND _json ->> 'city' = ? AND _json ->> 'state' = ?", []any{30, "New York", "California"})
+	ParseQueryMapperTest(t, map[string]any{"_id": 30, "city": "New York", "state": "California", "country": "USA"}, "_id = ? AND _json ->> 'city' = ? AND _json ->> 'country' = ? AND _json ->> 'state' = ?", []any{30, "New York", "USA", "California"})
+	ParseQueryMapperTest(t, map[string]any{"age": 30, "$AND": []map[string]any{{"city": "New York"}, {"$OR": []map[string]any{{"state": "California"}, {"country": "USA"}}}, {"city": "New York"}}}, " ( _json ->> 'city' = ? AND  ( _json ->> 'state' = ? OR _json ->> 'country' = ? )  AND _json ->> 'city' = ? )  AND _json ->> 'age' = ?", []any{"New York", "California", "USA", "New York", 30})
+	ParseQueryMapperTest(t, map[string]any{"age": map[string]any{"$gt": 30, "$lt": 40}}, "_json ->> 'age' > ? AND _json ->> 'age' < ?", []any{30, 40})
+	ParseQueryMapperTest(t, map[string]any{"age": map[string]any{"$lte": 30}}, "_json ->> 'age' <= ?", []any{30})
+}
+
+func TestMappedError(t *testing.T) {
+	ParseMappedErrorTest(t, map[string]any{"_json": 30}, "querying _json directly is not supporte")
+	ParseMappedErrorTest(t, map[string]any{"abc'def": 30}, "field path cannot contain ': abc")
 }

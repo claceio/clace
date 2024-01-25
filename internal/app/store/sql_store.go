@@ -116,7 +116,7 @@ func (s *SqlStore) initStore() error {
 			return err
 		}
 
-		createStmt := "CREATE TABLE IF NOT EXISTS " + table + " (id INTEGER PRIMARY KEY AUTOINCREMENT, version INTEGER, created_by TEXT, updated_by TEXT, created_at INTEGER, updated_at INTEGER, data JSON)"
+		createStmt := "CREATE TABLE IF NOT EXISTS " + table + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, _version INTEGER, _created_by TEXT, _updated_by TEXT, _created_at INTEGER, _updated_at INTEGER, _json JSON)"
 		_, err = s.db.Exec(createStmt)
 		if err != nil {
 			return fmt.Errorf("error creating table %s: %w", table, err)
@@ -147,7 +147,7 @@ func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
 		return -1, fmt.Errorf("error marshalling data for table %s: %w", table, err)
 	}
 
-	createStmt := "INSERT INTO " + table + " (version, created_by, updated_by, created_at, updated_at, data) VALUES (?, ?, ?, ?, ?, ?)"
+	createStmt := "INSERT INTO " + table + " (_version, _created_by, _updated_by, _created_at, _updated_at, _json) VALUES (?, ?, ?, ?, ?, ?)"
 	result, err := s.db.Exec(createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.UnixMilli(), entry.UpdatedAt.UnixMilli(), dataJson)
 	if err != nil {
 		return -1, nil
@@ -172,7 +172,7 @@ func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
 		return nil, err
 	}
 
-	query := "SELECT id, version, created_by, updated_by, created_at, updated_at, data FROM " + table + " WHERE id = ?"
+	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + " WHERE _id = ?"
 	row := s.db.QueryRow(query, id)
 
 	entry := &Entry{}
@@ -223,7 +223,7 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 
 	// TODO handle sort
 
-	filterStr, params, err := parseQuery(filter)
+	filterStr, params, err := parseQuery(filter, sqliteFieldMapper)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 		whereStr = " WHERE " + filterStr
 	}
 
-	query := "SELECT id, version, created_by, updated_by, created_at, updated_at, data FROM " + table + whereStr + limitOffsetStr
+	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr + limitOffsetStr
 	s.Trace().Msgf("query: %s, params: %#v", query, params)
 	rows, err := s.db.Query(query, params...)
 
@@ -242,6 +242,41 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 	}
 
 	return NewStoreEntryIterabe(s.Logger, table, rows), nil
+}
+
+// Count returns the number of entries matching the filter
+func (s *SqlStore) Count(table string, filter map[string]any) (int64, error) {
+	if err := s.initialize(); err != nil {
+		return -1, err
+	}
+
+	var err error
+	table, err = s.genTableName(table)
+	if err != nil {
+		return -1, err
+	}
+
+	filterStr, params, err := parseQuery(filter, sqliteFieldMapper)
+	if err != nil {
+		return -1, err
+	}
+
+	whereStr := ""
+	if filterStr != "" {
+		whereStr = " WHERE " + filterStr
+	}
+
+	query := "SELECT count(_id) FROM " + table + whereStr
+	s.Trace().Msgf("query: %s, params: %#v", query, params)
+	row := s.db.QueryRow(query, params...)
+
+	var count int64
+	err = row.Scan(&count)
+	if err != nil {
+		return -1, err
+	}
+
+	return count, nil
 }
 
 // Update an existing entry in the store
@@ -264,7 +299,7 @@ func (s *SqlStore) Update(table string, entry *Entry) (int64, error) {
 		return 0, fmt.Errorf("error marshalling data for table %s: %w", table, err)
 	}
 
-	updateStmt := "UPDATE " + table + " set version = ?, updated_by = ?, updated_at = ?, data = ? where id = ? and updated_at = ?"
+	updateStmt := "UPDATE " + table + " set _version = ?, _updated_by = ?, _updated_at = ?, _json = ? where _id = ? and _updated_at = ?"
 	result, err := s.db.Exec(updateStmt, entry.Version, entry.UpdatedBy, entry.UpdatedAt.UnixMilli(), dataJson, entry.Id, origUpdateAt.UnixMilli())
 	if err != nil {
 		return 0, err
@@ -292,7 +327,7 @@ func (s *SqlStore) DeleteById(table string, id EntryId) (int64, error) {
 		return 0, err
 	}
 
-	deleteStmt := "DELETE from " + table + " where id = ?"
+	deleteStmt := "DELETE from " + table + " where _id = ?"
 	result, err := s.db.Exec(deleteStmt, id)
 	if err != nil {
 		return 0, err
@@ -321,7 +356,7 @@ func (s *SqlStore) Delete(table string, filter map[string]any) (int64, error) {
 		return 0, err
 	}
 
-	filterStr, params, err := parseQuery(filter)
+	filterStr, params, err := parseQuery(filter, sqliteFieldMapper)
 	if err != nil {
 		return 0, err
 	}

@@ -27,6 +27,7 @@ permissions=[
 	ace.permission("store.in", "delete_by_id"),
 	ace.permission("store.in", "select"),
 	ace.permission("store.in", "delete"),
+	ace.permission("store.in", "count"),
 ]
 )
 
@@ -41,6 +42,11 @@ def handler(req):
 	ret2 = store.insert(table.test1, myt)
 	if not ret2:
 		return {"error": ret2.error}
+	myt.aint=30
+	myt.adict = {"a": 2}
+	ret3 = store.insert(table.test1, myt)
+	if not ret3:
+		return {"error": ret3.error}
 
 	id = ret.value
 	ret = store.select_by_id(table.test1, id)
@@ -60,14 +66,26 @@ def handler(req):
 	if upd_status:
 		return {"error": "Expected duplicate update to fail"}
 
+	q1 = store.count(table.test1, {"aint": 100})
+	if not q1:
+		return {"error": q1.error}
+	if q1.value != 1:
+		return {"error": "Expected count to be 1, got %d" % q1.value}
+
+	q2 = store.count(table.test1, {"adict.a": 2})
+	if not q2:
+		return {"error": q2.error}
+	if q2.value != 1:
+		return {"error": "Expected count to be 1, got %d" % q2.value}
+
+
 	ret = store.select_by_id(table.test1, id)
 
 	select_result = store.select(table.test1, {})
 
-	rows = []
+	all_rows = []
 	for row in select_result.value:
-		print("rrr", row)
-		rows.append(row)
+		all_rows.append(row)
 
 	del_status = store.delete_by_id(table.test1, id)
 	if not del_status:
@@ -79,7 +97,7 @@ def handler(req):
 	return {"intval": ret.value.aint, "stringval": ret.value.astring,
 		"_id": ret.value._id,
 		"creator": ret.value._created_by, "created_at": ret.value._created_at,
-	    "rows": rows}
+	    "all_rows": all_rows}
 	`,
 
 		"schema.star": `
@@ -101,6 +119,7 @@ type("test1", fields=[
 			{Plugin: "store.in", Method: "delete_by_id"},
 			{Plugin: "store.in", Method: "select"},
 			{Plugin: "store.in", Method: "delete"},
+			{Plugin: "store.in", Method: "count"},
 		}, map[string]utils.PluginSettings{
 			"store.in": {
 				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
@@ -131,8 +150,8 @@ type("test1", fields=[
 	if id <= 0 {
 		t.Errorf("Expected _id to be > 0, got %f", id)
 	}
-	testutil.AssertEqualsInt(t, "length", 2, len(ret["rows"].([]any)))
-	rows := ret["rows"].([]any)
+	testutil.AssertEqualsInt(t, "length", 3, len(ret["all_rows"].([]any)))
+	rows := ret["all_rows"].([]any)
 	if rows[0].(map[string]any)["aint"].(float64) != 100 {
 		t.Errorf("Expected aint to be 100, got %f", rows[0].(map[string]any)["aint"].(float64))
 	}
