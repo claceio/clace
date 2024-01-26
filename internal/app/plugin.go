@@ -59,11 +59,34 @@ func RegisterPlugin(name string, builder utils.NewPluginFunc, funcs []utils.Plug
 	builtInPlugins[pluginPath] = pluginMap
 }
 
-func CreatePluginApi(
-	f func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error),
-	opType PluginFunctionType,
-) utils.PluginFunc {
+type StarlarkFunction func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)
 
+// pluginErrorWrapper wraps the plugin function call with error handling code. If the plugin function returns an error,
+// it is wrapped in a PluginResponse. If the starlark function returns a PluginResponse, it is returned as is. Returning
+// a error causes the starlark interpreter to panic, so this wrapper is needed to handle the error and return a value which
+// the starlark code can handle
+func pluginErrorWrapper(f StarlarkFunction) StarlarkFunction {
+	return func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		// Wrap the plugin function call with error handling
+		val, err := f(thread, fn, args, kwargs)
+
+		// If the return value is already of type PluginResponse, return it without wrapping it
+		_, ok := val.(*utils.PluginResponse)
+		if ok {
+			return val, err
+		}
+
+		if err != nil {
+			// Error response wrapped in a PluginResponse
+			return utils.NewErrorResponse(err), nil
+		}
+
+		// Success response, wrapped in a PluginResponse
+		return utils.NewResponse(val), nil
+	}
+}
+
+func CreatePluginApi(f StarlarkFunction, opType PluginFunctionType) utils.PluginFunc {
 	funcVal := runtime.FuncForPC(reflect.ValueOf(f).Pointer())
 	if funcVal == nil {
 		panic(fmt.Errorf("function not found during plugin register"))
@@ -244,8 +267,11 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", modulePath, functionName)
 		}
 
+		// Wrap the plugin function call with error handling
+		errorHandlingWrapper := pluginErrorWrapper(builtinFunc)
+
 		// Call the builtin function
-		newBuiltin := starlark.NewBuiltin(functionName, builtinFunc)
+		newBuiltin := starlark.NewBuiltin(functionName, errorHandlingWrapper)
 		val, err := newBuiltin.CallInternal(thread, args, kwargs)
 		return val, err
 	}

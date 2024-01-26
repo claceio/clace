@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 type NewPluginFunc func(pluginContext *PluginContext) (any, error)
@@ -81,8 +82,11 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 			return starlark.None, nil
 		}
 
-		if _, ok := r.value.(starlark.Value); ok {
-			return r.value.(starlark.Value), nil
+		if v, ok := r.value.(starlark.Value); ok {
+			return v, nil
+		}
+		if v, ok := r.value.(*starlarkstruct.Struct); ok {
+			return v, nil
 		}
 		return MarshalStarlark(r.value)
 

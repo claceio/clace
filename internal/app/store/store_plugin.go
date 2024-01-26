@@ -49,7 +49,7 @@ func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin,
 
 	id, err := s.sqlStore.Insert(table, &entry)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(int64(id)), nil
 }
@@ -65,17 +65,17 @@ func (s *storePlugin) SelectById(thread *starlark.Thread, builtin *starlark.Buil
 	var idVal int64
 	var ok bool
 	if idVal, ok = id.Int64(); !ok || idVal < 0 {
-		return utils.NewErrorResponse(fmt.Errorf("invalid id value")), nil
+		return nil, fmt.Errorf("invalid id value")
 	}
 
 	entry, err := s.sqlStore.SelectById(table, EntryId(idVal))
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 
 	returnType, err := CreateType(table, entry)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(returnType), nil
 }
@@ -90,7 +90,7 @@ func (s *storePlugin) Update(thread *starlark.Thread, builtin *starlark.Builtin,
 
 	success, err := s.sqlStore.Update(table, &entry)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(success), nil
 }
@@ -106,12 +106,12 @@ func (s *storePlugin) DeleteById(thread *starlark.Thread, builtin *starlark.Buil
 	var idVal int64
 	var ok bool
 	if idVal, ok = id.Int64(); !ok || idVal < 0 {
-		return utils.NewErrorResponse(fmt.Errorf("invalid id value")), nil
+		return nil, fmt.Errorf("invalid id value")
 	}
 
 	rows, err := s.sqlStore.DeleteById(table, EntryId(idVal))
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(rows), nil
 }
@@ -129,10 +129,10 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 	var limitVal, offsetVal int64
 	var ok bool
 	if limitVal, ok = limit.Int64(); !ok || limitVal < 0 {
-		return utils.NewErrorResponse(fmt.Errorf("invalid limit value")), nil
+		return nil, fmt.Errorf("invalid limit value")
 	}
 	if offsetVal, ok = offset.Int64(); !ok || offsetVal < 0 {
-		return utils.NewErrorResponse(fmt.Errorf("invalid offset value")), nil
+		return nil, fmt.Errorf("invalid offset value")
 	}
 
 	if filter == nil {
@@ -144,22 +144,22 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 
 	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 
 	filterMap, ok := filterUnmarshalled.(map[string]any)
 	if !ok {
-		return utils.NewErrorResponse(errors.New("invalid filter")), nil
+		return nil, errors.New("invalid filter")
 	}
 
 	sortList, err := util.GetStringList(sort)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 
 	iterator, err := s.sqlStore.Select(table, filterMap, sortList, offsetVal, limitVal)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(iterator), nil
 }
@@ -178,17 +178,17 @@ func (s *storePlugin) Count(thread *starlark.Thread, builtin *starlark.Builtin, 
 
 	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 
 	filterMap, ok := filterUnmarshalled.(map[string]any)
 	if !ok {
-		return utils.NewErrorResponse(errors.New("invalid filter")), nil
+		return nil, errors.New("invalid filter")
 	}
 
 	count, err := s.sqlStore.Count(table, filterMap)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(count), nil
 }
@@ -207,17 +207,17 @@ func (s *storePlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin,
 
 	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 
 	filterMap, ok := filterUnmarshalled.(map[string]any)
 	if !ok {
-		return utils.NewErrorResponse(errors.New("invalid filter")), nil
+		return nil, errors.New("invalid filter")
 	}
 
 	rows, err := s.sqlStore.Delete(table, filterMap)
 	if err != nil {
-		return utils.NewErrorResponse(err), nil
+		return nil, err
 	}
 	return utils.NewResponse(rows), nil
 }

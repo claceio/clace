@@ -8,17 +8,25 @@ def create_game(req):
     ret = http.post(SERVICE_URL + "/api/create_game/" + level[0], headers={
         "X-Forwarded-For": req.RemoteIP
     })
-    return ace.redirect(req.AppPath + "/game/" + ret.json()["GameId"])
+    if not ret:
+        return ace.response(ret.error)
+    return ace.redirect(req.AppPath + "/game/" + ret.value.json()["GameId"])
 
 
 def fetch_game(req, game_id):
     game_path = req.AppPath + "/game/" + game_id
     ret = http.get(SERVICE_URL + "/api/game/" + game_id)
-    game = ret.json()
-    if game.get("Error"):
-        return ace.response(game, "invalid_game_id", code=404)
+    if not ret:
+        return ace.response(ret.error, code=404)
+
+    if ret.value.json().get("Error"):
+        return ace.response(ret.value.json(), "invalid_game_id", code=404)
+
+    game = ret.value.json()
     clues = http.get(SERVICE_URL + "/api/game/" + game_id + "/clues")
-    game["Clues"] = clues.json()
+    if not clues:
+        return ace.response(clues.error, code=404)
+    game["Clues"] = clues.value.json()
     game["GamePath"] = game_path
     return game
 
@@ -39,29 +47,35 @@ def post_game_update(req, req_type):
     api_url = SERVICE_URL + "/api/game/" + game_id + "/" + req_type
     if arg:
         api_url += "/" + arg
-    ret = http.post(api_url).json()
-    if ret.get("Error"):
-        return ace.response(ret, "game_error_block", retarget="#gameErrorId")
+    ret = http.post(api_url)
+    if not ret:
+        return ace.response(ret.error)
+    error = ret.value.json().get("Error")
+    if error:
+        return ace.response(ret.value.json(), "game_error_block", retarget="#gameErrorId")
     return fetch_game(req, game_id)
 
 
 def create_challenge(req):
     level = req.Form["level"]
-    challenge = http.post(
-        SERVICE_URL + "/api/create_challenge/" + level[0]).json()
-    if challenge.get("Error"):
-        return ace.response(challenge, "invalid_challenge_id", code=404)
-    return ace.redirect(req.AppPath + "/challenge/" + challenge["ChallengeId"])
+    challenge = http.post(SERVICE_URL + "/api/create_challenge/" + level[0])
+    if not challenge:
+        return ace.response(challenge.value.json(), "invalid_challenge_id", code=404)
+    return ace.redirect(req.AppPath + "/challenge/" + challenge.value.json()["ChallengeId"])
 
 
 def challenge_handler(req):
     challenge_id = req.UrlParams["challenge_id"]
-    challenge = http.get(SERVICE_URL + "/api/challenge/" + challenge_id).json()
-    if challenge.get("Error"):
-        return ace.response(challenge, "invalid_challenge_id", code=404)
+    challenge = http.get(SERVICE_URL + "/api/challenge/" + challenge_id)
+    if not challenge:
+        return ace.response(challenge.error, "invalid_challenge_id", code=404)
+
+    ret = challenge.value.json()
+    if ret.get("Error"):
+        return ace.response(ret, "invalid_challenge_id", code=404)
     games = http.get(SERVICE_URL + "/api/challenge/" + challenge_id + "/games")
-    challenge["Games"] = games.json()
-    return challenge
+    ret["Games"] = games.value.json()
+    return ret
 
 
 def play_challenge(req):
@@ -69,11 +83,13 @@ def play_challenge(req):
     ret = http.post(SERVICE_URL + "/api/challenge/" +
                     challenge_id + "/play", headers={
                         "X-Forwarded-For": req.RemoteIP
-                    }).json()
-    if ret.get("Error"):
-        return ace.response(ret, "invalid_challenge_id", code=404)
+                    })
+    if not ret:
+        return ace.response(ret.error, "invalid_challenge_id", code=404)
+    if ret.value.json().get("Error"):
+        return ace.response(ret.value.json(), "invalid_challenge_id", code=404)
 
-    return ace.redirect(req.AppPath + "/game/" + ret["GameId"])
+    return ace.redirect(req.AppPath + "/game/" + ret.value.json()["GameId"])
 
 
 def join(req):

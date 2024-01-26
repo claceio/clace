@@ -50,6 +50,9 @@ def handler(req):
 	ret4 = store.insert(table.test1, myt)
 	if ret4: # Expect to fail
 		return {"error": "Expected duplicate insert to fail"}
+	else:
+		if ret4.error.index("UNIQUE constraint failed") < 0:
+			return {"error": ret4.error}
 
 	id = ret.value
 	ret = store.select_by_id(table.test1, id)

@@ -13,7 +13,6 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
-	"go.starlark.net/starlarkstruct"
 )
 
 const MAX_BYTES_STDOUT = 100 * 1024 * 1024 // 100MB
@@ -23,46 +22,6 @@ func init() {
 	app.RegisterPlugin("exec", NewExecPlugin, []utils.PluginFunc{
 		app.CreatePluginApi(e.Run, app.READ_WRITE),
 	})
-}
-
-// execResponse is the response from an exec command
-type execResponse struct {
-	exitCode  int
-	error     string
-	stderr    string
-	lines     *starlark.List
-	truncated bool
-}
-
-// Struct turns a response into a *starlark.Struct
-func (r *execResponse) Struct() *starlarkstruct.Struct {
-	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
-		"lines":     r.lines,
-		"exit_code": starlark.MakeInt(r.exitCode),
-		"error":     starlark.String(r.error),
-		"stderr":    starlark.String(r.stderr),
-		"truncated": starlark.Bool(r.truncated),
-	})
-}
-
-func createResponse(err error, stdout io.ReadCloser, stderr bytes.Buffer) *execResponse {
-	lines := starlark.NewList([]starlark.Value{})
-	if exitErr, ok := err.(*exec.ExitError); ok {
-
-		return &execResponse{
-			exitCode: exitErr.ExitCode(),
-			error:    exitErr.Error(),
-			stderr:   stderr.String(),
-			lines:    lines,
-		}
-	}
-
-	return &execResponse{
-		exitCode: 127,
-		error:    err.Error(),
-		stderr:   stderr.String(),
-		lines:    lines,
-	}
 }
 
 type ExecPlugin struct {
@@ -120,20 +79,18 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	}
 
 	if err := cmd.Start(); err != nil {
-		ret := createResponse(err, stdout, stderr)
-		return ret.Struct(), nil
+		return nil, err
 	}
 
 	var buf bytes.Buffer
-	nCopied, err := io.CopyN(&buf, stdout, MAX_BYTES_STDOUT)
+	_, err = io.CopyN(&buf, stdout, MAX_BYTES_STDOUT)
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
 	runErr := cmd.Wait()
 	if !processPartialBool && runErr != nil {
-		ret := createResponse(runErr, stdout, stderr)
-		return ret.Struct(), nil
+		return nil, runErr
 	}
 
 	lines := starlark.NewList([]starlark.Value{})
@@ -144,17 +101,12 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 
 	if lines.Len() == 0 && runErr != nil {
 		// if no lines in stdout and there was an error (processPartial case), return the error
-		ret := createResponse(runErr, stdout, stderr)
-		return ret.Struct(), nil
+		return nil, runErr
 	}
 
 	if scanner.Err() != nil {
 		return nil, scanner.Err()
 	}
 
-	ret := execResponse{
-		lines:     lines,
-		truncated: nCopied == MAX_BYTES_STDOUT,
-	}
-	return ret.Struct(), nil
+	return utils.NewResponse(lines), nil
 }
