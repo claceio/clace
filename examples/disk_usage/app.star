@@ -41,8 +41,8 @@ def handler(req):
 app = ace.app("Disk Usage",
               pages=[ace.page("/", partial="du_table_block")],
               permissions=[
-                  ace.permission("exec.in", "run", ["du"], type="READ"),
-                  ace.permission("exec.in", "run", ["readlink"], type="READ")
+                  ace.permission("exec.in", "run", ["du"]),
+                  ace.permission("exec.in", "run", ["readlink"])
               ],
               style=ace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
               )
