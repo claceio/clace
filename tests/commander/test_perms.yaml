@@ -39,6 +39,10 @@ tests:
     stdout: "Disk Usage"
 
   # Test preview app
+  # These tests depend on a commit which has the disk usage app set to write type for the exec plugin. If the app requires
+  # updates, these commits have to be recreated. See:
+  # https://github.com/claceio/clace/commit/2ce5aaafea9e99de9547d50d91f924edc8191c57
+  # https://github.com/claceio/clace/commit/d163ab2e334a02c1cf8ef3e48d0b84bdd72d8ec3
   perms0200: # Create preview app from git
     command: ../clace app create --approve /permsgit1 github.com/claceio/clace/examples/disk_usage
   perms0201: # Create preview app from git
