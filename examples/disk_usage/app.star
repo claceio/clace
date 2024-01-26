@@ -11,8 +11,6 @@ def handler(req):
         print("Failed to run readlink stderr " + ret.error)
         return {"Current": current,
                 "Error": "readlink -f {current} failed with {error}".format(current=current, error=ret.error)}
-    print("ret", ret)
-    print("ret value", ret.value)
     current = ret.value[0].strip()
 
     args = ["-m", "-d", "1"]
