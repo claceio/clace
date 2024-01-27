@@ -22,6 +22,7 @@ const (
 )
 
 type StoreInfo struct {
+	Bytes []byte // The raw bytes for the schema.star file
 	Types []StoreType
 }
 

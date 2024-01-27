@@ -97,10 +97,10 @@ func LoadStoreInfo(fileName string, data []byte) (*utils.StoreInfo, error) {
 		return nil, fmt.Errorf("error loading app schema: %w", err)
 	}
 
-	return createStoreInfo(definedTypes)
+	return createStoreInfo(definedTypes, data)
 }
 
-func createStoreInfo(definedTypes map[string]starlark.Value) (*utils.StoreInfo, error) {
+func createStoreInfo(definedTypes map[string]starlark.Value, data []byte) (*utils.StoreInfo, error) {
 	types := make([]utils.StoreType, 0, len(definedTypes))
 	for _, t := range definedTypes {
 		typeStruct, ok := t.(*starlarkstruct.Struct)
@@ -130,6 +130,7 @@ func createStoreInfo(definedTypes map[string]starlark.Value) (*utils.StoreInfo, 
 	}
 
 	return &utils.StoreInfo{
+		Bytes: data,
 		Types: types,
 	}, nil
 }
