@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
@@ -96,6 +97,9 @@ func (i *StoreEntryIterator) Next(value *starlark.Value) bool {
 			panic(err)
 		}
 	}
+
+	entry.CreatedAt = time.UnixMilli(createdAt)
+	entry.UpdatedAt = time.UnixMilli(updatedAt)
 
 	returnType, err := CreateType(i.table, &entry)
 	if err != nil {

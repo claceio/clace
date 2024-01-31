@@ -311,6 +311,7 @@ func (s *SqlStore) Update(table string, entry *Entry) (int64, error) {
 	}
 
 	updateStmt := "UPDATE " + table + " set _version = ?, _updated_by = ?, _updated_at = ?, _json = ? where _id = ? and _updated_at = ?"
+	s.Trace().Msgf("query: %s, id: %d updated_at %d", updateStmt, entry.Id, origUpdateAt.UnixMilli())
 	result, err := s.db.Exec(updateStmt, entry.Version, entry.UpdatedBy, entry.UpdatedAt.UnixMilli(), dataJson, entry.Id, origUpdateAt.UnixMilli())
 	if err != nil {
 		return 0, err

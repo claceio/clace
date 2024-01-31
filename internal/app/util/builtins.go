@@ -15,7 +15,7 @@ import (
 
 const (
 	DEFAULT_MODULE        = "ace"
-	STARLARK_TYPE_MODULE  = "star"
+	DOC_MODULE            = "doc"
 	TABLE_MODULE          = "table"
 	APP                   = "app"
 	PAGE                  = "page"
@@ -182,7 +182,7 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 
 func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var block, retarget, reswap, rtype starlark.String
-	var data *starlark.Dict
+	var data starlark.Value
 	var code starlark.Int
 	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "data", &data, "block?", &block, "type?", &rtype, "code?", &code, "retarget?", &retarget, "reswap?", &reswap); err != nil {
 		return nil, err

@@ -106,7 +106,23 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
 			if err != nil {
 				a.Error().Err(err).Msg("error calling handler")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				firstFrame := ""
+				if evalErr, ok := err.(*starlark.EvalError); ok {
+					// Iterate through the CallFrame stack for debugging information
+					for i, frame := range evalErr.CallStack {
+						fmt.Printf("Function: %s, Position: %s\n", frame.Name, frame.Pos)
+						if i == 0 {
+							firstFrame = fmt.Sprintf("Function %s, Position %s", frame.Name, frame.Pos)
+						}
+					}
+				}
+
+				msg := err.Error()
+				if firstFrame != "" {
+					msg = msg + " : " + firstFrame
+				}
+				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
 

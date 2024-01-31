@@ -34,7 +34,7 @@ permissions=[
 def handler(req):
 
 	rows = store.delete(table.test1, {})
-	myt = star.test1(aint=10, astring="abc", abool=False, alist=[1], adict={'a': 1})
+	myt = doc.test1(aint=10, astring="abc", abool=False, alist=[1], adict={'a': 1})
 	ret = store.insert(table.test1, myt)
 	if not ret:
 		return {"error": ret.error}

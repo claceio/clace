@@ -17,8 +17,8 @@ type AppPlugins struct {
 	plugins map[string]any
 
 	app          *App
-	pluginConfig map[string]utils.PluginSettings // pluginName -> accountName -> PluginSettings
-	accountMap   map[string]string               // pluginName -> accountName
+	pluginConfig map[string]utils.PluginSettings // pluginName -> accountName -> PluginSettings, from clace.toml
+	accountMap   map[string]string               // pluginName -> accountName, from app account links
 }
 
 func NewAppPlugins(app *App, pluginConfig map[string]utils.PluginSettings, appAccounts []utils.AccountLink) *AppPlugins {
@@ -48,7 +48,7 @@ func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string)
 	// If account name is specified, use that to lookup the account map
 	accountLookupName := pluginInfo.PluginPath
 	if accountName != "" {
-		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, accountName)
+		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, accountName) // store.in#myaccount
 	}
 
 	pluginAccount := pluginInfo.PluginPath
