@@ -199,6 +199,54 @@ func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
 	return entry, nil
 }
 
+// SelectOne returns a single item from the store
+func (s *SqlStore) SelectOne(table string, filter map[string]any) (*Entry, error) {
+	if err := s.initialize(); err != nil {
+		return nil, err
+	}
+
+	var err error
+	table, err = s.genTableName(table)
+	if err != nil {
+		return nil, err
+	}
+
+	filterStr, params, err := parseQuery(filter, sqliteFieldMapper)
+	if err != nil {
+		return nil, err
+	}
+
+	whereStr := ""
+	if filterStr != "" {
+		whereStr = " WHERE " + filterStr
+	}
+
+	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr
+	row := s.db.QueryRow(query, params...)
+
+	entry := &Entry{}
+	var dataStr string
+	var createdAt, updatedAt int64
+	err = row.Scan(&entry.Id, &entry.Version, &entry.CreatedBy, &entry.UpdatedBy, &createdAt, &updatedAt, &dataStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("entry %s not found in table %s", whereStr, table)
+		}
+		return nil, err
+	}
+
+	if dataStr != "" {
+		if err := json.Unmarshal([]byte(dataStr), &entry.Data); err != nil {
+			return nil, err
+		}
+	}
+
+	entry.CreatedAt = time.UnixMilli(createdAt)
+	entry.UpdatedAt = time.UnixMilli(updatedAt)
+	return entry, nil
+
+}
+
 // Select returns the entries matching the filter
 func (s *SqlStore) Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
 	if err := s.initialize(); err != nil {

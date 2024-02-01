@@ -28,6 +28,7 @@ permissions=[
 	ace.permission("store.in", "select"),
 	ace.permission("store.in", "delete"),
 	ace.permission("store.in", "count"),
+	ace.permission("store.in", "select_one"),
 ]
 )
 
@@ -84,6 +85,11 @@ def handler(req):
 	if q2.value != 1:
 		return {"error": "Expected count to be 1, got %d" % q2.value}
 
+	select_one = store.select_one(table.test1, {"aint": 100})
+	if not select_one:
+		return {"error": select_one.error}
+	if select_one.value.aint != 100 or select_one.value.astring != "xyz":
+		return {"error": "Expected aint 100 astring xyz, got %d %s" % (select_one.value.aint, select_one.value.astring)}
 
 	ret = store.select_by_id(table.test1, id)
 
@@ -104,7 +110,7 @@ def handler(req):
 
 	del_status = store.delete_by_id(table.test1, id)
 	if not del_status:
-		return {"error": ret.error}
+		return {"error": del_status.error}
 	del_status = store.delete_by_id(table.test1, id)
 	if del_status:
 		return {"error": "Expected delete to fail"}
@@ -138,6 +144,7 @@ indexes=[
 			{Plugin: "store.in", Method: "select"},
 			{Plugin: "store.in", Method: "delete"},
 			{Plugin: "store.in", Method: "count"},
+			{Plugin: "store.in", Method: "select_one"},
 		}, map[string]utils.PluginSettings{
 			"store.in": {
 				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",

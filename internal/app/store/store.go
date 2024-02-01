@@ -118,6 +118,9 @@ type Store interface {
 	// SelectById returns a single item from the store
 	SelectById(table string, id EntryId) (*Entry, error)
 
+	// SelectOne returns a single item from the store
+	SelectOne(table string, filter map[string]any) (*Entry, error)
+
 	// Select returns the entries matching the filter
 	Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
 

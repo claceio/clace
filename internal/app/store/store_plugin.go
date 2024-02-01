@@ -18,6 +18,7 @@ func init() {
 	pluginFuncs := []utils.PluginFunc{
 		app.CreatePluginApiName(h.SelectById, app.READ, "select_by_id"),
 		app.CreatePluginApi(h.Select, app.READ),
+		app.CreatePluginApiName(h.SelectOne, app.READ, "select_one"),
 		app.CreatePluginApi(h.Count, app.READ),
 		app.CreatePluginApi(h.Insert, app.WRITE),
 		app.CreatePluginApi(h.Update, app.WRITE),
@@ -114,6 +115,41 @@ func (s *storePlugin) DeleteById(thread *starlark.Thread, builtin *starlark.Buil
 		return nil, err
 	}
 	return utils.NewResponse(rows), nil
+}
+
+func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var table string
+	var filter *starlark.Dict
+
+	if err := starlark.UnpackArgs("select", args, kwargs, "table", &table, "filter", &filter); err != nil {
+		return nil, err
+	}
+
+	if filter == nil {
+		filter = starlark.NewDict(0)
+	}
+
+	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	filterMap, ok := filterUnmarshalled.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid filter")
+	}
+
+	entry, err := s.sqlStore.SelectOne(table, filterMap)
+	if err != nil {
+		return nil, err
+	}
+
+	returnType, err := CreateType(table, entry)
+	if err != nil {
+		return nil, err
+	}
+
+	return utils.NewResponse(returnType), nil
 }
 
 func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
