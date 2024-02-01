@@ -76,6 +76,7 @@ func TestOperatorQueries(t *testing.T) {
 	ParseQueryTest(t, map[string]any{"age": map[string]any{"$lte": 30}}, "age <= ?", []any{30})
 	ParseQueryTest(t, map[string]any{"age": map[string]any{"$ne": 30}}, "age != ?", []any{30})
 	ParseQueryTest(t, map[string]any{"age": map[string]any{"$eq": 30}}, "age = ?", []any{30})
+	ParseQueryTest(t, map[string]any{"age": map[string]any{"$like": 30}}, "age like ?", []any{30})
 }
 
 func TestMultiOperatorQueries(t *testing.T) {

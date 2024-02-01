@@ -18,12 +18,13 @@ var opToSql map[string]string
 
 func init() {
 	opToSql = map[string]string{
-		"$gt":  ">",
-		"$lt":  "<",
-		"$gte": ">=",
-		"$lte": "<=",
-		"$eq":  "=",
-		"$ne":  "!=",
+		"$gt":   ">",
+		"$lt":   "<",
+		"$gte":  ">=",
+		"$lte":  "<=",
+		"$eq":   "=",
+		"$ne":   "!=",
+		"$like": "like",
 	}
 }
 
