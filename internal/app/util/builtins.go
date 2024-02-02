@@ -164,7 +164,8 @@ func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.T
 func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var url starlark.String
 	var code starlark.Int
-	if err := starlark.UnpackArgs(REDIRECT, args, kwargs, "url", &url, "code?", &code); err != nil {
+	var refresh starlark.Bool
+	if err := starlark.UnpackArgs(REDIRECT, args, kwargs, "url", &url, "code?", &code, "refresh?", &refresh); err != nil {
 		return nil, err
 	}
 
@@ -174,17 +175,18 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	}
 
 	fields := starlark.StringDict{
-		"url":  url,
-		"code": code,
+		"url":     url,
+		"code":    code,
+		"refresh": refresh,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(REDIRECT), fields), nil
 }
 
 func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var block, retarget, reswap, rtype starlark.String
+	var block, retarget, reswap, redirect, rtype starlark.String
 	var data starlark.Value
 	var code starlark.Int
-	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "data", &data, "block?", &block, "type?", &rtype, "code?", &code, "retarget?", &retarget, "reswap?", &reswap); err != nil {
+	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "data", &data, "block?", &block, "type?", &rtype, "code?", &code, "retarget?", &retarget, "reswap?", &reswap, "redirect?", &redirect); err != nil {
 		return nil, err
 	}
 
@@ -205,6 +207,7 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		"code":     code,
 		"retarget": retarget,
 		"reswap":   reswap,
+		"redirect": redirect,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(RESPONSE), fields), nil
 }

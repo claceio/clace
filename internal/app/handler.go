@@ -134,7 +134,15 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 				// Looked at the mandatory properties to decide on type for now
 				if err == nil {
 					// Redirect type struct returned by handler
-					code, _ := util.GetIntAttr(retStruct, "code")
+					code, err1 := util.GetIntAttr(retStruct, "code")
+					refresh, err2 := util.GetBoolAttr(retStruct, "refresh")
+					if err1 != nil || err2 != nil {
+						http.Error(w, "Invalid redirect response", http.StatusInternalServerError)
+					}
+
+					if refresh {
+						w.Header().Add("HX-Refresh", "true")
+					}
 					a.Trace().Msgf("Redirecting to %s with code %d", url, code)
 					http.Redirect(w, r, url, int(code))
 					return
@@ -247,6 +255,13 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 		return nil, true
 	}
 
+	redirect, err := util.GetStringAttr(retStruct, "redirect")
+	if err != nil {
+		a.Error().Err(err).Msg("error getting redirect from response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, true
+	}
+
 	templateValue, err := utils.UnmarshalStarlark(data)
 	if err != nil {
 		a.Error().Err(err).Msg("error converting response")
@@ -271,6 +286,9 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 	}
 	if reswap != "" {
 		w.Header().Add("HX-Reswap", reswap)
+	}
+	if redirect != "" {
+		w.Header().Add("HX-Redirect", redirect)
 	}
 
 	w.WriteHeader(int(code))
