@@ -152,10 +152,28 @@ func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Built
 	return utils.NewResponse(returnType), nil
 }
 
+type filterData struct {
+	data map[string]any
+}
+
+func (e *filterData) Unpack(value starlark.Value) error {
+	v, err := utils.UnmarshalStarlark(value)
+	if err != nil {
+		return err
+	}
+
+	if data, ok := v.(map[string]any); ok {
+		e.data = data
+		return nil
+	} else {
+		return fmt.Errorf("invalid filter, expected map[string]any, got %T", v)
+	}
+}
+
 func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var table string
 	var limit, offset starlark.Int
-	var filter *starlark.Dict
+	filter := filterData{data: make(map[string]any)}
 	var sort *starlark.List
 
 	if err := starlark.UnpackArgs("select", args, kwargs, "table", &table, "filter", &filter, "sort?", &sort, "offset?", &offset, "limit?", &limit); err != nil {
@@ -171,21 +189,8 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, fmt.Errorf("invalid offset value")
 	}
 
-	if filter == nil {
-		filter = starlark.NewDict(0)
-	}
 	if sort == nil {
 		sort = starlark.NewList([]starlark.Value{})
-	}
-
-	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
-	if err != nil {
-		return nil, err
-	}
-
-	filterMap, ok := filterUnmarshalled.(map[string]any)
-	if !ok {
-		return nil, errors.New("invalid filter")
 	}
 
 	sortList, err := util.GetStringList(sort)
@@ -193,7 +198,7 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, err
 	}
 
-	iterator, err := s.sqlStore.Select(table, filterMap, sortList, offsetVal, limitVal)
+	iterator, err := s.sqlStore.Select(table, filter.data, sortList, offsetVal, limitVal)
 	if err != nil {
 		return nil, err
 	}

@@ -91,6 +91,12 @@ def handler(req):
 	if select_one.value.aint != 100 or select_one.value.astring != "xyz":
 		return {"error": "Expected aint 100 astring xyz, got %d %s" % (select_one.value.aint, select_one.value.astring)}
 
+	select_multi = store.select(table.test1, {"$or": [{"aint": 100}, {"aint": 20}]})
+	if not select_multi:
+		return {"error": select_multi.error}
+	for row in select_multi.value:
+		break # Close result set
+
 	ret = store.select_by_id(table.test1, id)
 
 	select_result = store.select(table.test1, {})

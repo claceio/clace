@@ -136,6 +136,7 @@ func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
 	}
 
 	entry.CreatedAt = time.Now()
+	entry.UpdatedAt = entry.CreatedAt
 	entry.CreatedBy = "admin" // TODO update userid
 
 	var err error

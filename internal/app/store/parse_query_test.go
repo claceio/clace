@@ -53,7 +53,6 @@ func ParseMappedErrorTest(t *testing.T, query map[string]any, expected string) {
 	_, _, err := parseQuery(query, sqliteFieldMapper)
 	testutil.AssertErrorContains(t, err, expected)
 }
-
 func TestEqualityQueries(t *testing.T) {
 	ParseQueryTest(t, nil, "", nil)
 	ParseQueryTest(t, map[string]any{}, "", nil)

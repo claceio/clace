@@ -39,7 +39,7 @@ func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string)
 	p.Lock()
 	defer p.Unlock()
 
-	plugin, ok := p.plugins[pluginInfo.ModuleName]
+	plugin, ok := p.plugins[pluginInfo.PluginPath]
 	if ok {
 		// Already initialized, use that
 		return plugin, nil

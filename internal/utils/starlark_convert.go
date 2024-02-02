@@ -122,7 +122,85 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 			}
 			i++
 		}
-		val = value
+
+		allInt := true
+		allString := true
+		allMapStringString := true
+		allMapStringAny := true
+		allMap := true
+		for _, entry := range value {
+			switch entry.(type) {
+			case int:
+				allString = false
+				allMapStringString = false
+				allMapStringAny = false
+				allMap = false
+			case string:
+				allInt = false
+				allMapStringString = false
+				allMapStringAny = false
+				allMap = false
+			case map[string]string:
+				allInt = false
+				allString = false
+				allMapStringAny = false
+				allMap = false
+			case map[string]any:
+				allInt = false
+				allString = false
+				allMapStringString = false
+				allMap = false
+			case map[any]any:
+				allInt = false
+				allString = false
+				allMapStringString = false
+				allMapStringAny = false
+			default:
+				allInt = false
+				allString = false
+				allMapStringString = false
+				allMapStringAny = false
+				allMap = false
+			}
+
+			if !allInt && !allString && !allMapStringString && !allMapStringAny && !allMap {
+				break
+			}
+		}
+
+		if allInt {
+			ret := make([]int, len(value))
+			for i, v := range value {
+				ret[i] = v.(int)
+			}
+			val = ret
+		} else if allString {
+			ret := make([]string, len(value))
+			for i, v := range value {
+				ret[i] = v.(string)
+			}
+			val = ret
+		} else if allMapStringString {
+			ret := make([]map[string]string, len(value))
+			for i, v := range value {
+				ret[i] = v.(map[string]string)
+			}
+			val = ret
+		} else if allMapStringAny {
+			ret := make([]map[string]any, len(value))
+			for i, v := range value {
+				ret[i] = v.(map[string]any)
+			}
+			val = ret
+		} else if allMap {
+			ret := make([]map[any]any, len(value))
+			for i, v := range value {
+				ret[i] = v.(map[any]any)
+			}
+			val = ret
+		} else {
+			val = value
+		}
 	case starlark.Tuple:
 		var (
 			i        int
