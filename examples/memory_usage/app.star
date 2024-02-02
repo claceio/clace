@@ -7,14 +7,14 @@ MAX_TREE_DEPTH = 10
 
 def memory_handler(req):
     ret = exec.run("ps", ["-eo", "pid,ppid,rss,command"])
-    if ret.exit_code != 0:
-        print("Failed to run ps stderr " + ret.stderr + "code" + ret.error)
-        return {"Error": "ps failed with {error} : {stderr}".format(error=ret.error, stderr=ret.stderr)}
+    if not ret:
+        print("Failed to run ps stderr " + ret.error + "code" + ret.error)
+        return {"Error": "ps failed with {error} : {stderr}".format(error=ret.error_code, stderr=ret.error)}
 
     # Parse the results
     processes = []
     first_line = True
-    for line in ret.lines:
+    for line in ret.value:
         if first_line:
             first_line = False
             continue
