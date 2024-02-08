@@ -104,8 +104,22 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		requestData.Query = r.URL.Query()
 		requestData.PostForm = r.PostForm
 
+		var deferredCleanup func() error
 		var handlerResponse any = map[string]any{} // no handler means empty Data map is passed into template
 		if handler != nil {
+			deferredCleanup = func() error {
+				// Check for any deferred cleanups
+				err := runDeferredCleanup(thread)
+				if err != nil {
+					a.Error().Err(err).Msg("error cleaning up plugins")
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return err
+				}
+				return nil
+			}
+
+			defer deferredCleanup()
+
 			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
 			if err != nil {
 				a.Error().Err(err).Msg("error calling handler")
@@ -147,13 +161,16 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 						w.Header().Add("HX-Refresh", "true")
 					}
 					a.Trace().Msgf("Redirecting to %s with code %d", url, code)
+					if deferredCleanup() != nil {
+						return
+					}
 					http.Redirect(w, r, url, int(code))
 					return
 				}
 
 				// response type struct returned by handler Instead of template defined in
 				// the route, use the template specified in the response
-				err, done := a.handleResponse(retStruct, w, requestData, rtype)
+				err, done := a.handleResponse(retStruct, w, requestData, rtype, deferredCleanup)
 				if done {
 					return
 				}
@@ -166,6 +183,12 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			if err != nil {
 				a.Error().Err(err).Msg("error converting response")
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if deferredCleanup != nil {
+			if deferredCleanup() != nil {
 				return
 			}
 		}
@@ -209,7 +232,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 	return goHandler
 }
 
-func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request, rtype string) (error, bool) {
+func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWriter, requestData Request, rtype string, deferredCleanup func() error) (error, bool) {
 	templateBlock, err := util.GetStringAttr(retStruct, "block")
 	if err != nil {
 		return err, false
@@ -273,6 +296,9 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 	}
 
 	if strings.ToLower(responseRtype) == "json" {
+		if deferredCleanup() != nil {
+			return nil, true
+		}
 		// If the route type is JSON, then return the handler response as JSON
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(templateValue)
@@ -294,6 +320,9 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, w http.ResponseWr
 		w.Header().Add("HX-Redirect", redirect)
 	}
 
+	if deferredCleanup() != nil {
+		return nil, true
+	}
 	w.WriteHeader(int(code))
 	err = a.template.ExecuteTemplate(w, templateBlock, requestData)
 	if err != nil {

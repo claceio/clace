@@ -64,12 +64,15 @@ func (s *storePlugin) Begin(thread *starlark.Thread, builtin *starlark.Builtin, 
 		return nil, err
 	}
 	app.SavePluginState(thread, TRANSACTION_KEY, tx)
+	app.DeferCleanup(thread, fmt.Sprintf("transaction_%p", tx), tx.Rollback, false)
 	return utils.NewResponse(tx), nil
 }
 
 func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	ctx := app.GetContext(thread)
 	tx := fetchTransation(thread)
+
+	app.ClearCleanup(thread, fmt.Sprintf("transaction_%p", tx))
 	err := s.sqlStore.Commit(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -80,6 +83,8 @@ func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin,
 func (s *storePlugin) Rollback(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	ctx := app.GetContext(thread)
 	tx := fetchTransation(thread)
+
+	app.ClearCleanup(thread, fmt.Sprintf("transaction_%p", tx))
 	err := s.sqlStore.Rollback(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -245,7 +250,7 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, err
 	}
 
-	iterator, err := s.sqlStore.Select(app.GetContext(thread), fetchTransation(thread), table, filter.data, sortList, offsetVal, limitVal)
+	iterator, err := s.sqlStore.Select(app.GetContext(thread), fetchTransation(thread), thread, table, filter.data, sortList, offsetVal, limitVal)
 	if err != nil {
 		return nil, err
 	}

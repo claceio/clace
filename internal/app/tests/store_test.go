@@ -190,3 +190,196 @@ indexes=[
 		t.Errorf("Expected aint to be 20, got %f", rows[0].(map[string]any)["aint"].(float64))
 	}
 }
+
+func TestStoreTransaction(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("store.in", "store")
+
+def create(req):
+	store.begin()
+
+	store.delete(table.mytype, {}) # clear all
+
+	myt = doc.mytype(c1=10, c2="abc")
+
+	ret = store.insert(table.mytype, myt)
+	if not ret:
+		return {"error": ret.error}
+
+	store.commit()
+	return {"id": ret.value}
+
+def count(req):
+	ret = store.count(table.mytype, {})
+	if not ret:
+		return {"error": ret.error}
+	return {"count": ret.value}
+
+def create_no_commit(req):
+	store.begin()
+	myt = doc.mytype(c1=20, c2="def")
+
+	ret = store.insert(table.mytype, myt)
+	if not ret:
+		return {"error": ret.error}
+
+	return {}
+
+def select(req):
+	ret = store.select_one(table.mytype, {})
+	if not ret:
+		return {"error": ret.error}
+
+	return ret.value
+
+def create_rollback(req):
+	store.begin()
+	myt = doc.mytype(c1=20, c2="def")
+
+	ret = store.insert(table.mytype, myt)
+	if not ret:
+		return {"error": ret.error}
+	store.rollback()
+
+	return {}
+
+def select_leak(req):
+	ret = store.select(table.mytype, {})
+	if not ret:
+		return {"error": ret.error}
+
+	# Not accessing the cursor
+	return {}
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [ace.page("/create", type="json", handler=create),
+			ace.page("/select", type="json", handler=select),
+			ace.page("/count", type="json", handler=count),
+			ace.page("/create_no_commit", type="json", handler=create_no_commit),
+			ace.page("/create_rollback", type="json", handler=create_rollback),
+			ace.page("/select_leak", type="json", handler=select_leak)],
+	permissions=[
+		ace.permission("store.in", "insert"),
+		ace.permission("store.in", "begin"),
+		ace.permission("store.in", "commit"),
+		ace.permission("store.in", "collback"),
+		ace.permission("store.in", "select"),
+		ace.permission("store.in", "delete"),
+		ace.permission("store.in", "count"),
+		ace.permission("store.in", "select_one"),
+	]
+)`,
+
+		"schema.star": `
+type("mytype", fields=[
+    field("c1", INT),
+    field("c2", STRING),
+])`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"store.in"},
+		[]utils.Permission{
+			{Plugin: "store.in", Method: "insert"},
+			{Plugin: "store.in", Method: "begin"},
+			{Plugin: "store.in", Method: "commit"},
+			{Plugin: "store.in", Method: "rollback"},
+			{Plugin: "store.in", Method: "select"},
+			{Plugin: "store.in", Method: "delete"},
+			{Plugin: "store.in", Method: "count"},
+			{Plugin: "store.in", Method: "select_one"},
+		}, map[string]utils.PluginSettings{
+			"store.in": {
+				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
+			},
+		})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/create", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret := make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	id := ret["id"]
+	if id.(float64) <= 0 {
+		t.Errorf("Expected _id to be > 0, got %f", id)
+	}
+
+	request = httptest.NewRequest("GET", "/test/select", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	fmt.Printf("ret %v\n", ret)
+	testutil.AssertEqualsString(t, "c2", "abc", ret["c2"].(string))
+	fmt.Printf("ret %v\n", ret)
+
+	// Create without commit
+	request = httptest.NewRequest("GET", "/test/create_no_commit", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	// Get count
+	request = httptest.NewRequest("GET", "/test/count", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	// Count should be 1
+	testutil.AssertEqualsInt(t, "count", 1, int(ret["count"].(float64)))
+
+	// Create roll back
+	request = httptest.NewRequest("GET", "/test/create_rollback", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	// Get count
+	request = httptest.NewRequest("GET", "/test/count", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	// Count should be 1
+	testutil.AssertEqualsInt(t, "count", 1, int(ret["count"].(float64)))
+
+	// Select with leak
+	request = httptest.NewRequest("GET", "/test/select_leak", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "resource has not be closed, check handler code: store.in:rows_cursor")
+}

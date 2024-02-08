@@ -133,7 +133,7 @@ type Store interface {
 	SelectOne(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (*Entry, error)
 
 	// Select returns the entries matching the filter
-	Select(ctx context.Context, tx *sql.Tx, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
+	Select(ctx context.Context, tx *sql.Tx, thread *starlark.Thread, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
 
 	// Count returns the count of entries matching the filter
 	Count(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error)

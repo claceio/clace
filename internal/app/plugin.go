@@ -30,6 +30,7 @@ const (
 
 const (
 	TL_CONTEXT                  = "TL_context"
+	TL_DEFER_MAP                = "TL_defer_map"
 	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
 )
 
@@ -170,21 +171,75 @@ type DeferEntry struct {
 	Strict bool
 }
 
-// DeferPluginClose defers a close function to call when the API handler is done
-func DeferPluginClose(thread *starlark.Thread, deferFunc DeferFunc, strict bool) {
+// DeferCleanup defers a close function to call when the API handler is done
+func DeferCleanup(thread *starlark.Thread, key string, deferFunc DeferFunc, strict bool) {
 	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
 	if pluginName == nil {
 		panic(fmt.Errorf("plugin name not found in thread local"))
 	}
 
-	deferKey := fmt.Sprintf("defer_%s", pluginName)
-	deferList := thread.Local(deferKey)
-	if deferList == nil {
-		deferList = make([]DeferEntry, 0, 1)
+	deferMap := thread.Local(TL_DEFER_MAP)
+	if deferMap == nil {
+		deferMap = map[string]map[string]DeferEntry{}
 	}
 
-	deferList = append(deferList.([]DeferEntry), DeferEntry{Func: deferFunc, Strict: strict})
-	thread.SetLocal(deferKey, deferList)
+	pluginMap := deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)]
+	if pluginMap == nil {
+		pluginMap = map[string]DeferEntry{}
+	}
+
+	pluginMap[key] = DeferEntry{Func: deferFunc, Strict: strict}
+	deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)] = pluginMap
+	thread.SetLocal(TL_DEFER_MAP, deferMap)
+}
+
+// ClearCleanup clears a defer function from the thread local
+func ClearCleanup(thread *starlark.Thread, key string) {
+	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	if pluginName == nil {
+		panic(fmt.Errorf("plugin name not found in thread local"))
+	}
+
+	deferMap := thread.Local(TL_DEFER_MAP)
+	if deferMap == nil {
+		return
+	}
+
+	pluginMap := deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)]
+	if pluginMap == nil {
+		return
+	}
+
+	delete(pluginMap, key)
+	deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)] = pluginMap
+	thread.SetLocal(TL_DEFER_MAP, deferMap)
+}
+
+func runDeferredCleanup(thread *starlark.Thread) error {
+	deferMap := thread.Local(TL_DEFER_MAP)
+	if deferMap == nil {
+		return nil
+	}
+
+	strictFailures := []string{}
+	for pluginName, pluginMap := range deferMap.(map[string]map[string]DeferEntry) {
+		for key, entry := range pluginMap {
+			err := entry.Func()
+			if err != nil {
+				fmt.Printf("error cleaning up %s %s: %s\n", pluginName, key, err)
+			}
+			if entry.Strict {
+				strictFailures = append(strictFailures, fmt.Sprintf("%s:%s", pluginName, key))
+			}
+		}
+	}
+
+	thread.SetLocal(TL_DEFER_MAP, nil) // reset the defer map
+
+	if len(strictFailures) > 0 {
+		return fmt.Errorf("resource has not be closed, check handler code: %s", strings.Join(strictFailures, ", "))
+	}
+	return nil
 }
 
 // loader is the starlark loader function

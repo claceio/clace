@@ -9,18 +9,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 )
 
 type StoreEntryIterable struct {
+	thread *starlark.Thread
 	*utils.Logger
 	table string
 	rows  *sql.Rows
 }
 
-func NewStoreEntryIterabe(logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterable {
+func NewStoreEntryIterabe(thread *starlark.Thread, logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterable {
 	return &StoreEntryIterable{
+		thread: thread,
 		Logger: logger,
 		table:  table,
 		rows:   rows,
@@ -30,7 +33,7 @@ func NewStoreEntryIterabe(logger *utils.Logger, table string, rows *sql.Rows) *S
 var _ starlark.Iterable = (*StoreEntryIterable)(nil)
 
 func (s *StoreEntryIterable) Iterate() starlark.Iterator {
-	return NewStoreEntryIterator(s.Logger, s.table, s.rows)
+	return NewStoreEntryIterator(s.thread, s.Logger, s.table, s.rows)
 }
 
 func (s *StoreEntryIterable) String() string {
@@ -54,6 +57,7 @@ func (s *StoreEntryIterable) Hash() (uint32, error) {
 }
 
 type StoreEntryIterator struct {
+	thread *starlark.Thread
 	*utils.Logger
 	table string
 	rows  *sql.Rows
@@ -61,8 +65,9 @@ type StoreEntryIterator struct {
 
 var _ starlark.Iterator = (*StoreEntryIterator)(nil)
 
-func NewStoreEntryIterator(logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterator {
+func NewStoreEntryIterator(thread *starlark.Thread, logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterator {
 	return &StoreEntryIterator{
+		thread: thread,
 		Logger: logger,
 		table:  table,
 		rows:   rows,
@@ -111,6 +116,8 @@ func (i *StoreEntryIterator) Next(value *starlark.Value) bool {
 }
 
 func (i *StoreEntryIterator) Done() {
+	// Clear the deferred cleanup function, since Close is called here
+	app.ClearCleanup(i.thread, fmt.Sprintf("rows_cursor_%p", i.rows))
 	closeErr := i.rows.Close()
 	if closeErr != nil {
 		i.Error().Err(fmt.Errorf("error closing rows: %w", closeErr))

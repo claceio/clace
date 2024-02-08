@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 
@@ -288,7 +289,7 @@ func (s *SqlStore) SelectOne(ctx context.Context, tx *sql.Tx, table string, filt
 }
 
 // Select returns the entries matching the filter
-func (s *SqlStore) Select(ctx context.Context, tx *sql.Tx, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
+func (s *SqlStore) Select(ctx context.Context, tx *sql.Tx, thread *starlark.Thread, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
@@ -342,11 +343,13 @@ func (s *SqlStore) Select(ctx context.Context, tx *sql.Tx, table string, filter 
 		rows, err = s.db.Query(query, params...)
 	}
 
+	app.DeferCleanup(thread, fmt.Sprintf("rows_cursor_%p", rows), rows.Close, true)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return NewStoreEntryIterabe(s.Logger, table, rows), nil
+	return NewStoreEntryIterabe(thread, s.Logger, table, rows), nil
 }
 
 // Count returns the number of entries matching the filter
