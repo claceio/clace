@@ -19,6 +19,11 @@ const (
 	DRY_RUN_FLAG    = "dry-run"
 	DRY_RUN_ARG     = "dryRun"
 	DRY_RUN_MESSAGE = "\n*** dry-run mode, changes have NOT been committed. ***\n"
+	PATH_SPEC_HELP  = `The domain and path are separated by a ":". pathSpec supports a glob pattern.
+In the glob, * matches any number of characters, ** matches any number of characters including /.
+all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
+To prevent shell expansion for *, placing the path in quotes is recommended.
+`
 )
 
 func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
@@ -139,11 +144,9 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 		ArgsUsage: "<pathSpec>",
 		UsageText: `args: <pathSpec>
 
-<pathSpec> defaults to "*:**" (same as "all", without quotes) for the list command, which matches all apps across all domains, including no domain.
-The domain and path are separated by a ":". pathSpec supports a glob pattern.
-In the glob, * matches any number of characters, ** matches any number of characters including /.
-To prevent shell expansion for *, placing the path in quotes is recommended.
-
+<pathSpec> defaults to "*:**" (same as "all") for the list command.
+` + PATH_SPEC_HELP +
+			`
 Examples:
   List all apps, across domains: clace app list
   List apps at the lop level with no domain specified: clace app list "*"
@@ -266,10 +269,7 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 
 		UsageText: `args: <pathSpec>
 
-<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-In the glob, * matches any number of characters, ** matches any number of characters including /.
-all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-To prevent shell expansion for *, placing the path in quotes is recommended.
+<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
 
 Examples:
   Delete all apps, across domains, in dry-run mode: clace app delete --dry-run all
@@ -318,10 +318,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 
 		UsageText: `args: <pathSpec>
 
-	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
+	<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Approve all apps, across domains: clace app approve all
@@ -384,11 +381,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 
 		UsageText: `args: <pathSpec>
 
-	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
+<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
 	Dev apps are reloaded from disk. For prod apps, the stage app is reloaded from git (or from local disk if git is not used).
 	If --approve option is specified, the app permissions are audited and approved. If --approve is not specified and the app needs additional
 	permissions, the reload will fail. If --promote is specified, the stage app is promoted to prod after reload. If --promote is not specified,
@@ -483,10 +476,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 		ArgsUsage: "<pathSpec>",
 		UsageText: `args: <pathSpec>
 
-	<pathSpec> is a required argument. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
+<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Promote all apps, across domains: clace app promote all

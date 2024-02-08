@@ -434,7 +434,11 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 		}
 
 		if updateAppRequest.GitAuthName != utils.StringValueUndefined {
-			linkedApp.Settings.GitAuthName = string(updateAppRequest.GitAuthName)
+			if updateAppRequest.GitAuthName == "-" {
+				linkedApp.Settings.GitAuthName = ""
+			} else {
+				linkedApp.Settings.GitAuthName = string(updateAppRequest.GitAuthName)
+			}
 		}
 
 		if err := s.db.UpdateAppSettings(ctx, tx, linkedApp); err != nil {

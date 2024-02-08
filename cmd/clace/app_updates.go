@@ -40,11 +40,7 @@ func appUpdateStageWrite(commonFlags []cli.Flag, clientConfig *utils.ClientConfi
 
 		UsageText: `args: <pathSpec> <value:true|false>
 
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
+First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	The second required argument <value> is a boolean value, true or false.
 
 	Examples:
@@ -106,11 +102,7 @@ func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *utils.ClientCon
 
 		UsageText: `args: <pathSpec> <value:true|false>
 
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
+First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	The second required argument <value> is a boolean value, true or false.
 
 	Examples:
@@ -172,12 +164,8 @@ func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 
 		UsageText: `args: <pathSpec> <value:default|none>
 
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a string, default or none.
+First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
+The second required argument <value> is a string, default or none.
 
 	Examples:
 	  Update all apps, across domains: clace app update auth-type all default
@@ -227,14 +215,11 @@ func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec> <value>",
 
-		UsageText: `args: <pathSpec> <value:default|none>
+		UsageText: `args: <pathSpec> <entryName>
 
-	First required argument is <pathSpec>. The domain and path are separated by a ":". pathSpec supports a glob pattern.
-	In the glob, * matches any number of characters, ** matches any number of characters including /.
-	all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
-	To prevent shell expansion for *, placing the path in quotes is recommended.
-
-	The second required argument <value> is a string. Specify the git_auth entry key name as configured in the clace.toml config.
+First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
+The second required argument <entryName> is a string. Specify the git_auth entry key name as configured in the clace.toml config.
+Set to "-" to remove the git_auth entry.
 
 	Examples:
 	  Update all apps, across domains: clace app update git-auth all mygit
@@ -242,7 +227,7 @@ func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two argument: <pathSpec> <entryName>")
 			}
 
 			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
