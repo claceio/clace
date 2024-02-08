@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -25,6 +26,11 @@ const (
 	READ PluginFunctionType = iota
 	WRITE
 	READ_WRITE
+)
+
+const (
+	TL_CONTEXT                  = "TL_context"
+	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
 )
 
 var (
@@ -126,6 +132,59 @@ func CreatePluginApiName(
 		IsRead:       opType == READ,
 		FunctionName: funcName,
 	}
+}
+
+func GetContext(thread *starlark.Thread) context.Context {
+	c := thread.Local(TL_CONTEXT)
+	if c == nil {
+		return nil
+	}
+	return c.(context.Context)
+}
+
+// SavePluginState saves a value in the thread local for the plugin
+func SavePluginState(thread *starlark.Thread, key string, value any) {
+	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	if pluginName == nil {
+		panic(fmt.Errorf("plugin name not found in thread local"))
+	}
+
+	keyName := fmt.Sprintf("%s_%s", pluginName, key)
+	thread.SetLocal(keyName, value)
+}
+
+// FetchPluginState fetches a value from the thread local for the plugin
+func FetchPluginState(thread *starlark.Thread, key string) any {
+	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	if pluginName == nil {
+		panic(fmt.Errorf("plugin name not found in thread local"))
+	}
+
+	keyName := fmt.Sprintf("%s_%s", pluginName, key)
+	return thread.Local(keyName)
+}
+
+type DeferFunc func() error
+type DeferEntry struct {
+	Func   DeferFunc
+	Strict bool
+}
+
+// DeferPluginClose defers a close function to call when the API handler is done
+func DeferPluginClose(thread *starlark.Thread, deferFunc DeferFunc, strict bool) {
+	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	if pluginName == nil {
+		panic(fmt.Errorf("plugin name not found in thread local"))
+	}
+
+	deferKey := fmt.Sprintf("defer_%s", pluginName)
+	deferList := thread.Local(deferKey)
+	if deferList == nil {
+		deferList = make([]DeferEntry, 0, 1)
+	}
+
+	deferList = append(deferList.([]DeferEntry), DeferEntry{Func: deferFunc, Strict: strict})
+	thread.SetLocal(deferKey, deferList)
 }
 
 // loader is the starlark loader function
@@ -269,6 +328,9 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 
 		// Wrap the plugin function call with error handling
 		errorHandlingWrapper := pluginErrorWrapper(builtinFunc)
+
+		// Pass the module full path as a thread local
+		thread.SetLocal(TL_CURRENT_MODULE_FULL_PATH, modulePath)
 
 		// Call the builtin function
 		newBuiltin := starlark.NewBuiltin(functionName, errorHandlingWrapper)

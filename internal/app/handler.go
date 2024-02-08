@@ -54,6 +54,9 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 		}
 
+		// Save the request context in the starlark thread local
+		thread.SetLocal(TL_CONTEXT, r.Context())
+
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
 
 		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&

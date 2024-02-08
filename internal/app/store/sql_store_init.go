@@ -4,6 +4,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -14,7 +15,7 @@ import (
 	"github.com/claceio/clace/internal/utils"
 )
 
-func (s *SqlStore) initStore() error {
+func (s *SqlStore) initStore(ctx context.Context) error {
 	if s.pluginContext.StoreInfo == nil {
 		return fmt.Errorf("store info not found")
 	}
@@ -53,7 +54,7 @@ func (s *SqlStore) initStore() error {
 		}
 
 		createStmt := "CREATE TABLE IF NOT EXISTS " + table + " (_id " + autoKey + ", _version INTEGER, _created_by TEXT, _updated_by TEXT, _created_at INTEGER, _updated_at INTEGER, _json JSON)"
-		_, err = s.db.Exec(createStmt)
+		_, err = s.db.ExecContext(ctx, createStmt)
 		if err != nil {
 			return fmt.Errorf("error creating table %s: %w", table, err)
 		}
@@ -68,7 +69,7 @@ func (s *SqlStore) initStore() error {
 					return err
 				}
 
-				_, err = s.db.Exec(indexStmt)
+				_, err = s.db.ExecContext(ctx, indexStmt)
 				s.Trace().Msgf("indexStmt: %s", indexStmt)
 				if err != nil {
 					return fmt.Errorf("error creating index on %s: %w", unquotedTable, err)
@@ -77,14 +78,14 @@ func (s *SqlStore) initStore() error {
 		}
 	}
 
-	if err := s.createSchemaInfo(); err != nil {
+	if err := s.createSchemaInfo(ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *SqlStore) createSchemaInfo() error {
+func (s *SqlStore) createSchemaInfo(ctx context.Context) error {
 	autoKey := "INTEGER PRIMARY KEY AUTOINCREMENT"
 	if !s.isSqlite {
 		autoKey = "SERIAL PRIMARY KEY"
@@ -100,7 +101,7 @@ func (s *SqlStore) createSchemaInfo() error {
 	statusQuery := "select schema_etag from " + schemaTable + " order by version desc limit 1"
 
 	var schemaEtag string
-	err = s.db.QueryRow(statusQuery).Scan(&schemaEtag)
+	err = s.db.QueryRowContext(ctx, statusQuery).Scan(&schemaEtag)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return fmt.Errorf("error querying table %s: %w", schemaTable, err)
@@ -120,7 +121,7 @@ func (s *SqlStore) createSchemaInfo() error {
 	userId := "admin"
 	insertStmt := "insert into " + schemaTable + " (created_by, updated_by, created_at, updated_at, main_app, schema_data, schema_etag) values (?, ?, ?, ?, ?, ?, ?)"
 
-	_, err = s.db.Exec(insertStmt, userId, userId, currentTime, currentTime, s.pluginContext.AppId, s.pluginContext.StoreInfo.Bytes, hashHex)
+	_, err = s.db.ExecContext(ctx, insertStmt, userId, userId, currentTime, currentTime, s.pluginContext.AppId, s.pluginContext.StoreInfo.Bytes, hashHex)
 	if err != nil {
 		return fmt.Errorf("error inserting into table %s: %w", schemaTable, err)
 	}

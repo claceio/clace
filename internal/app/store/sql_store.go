@@ -5,6 +5,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -102,7 +103,7 @@ func (s *SqlStore) genTableName(table string) (string, error) {
 	return fmt.Sprintf("'%s_%s'", s.prefix, table), nil
 }
 
-func (s *SqlStore) initialize() error {
+func (s *SqlStore) initialize(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -111,7 +112,7 @@ func (s *SqlStore) initialize() error {
 		return nil
 	}
 
-	if err := s.initStore(); err != nil {
+	if err := s.initStore(ctx); err != nil {
 		return err
 	}
 	s.isInitialized = true
@@ -129,9 +130,30 @@ func checkConnectString(connStr string) (string, error) {
 	return os.ExpandEnv(parts[1]), nil
 }
 
+func (s *SqlStore) Begin(ctx context.Context) (*sql.Tx, error) {
+	if err := s.initialize(ctx); err != nil {
+		return nil, err
+	}
+	return s.db.BeginTx(ctx, nil)
+}
+
+func (s *SqlStore) Commit(ctx context.Context, tx *sql.Tx) error {
+	if err := s.initialize(ctx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *SqlStore) Rollback(ctx context.Context, tx *sql.Tx) error {
+	if err := s.initialize(ctx); err != nil {
+		return err
+	}
+	return tx.Rollback()
+}
+
 // Insert a new entry in the store
-func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) Insert(ctx context.Context, tx *sql.Tx, table string, entry *Entry) (EntryId, error) {
+	if err := s.initialize(ctx); err != nil {
 		return -1, err
 	}
 
@@ -151,7 +173,13 @@ func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
 	}
 
 	createStmt := "INSERT INTO " + table + " (_version, _created_by, _updated_by, _created_at, _updated_at, _json) VALUES (?, ?, ?, ?, ?, ?)"
-	result, err := s.db.Exec(createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.UnixMilli(), entry.UpdatedAt.UnixMilli(), dataJson)
+	var result sql.Result
+	if tx != nil {
+		result, err = tx.ExecContext(ctx, createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.UnixMilli(), entry.UpdatedAt.UnixMilli(), dataJson)
+	} else {
+		result, err = s.db.ExecContext(ctx, createStmt, entry.Version, entry.CreatedBy, entry.UpdatedBy, entry.CreatedAt.UnixMilli(), entry.UpdatedAt.UnixMilli(), dataJson)
+
+	}
 	if err != nil {
 		return -1, err
 	}
@@ -164,8 +192,8 @@ func (s *SqlStore) Insert(table string, entry *Entry) (EntryId, error) {
 }
 
 // SelectById returns a single item from the store
-func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) SelectById(ctx context.Context, tx *sql.Tx, table string, id EntryId) (*Entry, error) {
+	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -176,7 +204,12 @@ func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
 	}
 
 	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + " WHERE _id = ?"
-	row := s.db.QueryRow(query, id)
+	var row *sql.Row
+	if tx != nil {
+		row = tx.QueryRowContext(ctx, query, id)
+	} else {
+		row = s.db.QueryRowContext(ctx, query, id)
+	}
 
 	entry := &Entry{}
 	var dataStr string
@@ -201,8 +234,8 @@ func (s *SqlStore) SelectById(table string, id EntryId) (*Entry, error) {
 }
 
 // SelectOne returns a single item from the store
-func (s *SqlStore) SelectOne(table string, filter map[string]any) (*Entry, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) SelectOne(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (*Entry, error) {
+	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -223,7 +256,13 @@ func (s *SqlStore) SelectOne(table string, filter map[string]any) (*Entry, error
 	}
 
 	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr
-	row := s.db.QueryRow(query, params...)
+
+	var row *sql.Row
+	if tx != nil {
+		row = tx.QueryRow(query, params...)
+	} else {
+		row = s.db.QueryRow(query, params...)
+	}
 
 	entry := &Entry{}
 	var dataStr string
@@ -249,8 +288,8 @@ func (s *SqlStore) SelectOne(table string, filter map[string]any) (*Entry, error
 }
 
 // Select returns the entries matching the filter
-func (s *SqlStore) Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) Select(ctx context.Context, tx *sql.Tx, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error) {
+	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
@@ -295,7 +334,13 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 
 	query := "SELECT _id, _version, _created_by, _updated_by, _created_at, _updated_at, _json FROM " + table + whereStr + sortStr + limitOffsetStr
 	s.Trace().Msgf("query: %s, params: %#v", query, params)
-	rows, err := s.db.Query(query, params...)
+
+	var rows *sql.Rows
+	if tx != nil {
+		rows, err = tx.Query(query, params...)
+	} else {
+		rows, err = s.db.Query(query, params...)
+	}
 
 	if err != nil {
 		return nil, err
@@ -305,8 +350,8 @@ func (s *SqlStore) Select(table string, filter map[string]any, sort []string, of
 }
 
 // Count returns the number of entries matching the filter
-func (s *SqlStore) Count(table string, filter map[string]any) (int64, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) Count(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error) {
+	if err := s.initialize(ctx); err != nil {
 		return -1, err
 	}
 
@@ -328,7 +373,13 @@ func (s *SqlStore) Count(table string, filter map[string]any) (int64, error) {
 
 	query := "SELECT count(_id) FROM " + table + whereStr
 	s.Trace().Msgf("query: %s, params: %#v", query, params)
-	row := s.db.QueryRow(query, params...)
+
+	var row *sql.Row
+	if tx != nil {
+		row = tx.QueryRow(query, params...)
+	} else {
+		row = s.db.QueryRowContext(ctx, query, params...)
+	}
 
 	var count int64
 	err = row.Scan(&count)
@@ -340,8 +391,8 @@ func (s *SqlStore) Count(table string, filter map[string]any) (int64, error) {
 }
 
 // Update an existing entry in the store
-func (s *SqlStore) Update(table string, entry *Entry) (int64, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) Update(ctx context.Context, tx *sql.Tx, table string, entry *Entry) (int64, error) {
+	if err := s.initialize(ctx); err != nil {
 		return 0, err
 	}
 
@@ -361,7 +412,13 @@ func (s *SqlStore) Update(table string, entry *Entry) (int64, error) {
 
 	updateStmt := "UPDATE " + table + " set _version = ?, _updated_by = ?, _updated_at = ?, _json = ? where _id = ? and _updated_at = ?"
 	s.Trace().Msgf("query: %s, id: %d updated_at %d", updateStmt, entry.Id, origUpdateAt.UnixMilli())
-	result, err := s.db.Exec(updateStmt, entry.Version, entry.UpdatedBy, entry.UpdatedAt.UnixMilli(), dataJson, entry.Id, origUpdateAt.UnixMilli())
+
+	var result sql.Result
+	if tx != nil {
+		result, err = tx.Exec(updateStmt, entry.Version, entry.UpdatedBy, entry.UpdatedAt.UnixMilli(), dataJson, entry.Id, origUpdateAt.UnixMilli())
+	} else {
+		result, err = s.db.ExecContext(ctx, updateStmt, entry.Version, entry.UpdatedBy, entry.UpdatedAt.UnixMilli(), dataJson, entry.Id, origUpdateAt.UnixMilli())
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -378,8 +435,8 @@ func (s *SqlStore) Update(table string, entry *Entry) (int64, error) {
 }
 
 // DeleteById an entry from the store by id
-func (s *SqlStore) DeleteById(table string, id EntryId) (int64, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) DeleteById(ctx context.Context, tx *sql.Tx, table string, id EntryId) (int64, error) {
+	if err := s.initialize(ctx); err != nil {
 		return 0, err
 	}
 
@@ -389,7 +446,13 @@ func (s *SqlStore) DeleteById(table string, id EntryId) (int64, error) {
 	}
 
 	deleteStmt := "DELETE from " + table + " where _id = ?"
-	result, err := s.db.Exec(deleteStmt, id)
+
+	var result sql.Result
+	if tx != nil {
+		result, err = tx.Exec(deleteStmt, id)
+	} else {
+		result, err = s.db.ExecContext(ctx, deleteStmt, id)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -407,8 +470,8 @@ func (s *SqlStore) DeleteById(table string, id EntryId) (int64, error) {
 }
 
 // Delete entries from the store matching the filter
-func (s *SqlStore) Delete(table string, filter map[string]any) (int64, error) {
-	if err := s.initialize(); err != nil {
+func (s *SqlStore) Delete(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error) {
+	if err := s.initialize(ctx); err != nil {
 		return 0, err
 	}
 
@@ -428,7 +491,13 @@ func (s *SqlStore) Delete(table string, filter map[string]any) (int64, error) {
 	}
 
 	deleteStmt := "DELETE FROM " + table + whereStr
-	result, err := s.db.Exec(deleteStmt, params...)
+
+	var result sql.Result
+	if tx != nil {
+		result, err = tx.Exec(deleteStmt, params...)
+	} else {
+		result, err = s.db.ExecContext(ctx, deleteStmt, params...)
+	}
 	if err != nil {
 		return 0, err
 	}

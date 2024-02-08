@@ -4,6 +4,7 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -13,9 +14,17 @@ import (
 	"go.starlark.net/starlark"
 )
 
+const (
+	TRANSACTION_KEY = "transaction"
+)
+
 func init() {
 	h := &storePlugin{}
 	pluginFuncs := []utils.PluginFunc{
+		app.CreatePluginApi(h.Begin, app.READ),
+		app.CreatePluginApi(h.Commit, app.WRITE),
+		app.CreatePluginApi(h.Rollback, app.READ),
+
 		app.CreatePluginApiName(h.SelectById, app.READ, "select_by_id"),
 		app.CreatePluginApi(h.Select, app.READ),
 		app.CreatePluginApiName(h.SelectOne, app.READ, "select_one"),
@@ -40,6 +49,44 @@ func NewStorePlugin(pluginContext *utils.PluginContext) (any, error) {
 	}, err
 }
 
+func fetchTransation(thread *starlark.Thread) *sql.Tx {
+	tx := app.FetchPluginState(thread, TRANSACTION_KEY)
+	if tx == nil {
+		return nil
+	}
+	return tx.(*sql.Tx)
+}
+
+func (s *storePlugin) Begin(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	ctx := app.GetContext(thread)
+	tx, err := s.sqlStore.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	app.SavePluginState(thread, TRANSACTION_KEY, tx)
+	return utils.NewResponse(tx), nil
+}
+
+func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	ctx := app.GetContext(thread)
+	tx := fetchTransation(thread)
+	err := s.sqlStore.Commit(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewResponse(tx), nil
+}
+
+func (s *storePlugin) Rollback(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	ctx := app.GetContext(thread)
+	tx := fetchTransation(thread)
+	err := s.sqlStore.Rollback(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewResponse(tx), nil
+}
+
 func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var table string
 	var entry Entry
@@ -48,7 +95,7 @@ func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, err
 	}
 
-	id, err := s.sqlStore.Insert(table, &entry)
+	id, err := s.sqlStore.Insert(app.GetContext(thread), fetchTransation(thread), table, &entry)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +116,7 @@ func (s *storePlugin) SelectById(thread *starlark.Thread, builtin *starlark.Buil
 		return nil, fmt.Errorf("invalid id value")
 	}
 
-	entry, err := s.sqlStore.SelectById(table, EntryId(idVal))
+	entry, err := s.sqlStore.SelectById(app.GetContext(thread), fetchTransation(thread), table, EntryId(idVal))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +136,7 @@ func (s *storePlugin) Update(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, err
 	}
 
-	success, err := s.sqlStore.Update(table, &entry)
+	success, err := s.sqlStore.Update(app.GetContext(thread), fetchTransation(thread), table, &entry)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +157,7 @@ func (s *storePlugin) DeleteById(thread *starlark.Thread, builtin *starlark.Buil
 		return nil, fmt.Errorf("invalid id value")
 	}
 
-	rows, err := s.sqlStore.DeleteById(table, EntryId(idVal))
+	rows, err := s.sqlStore.DeleteById(app.GetContext(thread), fetchTransation(thread), table, EntryId(idVal))
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +186,7 @@ func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Built
 		return nil, errors.New("invalid filter")
 	}
 
-	entry, err := s.sqlStore.SelectOne(table, filterMap)
+	entry, err := s.sqlStore.SelectOne(app.GetContext(thread), fetchTransation(thread), table, filterMap)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +245,7 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, err
 	}
 
-	iterator, err := s.sqlStore.Select(table, filter.data, sortList, offsetVal, limitVal)
+	iterator, err := s.sqlStore.Select(app.GetContext(thread), fetchTransation(thread), table, filter.data, sortList, offsetVal, limitVal)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +274,7 @@ func (s *storePlugin) Count(thread *starlark.Thread, builtin *starlark.Builtin, 
 		return nil, errors.New("invalid filter")
 	}
 
-	count, err := s.sqlStore.Count(table, filterMap)
+	count, err := s.sqlStore.Count(app.GetContext(thread), fetchTransation(thread), table, filterMap)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +303,7 @@ func (s *storePlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin,
 		return nil, errors.New("invalid filter")
 	}
 
-	rows, err := s.sqlStore.Delete(table, filterMap)
+	rows, err := s.sqlStore.Delete(app.GetContext(thread), fetchTransation(thread), table, filterMap)
 	if err != nil {
 		return nil, err
 	}

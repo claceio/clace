@@ -4,6 +4,8 @@
 package store
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -112,29 +114,38 @@ func (e *Entry) Unpack(value starlark.Value) error {
 
 // Store is the interface for a Clace document store. These API are exposed by the db plugin
 type Store interface {
+	// Begin starts a new transaction
+	Begin(ctx context.Context) (*sql.Tx, error)
+
+	// Commit commits a transaction
+	Commit(ctx context.Context, tx *sql.Tx) error
+
+	// Rollback rolls back a transaction
+	Rollback(ctx context.Context, tx *sql.Tx) error
+
 	// Insert a new entry in the store
-	Insert(table string, Entry *Entry) (EntryId, error)
+	Insert(ctx context.Context, tx *sql.Tx, table string, Entry *Entry) (EntryId, error)
 
 	// SelectById returns a single item from the store
-	SelectById(table string, id EntryId) (*Entry, error)
+	SelectById(ctx context.Context, tx *sql.Tx, table string, id EntryId) (*Entry, error)
 
 	// SelectOne returns a single item from the store
-	SelectOne(table string, filter map[string]any) (*Entry, error)
+	SelectOne(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (*Entry, error)
 
 	// Select returns the entries matching the filter
-	Select(table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
+	Select(ctx context.Context, tx *sql.Tx, table string, filter map[string]any, sort []string, offset, limit int64) (starlark.Iterable, error)
 
 	// Count returns the count of entries matching the filter
-	Count(table string, filter map[string]any) (int64, error)
+	Count(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error)
 
 	// Update an existing entry in the store
-	Update(table string, Entry *Entry) (int64, error)
+	Update(ctx context.Context, tx *sql.Tx, table string, Entry *Entry) (int64, error)
 
 	// DeleteById an entry from the store by id
-	DeleteById(table string, id EntryId) (int64, error)
+	DeleteById(ctx context.Context, tx *sql.Tx, table string, id EntryId) (int64, error)
 
 	// Delete entries from the store matching the filter
-	Delete(table string, filter map[string]any) (int64, error)
+	Delete(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error)
 }
 
 func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
