@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 
@@ -215,15 +216,59 @@ func (a *App) initRouter() error {
 	staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
 	router.Handle(staticPattern, http.StripPrefix(a.Path, util.FileServer(a.sourceFS)))
 
+	err = a.addStaticRoot(router)
+	if err != nil {
+		return fmt.Errorf("error adding static root : %w ", err)
+	}
+
 	a.appRouter = chi.NewRouter()
 	a.Trace().Msgf("Mounting app %s at %s", a.Name, a.Path)
 	a.appRouter.Mount(a.Path, router)
 
-	chi.Walk(a.appRouter, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		//a.Trace().Msgf("Routes: %s %s\n", method, route)
-		return nil
-	})
+	return nil
+}
 
+// addStaticRoot adds the static root directory contents to the router
+// Files can be referenced by /<filename>, without /static or /static_root
+func (a *App) addStaticRoot(router *chi.Mux) error {
+	staticRoot := a.Config.Routing.StaticRootDir
+	if staticRoot == "" {
+		return nil
+	}
+
+	rootFiles, err := a.sourceFS.Glob(staticRoot + "/*")
+	if err != nil {
+		return err
+	}
+
+	for _, rootFile := range rootFiles {
+		baseName := path.Base(rootFile)
+		router.Get("/"+baseName, func(w http.ResponseWriter, r *http.Request) {
+			f, err := a.sourceFS.Open(rootFile)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			seeker, ok := f.(io.ReadSeeker)
+			if !ok {
+				http.Error(w, "500 Filesystem does not implement Seek interface", http.StatusInternalServerError)
+				return
+			}
+
+			fi, err := f.Stat()
+			if err != nil {
+				http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+				return
+			} else if fi.IsDir() {
+				http.Error(w, "Directory not supported in static root", http.StatusInternalServerError)
+				return
+			}
+
+			http.ServeContent(w, r, baseName, fi.ModTime(), seeker)
+		})
+
+	}
 	return nil
 }
 

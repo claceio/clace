@@ -110,11 +110,7 @@ func (f *SourceFs) Stat(name string) (fs.FileInfo, error) {
 // Open returns a reference to the named file.
 // If name is a hash name then the underlying file is used.
 func (f *SourceFs) Open(name string) (fs.File, error) {
-	target := name
-	if name[0] != '/' {
-		target = path.Join(f.Root, name)
-	}
-	fi, _, err := f.open(target)
+	fi, _, err := f.open(name)
 	return fi, err
 }
 

@@ -72,6 +72,10 @@ tests:
     command: curl -vsu "admin:qwerty" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
     stdout: "Vary: HX-Request"
     exit-code: 0
+  load0055: # check static root
+    command: curl -u "admin:qwerty" localhost:25222/disk_usage_dev/robots.txt | grep Disallow
+    stdout: "Disallow: /"
+    exit-code: 0
   load0060: # audit prod app
     command: '../clace app approve /disk_usage_prod | sed "s/app_stg_.*/YYY/g"'
     stdout:
@@ -85,6 +89,10 @@ tests:
   load0063: # test prod app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/
     stdout: "Disk Usage"
+  load0064: # check static root for prod
+    command: curl -u "admin:qwerty" localhost:25222/disk_usage_prod/robots.txt | grep Disallow
+    stdout: "Disallow: /"
+    exit-code: 0
   load0070: # Update app code
     command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 1
   load0080: # with --dev, changes are picked up immediately

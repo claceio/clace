@@ -11,6 +11,7 @@ type AppConfig struct {
 type RouteConfig struct {
 	TemplateLocations []string `json:"template_locations"`
 	StaticDir         string   `json:"static_dir"`
+	StaticRootDir     string   `json:"static_root_dir"`
 	PushEvents        bool     `json:"push_events"`
 	EarlyHints        bool     `json:"early_hints"`
 }
@@ -28,6 +29,7 @@ func NewAppConfig() *AppConfig {
 		Routing: RouteConfig{
 			TemplateLocations: []string{"*.go.html"},
 			StaticDir:         "static",
+			StaticRootDir:     "static_root",
 			PushEvents:        false,
 			EarlyHints:        true,
 		},

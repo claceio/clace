@@ -18,9 +18,10 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"index.go.html":    `abc {{static "file1"}} def {{static "file2.txt"}}`,
-		"static/file1":     `file1data`,
-		"static/file2.txt": `file2data`,
+		"index.go.html":          `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":           `file1data`,
+		"static/file2.txt":       `file2data`,
+		"static_root/robots.txt": `deny *`,
 	}
 
 	a, _, err := CreateTestApp(logger, fileData)
@@ -51,10 +52,16 @@ def handler(req):
 	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") != "")
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want = `file2data`
-	testutil.AssertStringMatch(t, "body", want, response.Body.String())
-	testutil.AssertEqualsString(t, "header", "public, max-age=31536000", response.Header().Get("Cache-Control"))
-	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") != "")
+	testutil.AssertStringMatch(t, "body", `file2data`, response.Body.String())
+
+	// Test static_root read
+	request = httptest.NewRequest("GET", "/test/robots.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsString(t, "header cache", "", response.Header().Get("Cache-Control"))
+	testutil.AssertEqualsString(t, "header etag", response.Header().Get("ETag"), "") // etag is not set for now
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `deny *`, response.Body.String())
 }
 
 func TestStaticLoadDevMode(t *testing.T) {
