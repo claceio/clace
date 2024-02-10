@@ -259,7 +259,8 @@ app = ace.app("testApp", custom_layout=True,
 			ace.page("/count", type="json", handler=count),
 			ace.page("/create_no_commit", type="json", handler=create_no_commit),
 			ace.page("/create_rollback", type="json", handler=create_rollback),
-			ace.page("/select_leak", type="json", handler=select_leak)],
+			ace.page("/select_leak", type="json", handler=select_leak),
+			ace.page("/select_leak_html", handler=select_leak)],
 	permissions=[
 		ace.permission("store.in", "insert"),
 		ace.permission("store.in", "begin"),
@@ -378,6 +379,13 @@ type("mytype", fields=[
 
 	// Select with leak
 	request = httptest.NewRequest("GET", "/test/select_leak", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "resource has not be closed, check handler code: store.in:rows_cursor")
+
+	// Select with leak - html endpoint
+	request = httptest.NewRequest("GET", "/test/select_leak_html", nil)
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
