@@ -343,7 +343,7 @@ func (s *SqlStore) Select(ctx context.Context, tx *sql.Tx, thread *starlark.Thre
 		rows, err = s.db.Query(query, params...)
 	}
 
-	app.DeferCleanup(thread, fmt.Sprintf("rows_cursor_%p", rows), rows.Close, true)
+	app.DeferCleanup(thread, fmt.Sprintf("rows_cursor_%s_%p", table, rows), rows.Close, true)
 
 	if err != nil {
 		return nil, err

@@ -117,7 +117,7 @@ func (i *StoreEntryIterator) Next(value *starlark.Value) bool {
 
 func (i *StoreEntryIterator) Done() {
 	// Clear the deferred cleanup function, since Close is called here
-	app.ClearCleanup(i.thread, fmt.Sprintf("rows_cursor_%p", i.rows))
+	app.ClearCleanup(i.thread, fmt.Sprintf("rows_cursor_%s_%p", i.table, i.rows))
 	closeErr := i.rows.Close()
 	if closeErr != nil {
 		i.Error().Err(fmt.Errorf("error closing rows: %w", closeErr))
