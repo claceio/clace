@@ -116,7 +116,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/reload_git2/test1
     stdout: "111"
   reload0432: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | grep -v main | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e1 | grep -v main | wc -l'
     stdout:
       exactly: "2" # first app and its stag are at 1c119e7c5845e19845dd1d794268b350ced5b71b, branch name is not included
   reload0440: # app reload
@@ -134,13 +134,13 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/reload_git2/test1
     stdout: "111"
   reload0445: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e1 | wc -l'
     stdout:
       exactly: "1" # prod apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0446: # app reload
     command: ../clace app promote "/reload_git*"
   reload0447: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e1 | wc -l'
     stdout:
       exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0448: # check app list
@@ -150,25 +150,29 @@ tests:
   reload0500: # app reload with commit id
     command: ../clace app reload --commit 1c119e7c5845e19845dd1d794268b350ced5b71b --promote "/reload_git*"
   reload0501: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e | wc -l'
     stdout:
       exactly: "4" # all apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0502: # app reload branch name
     command: ../clace app reload --branch main "/reload_git*"
   reload0503: # check app list for staging apps
-    command: '../clace app list --internal "/reload_git*" | grep _cl_stage | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep _cl_stage | grep 1c119e7c5845e1 | wc -l'
     stdout:
       exactly: "0" # no staging apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0504: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep -v _cl_stage | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep -v _cl_stage | grep 1c119e7c5845e1 | wc -l'
     stdout:
       exactly: "2" # prod apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
   reload0505: # promote changes
     command: ../clace app promote "/reload_git*"
   reload0506: # check app list
-    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d794268b350ced5b71b | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep 1c119e7c5845e19845dd1d | wc -l'
     stdout:
       exactly: "0" # no apps at 1c119e7c5845e19845dd1d794268b350ced5b71b
+  reload0506a: # check app list auth listing
+    command: '../clace app list --internal "/reload_git*" | grep SYST | wc -l'
+    stdout:
+      exactly: "4"
 
   # Verify stdout messages
   reload0507: # reload stdout
