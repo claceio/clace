@@ -196,18 +196,17 @@ func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_TABLE:
-
-		formatStrHead := "%-35s %-4s %-4s %-5s %-40s %-40s %-40s\n"
-		formatStrData := "%-35s %-4s %-4s %-5d %-40s %-40s %-40s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Auth", "Ver",
+		formatStrHead := "%-35s %-4s %-7s %-4s %-30s %-60s %-40s\n"
+		formatStrData := "%-35s %-4s %7d %-4s %-30s %-60s %-40s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version", "Auth",
 			"GitInfo", "Domain:Path", "SourceUrl")
 		for _, app := range apps {
 			gitInfo := ""
 			if app.Metadata.VersionMetadata.GitBranch != "" || app.Metadata.VersionMetadata.GitCommit != "" {
 				gitInfo = fmt.Sprintf("%s:%.20s", app.Metadata.VersionMetadata.GitBranch, app.Metadata.VersionMetadata.GitCommit)
 			}
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, appType(app), authType(app),
-				app.Metadata.VersionMetadata.Version, gitInfo, &app.AppEntry, app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
+				gitInfo, &app.AppEntry, app.SourceUrl)
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
@@ -229,7 +228,7 @@ func appType(app utils.AppResponse) string {
 		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PREVIEW) {
 			return "VIEW"
 		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
-			return "STG"
+			return "STG*"
 		} else {
 			return "----"
 		}
