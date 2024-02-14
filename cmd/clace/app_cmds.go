@@ -24,6 +24,8 @@ In the glob, * matches any number of characters, ** matches any number of charac
 all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
 To prevent shell expansion for *, placing the path in quotes is recommended.
 `
+	PROMOTE_FLAG = "promote"
+	PROMOTE_ARG  = "promote"
 )
 
 func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
@@ -228,7 +230,7 @@ func appType(app utils.AppResponse) string {
 		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PREVIEW) {
 			return "VIEW"
 		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
-			return "STG*"
+			return "STG"
 		} else {
 			return "----"
 		}
@@ -321,6 +323,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
+	flags = append(flags, newBoolFlag(PROMOTE_FLAG, "p", "Promote the change from stage to prod", false))
 
 	return &cli.Command{
 		Name:      "approve",
@@ -347,6 +350,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
 			var approveResponse utils.AppApproveResponse
 			err := client.Post("/_clace/approve", values, nil, &approveResponse)
@@ -355,7 +359,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			}
 
 			approvedCount := 0
-			for _, approveResult := range approveResponse.ApproveResults {
+			for _, approveResult := range approveResponse.StagedUpdateResults {
 				if !approveResult.NeedsApproval {
 					fmt.Printf("No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
 				} else {
@@ -364,7 +368,20 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 					printApproveResult(approveResult)
 				}
 			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved.\n", len(approveResponse.ApproveResults), approvedCount)
+
+			if len(approveResponse.PromoteResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")
+				for i, promoteResult := range approveResponse.PromoteResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", promoteResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) audited, %d app(s) approved, %d app(s) promoted.\n",
+				len(approveResponse.StagedUpdateResults), approvedCount, len(approveResponse.PromoteResults))
 
 			if approveResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

@@ -683,7 +683,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction,
 	}
 	appEntry.Metadata.VersionMetadata.PreviousVersion = prevVersion
 	appEntry.Metadata.VersionMetadata.Version = highestVersion + 1
-	if err := fileStore.AddAppVersion(ctx, tx, appEntry.Metadata.VersionMetadata, checkoutFolder); err != nil {
+	if err := fileStore.AddAppVersionDisk(ctx, tx, appEntry.Metadata.VersionMetadata, checkoutFolder); err != nil {
 		return err
 	}
 
@@ -710,7 +710,7 @@ func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction
 	appEntry.Metadata.VersionMetadata.PreviousVersion = prevVersion
 	appEntry.Metadata.VersionMetadata.Version = highestVersion + 1
 	// Walk the local directory and add all files to the database
-	if err := fileStore.AddAppVersion(ctx, tx, appEntry.Metadata.VersionMetadata, appEntry.SourceUrl); err != nil {
+	if err := fileStore.AddAppVersionDisk(ctx, tx, appEntry.Metadata.VersionMetadata, appEntry.SourceUrl); err != nil {
 		return err
 	}
 	return nil

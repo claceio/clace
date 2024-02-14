@@ -204,21 +204,22 @@ func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEn
 	return nil
 }
 
-func (s *Server) ApproveApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppApproveResponse, error) {
+func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*utils.AppStagedUpdateResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	result, apps, err := s.ApproveAppsTx(ctx, tx, pathSpec)
+	result, promoteResults, apps, err := s.StagedUpdateAppsTx(ctx, tx, pathSpec, promote, handler, args)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := &utils.AppApproveResponse{
-		DryRun:         dryRun,
-		ApproveResults: result,
+	ret := &utils.AppStagedUpdateResponse{
+		DryRun:              dryRun,
+		StagedUpdateResults: result,
+		PromoteResults:      promoteResults,
 	}
 
 	if err := s.CompleteTransaction(ctx, tx, apps, dryRun); err != nil {
@@ -228,42 +229,83 @@ func (s *Server) ApproveApps(ctx context.Context, pathSpec string, dryRun bool) 
 	return ret, nil
 }
 
-func (s *Server) ApproveAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string) ([]utils.ApproveResult, []*app.App, error) {
+type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, *app.App, error)
+
+func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []utils.AppPathDomain, []*app.App, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, nil, nil, err
 	}
 
-	results := make([]utils.ApproveResult, 0, len(filteredApps))
+	results := make([]any, 0, len(filteredApps))
 	apps := make([]*app.App, 0, len(filteredApps))
+	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
+			return nil, nil, nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
 		}
 
+		var prodAppEntry *utils.AppEntry
 		if !appEntry.IsDev {
 			// For prod apps, approve the staging app
+			prodAppEntry = appEntry
 			appEntry, err = s.getStageApp(ctx, tx, appEntry)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+
+			stagingFileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
+			err := stagingFileStore.IncrementAppVersion(ctx, tx, &appEntry.Metadata.VersionMetadata)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("error incrementing app version: %w", err)
 			}
 		}
 
-		app, err := s.setupApp(appEntry, tx)
+		result, app, err := handler(ctx, tx, appEntry, args)
 		if err != nil {
-			return nil, nil, err
-		}
-		apps = append(apps, app)
-		result, err := s.auditApp(ctx, tx, app, true)
-		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
-		results = append(results, *result)
+		if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
+			return nil, nil, nil, err
+		}
+
+		if promote && prodAppEntry != nil {
+			var promoted bool
+			if promoted, err = s.promoteApp(ctx, tx, appEntry, prodAppEntry); err != nil {
+				return nil, nil, nil, err
+			}
+
+			if promoted {
+				// prod app audit result is not added to results, since it will be same as the staging app
+				prodApp, err := s.setupApp(prodAppEntry, tx)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
+				}
+				apps = append(apps, prodApp)
+				promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
+			}
+		}
+
+		apps = append(apps, app)
+		results = append(results, result)
 	}
 
-	return results, apps, nil
+	return results, promoteResults, apps, nil
+}
+
+func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, *app.App, error) {
+	app, err := s.setupApp(appEntry, tx)
+	if err != nil {
+		return nil, nil, err
+	}
+	result, err := s.auditApp(ctx, tx, app, true)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return result, app, nil
 }
 
 func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppPromoteResponse, error) {

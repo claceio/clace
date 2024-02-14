@@ -20,6 +20,7 @@ import (
 const (
 	VARY_HEADER = "Vary"
 	DRY_RUN_ARG = "dryRun"
+	PROMOTE_ARG = "promote"
 )
 
 var (
@@ -279,6 +280,7 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 func (h *Handler) approveApps(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +289,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
-	approveResult, err := h.server.ApproveApps(r.Context(), pathSpec, dryRun)
+	approveResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.auditHandler, map[string]any{})
 	return approveResult, err
 }
 

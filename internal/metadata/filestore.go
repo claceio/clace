@@ -25,7 +25,7 @@ const (
 	COMPRESSION_THRESHOLD = 0 // files above this size are stored compressed. The chi Compress middleware does not have a threshold,
 	// so the threshold is set to zero here
 	BROTLI_COMPRESSION_LEVEL = 9 // https://paulcalvano.com/2018-07-25-brotli-compression-how-much-will-it-reduce-your-content/ seems
-	// to indicate that level 9 is a good level.
+	// to indicate that level 9 is a good default.
 )
 
 type FileStore struct {
@@ -41,7 +41,33 @@ func NewFileStore(appId utils.AppId, version int, metadata *Metadata, tx Transac
 	return &FileStore{appId: appId, version: version, metadata: metadata, db: metadata.db, initTx: tx}
 }
 
-func (f *FileStore) AddAppVersion(ctx context.Context, tx Transaction, versionMetadata utils.VersionMetadata, checkoutDir string) error {
+func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, versionMetadata *utils.VersionMetadata) error {
+	currentVersion := versionMetadata.Version
+	nextVersion, err := f.GetHighestVersion(ctx, tx, f.appId)
+	if err != nil {
+		return fmt.Errorf("error getting highest version: %w", err)
+	}
+	nextVersion++
+
+	versionMetadata.PreviousVersion = currentVersion
+	versionMetadata.Version = nextVersion
+	metadataJson, err := json.Marshal(versionMetadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, currentVersion, nextVersion, metadataJson); err != nil {
+		return fmt.Errorf("error inserting app version: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) select appid, ?, name, sha, uncompressed_size, datetime('now') from app_files where appid = ? and version = ?`, nextVersion, f.appId, currentVersion); err != nil {
+		return fmt.Errorf("error copying app files: %w", err)
+	}
+
+	return nil
+}
+
+func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, versionMetadata utils.VersionMetadata, checkoutDir string) error {
 	metadataJson, err := json.Marshal(versionMetadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)

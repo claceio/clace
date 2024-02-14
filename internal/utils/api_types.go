@@ -84,9 +84,16 @@ type AppDeleteResponse struct {
 	AppInfo []AppInfo `json:"app_info"`
 }
 
+type AppStagedUpdateResponse struct {
+	DryRun              bool            `json:"dry_run"`
+	StagedUpdateResults any             `json:"staged_update_results"`
+	PromoteResults      []AppPathDomain `json:"promote_results"`
+}
+
 type AppApproveResponse struct {
-	DryRun         bool            `json:"dry_run"`
-	ApproveResults []ApproveResult `json:"approve_results"`
+	DryRun              bool            `json:"dry_run"`
+	StagedUpdateResults []ApproveResult `json:"staged_update_results"`
+	PromoteResults      []AppPathDomain `json:"promote_results"`
 }
 
 type AppReloadResponse struct {

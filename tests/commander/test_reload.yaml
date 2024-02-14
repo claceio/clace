@@ -185,8 +185,8 @@ tests:
     command: ../clace app reload --promote "/reload_git*"
     stdout: "2 app(s) reloaded, 0 app(s) approved, 2 app(s) promoted."
   reload0510: # audit stdout
-    command: ../clace app approve "/reload_git*"
-    stdout: "2 app(s) audited, 0 app(s) approved."
+    command: ../clace app approve --promote "/reload_git*"
+    stdout: "2 app(s) audited, 0 app(s) approved, 2 app(s) promoted."
   reload0511: # delete stdout
     command: ../clace app delete /reload_git1
     stdout: "1 app(s) deleted."
