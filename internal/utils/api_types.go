@@ -120,8 +120,9 @@ type AppPreviewResponse struct {
 }
 
 type AppLinkAccountResponse struct {
-	DryRun      bool            `json:"dry_run"`
-	LinkResults []AppPathDomain `json:"link_results"`
+	DryRun              bool            `json:"dry_run"`
+	StagedUpdateResults []AppPathDomain `json:"staged_update_results"`
+	PromoteResults      []AppPathDomain `json:"promote_results"`
 }
 
 type AppGetResponse struct {

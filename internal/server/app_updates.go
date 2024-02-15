@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
@@ -111,9 +110,6 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		}
 	}
 
-	prodApps := make([]*app.App, 0, len(filteredApps))
-	devApps := make([]*app.App, 0, len(filteredApps))
-
 	for _, stageApp := range stageApps {
 		if _, err := stageApp.Reload(true, true); err != nil {
 			return nil, fmt.Errorf("error reloading stage app %s: %w", stageApp.AppEntry, err)
@@ -126,10 +122,11 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 			if err != nil {
 				return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 			}
-			prodApps = append(prodApps, prodApp)
 			if _, err := prodApp.Reload(true, true); err != nil {
 				return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
 			}
+
+			reloadResults = append(reloadResults, prodAppEntry.AppPathDomain())
 		}
 	}
 
@@ -139,7 +136,6 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 			return nil, fmt.Errorf("error setting up app %s: %w", devAppEntry, err)
 		}
 		reloadResults = append(reloadResults, devAppEntry.AppPathDomain())
-		devApps = append(devApps, devApp)
 
 		devResult, err := devApp.Audit()
 		if err != nil {
@@ -164,15 +160,8 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		}
 	}
 
-	updatedApps := make([]*app.App, 0, len(stageApps)+len(prodApps)+len(devApps))
-	updatedApps = append(updatedApps, devApps...)
-	updatedApps = append(updatedApps, stageApps...)
-	if promote {
-		updatedApps = append(updatedApps, prodApps...)
-	}
-
 	// Commit the transaction if not dry run and update the in memory app store
-	if err := s.CompleteTransaction(ctx, tx, updatedApps, dryRun); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, reloadResults, dryRun); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +200,7 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 	}
 	defer tx.Rollback()
 
-	result, promoteResults, apps, err := s.StagedUpdateAppsTx(ctx, tx, pathSpec, promote, handler, args)
+	result, entries, promoteResults, err := s.StagedUpdateAppsTx(ctx, tx, pathSpec, promote, handler, args)
 	if err != nil {
 		return nil, err
 	}
@@ -222,23 +211,23 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 		PromoteResults:      promoteResults,
 	}
 
-	if err := s.CompleteTransaction(ctx, tx, apps, dryRun); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, entries, dryRun); err != nil {
 		return nil, err
 	}
 
 	return ret, nil
 }
 
-type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, *app.App, error)
+type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error)
 
-func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []utils.AppPathDomain, []*app.App, error) {
+func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []utils.AppPathDomain, []utils.AppPathDomain, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	results := make([]any, 0, len(filteredApps))
-	apps := make([]*app.App, 0, len(filteredApps))
+	entries := make([]utils.AppPathDomain, 0, len(filteredApps))
 	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
@@ -248,7 +237,7 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 
 		var prodAppEntry *utils.AppEntry
 		if !appEntry.IsDev {
-			// For prod apps, approve the staging app
+			// For prod apps, update the staging app
 			prodAppEntry = appEntry
 			appEntry, err = s.getStageApp(ctx, tx, appEntry)
 			if err != nil {
@@ -283,29 +272,30 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 				}
-				apps = append(apps, prodApp)
+				entries = append(entries, prodApp.AppPathDomain())
 				promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
 			}
 		}
 
-		apps = append(apps, app)
+		entries = append(entries, app)
 		results = append(results, result)
 	}
 
-	return results, promoteResults, apps, nil
+	return results, entries, promoteResults, nil
 }
 
-func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, *app.App, error) {
+func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error) {
+	appPathDomain := appEntry.AppPathDomain()
 	app, err := s.setupApp(appEntry, tx)
 	if err != nil {
-		return nil, nil, err
+		return nil, appPathDomain, err
 	}
 	result, err := s.auditApp(ctx, tx, app, true)
 	if err != nil {
-		return nil, nil, err
+		return nil, appPathDomain, err
 	}
 
-	return result, app, nil
+	return result, appPathDomain, nil
 }
 
 func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppPromoteResponse, error) {
@@ -321,7 +311,6 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 	defer tx.Rollback()
 
 	result := make([]utils.AppPathDomain, 0, len(filteredApps))
-	newApps := make([]*app.App, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		if appInfo.IsDev {
 			// Not a prod app, skip
@@ -353,11 +342,10 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 		if _, err := prodApp.Reload(true, true); err != nil {
 			return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
 		}
-		newApps = append(newApps, prodApp)
 		result = append(result, appInfo.AppPathDomain)
 	}
 
-	if err = s.CompleteTransaction(ctx, tx, newApps, dryRun); err != nil {
+	if err = s.CompleteTransaction(ctx, tx, result, dryRun); err != nil {
 		return nil, err
 	}
 
@@ -368,7 +356,6 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 
 func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) (bool, error) {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
-
 	prevVersion := prodApp.Metadata.VersionMetadata.Version
 	newVersion := stagingApp.Metadata.VersionMetadata.Version
 
@@ -493,35 +480,13 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 	return ret, nil
 }
 
-func (s *Server) LinkAccount(ctx context.Context, mainAppPath, plugin, account string, dryRun bool) (*utils.AppLinkAccountResponse, error) {
-	mainAppPathDomain, err := parseAppPath(mainAppPath)
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	mainAppEntry, err := s.db.GetAppTx(ctx, tx, mainAppPathDomain)
-	if err != nil {
-		return nil, err
-	}
-
-	appEntry := mainAppEntry
-	if strings.HasPrefix(string(mainAppEntry.Id), utils.ID_PREFIX_APP_PROD) {
-		// For prod app, update the staging app
-		appEntry, err = s.getStageApp(ctx, tx, mainAppEntry)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func (s *Server) accountLinkHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error) {
 	if appEntry.Metadata.Accounts == nil {
 		appEntry.Metadata.Accounts = []utils.AccountLink{}
 	}
+
+	plugin := args["plugin"].(string)
+	account := args["account"].(string)
 
 	matchIndex := -1
 	for i, accountLink := range appEntry.Metadata.Accounts {
@@ -548,24 +513,6 @@ func (s *Server) LinkAccount(ctx context.Context, mainAppPath, plugin, account s
 		}
 	}
 
-	// Persist the updated metadata
-	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
-		return nil, err
-	}
-
-	ret := &utils.AppLinkAccountResponse{
-		DryRun:      dryRun,
-		LinkResults: []utils.AppPathDomain{appEntry.AppPathDomain()},
-	}
-
-	if dryRun {
-		return ret, nil
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	s.apps.DeleteApps(ret.LinkResults) // Delete from in memory cache
-	return ret, nil
+	appPathDomain := appEntry.AppPathDomain()
+	return appPathDomain, appPathDomain, nil
 }

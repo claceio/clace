@@ -280,6 +280,9 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 func (h *Handler) approveApps(r *http.Request) (any, error) {
 	pathSpec := r.URL.Query().Get("pathSpec")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
 	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
 	if err != nil {
 		return nil, err
@@ -291,6 +294,30 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 
 	approveResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.auditHandler, map[string]any{})
 	return approveResult, err
+}
+
+func (h *Handler) accountLink(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if pathSpec == "" {
+		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
+	args := map[string]any{
+		"plugin":  r.URL.Query().Get("plugin"),
+		"account": r.URL.Query().Get("account"),
+	}
+
+	linkResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.accountLinkHandler, args)
+	return linkResult, err
 }
 
 func AddVaryHeader(next http.Handler) http.Handler {
@@ -420,31 +447,6 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	return ret, nil
 }
 
-func (h *Handler) linkAccount(r *http.Request) (any, error) {
-	appPath := r.URL.Query().Get("appPath")
-	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
-	if err != nil {
-		return nil, err
-	}
-
-	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
-	}
-
-	plugin := r.URL.Query().Get("plugin")
-	account := r.URL.Query().Get("account")
-	if plugin == "" || account == "" {
-		return nil, utils.CreateRequestError("plugin and account are required", http.StatusBadRequest)
-	}
-
-	ret, err := h.server.LinkAccount(r.Context(), appPath, plugin, account, dryRun)
-	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
-	}
-
-	return ret, nil
-}
-
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
@@ -496,7 +498,7 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 
 	// API to change account links
 	r.Post("/link_account", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, h.linkAccount)
+		h.apiHandler(w, r, enableBasicAuth, h.accountLink)
 	}))
 
 	return r

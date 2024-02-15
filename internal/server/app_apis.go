@@ -468,7 +468,7 @@ func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app
 	return auditResult, nil
 }
 
-func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, apps []*app.App, dryRun bool) error {
+func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, entries []utils.AppPathDomain, dryRun bool) error {
 	if dryRun {
 		return nil
 	}
@@ -478,8 +478,8 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transactio
 	}
 
 	// Update the in memory cache
-	if apps != nil {
-		s.apps.UpdateApps(apps)
+	if entries != nil {
+		s.apps.DeleteApps(entries)
 	}
 	return nil
 }
