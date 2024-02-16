@@ -141,8 +141,8 @@ tests:
     stdout:
       line-count: 4
       contains:
-        - "Type Version Auth"
-        - "PROD       1 SYST"
+        - "Type  Version Auth"
+        - "PROD        1 SYST"
     exit-code: 0
   basic510: # Test app list command with internal
     command: ../clace app list --internal
@@ -151,7 +151,7 @@ tests:
     stdout:
       line-count: 6 # two prod mode apps have an staging app each
       contains:
-        - "Type Version Auth"
+        - "Type  Version Auth"
         - "app_stg_"
     exit-code: 0
 

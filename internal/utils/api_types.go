@@ -68,6 +68,7 @@ type ApproveResult struct {
 
 type AppResponse struct {
 	AppEntry
+	StagedChanges bool `json:"staged_changes"`
 }
 
 type AppListResponse struct {

@@ -758,6 +758,12 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 }
 
 func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([]utils.AppResponse, error) {
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	filteredApps, err := s.FilterApps(pathSpec, internal)
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -769,7 +775,19 @@ func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([
 		if err != nil {
 			return nil, utils.CreateRequestError(err.Error(), http.StatusInternalServerError)
 		}
-		ret = append(ret, utils.AppResponse{AppEntry: *retApp.AppEntry})
+
+		stagedChanges := false
+		if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) {
+			stageApp, err := s.getStageApp(ctx, tx, retApp.AppEntry)
+			if err != nil {
+				return nil, err
+			}
+			if stageApp.Metadata.VersionMetadata.Version != retApp.AppEntry.Metadata.VersionMetadata.Version {
+				// staging app is at different version than prod app
+				stagedChanges = true
+			}
+		}
+		ret = append(ret, utils.AppResponse{AppEntry: *retApp.AppEntry, StagedChanges: stagedChanges})
 	}
 	return ret, nil
 }

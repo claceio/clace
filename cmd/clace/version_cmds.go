@@ -197,8 +197,8 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 
 	Examples:
 		clace version switch example.com:/myapp next
-		clace version switch example.com:/myapp 123
-		clace version switch example.com:/myapp previous`,
+		clace version switch /myapp_cl_stage 123
+		clace version switch /test previous`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
