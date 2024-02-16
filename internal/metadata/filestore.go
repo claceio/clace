@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -246,8 +247,8 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`,
-		prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+		prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson, defaultUser); err != nil {
 		return err
 	}
 
@@ -318,6 +319,28 @@ func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]utils
 	}
 
 	return versions, nil
+}
+
+func (f *FileStore) GetAppFiles(ctx context.Context, tx Transaction) ([]utils.AppFile, error) {
+	files, err := f.getFileInfo(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	fileList := make([]utils.AppFile, 0, len(files))
+	for _, fileInfo := range files {
+		fileList = append(fileList, utils.AppFile{
+			Name: fileInfo.name,
+			Etag: fileInfo.sha,
+			Size: fileInfo.len,
+		})
+	}
+
+	slices.SortFunc(fileList, func(a, b utils.AppFile) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	return fileList, nil
 }
 
 func (f *FileStore) Reset() {

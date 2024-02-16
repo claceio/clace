@@ -143,8 +143,8 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *c
 		Usage:     "List apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec>",
-		UsageText: `args: <pathSpec>
+		ArgsUsage: "[<pathSpec>]",
+		UsageText: `args: [<pathSpec>]
 
 <pathSpec> defaults to "*:**" (same as "all") for the list command.
 ` + PATH_SPEC_HELP +

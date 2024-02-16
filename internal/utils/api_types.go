@@ -132,3 +132,7 @@ type AppGetResponse struct {
 type AppVersionListResponse struct {
 	Versions []AppVersion `json:"versions"`
 }
+
+type AppVersionFilesResponse struct {
+	Files []AppFile `json:"files"`
+}
