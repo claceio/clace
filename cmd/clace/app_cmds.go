@@ -212,7 +212,7 @@ func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,%s,%s,%s\n", app.Id, appType(app),
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,%s,\"%s\",\"%s\"\n", app.Id, appType(app),
 				app.Metadata.VersionMetadata.Version, authType(app), app.Metadata.VersionMetadata.GitCommit, app.Metadata.VersionMetadata.GitBranch,
 				app.AppEntry.AppPathDomain(), app.SourceUrl)
 		}

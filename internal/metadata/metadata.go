@@ -344,6 +344,14 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *u
 	if err != nil {
 		return fmt.Errorf("error updating app metadata: %w", err)
 	}
+
+	if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
+		_, err = tx.ExecContext(ctx, `UPDATE app_versions set metadata = ? where appid = ? and version = ?`, string(metadataJson), app.Id, app.Metadata.VersionMetadata.Version)
+		if err != nil {
+			return fmt.Errorf("error updating app metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 

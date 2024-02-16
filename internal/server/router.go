@@ -476,6 +476,25 @@ func (h *Handler) versionFiles(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) versionSwitch(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+	version := r.URL.Query().Get("version")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	ret, err := h.server.VersionSwitch(r.Context(), appPath, dryRun, version)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
@@ -538,6 +557,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to list files in a version
 	r.Get("/version/files", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.versionFiles)
+	}))
+
+	// API to switch version for an app
+	r.Post("/version", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.versionSwitch)
 	}))
 
 	return r

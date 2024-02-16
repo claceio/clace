@@ -366,7 +366,7 @@ func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagin
 		// there might be some gaps in the prod app version numbers, but that is ok, the attempt is to have the version number in
 		// sync with the staging app version number when a promote is done
 
-		if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, prodApp.Metadata.VersionMetadata); err != nil {
+		if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, &prodApp.Metadata); err != nil {
 			return false, err
 		}
 	}

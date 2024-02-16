@@ -136,3 +136,9 @@ type AppVersionListResponse struct {
 type AppVersionFilesResponse struct {
 	Files []AppFile `json:"files"`
 }
+
+type AppVersionSwitchResponse struct {
+	DryRun      bool `json:"dry_run"`
+	FromVersion int  `json:"from_version"`
+	ToVersion   int  `json:"to_version"`
+}

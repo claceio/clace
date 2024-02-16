@@ -261,6 +261,7 @@ const (
 )
 
 type AppVersion struct {
+	Active          bool
 	AppId           AppId
 	Version         int
 	PreviousVersion int

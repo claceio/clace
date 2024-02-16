@@ -242,13 +242,13 @@ func (f *FileStore) GetHighestVersion(ctx context.Context, tx Transaction, appId
 	return maxId, nil
 }
 
-func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId utils.AppId, versionMetadata utils.VersionMetadata) error {
-	metadataJson, err := json.Marshal(versionMetadata)
+func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId utils.AppId, metadata *utils.AppMetadata) error {
+	metadataJson, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
-		prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson, defaultUser); err != nil {
+		prodAppId, metadata.VersionMetadata.PreviousVersion, metadata.VersionMetadata.Version, metadataJson, defaultUser); err != nil {
 		return err
 	}
 
@@ -276,7 +276,7 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 		}
 
 		// Copy entries from staging to prod app
-		if _, err := insertStmt.ExecContext(ctx, prodAppId, versionMetadata.Version, name, sha, size); err != nil {
+		if _, err := insertStmt.ExecContext(ctx, prodAppId, metadata.VersionMetadata.Version, name, sha, size); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
 	}
@@ -319,6 +319,27 @@ func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]utils
 	}
 
 	return versions, nil
+}
+
+func (f *FileStore) GetAppVersion(ctx context.Context, tx Transaction, version int) (*utils.AppVersion, error) {
+	row := tx.QueryRow(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? and version = ?`, f.appId, version)
+
+	v := utils.AppVersion{}
+	var metadataStr sql.NullString
+
+	err := row.Scan(&v.Version, &v.PreviousVersion, &v.UserId, &v.CreateTime, &metadataStr)
+	if err != nil {
+		return nil, fmt.Errorf("error querying apps: %w", err)
+	}
+
+	if metadataStr.Valid && metadataStr.String != "" {
+		err = json.Unmarshal([]byte(metadataStr.String), &v.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+		}
+	}
+
+	return &v, nil
 }
 
 func (f *FileStore) GetAppFiles(ctx context.Context, tx Transaction) ([]utils.AppFile, error) {
