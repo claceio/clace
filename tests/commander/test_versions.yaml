@@ -1,0 +1,148 @@
+config:
+  env:
+    CL_CONFIG_FILE: clace.toml
+tests:
+  versions0001: # clearn test app
+    command: rm -rf ./versionstest
+  versions0010: # copy sample app
+    command: cp -r ./testapp versionstest
+
+  versions0020: # create dev app
+    command: ../clace app create --dev /versions_dev ./versionstest
+  versions0030: # create local1 app
+    command: ../clace app create /versions_local1 ./versionstest
+  versions0040: # create local2 app
+    command: ../clace app create /versions_local2 ./versionstest
+  versions0050: # check curl
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "1"
+  versions0060: # check list, four apps on version 1
+    command: ../clace app list -i "/versions*" | grep "1 SYST" | wc -l
+    stdout: "4"
+  versions0070: # check list, one dev app on version 0
+    command: ../clace app list -i "/versions*" | grep "0 SYST" | wc -l
+    stdout: "1"
+  versions0080: # update static file
+    command: echo "22" > ./versionstest/static_root/rootfile.txt
+  versions0090: # no update yet for local1
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "1"
+  versions0100: # dev app is updated
+    command: curl -su "admin:qwerty" localhost:25222/versions_dev/rootfile.txt
+    stdout: "22"
+  versions0110: # reload local1 app without promotion
+    command: ../clace app reload /versions_local1
+  versions0120: # local1 stage is updated
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
+    stdout: "22"
+  versions0130: # local1 prod is not updated
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "1"
+  versions0140: # version list
+    command: ../clace version list /versions_local1 | wc -l
+    stdout: "2"
+  versions0150: # version list
+    command: ../clace version list /versions_local1_cl_stage | wc -l
+    stdout: "3" # two versions for stage, plus header
+  versions0151: # version list
+    command: ../clace version list /versions_local1_cl_stage | tail -n 1
+    stdout: "=====>        2" # second version is current
+  versions0152: # version list
+    command: ../clace version list /versions_local1 | sed -n '2p'
+    stdout: "=====>        1" # first version is current for prod app
+  versions0153: # update static file again
+    command: echo "33" > ./versionstest/static_root/rootfile.txt
+  versions0154: # reload again
+    command: ../clace app reload /versions_local1
+  versions0155: # version list
+    command: ../clace version list /versions_local1_cl_stage | sed -n '4p'
+    stdout: "=====>        3" # third version is current
+  versions0160: # local1 stage is updated
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
+    stdout: "33"
+  versions0160a: # check indicator
+    command: ../clace app list /versions_local1
+    stdout: "PROD* " # staged changes
+  versions0161: # promote app
+    command: ../clace app promote /versions_local1
+  versions0161a: # check indicator
+    command: ../clace app list /versions_local1
+    stdout: "PROD " # no staged changes
+  versions0162: # version list
+    command: ../clace version list /versions_local1 | sed -n '3p'
+    stdout: "=====>        3" # prod is at version 3, same as stage
+  versions0163: # local1 prod stage is updated
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "33"
+  versions0170: # switch stage back
+    command: ../clace version switch /versions_local1_cl_stage previous
+    stdout: "Switched /versions_local1_cl_stage from version 3 to version 2"
+  versions0171: # local1 stage is updated to version 2
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
+    stdout: "22"
+  versions0173: # switch prod back
+    command: ../clace version switch /versions_local1 previous
+    stdout: "Switched /versions_local1 from version 3 to version 1"
+  versions0174: # local1 prod is updated to back version 1, since version was not promoted
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "1"
+  versions0175: # version list
+    command: ../clace version list /versions_local1_cl_stage
+    stdout: "=====>        2" # second version is current
+  versions0176: # version list
+    command: ../clace version list /versions_local1
+    stdout: "=====>        1" # first version is current for prod
+  versions0177: # switch stage forward
+    command: ../clace version switch /versions_local1_cl_stage next
+  versions0178: # local1 stage is updated to version 3
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
+    stdout: "33"
+  versions0179: # switch prod forward
+    command: ../clace version switch /versions_local1 next
+  versions0180: # local1 prod is updated to version 3
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "33"
+  versions0181: # switch stage to version 1
+    command: ../clace version switch /versions_local1_cl_stage 1
+  versions0182: # local1 stage is updated to version 1
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
+    stdout: "1"
+
+  versions0190: # files
+    command: ../clace version files -f csv /versions_local1_cl_stage | grep rootfile
+    stdout: "1,6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+  versions0191: # files
+    command: ../clace version files -f csv /versions_local1_cl_stage 3 | grep rootfile
+    stdout: "3,19b8d5c59e421f037fe563007c7254eb8d98bc221b278c3db3e5fdbbfd52e273"
+  versions0192: # files
+    command: ../clace version files  /versions_local1_cl_stage 3 | grep rootfile
+    stdout: "3 19b8d5c59e421f037fe563007c7254eb8d98bc221b278c3db3e5fdbbfd52e273 static_root/rootfile.txt"
+
+  #error tests
+  versions0200:
+    command: ../clace version switch  /versions_local1_cl_stage previous
+    exit-code: 1
+    stderr: "error: no previous version found"
+  versions0201:
+    command: ../clace version switch  /versions_local1 next
+    exit-code: 1
+    stderr: "error: no next version found"
+  versions0202:
+    command: ../clace version switch  /versions_local1 232
+    exit-code: 1
+    stderr: "error: error getting version 232"
+  versions0203:
+    command: ../clace version switch  /versions_local1 abc
+    exit-code: 1
+    stderr: 'error: strconv.Atoi: parsing "abc"'
+  versions0204:
+    command: ../clace version list /versions_dev
+    exit-code: 1
+    stderr: "error: version commands not supported for dev app"
+  versions0205:
+    command: ../clace version switch /versions_dev previous
+    exit-code: 1
+    stderr: "error: version commands not supported for dev app"
+
+  versions99999: # Cleanup
+    command: rm -rf ./versionstest && ../clace app delete "*:versions**" && ../clace app delete "versions*:**"
