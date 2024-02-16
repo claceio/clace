@@ -26,6 +26,8 @@ const (
 	// so the threshold is set to zero here
 	BROTLI_COMPRESSION_LEVEL = 9 // https://paulcalvano.com/2018-07-25-brotli-compression-how-much-will-it-reduce-your-content/ seems
 	// to indicate that level 9 is a good default.
+
+	defaultUser = "admin"
 )
 
 type FileStore struct {
@@ -41,39 +43,42 @@ func NewFileStore(appId utils.AppId, version int, metadata *Metadata, tx Transac
 	return &FileStore{appId: appId, version: version, metadata: metadata, db: metadata.db, initTx: tx}
 }
 
-func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, versionMetadata *utils.VersionMetadata) error {
-	currentVersion := versionMetadata.Version
+func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, metadata *utils.AppMetadata) error {
+	currentVersion := metadata.VersionMetadata.Version
 	nextVersion, err := f.GetHighestVersion(ctx, tx, f.appId)
 	if err != nil {
 		return fmt.Errorf("error getting highest version: %w", err)
 	}
 	nextVersion++
 
-	versionMetadata.PreviousVersion = currentVersion
-	versionMetadata.Version = nextVersion
-	metadataJson, err := json.Marshal(versionMetadata)
+	metadata.VersionMetadata.PreviousVersion = currentVersion
+	metadata.VersionMetadata.Version = nextVersion
+	metadataJson, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, currentVersion, nextVersion, metadataJson); err != nil {
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+		f.appId, currentVersion, nextVersion, metadataJson, defaultUser); err != nil {
 		return fmt.Errorf("error inserting app version: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) select appid, ?, name, sha, uncompressed_size, datetime('now') from app_files where appid = ? and version = ?`, nextVersion, f.appId, currentVersion); err != nil {
+	if _, err := tx.ExecContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) select appid, ?, name, sha, uncompressed_size, datetime('now') from app_files where appid = ? and version = ?`,
+		nextVersion, f.appId, currentVersion); err != nil {
 		return fmt.Errorf("error copying app files: %w", err)
 	}
 
 	return nil
 }
 
-func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, versionMetadata utils.VersionMetadata, checkoutDir string) error {
-	metadataJson, err := json.Marshal(versionMetadata)
+func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, metadata utils.AppMetadata, checkoutDir string) error {
+	metadataJson, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, f.appId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+		f.appId, metadata.VersionMetadata.PreviousVersion, metadata.VersionMetadata.Version, metadataJson, defaultUser); err != nil {
 		return fmt.Errorf("error inserting app version: %w", err)
 	}
 
@@ -144,7 +149,7 @@ func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, versi
 			return fmt.Errorf("error inserting file: %w", err)
 		}
 
-		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, versionMetadata.Version, path, hashHex, len(buf)); err != nil {
+		if _, err := insertAppFileStmt.ExecContext(ctx, f.appId, metadata.VersionMetadata.Version, path, hashHex, len(buf)); err != nil {
 			return fmt.Errorf("error inserting app file: %w", err)
 		}
 
@@ -241,7 +246,8 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`, prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
+	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, create_time) values (?, ?, ?, ?, datetime('now'))`,
+		prodAppId, versionMetadata.PreviousVersion, versionMetadata.Version, metadataJson); err != nil {
 		return err
 	}
 
@@ -278,6 +284,40 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 	}
 
 	return nil
+}
+
+func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]utils.AppVersion, error) {
+	rows, err := tx.Query(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? order by version asc`, f.appId)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+
+	versions := make([]utils.AppVersion, 0)
+	defer rows.Close()
+	for rows.Next() {
+		v := utils.AppVersion{}
+		var metadataStr sql.NullString
+
+		err = rows.Scan(&v.Version, &v.PreviousVersion, &v.UserId, &v.CreateTime, &metadataStr)
+		if err != nil {
+			return nil, fmt.Errorf("error querying apps: %w", err)
+		}
+
+		if metadataStr.Valid && metadataStr.String != "" {
+			err = json.Unmarshal([]byte(metadataStr.String), &v.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+			}
+		}
+
+		versions = append(versions, v)
+	}
+
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
+	return versions, nil
 }
 
 func (f *FileStore) Reset() {

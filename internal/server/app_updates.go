@@ -245,7 +245,7 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 			}
 
 			stagingFileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
-			err := stagingFileStore.IncrementAppVersion(ctx, tx, &appEntry.Metadata.VersionMetadata)
+			err := stagingFileStore.IncrementAppVersion(ctx, tx, &appEntry.Metadata)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("error incrementing app version: %w", err)
 			}

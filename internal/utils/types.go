@@ -259,3 +259,18 @@ type StringValue string
 const (
 	StringValueUndefined StringValue = "<CL_UNDEFINED>"
 )
+
+type AppVersion struct {
+	AppId           AppId
+	Version         int
+	PreviousVersion int
+	UserId          string
+	Metadata        *AppMetadata
+	CreateTime      time.Time
+}
+
+type AppFile struct {
+	Name string
+	Etag string
+	Size int64
+}

@@ -25,5 +25,6 @@ func getClientCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error)
 	commands = append(commands, initAppCommand(flags, clientConfig))
 	commands = append(commands, initPreviewCommand(flags, clientConfig))
 	commands = append(commands, initAccountCommand(flags, clientConfig))
+	commands = append(commands, initVersionCommand(flags, clientConfig))
 	return commands, nil
 }

@@ -447,6 +447,20 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) versionList(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.VersionList(r.Context(), appPath)
+	if err != nil {
+		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
@@ -498,6 +512,16 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 
 	// API to change account links
 	r.Post("/link_account", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.accountLink)
+	}))
+
+	// API to list versions for an app
+	r.Get("/version", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.versionList)
+	}))
+
+	// API to change versions for an app
+	r.Post("/version", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.accountLink)
 	}))
 

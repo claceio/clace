@@ -128,3 +128,7 @@ type AppLinkAccountResponse struct {
 type AppGetResponse struct {
 	AppEntry AppEntry `json:"app_entry"`
 }
+
+type AppVersionListResponse struct {
+	Versions []AppVersion `json:"versions"`
+}
