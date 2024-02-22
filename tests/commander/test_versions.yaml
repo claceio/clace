@@ -83,6 +83,12 @@ tests:
   versions0173: # switch prod back
     command: ../clace version switch /versions_local1 previous
     stdout: "Switched /versions_local1 from version 3 to version 1"
+  versions0173a: # revert prod
+    command: ../clace version revert /versions_local1
+    stdout: "Reverted /versions_local1 from version 1 to version 3"
+  versions0173b: # revert prod
+    command: ../clace version revert /versions_local1
+    stdout: "Reverted /versions_local1 from version 3 to version 1"
   versions0174: # local1 prod is updated to back version 1, since version was not promoted
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
     stdout: "1"
@@ -107,6 +113,11 @@ tests:
   versions0182: # local1 stage is updated to version 1
     command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
     stdout: "1"
+  versions0183: # promote to prod with existing version
+    command: ../clace app promote /versions_local1
+  versions0184: # version prod version
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
+    stdout: "1"
 
   versions0190: # files
     command: ../clace version files -f csv /versions_local1_cl_stage | grep rootfile
@@ -124,6 +135,8 @@ tests:
     exit-code: 1
     stderr: "error: no previous version found"
   versions0201:
+    command: ../clace version switch  /versions_local1 next
+  versions0201a:
     command: ../clace version switch  /versions_local1 next
     exit-code: 1
     stderr: "error: no next version found"

@@ -98,15 +98,12 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		}
 
 		if promote {
-			var promoted bool
 			prodAppEntry := prodAppEntries[index]
-			if promoted, err = s.promoteApp(ctx, tx, stageAppEntry, prodAppEntry); err != nil {
+			if err = s.promoteApp(ctx, tx, stageAppEntry, prodAppEntry); err != nil {
 				return nil, err
 			}
 
-			if promoted {
-				promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
-			}
+			promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
 		}
 	}
 
@@ -261,20 +258,17 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 		}
 
 		if promote && prodAppEntry != nil {
-			var promoted bool
-			if promoted, err = s.promoteApp(ctx, tx, appEntry, prodAppEntry); err != nil {
+			if err = s.promoteApp(ctx, tx, appEntry, prodAppEntry); err != nil {
 				return nil, nil, nil, err
 			}
 
-			if promoted {
-				// prod app audit result is not added to results, since it will be same as the staging app
-				prodApp, err := s.setupApp(prodAppEntry, tx)
-				if err != nil {
-					return nil, nil, nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
-				}
-				entries = append(entries, prodApp.AppPathDomain())
-				promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
+			// prod app audit result is not added to results, since it will be same as the staging app
+			prodApp, err := s.setupApp(prodAppEntry, tx)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 			}
+			entries = append(entries, prodApp.AppPathDomain())
+			promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
 		}
 
 		entries = append(entries, app)
@@ -327,12 +321,8 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 			return nil, err
 		}
 
-		var promoted bool
-		if promoted, err = s.promoteApp(ctx, tx, stagingApp, prodAppEntry); err != nil {
+		if err = s.promoteApp(ctx, tx, stagingApp, prodAppEntry); err != nil {
 			return nil, err
-		}
-		if !promoted {
-			continue
 		}
 
 		prodApp, err := s.setupApp(prodAppEntry, tx)
@@ -354,11 +344,13 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 		PromoteResults: result}, nil
 }
 
-func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) (bool, error) {
+func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) error {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
+	prodFileStore := metadata.NewFileStore(prodApp.Id, prodApp.Metadata.VersionMetadata.Version, s.db, tx)
 	prevVersion := prodApp.Metadata.VersionMetadata.Version
 	newVersion := stagingApp.Metadata.VersionMetadata.Version
 
+	existingProdVersion, _ := prodFileStore.GetAppVersion(ctx, tx, newVersion)
 	prodApp.Metadata = stagingApp.Metadata
 	if prevVersion != newVersion {
 		prodApp.Metadata.VersionMetadata.PreviousVersion = prevVersion
@@ -366,16 +358,18 @@ func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagin
 		// there might be some gaps in the prod app version numbers, but that is ok, the attempt is to have the version number in
 		// sync with the staging app version number when a promote is done
 
-		if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, &prodApp.Metadata); err != nil {
-			return false, err
+		if existingProdVersion == nil {
+			if err := stagingFileStore.PromoteApp(ctx, tx, prodApp.Id, &prodApp.Metadata); err != nil {
+				return err
+			}
 		}
 	}
 
 	// Even if there is no version change, promotion is done to update other metadata settings like account links
 	if err := s.db.UpdateAppMetadata(ctx, tx, prodApp); err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }
 
 func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun bool, updateAppRequest utils.UpdateAppRequest) (*utils.AppUpdateSettingsResponse, error) {

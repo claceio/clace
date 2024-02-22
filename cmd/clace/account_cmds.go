@@ -42,7 +42,7 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 <accountName> is the required third argument. This is the name of the account to link to for the plugin. Use "-" to unlink the existing account.
 
 	Examples:
-	  Link db plugin: clace account link /myapp db.in temp
+	  Link db plugin: clace account link /myapp store.in temp
 	  Link in dryrun mode: clace account link --dry-run example.com:/ rest.in testaccount`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 3 {

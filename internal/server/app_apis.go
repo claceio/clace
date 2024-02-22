@@ -182,8 +182,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	results := []utils.ApproveResult{*auditResult}
 	if !workEntry.IsDev {
 		// Update the prod app metadata, promote from stage
-		_, err = s.promoteApp(ctx, tx, &stageAppEntry, appEntry)
-		if err != nil {
+		if err = s.promoteApp(ctx, tx, &stageAppEntry, appEntry); err != nil {
 			return nil, err
 		}
 

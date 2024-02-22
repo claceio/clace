@@ -112,13 +112,15 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 	var versionInt int
 	fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
 
-	if strings.ToLower(version) == "previous" {
+	versionLower := strings.ToLower(version)
+	switch versionLower {
+	case "revert":
 		versionInt = appEntry.Metadata.VersionMetadata.PreviousVersion
 
 		if versionInt == 0 {
-			return nil, fmt.Errorf("no previous version found")
+			return nil, fmt.Errorf("no version found to revert to")
 		}
-	} else if strings.ToLower(version) == "next" {
+	case "next":
 		versions, err := fileStore.GetAppVersions(ctx, tx)
 		if err != nil {
 			return nil, err
@@ -135,7 +137,24 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 			return nil, fmt.Errorf("no next version found")
 		}
 		versionInt = nextVersion
-	} else {
+	case "previous":
+		versions, err := fileStore.GetAppVersions(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		prevVersion := 0
+		for _, v := range versions {
+			if v.Version > prevVersion && v.Version < appEntry.Metadata.VersionMetadata.Version {
+				// Find the previous valid version which is present
+				prevVersion = v.Version
+			}
+		}
+
+		if prevVersion == 0 {
+			return nil, fmt.Errorf("no previous version found")
+		}
+		versionInt = prevVersion
+	default:
 		versionInt, err = strconv.Atoi(version)
 		if err != nil {
 			return nil, err
@@ -149,6 +168,7 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 
 	fromVersion := appEntry.Metadata.VersionMetadata.Version
 	appEntry.Metadata = *newVersion.Metadata
+	appEntry.Metadata.VersionMetadata.PreviousVersion = fromVersion
 	if err = s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
 		return nil, err
 	}

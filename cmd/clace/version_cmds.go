@@ -22,6 +22,7 @@ func initVersionCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 			versionListCommand(commonFlags, clientConfig),
 			versionFilesCommand(commonFlags, clientConfig),
 			versionSwitchCommand(commonFlags, clientConfig),
+			versionRevertCommand(commonFlags, clientConfig),
 		},
 	}
 }
@@ -181,7 +182,6 @@ func printFileList(cCtx *cli.Context, files []utils.AppFile, format string) {
 func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -218,6 +218,53 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 			}
 
 			fmt.Fprintf(cCtx.App.Writer, "Switched %s from version %d to version %d\n", cCtx.Args().First(), response.FromVersion, response.ToVersion)
+
+			if response.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}
+
+func versionRevertCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+
+	return &cli.Command{
+		Name:      "revert",
+		Usage:     "Revert the version for an app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<appPath>",
+		UsageText: `args: <appPath>
+
+<app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which versions are listed.
+
+	Examples:
+		clace version revert example.com:/myapp
+		clace version revert /myapp_cl_stage`,
+
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 1 {
+				return fmt.Errorf("requires argument: <appPath>")
+			}
+
+			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			values := url.Values{}
+			values.Add("appPath", cCtx.Args().First())
+			values.Add("version", "revert") // Use revert as the switch API version
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+
+			var response utils.AppVersionSwitchResponse
+			err := client.Post("/_clace/version", values, nil, &response)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "Reverted %s from version %d to version %d\n", cCtx.Args().First(), response.FromVersion, response.ToVersion)
 
 			if response.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
