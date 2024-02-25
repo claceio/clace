@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
-	"syscall"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/utils"
@@ -109,12 +108,7 @@ func listDir(ctx context.Context, path string, recursiveSize, ignoreError bool) 
 		return nil, err
 	}
 
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs("/", &stat); err != nil {
-		return nil, err
-	}
-	blockSize := int64(stat.Bsize)
-
+	blockSize := int64(4 * 1024) // syscall.Statfs is not available on Windows, using 4K as block size
 	fileInfo := map[string]*FileInfo{}
 	for _, entry := range entries {
 		info, err := entry.Info()
@@ -214,12 +208,7 @@ func find(ctx context.Context, path, nameGlob string, limit, minSize int64, igno
 		return nil, err
 	}
 
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs("/", &stat); err != nil {
-		return nil, err
-	}
-	blockSize := int64(stat.Bsize)
-
+	blockSize := int64(4 * 1024) // syscall.Statfs is not available on Windows, using 4K as block size
 	fileInfo := []*FileInfo{}
 	dirs := []string{}
 	for _, entry := range entries {
