@@ -16,6 +16,7 @@ require (
 	github.com/segmentio/ksuid v1.0.4
 	github.com/urfave/cli/v2 v2.25.7
 	go.starlark.net v0.0.0-20230814145427-12f4cb8177e4
+	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.15.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.26.0

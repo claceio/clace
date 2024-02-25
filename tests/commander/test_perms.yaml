@@ -5,7 +5,7 @@ tests:
   perms0100: # copy disk usage app
     command: cp -r ../examples/disk_usage ./perms_disk_usage
   perms0102: # Update code to WRITE type
-    command: perl -i -pe 's/type="READ"/type="WRITE"/g' ./perms_disk_usage/app.star
+    command: perl -i -pe 's/"abs"/"abs", type="WRITE"/g' ./perms_disk_usage/app.star
   perms0103: # Create app1
     command: ../clace app create --approve /perms1 ./perms_disk_usage
   perms0104: # Create app2
@@ -39,7 +39,7 @@ tests:
     stdout: "Disk Usage"
 
   # Test preview app
-  # These tests depend on a commit which has the disk usage app set to write type for the exec plugin. If the app requires
+  # These tests depend on a commit which has the disk usage app set to write type for the fs plugin. If the app requires
   # updates, these commits have to be recreated. See:
   # https://github.com/claceio/clace/commit/2ce5aaafea9e99de9547d50d91f924edc8191c57
   # https://github.com/claceio/clace/commit/d163ab2e334a02c1cf8ef3e48d0b84bdd72d8ec3

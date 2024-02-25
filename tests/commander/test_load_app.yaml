@@ -18,19 +18,19 @@ tests:
     exit-code: 0
   load0040: # test dev app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
-    stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
+    stdout: "app /disk_usage_dev is not permitted to load plugin fs.in. Audit the app and approve permissions"
   load0041: # check audit output
     command: '../clace app approve --dry-run /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du] <READ>\n    exec.in.run [readlink] <READ>\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n\n*** dry-run mode, changes have NOT been committed. ***\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    fs.in\n  Permissions:\n    fs.in.abs [] \n    fs.in.list [] \n    fs.in.find [] \n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n\n*** dry-run mode, changes have NOT been committed. ***\n"
     exit-code: 0
   load0041a: # test dev app, make sure dry run did not update the in memory cache
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
-    stdout: "app /disk_usage_dev is not permitted to load plugin exec.in. Audit the app and approve permissions"
+    stdout: "app /disk_usage_dev is not permitted to load plugin fs.in. Audit the app and approve permissions"
   load0042: # approve audit
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du] <READ>\n    exec.in.run [readlink] <READ>\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    fs.in\n  Permissions:\n    fs.in.abs [] \n    fs.in.list [] \n    fs.in.find [] \n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
     exit-code: 0
   load0043: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
@@ -40,31 +40,18 @@ tests:
   load0045: # check curl, still works since the old approvals with run are in place
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
-  load0046: # approve audit, no more run permissions
+  load0046: # approve audit, no more permissions
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
+      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    fs.in\n  Permissions:\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
     exit-code: 0
   load0047: # check curl
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
-    stdout: "app /disk_usage_dev is not permitted to call exec.in.run. Audit the app and approve permissions"
-  load0048: # update config
-    command: cp ./disk_usage/app.star.bk ./disk_usage/app.star && perl -i -pe 's/\["du"\]/["cat"]/g' ./disk_usage/app.star
-  load0049: # approve audit, run permissions but for cat instead of du
-    command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
-    stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [cat] <READ>\n    exec.in.run [readlink] <READ>\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
-    exit-code: 0
-  load0050: # check curl
-    command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
-    stdout: 'app /disk_usage_dev is not permitted to call exec.in.run with argument 0 having value "du", expected "readlink". Update the app or audit and approve permissions'
+    stdout: "app /disk_usage_dev is not permitted to call fs.in.abs. Audit the app and approve permissions"
   load0051: # update config
     command: cp ./disk_usage/app.star.bk ./disk_usage/app.star
-  load0052: # approve audit, run permissions but for du
+  load0052: # approve audit
     command: '../clace app approve /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
-    stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du] <READ>\n    exec.in.run [readlink] <READ>\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
-    exit-code: 0
   load0053: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
@@ -79,11 +66,11 @@ tests:
   load0060: # audit prod app
     command: '../clace app approve /disk_usage_prod | sed "s/app_stg_.*/YYY/g"'
     stdout:
-      exactly: "App permissions have been approved /disk_usage_prod_cl_stage - YYY\n  Plugins :\n    exec.in\n  Permissions:\n    exec.in.run [du] <READ>\n    exec.in.run [readlink] <READ>\n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
+      exactly: "App permissions have been approved /disk_usage_prod_cl_stage - YYY\n  Plugins :\n    fs.in\n  Permissions:\n    fs.in.abs [] \n    fs.in.list [] \n    fs.in.find [] \n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n"
     exit-code: 0
   load0061: # test prod app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_prod/
-    stdout: "/disk_usage_prod is not permitted to load plugin exec.in"
+    stdout: "/disk_usage_prod is not permitted to load plugin fs.in"
   load0062: # promote prod app
     command: "../clace app reload --approve --promote /disk_usage_prod"
   load0063: # test prod app

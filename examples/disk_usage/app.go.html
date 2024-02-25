@@ -1,61 +1,109 @@
 {{ block "clace_body" . }}
+
+<script>
+    document.body.addEventListener("htmx:sendError", function(event) {
+        ErrorElem.innerText = "API call failed: Server is not reachable";
+    });
+    document.body.addEventListener("htmx:responseError", function(event) {
+        ErrorElem.innerText = "API call failed: " + event.detail.xhr.responseText;
+    });
+</script>
+
   {{ block "du_table_block" . }}
     <div id="du_table">
-      <h3>
-        Disk usage for
-        {{ .Data.Current }}
-        <img
+
+
+        <h4>
+            Current Folder
+          <b>{{ .Data.Current -}}</b>
+          {{ if .Data.Parent -}}
+            , Parent
+            <a
+              href="{{ printf "%s?dir=%s" $.AppPath .Data.Parent }}"
+              hx-target="#du_table"
+              hx-push-url="true"
+              hx-get="{{ printf "%s?dir=%s" $.AppPath .Data.Parent }}"
+              hx-indicator="#spinner"
+              >{{ .Data.Parent }}</a
+            >
+          {{ end }}
+        </h4>
+        <h4>
+          <a
+            href="{{ printf "%s?dir=%s" $.AppPath .Data.Current }}"
+            hx-target="#du_table"
+            hx-get="{{ printf "%s?dir=%s" $.AppPath .Data.Current }}"
+            hx-push-url="true"
+            hx-indicator="#spinner"
+            >Sub-Folders
+          </a>
+
+          |
+
+          <a
+            href="{{ printf "%s/files?dir=%s" $.AppPath .Data.Current }}"
+            hx-target="#du_table"
+            hx-get="{{ printf "%s/files?dir=%s" $.AppPath .Data.Current }}"
+            hx-push-url="true"
+            hx-indicator="#spinner"
+            >List Files</a
+          >
+
+          |
+
+          <a
+            href="{{ printf "%s/find?dir=%s" $.AppPath .Data.Current }}"
+            hx-target="#du_table"
+            hx-get="{{ printf "%s/find?dir=%s" $.AppPath .Data.Current }}"
+            hx-push-url="true"
+            hx-indicator="#spinner"
+            >Find Files</a
+          >
+
+          <img
           id="spinner"
           alt="Loading..."
           class="htmx-indicator"
           src="{{ static "images/spinner.svg" }}" />
-      </h3>
-      <div><em>{{ .Data.Error }}</em></div>
+        </h4>
 
-      <table>
-        <thead>
-          <th>Name</th>
-          <th></th>
-          <th>Size (MB)</th>
-        </thead>
-        {{ range .Data.Dirs }}
-          <tr>
-            {{ $dirUrl := printf "%s?dir=%s" $.AppPath .Dir }}
-            <td>
-              <a
-                href="{{ $dirUrl }}"
-                hx-target="#du_table"
-                hx-push-url="true"
-                hx-get="{{ $dirUrl }}"
-                hx-indicator="#spinner"
-                >{{ .Dir }}</a
-              >
-            </td>
-            <td>
-              <progress max="{{- $.Data.MaxSize -}}" value="{{- .Size -}}">
-                {{ .Size }}
-              </progress>
-            </td>
-            <td>{{ .Size }}</td>
-          </tr>
-        {{ end }}
+        <div><mark id="ErrorElem">{{ .Data.Error }}</mark></div>
 
-      </table>
+        <table>
+          <thead>
+            <th>Name</th>
+            <th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</th>
+            <th>Size (MB)</th>
+          </thead>
+          {{ range .Data.Entries }}
+            <tr>
+              {{ $dirUrl := printf "%s?dir=%s" $.AppPath .name }}
+              <td>
+                {{ if $.Data.Files }}
+                  {{ .name }}
+                {{ else }}
+                  <a
+                    href="{{ $dirUrl }}"
+                    hx-target="#du_table"
+                    hx-push-url="true"
+                    hx-get="{{ $dirUrl }}"
+                    hx-indicator="#spinner"
+                    >{{ .name }}</a
+                  >
+                {{ end }}
+              </td>
+              <td>
+                <progress max="{{- $.Data.MaxSize -}}" value="{{- .size -}}">
+                  {{ .size }}
+                </progress>
+              </td>
+              <td>{{ round .size 2 }}</td>
+            </tr>
+          {{ end }}
 
-      <h3>
-        {{ if ne .Data.Current "/" }}
-          {{ $parentUrl := printf "%s?dir=%s/.." $.AppPath .Data.Current }}
-          Parent Directory :
-          <a
-            href="{{ $parentUrl }}"
-            hx-target="#du_table"
-            hx-push-url="true"
-            hx-get="{{ $parentUrl }}"
-            hx-indicator="#spinner"
-            >{{ .Data.Current }}/..</a
-          >
-        {{ end }}
-      </h3>
+        </table>
+      </div>
     </div>
   {{ end }}
+
 {{ end }}

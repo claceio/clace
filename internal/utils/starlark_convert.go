@@ -318,7 +318,25 @@ func MarshalStarlark(data interface{}) (v starlark.Value, err error) {
 			}
 		}
 		v = dict
-	case map[string]interface{}:
+	case []map[string]any:
+		var elems = make([]starlark.Value, len(x))
+		for i, val := range x {
+			elems[i], err = MarshalStarlark(val)
+			if err != nil {
+				return
+			}
+		}
+		v = starlark.NewList(elems)
+	case []map[string]string:
+		var elems = make([]starlark.Value, len(x))
+		for i, val := range x {
+			elems[i], err = MarshalStarlark(val)
+			if err != nil {
+				return
+			}
+		}
+		v = starlark.NewList(elems)
+	case map[string]any:
 		dict := &starlark.Dict{}
 		var elem starlark.Value
 		for key, val := range x {

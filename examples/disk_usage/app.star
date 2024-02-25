@@ -1,48 +1,52 @@
-load("exec.in", "exec")
+load("fs.in", "fs")
 
 
-def handler(req):
+def handler(req, files=False, find=False):
     dir = req.Query.get("dir")
     current = dir[0] if dir and dir[0] else "."
 
-    # Run readlink -f to get the absolute path for the current directory
-    ret = exec.run("readlink", ["-f", current], process_partial=True)
+    # Get the absolute path for the current directory
+    ret = fs.abs(current)
     if not ret:
-        print("Failed to run readlink stderr " + ret.error)
-        return {"Current": current,
-                "Error": "readlink -f {current} failed with {error}".format(current=current, error=ret.error)}
-    current = ret.value[0].strip()
+        return {"Current": current, "Error": "fs.abs failed: " + ret.error}
+    current = ret.value
+    parent = ""
+    if current != "/":
+        ret = fs.abs(current + "/..")
+        if ret.error:
+            return {"Current": current, "Error": "fs.abs failed: " + ret.error}
+        parent = ret.value
 
-    args = ["-m", "-d", "1"]
-    args.append(current)
-
-    # run the du command, allow for partial results to handle permission errors on some dirs
-    ret = exec.run("du", args, process_partial=True)
+    if find:
+        ret = fs.find(current, min_size=10 * 1024,
+                      ignore_errors=True, limit=30)
+        files = True
+    else:
+        ret = fs.list(current, recursive_size=not files, ignore_errors=True)
     if not ret:
-        print("Failed to run du " + ret.error)
-        return {"Current": current,
-                "Error": "du -h {current} failed with {error}".format(current=current, error=ret.error)}
+        return {"Current": current, "Error": "fs operation failed: " + ret.error}
 
-    # Parse the results
-    dirs = []
-    for line in ret.value:
-        cols = line.split("\t", 1)
-        dirs.append({"Size": int(cols[0]), "Dir": cols[1]})
+    # Descending sort on size, limit to 30 files
+    entries = [info for info in ret.value if (
+        files and not info["is_dir"]) or (not files and info["is_dir"])]
+    entries = sorted(entries, key=lambda d: d["size"], reverse=True)[:30]
+    for entry in entries:
+        entry["size"] = entry["size"] / 1024 / 1024
 
-    # Descending sort on size, limit to 20 dirs
-    dirs = sorted(dirs, key=lambda d: d["Size"], reverse=True)[:20]
-    if len(dirs) > 1 and dirs[1]["Dir"] == current:
-        # swap current dir to the top (if not already), useful when a child is at same usage level as current
-        dirs[0], dirs[1] = dirs[1], dirs[0]
-
-    return {"Current": current, "Dirs": dirs, "Error": "", "MaxSize": dirs[0]["Size"] if dirs else 0}
+    return {"Current": current, "Entries": entries, "Error": "", "MaxSize": entries[0]["size"] if entries else 0, "Files": files, "Parent": parent}
 
 
 app = ace.app("Disk Usage",
-              pages=[ace.page("/", partial="du_table_block")],
-              permissions=[
-                  ace.permission("exec.in", "run", ["du"], type="READ"),
-                  ace.permission("exec.in", "run", ["readlink"], type="READ")
+              pages=[
+                  ace.page("/", partial="du_table_block",
+                           fragments=[ace.fragment("files", handler=lambda req: handler(req, files=True)),
+                                      ace.fragment("find", handler=lambda req: handler(req, find=True))])
               ],
-              style=ace.style("https://unpkg.com/mvp.css@1.14.0/mvp.css"),
+              permissions=[
+                  ace.permission("fs.in", "abs"),
+                  ace.permission("fs.in", "list"),
+                  ace.permission("fs.in", "find"),
+              ],
+              style=ace.style(
+                  "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"),
               )
