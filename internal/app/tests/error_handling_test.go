@@ -1,0 +1,278 @@
+// Copyright (c) ClaceIO, LLC
+// SPDX-License-Identifier: Apache-2.0
+
+package app_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/utils"
+)
+
+func TestNoErrorHandler(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("fs.in", "fs")
+
+def test1(req):
+	ret = fs.list("/tmp/invalid")
+	ret = fs.list("/tmp")
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [
+		ace.page("/test1", type="json", handler=test1),
+	],
+	permissions=[
+		ace.permission("fs.in", "list"),
+	]
+)`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"fs.in"},
+		[]utils.Permission{
+			{Plugin: "fs.in", Method: "list"},
+		}, map[string]utils.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret := make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	fmt.Print(ret)
+
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+}
+
+func TestErrorHandlerDev(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("fs.in", "fs")
+
+def test1(req):
+	ret = fs.list("/tmp/invalid")
+	ret = fs.list("/tmp")
+
+def error_handler(req, cause):
+	return {"error": cause["error"]}
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [
+		ace.page("/test1", type="json", handler=test1),
+	],
+	permissions=[
+		ace.permission("fs.in", "list"),
+	]
+)`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
+		[]utils.Permission{
+			{Plugin: "fs.in", Method: "list"},
+		}, map[string]utils.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret := make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	fmt.Printf("%#v", ret)
+
+	testutil.AssertEqualsString(t, "error", "Previous plugin call failed: open /tmp/invalid: no such file or directory : Function test1, Position app.star:6:15", ret["error"].(string))
+}
+
+func TestErrorHandlerProd(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("fs.in", "fs")
+
+def test1(req):
+	ret = fs.list("/tmp/invalid")
+	ret = fs.list("/tmp")
+
+def error_handler(req, cause):
+	return {"error": cause["error"]}
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [
+		ace.page("/test1", type="json", handler=test1),
+	],
+	permissions=[
+		ace.permission("fs.in", "list"),
+	]
+)`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"fs.in"},
+		[]utils.Permission{
+			{Plugin: "fs.in", Method: "list"},
+		}, map[string]utils.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret := make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	fmt.Printf("%#v", ret)
+
+	// No source code path for prod app
+	testutil.AssertEqualsString(t, "error", "Previous plugin call failed: open /tmp/invalid: no such file or directory", ret["error"].(string))
+}
+
+func TestErrorHandlerBasics(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("fs.in", "fs")
+
+def test1_value(req):
+	ret = fs.list("/tmp/invalid")
+	ret.value # checking value causes failure
+
+def test2_error(req):
+	ret = fs.list("/tmp/invalid")
+	ret.error # checking error clears failure
+
+def test3_truth(req):
+	ret = fs.list("/tmp/invalid")
+	if ret: # checking truth clears failures state
+		pass
+
+def test4_ignore(req):
+	ret = fs.list("/tmp/invalid")
+	# ret is ignored, no failure
+
+def error_handler(req, cause):
+	return {"error": cause["error"]}
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [
+		ace.page("/test1_value", type="json", handler=test1_value),
+		ace.page("/test2_error", type="json", handler=test2_error),
+		ace.page("/test3_truth", type="json", handler=test3_truth),
+		ace.page("/test4_ignore", type="json", handler=test4_ignore),
+	],
+	permissions=[
+		ace.permission("fs.in", "list"),
+	]
+)`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
+		[]utils.Permission{
+			{Plugin: "fs.in", Method: "list"},
+		}, map[string]utils.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1_value", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret := make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+
+	testutil.AssertStringContains(t, ret["error"].(string), "open /tmp/invalid: no such file or directory : Function test1_value")
+
+	request = httptest.NewRequest("GET", "/test/test2_error", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	request = httptest.NewRequest("GET", "/test/test3_truth", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+
+	request = httptest.NewRequest("GET", "/test/test4_ignore", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	if _, ok := ret["error"]; ok {
+		t.Fatal(ret["error"])
+	}
+}
+
+func TestBadErrorHandler(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("fs.in", "fs")
+
+def test1(req):
+	ret = fs.list("/tmp/invalid")
+	ret.value
+
+def error_handler(req, cause):
+	return 1/0 # bad error handler
+
+app = ace.app("testApp", custom_layout=True, 
+	pages = [
+		ace.page("/test1", type="json", handler=test1),
+	],
+	permissions=[
+		ace.permission("fs.in", "list"),
+	]
+)`,
+		"index.go.html": ``,
+	}
+
+	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
+		[]utils.Permission{
+			{Plugin: "fs.in", Method: "list"},
+		}, map[string]utils.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+
+	testutil.AssertStringContains(t, response.Body.String(), "floating-point division by zero : Function error_handler, Position")
+}

@@ -47,7 +47,7 @@ func (h *fsPlugin) Abs(thread *starlark.Thread, builtin *starlark.Builtin, args 
 		return nil, err
 	}
 
-	return utils.NewResponse(ret), nil
+	return app.NewResponse(ret), nil
 }
 
 func (h *fsPlugin) List(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -64,7 +64,7 @@ func (h *fsPlugin) List(thread *starlark.Thread, builtin *starlark.Builtin, args
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(ret), nil
+	return app.NewResponse(ret), nil
 }
 
 func (h *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -92,7 +92,7 @@ func (h *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args
 		return nil, err
 	}
 
-	return utils.NewResponse(ret), nil
+	return app.NewResponse(ret), nil
 }
 
 type FileInfo struct {

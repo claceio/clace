@@ -139,7 +139,7 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		}
 
 		r := &Response{*res}
-		return utils.NewResponse(r.Struct()), nil
+		return app.NewResponse(r.Struct()), nil
 	}
 }
 

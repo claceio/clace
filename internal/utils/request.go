@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package app
+package utils
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 )
 
@@ -59,19 +58,19 @@ func (r Request) Attr(name string) (starlark.Value, error) {
 	case "HtmxVersion":
 		return starlark.String(r.HtmxVersion), nil
 	case "Headers":
-		return utils.MarshalStarlark(r.Headers)
+		return MarshalStarlark(r.Headers)
 	case "RemoteIP":
 		return starlark.String(r.RemoteIP), nil
 	case "UrlParams":
-		return utils.MarshalStarlark(r.UrlParams)
+		return MarshalStarlark(r.UrlParams)
 	case "Form":
-		return utils.MarshalStarlark(r.Form)
+		return MarshalStarlark(r.Form)
 	case "Query":
-		return utils.MarshalStarlark(r.Query)
+		return MarshalStarlark(r.Query)
 	case "PostForm":
-		return utils.MarshalStarlark(r.PostForm)
+		return MarshalStarlark(r.PostForm)
 	case "Data":
-		return utils.MarshalStarlark(r.Data)
+		return MarshalStarlark(r.Data)
 	default:
 		return starlark.None, fmt.Errorf("request has no attribute '%s'", name)
 	}

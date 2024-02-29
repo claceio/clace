@@ -108,5 +108,5 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 		return nil, scanner.Err()
 	}
 
-	return utils.NewResponse(lines), nil
+	return app.NewResponse(lines), nil
 }

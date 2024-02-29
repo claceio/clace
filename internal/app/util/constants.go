@@ -7,6 +7,7 @@ const (
 	APP_FILE_NAME         = "app.star"
 	APP_CONFIG_KEY        = "app"
 	DEFAULT_HANDLER       = "handler"
+	ERROR_HANDLER         = "error_handler"
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
 	SCHEMA_FILE_NAME      = "schema.star"

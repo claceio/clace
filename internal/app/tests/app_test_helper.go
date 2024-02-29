@@ -34,6 +34,10 @@ func CreateTestAppPlugin(logger *utils.Logger, fileData map[string]string, plugi
 	return CreateTestAppInt(logger, "/test", fileData, false, plugins, permissions, pluginConfig)
 }
 
+func CreateDevAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
+	return CreateTestAppInt(logger, "/test", fileData, true, plugins, permissions, pluginConfig)
+}
+
 func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
 	var fs utils.ReadableFS

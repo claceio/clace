@@ -185,6 +185,15 @@ func (a *App) initRouter() error {
 			return fmt.Errorf("%s is not a function", util.DEFAULT_HANDLER)
 		}
 	}
+
+	if a.globals.Has(util.ERROR_HANDLER) {
+		var ok bool
+		a.errorHandler, ok = a.globals[util.ERROR_HANDLER].(starlark.Callable)
+		if !ok {
+			return fmt.Errorf("%s is not a function", util.ERROR_HANDLER)
+		}
+	}
+
 	router := chi.NewRouter()
 	if err := a.createInternalRoutes(router); err != nil {
 		return err

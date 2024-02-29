@@ -28,12 +28,6 @@ const (
 	READ_WRITE
 )
 
-const (
-	TL_CONTEXT                  = "TL_context"
-	TL_DEFER_MAP                = "TL_defer_map"
-	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
-)
-
 var (
 	loaderInitMutex sync.Mutex
 	builtInPlugins  map[string]utils.PluginMap
@@ -72,24 +66,28 @@ type StarlarkFunction func(thread *starlark.Thread, fn *starlark.Builtin, args s
 // it is wrapped in a PluginResponse. If the starlark function returns a PluginResponse, it is returned as is. Returning
 // a error causes the starlark interpreter to panic, so this wrapper is needed to handle the error and return a value which
 // the starlark code can handle
-func pluginErrorWrapper(f StarlarkFunction) StarlarkFunction {
+func pluginErrorWrapper(f StarlarkFunction, errorHandler starlark.Callable) StarlarkFunction {
 	return func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		// Wrap the plugin function call with error handling
 		val, err := f(thread, fn, args, kwargs)
 
 		// If the return value is already of type PluginResponse, return it without wrapping it
-		_, ok := val.(*utils.PluginResponse)
+		resp, ok := val.(*PluginResponse)
 		if ok {
+			thread.SetLocal(utils.TL_PLUGIN_API_FAILED_ERROR, resp.err)
 			return val, err
 		}
 
+		// Update the thread local error state
+		thread.SetLocal(utils.TL_PLUGIN_API_FAILED_ERROR, err)
+
 		if err != nil {
 			// Error response wrapped in a PluginResponse
-			return utils.NewErrorResponse(err), nil
+			return NewErrorResponse(err, errorHandler, thread), nil
 		}
 
 		// Success response, wrapped in a PluginResponse
-		return utils.NewResponse(val), nil
+		return NewResponse(val), nil
 	}
 }
 
@@ -136,7 +134,7 @@ func CreatePluginApiName(
 }
 
 func GetContext(thread *starlark.Thread) context.Context {
-	c := thread.Local(TL_CONTEXT)
+	c := thread.Local(utils.TL_CONTEXT)
 	if c == nil {
 		return nil
 	}
@@ -145,7 +143,7 @@ func GetContext(thread *starlark.Thread) context.Context {
 
 // SavePluginState saves a value in the thread local for the plugin
 func SavePluginState(thread *starlark.Thread, key string, value any) {
-	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	pluginName := thread.Local(utils.TL_CURRENT_MODULE_FULL_PATH)
 	if pluginName == nil {
 		panic(fmt.Errorf("plugin name not found in thread local"))
 	}
@@ -156,7 +154,7 @@ func SavePluginState(thread *starlark.Thread, key string, value any) {
 
 // FetchPluginState fetches a value from the thread local for the plugin
 func FetchPluginState(thread *starlark.Thread, key string) any {
-	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	pluginName := thread.Local(utils.TL_CURRENT_MODULE_FULL_PATH)
 	if pluginName == nil {
 		panic(fmt.Errorf("plugin name not found in thread local"))
 	}
@@ -173,12 +171,12 @@ type DeferEntry struct {
 
 // DeferCleanup defers a close function to call when the API handler is done
 func DeferCleanup(thread *starlark.Thread, key string, deferFunc DeferFunc, strict bool) {
-	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	pluginName := thread.Local(utils.TL_CURRENT_MODULE_FULL_PATH)
 	if pluginName == nil {
 		panic(fmt.Errorf("plugin name not found in thread local"))
 	}
 
-	deferMap := thread.Local(TL_DEFER_MAP)
+	deferMap := thread.Local(utils.TL_DEFER_MAP)
 	if deferMap == nil {
 		deferMap = map[string]map[string]DeferEntry{}
 	}
@@ -190,17 +188,17 @@ func DeferCleanup(thread *starlark.Thread, key string, deferFunc DeferFunc, stri
 
 	pluginMap[key] = DeferEntry{Func: deferFunc, Strict: strict}
 	deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)] = pluginMap
-	thread.SetLocal(TL_DEFER_MAP, deferMap)
+	thread.SetLocal(utils.TL_DEFER_MAP, deferMap)
 }
 
 // ClearCleanup clears a defer function from the thread local
 func ClearCleanup(thread *starlark.Thread, key string) {
-	pluginName := thread.Local(TL_CURRENT_MODULE_FULL_PATH)
+	pluginName := thread.Local(utils.TL_CURRENT_MODULE_FULL_PATH)
 	if pluginName == nil {
 		panic(fmt.Errorf("plugin name not found in thread local"))
 	}
 
-	deferMap := thread.Local(TL_DEFER_MAP)
+	deferMap := thread.Local(utils.TL_DEFER_MAP)
 	if deferMap == nil {
 		return
 	}
@@ -212,11 +210,11 @@ func ClearCleanup(thread *starlark.Thread, key string) {
 
 	delete(pluginMap, key)
 	deferMap.(map[string]map[string]DeferEntry)[pluginName.(string)] = pluginMap
-	thread.SetLocal(TL_DEFER_MAP, deferMap)
+	thread.SetLocal(utils.TL_DEFER_MAP, deferMap)
 }
 
 func runDeferredCleanup(thread *starlark.Thread) error {
-	deferMap := thread.Local(TL_DEFER_MAP)
+	deferMap := thread.Local(utils.TL_DEFER_MAP)
 	if deferMap == nil {
 		return nil
 	}
@@ -234,7 +232,7 @@ func runDeferredCleanup(thread *starlark.Thread) error {
 		}
 	}
 
-	thread.SetLocal(TL_DEFER_MAP, nil) // reset the defer map
+	thread.SetLocal(utils.TL_DEFER_MAP, nil) // reset the defer map
 
 	if len(strictFailures) > 0 {
 		return fmt.Errorf("resource has not be closed, check handler code: %s", strings.Join(strictFailures, ", "))
@@ -381,11 +379,19 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", modulePath, functionName)
 		}
 
+		if a.errorHandler != nil {
+			prevPluginError := thread.Local(utils.TL_PLUGIN_API_FAILED_ERROR)
+			if prevPluginError != nil {
+				return nil, fmt.Errorf("Previous plugin call failed: %s", prevPluginError)
+			}
+		}
+		thread.SetLocal(utils.TL_PLUGIN_API_FAILED_ERROR, nil)
+
 		// Wrap the plugin function call with error handling
-		errorHandlingWrapper := pluginErrorWrapper(builtinFunc)
+		errorHandlingWrapper := pluginErrorWrapper(builtinFunc, a.errorHandler)
 
 		// Pass the module full path as a thread local
-		thread.SetLocal(TL_CURRENT_MODULE_FULL_PATH, modulePath)
+		thread.SetLocal(utils.TL_CURRENT_MODULE_FULL_PATH, modulePath)
 
 		// Call the builtin function
 		newBuiltin := starlark.NewBuiltin(functionName, errorHandlingWrapper)

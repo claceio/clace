@@ -20,6 +20,17 @@ const (
 	PREVIEW_SUFFIX          = INTERNAL_APP_DELIM + "preview"
 )
 
+const (
+	TL_CONTEXT                  = "TL_context"
+	TL_REQUEST                  = "TL_request"
+	TL_RESPONSE_WRITER          = "TL_response_writer"
+	TL_REQUEST_DATA             = "TL_request_data"
+	TL_APP                      = "TL_app"
+	TL_DEFER_MAP                = "TL_defer_map"
+	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
+	TL_PLUGIN_API_FAILED_ERROR  = "TL_plugin_api_failed_error"
+)
+
 // Config entries shared between client and server
 type GlobalConfig struct {
 	ConfigFile string `toml:"config_file"`

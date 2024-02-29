@@ -65,31 +65,39 @@ func (s *storePlugin) Begin(thread *starlark.Thread, builtin *starlark.Builtin, 
 	}
 	app.SavePluginState(thread, TRANSACTION_KEY, tx)
 	app.DeferCleanup(thread, fmt.Sprintf("transaction_%p", tx), tx.Rollback, false)
-	return utils.NewResponse(tx), nil
+	return app.NewResponse(tx), nil
 }
 
 func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	ctx := app.GetContext(thread)
 	tx := fetchTransation(thread)
 
+	if tx == nil {
+		return nil, errors.New("no transaction to commit")
+	}
+
 	app.ClearCleanup(thread, fmt.Sprintf("transaction_%p", tx))
 	err := s.sqlStore.Commit(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(tx), nil
+	return app.NewResponse(tx), nil
 }
 
 func (s *storePlugin) Rollback(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	ctx := app.GetContext(thread)
 	tx := fetchTransation(thread)
 
+	if tx == nil {
+		return nil, errors.New("no transaction to rollback")
+	}
+
 	app.ClearCleanup(thread, fmt.Sprintf("transaction_%p", tx))
 	err := s.sqlStore.Rollback(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(tx), nil
+	return app.NewResponse(tx), nil
 }
 
 func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -104,7 +112,7 @@ func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin,
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(int64(id)), nil
+	return app.NewResponse(int64(id)), nil
 }
 
 func (s *storePlugin) SelectById(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -130,7 +138,7 @@ func (s *storePlugin) SelectById(thread *starlark.Thread, builtin *starlark.Buil
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(returnType), nil
+	return app.NewResponse(returnType), nil
 }
 
 func (s *storePlugin) Update(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -145,7 +153,7 @@ func (s *storePlugin) Update(thread *starlark.Thread, builtin *starlark.Builtin,
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(success), nil
+	return app.NewResponse(success), nil
 }
 
 func (s *storePlugin) DeleteById(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -166,7 +174,7 @@ func (s *storePlugin) DeleteById(thread *starlark.Thread, builtin *starlark.Buil
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(rows), nil
+	return app.NewResponse(rows), nil
 }
 
 func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -201,7 +209,7 @@ func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Built
 		return nil, err
 	}
 
-	return utils.NewResponse(returnType), nil
+	return app.NewResponse(returnType), nil
 }
 
 type filterData struct {
@@ -254,7 +262,7 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(iterator), nil
+	return app.NewResponse(iterator), nil
 }
 
 func (s *storePlugin) Count(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -283,7 +291,7 @@ func (s *storePlugin) Count(thread *starlark.Thread, builtin *starlark.Builtin, 
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(count), nil
+	return app.NewResponse(count), nil
 }
 
 func (s *storePlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -312,5 +320,5 @@ func (s *storePlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin,
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewResponse(rows), nil
+	return app.NewResponse(rows), nil
 }

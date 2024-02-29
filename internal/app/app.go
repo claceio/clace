@@ -45,6 +45,7 @@ type App struct {
 
 	globals       starlark.StringDict
 	appDef        *starlarkstruct.Struct
+	errorHandler  starlark.Callable
 	appRouter     *chi.Mux
 	template      *template.Template
 	watcher       *fsnotify.Watcher

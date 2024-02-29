@@ -187,7 +187,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
-	testutil.AssertEqualsString(t, "error", "Error handling response: block not defined in response and type is not html\n", response.Body.String())
+	testutil.AssertEqualsString(t, "error", "Error handling response: block not defined in response and type is not json\n", response.Body.String())
 }
 
 func TestRTypeInvalidType(t *testing.T) {
