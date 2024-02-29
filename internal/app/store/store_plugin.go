@@ -65,7 +65,7 @@ func (s *storePlugin) Begin(thread *starlark.Thread, builtin *starlark.Builtin, 
 	}
 	app.SavePluginState(thread, TRANSACTION_KEY, tx)
 	app.DeferCleanup(thread, fmt.Sprintf("transaction_%p", tx), tx.Rollback, false)
-	return app.NewResponse(tx), nil
+	return app.NewResponse(true), nil
 }
 
 func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -81,7 +81,7 @@ func (s *storePlugin) Commit(thread *starlark.Thread, builtin *starlark.Builtin,
 	if err != nil {
 		return nil, err
 	}
-	return app.NewResponse(tx), nil
+	return app.NewResponse(true), nil
 }
 
 func (s *storePlugin) Rollback(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -97,7 +97,7 @@ func (s *storePlugin) Rollback(thread *starlark.Thread, builtin *starlark.Builti
 	if err != nil {
 		return nil, err
 	}
-	return app.NewResponse(tx), nil
+	return app.NewResponse(true), nil
 }
 
 func (s *storePlugin) Insert(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
