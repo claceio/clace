@@ -30,9 +30,9 @@
         </h4>
         <h4>
           <a
-            href="{{ printf "%s?dir=%s" $.AppPath .Data.Current }}"
+            href="{{ printf "%s/?dir=%s" $.AppPath .Data.Current }}"
             hx-target="#du_table"
-            hx-get="{{ printf "%s?dir=%s" $.AppPath .Data.Current }}"
+            hx-get="{{ printf "%s/?dir=%s" $.AppPath .Data.Current }}"
             hx-push-url="true"
             hx-indicator="#spinner"
             >Sub-Folders
