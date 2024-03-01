@@ -164,9 +164,11 @@ def test3_truth(req):
 	if ret: # checking truth clears failures state
 		pass
 
-def test4_ignore(req):
-	ret = fs.list("/tmp/invalid")
-	# ret is ignored, no failure
+def test4_last_call(req):
+	fs.list("/tmp/invalid")
+
+def test5_failure(req):
+	1/0
 
 def error_handler(req, cause):
 	return {"error": cause["error"]}
@@ -176,7 +178,8 @@ app = ace.app("testApp", custom_layout=True,
 		ace.page("/test1_value", type="json", handler=test1_value),
 		ace.page("/test2_error", type="json", handler=test2_error),
 		ace.page("/test3_truth", type="json", handler=test3_truth),
-		ace.page("/test4_ignore", type="json", handler=test4_ignore),
+		ace.page("/test4_last_call", type="json", handler=test4_last_call),
+		ace.page("/test5_failure", type="json", handler=test5_failure),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),
@@ -225,16 +228,23 @@ app = ace.app("testApp", custom_layout=True,
 		t.Fatal(ret["error"])
 	}
 
-	request = httptest.NewRequest("GET", "/test/test4_ignore", nil)
+	request = httptest.NewRequest("GET", "/test/test4_last_call", nil)
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 
 	ret = make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
-	if _, ok := ret["error"]; ok {
-		t.Fatal(ret["error"])
-	}
+	testutil.AssertStringContains(t, ret["error"].(string), "open /tmp/invalid: no such file or directory")
+
+	request = httptest.NewRequest("GET", "/test/test5_failure", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+
+	ret = make(map[string]any)
+	json.NewDecoder(response.Body).Decode(&ret)
+	testutil.AssertStringContains(t, ret["error"].(string), "floating-point division by zero : Function test5_failure, Position")
 }
 
 func TestBadErrorHandler(t *testing.T) {

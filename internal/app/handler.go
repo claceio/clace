@@ -56,9 +56,6 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		// Save the request context in the starlark thread local
 		thread.SetLocal(utils.TL_CONTEXT, r.Context())
-		thread.SetLocal(utils.TL_REQUEST, r)
-		thread.SetLocal(utils.TL_RESPONSE_WRITER, w)
-		thread.SetLocal(utils.TL_APP, a)
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
 
@@ -122,10 +119,19 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			}
 
 			defer deferredCleanup()
-			thread.SetLocal(utils.TL_REQUEST_DATA, requestData)
 
 			// Call the handler function
 			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
+
+			if err == nil && a.errorHandler != nil {
+				pluginErrLocal := thread.Local(utils.TL_PLUGIN_API_FAILED_ERROR)
+				if pluginErrLocal != nil {
+					pluginErr := pluginErrLocal.(error)
+					a.Error().Err(pluginErr).Msg("handler had plugin API failure")
+					err = pluginErr // handle as if the handler had returned an error
+				}
+			}
+
 			if err != nil {
 				a.Error().Err(err).Msg("error calling handler")
 
