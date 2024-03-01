@@ -8,14 +8,19 @@
           Demo Apps
         </h1>
         Clace is a platform for easy development and deployment of self-hosted
-        web applications. These are simple apps built to show the features of
-        Clace.
+        web applications. These are apps built to demo the features of Clace.
         <p>
           All the apps are running on a single Clace server. The code for the
-          apps can be found on
+          apps can be found at
           <a
             class="link link-primary"
             href="https://github.com/claceio/clace/tree/main/examples"
+            >GitHub</a
+          >
+          and
+          <a
+            class="link link-primary"
+            href="https://github.com/claceio/apps/tree/main/"
             >GitHub</a
           >.
         </p>
@@ -25,13 +30,11 @@
             <h2 class="text-2xl font-bold mb-4">Disk Usage</h2>
             <p class="text-gray-600 mb-4">
               This app shows the disk usage on the node, allowing the user to
-              find which directory is consuming the most space. It is a wrapper
-              over the "du" command and shows simple Hypermedia based
+              find which directory is consuming the most space. It uses the
+              filesystem access plugin and shows simple Hypermedia based
               interactions.
             </p>
-            <a
-              href="https://utils.demo.clace.io/disk_usage"
-              class="btn btn-primary"
+            <a href="https://du.demo.clace.io/" class="btn btn-primary"
               >Disk Usage</a
             >
           </div>
@@ -44,9 +47,7 @@
               <a class="link link-primary" href="https://d3js.org/">d3</a>
               library is used as an ESM module to show the data visualization.
             </p>
-            <a
-              href="https://utils.demo.clace.io/memory_usage"
-              class="btn btn-primary"
+            <a href="https://memory.demo.clace.io/" class="btn btn-primary"
               >Memory Usage</a
             >
           </div>
@@ -86,13 +87,13 @@
             <code class="text-green-300">
               <span class="text-green-600"># Start the Clace server</span> <br>
               $ nohup clace server start &amp; <br>
-              <span class="text-green-600"># Create memory usage app, under utils domain</span> <br>
-              $ clace app create --auth-type=none --approve utils.demo.clace.io:/memory_usage github.com/claceio/clace/examples/memory_usage/ <br>
-              <span class="text-green-600"># Create disk usage app, under utils domain</span> <br>
-              $ clace app create --auth-type=none --approve utils.demo.clace.io:/disk_usage github.com/claceio/clace/examples/disk_usage/ <br>
+              <span class="text-green-600"># Create memory usage app</span> <br>
+              $ clace app create --auth-type=none --approve memory.demo.clace.io:/ github.com/claceio/clace/examples/memory_usage/ <br>
+              <span class="text-green-600"># Create disk usage app</span> <br>
+              $ clace app create --auth-type=none --approve du.demo.clace.io:/ github.com/claceio/clace/examples/disk_usage/ <br>
               <span class="text-green-600"># Create cowbull app, under cowbull domain</span> <br>
               $ clace app create --auth-type=none --approve cowbull.co:/ github.com/claceio/clace/examples/cowbull <br>
-              <span class="text-green-600"># Create demo app</span> <br>
+              <span class="text-green-600"># Create demo app, default domain</span> <br>
               $ clace app create --auth-type=none --approve / github.com/claceio/clace/examples/demo <br>
               <span class="text-green-600"># All apps are live now, TLS certs will be created on demand</span> <br>
             </code>
