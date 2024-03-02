@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -326,10 +327,16 @@ func (a *App) startWatcher() error {
 	}()
 
 	// Add watcher path.
-	err = a.watcher.Add(a.SourceUrl)
-	if err != nil {
-		return err
-	}
+	filepath.WalkDir(a.SourceUrl, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			a.Trace().Str("path", path).Msg("Adding path to watcher")
+			return a.watcher.Add(path)
+		}
+		return nil
+	})
 
 	return nil
 }
