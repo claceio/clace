@@ -35,6 +35,7 @@ This repo hosts the source code for Clace server and client. The source for the 
 The development features supported currently by Clace are:
 
 - Hypermedia driven backend [API design](https://clace.io/docs/app/routing/), simplifying UI development.
+- Automatic [error handling support](https://clace.io/docs/plugins/overview/#automatic-error-handling)
 - Dynamic reload using SSE (Server Sent Events) for all application changes, backend and frontend.
 - Automatic creation of ECMAScript modules using [esbuild](https://esbuild.github.io/).
 - Automatic download for JavaScript and CSS dependencies.
@@ -50,6 +51,7 @@ The deployment features supported currently by Clace are:
 - Support for github integration, apps being directly deployed from github code.
 - Database backed file system, for atomic version updates and rollbacks.
 - Zero downtime application updates.
+- Support for application data persistance using SQLite
 - Scalable backend, all performance critical code is in Go, only application handler code is in Starlark.
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
 - Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function) backed by SQLite database, enabling aggressive static content caching.
@@ -67,16 +69,17 @@ Clace is early in its development. The feature roadmap for Clace is:
 - All plugins are internal (built into Clace binary) currently. The plan is to move to an external plugin model, plugins being loaded dynamically using [go-plugin](https://github.com/hashicorp/go-plugin).
 - SQLite is used for metadata storage currently. Support for postgres and other systems is planned.
 - Support for workflow jobs, which would have a form based interface with limited customizability, but with support for triggered and scheduled execution.
-- Support for application data persistance.
 - UI interface for Clace admin operations.
 - Record replay based automatic integration test creation. Record all responses at the plugin boundary and use that to replay integration test scenarios. This is speculative currently, depending on the how the external plugin model is implemented.
-- Distributed agent model, where the Clace server does the initial routing but the actual application execution happens on remote worker nodes. This feature, when added, might use a different licensing model. This is also speculative currently.
+- Distributed agent model, where the Clace server does the initial routing but the actual application execution happens on remote worker nodes.
 
 ## Setup
 
 ### Build from source
 
-To install from source
+To install a release build, follow steps in the [installation docs](https://clace.io/docs/installation/#install-release-build).
+
+To install from source:
 
 - Ensure that a recent version of [Go](https://go.dev/doc/install) is available, version 1.21.0 or newer
 - Checkout the Clace repo, cd to the checked out folder
@@ -115,23 +118,17 @@ $HOME/clace server start
 
 Add the exports to your shell profile file. The service logs will be going to $CL_HOME/logs. To get the logs on the console also, you can add `-c -l DEBUG` to the server start command.
 
-The service will be started on [https://localhost:25223](https://127.0.0.1:25223) by default.
+The service will be started on [https://localhost:25223](https://127.0.0.1:25223) by default (HTTP port 25222).
 
 ### Loading Apps
 
 To create an app, run the Clace client
 
 ```shell
-$HOME/clace app create --is_dev /disk_usage $HOME/clace_source/clace/examples/disk_usage/
+$HOME/clace app create --approve /disk_usage $HOME/clace_source/clace/examples/disk_usage/
 ```
 
-To approve the app's security policies, run
-
-```shell
-$HOME/clace app approve /disk_usage
-```
-
-This will create an app at /disk_usage with the example disk_usage app. The disk_usage app provides a web interface for the [du command](https://man7.org/linux/man-pages/man1/du.1.html), allowing the user to explore the subfolders which are consuming most disk space.
+This will create an app at /disk_usage with the example disk_usage app. The disk_usage app provides a web interface for looking at file system disk usage, allowing the user to explore the sub-folders which are consuming most disk space.
 
 To access the app, go to [https://127.0.0.1:25223/disk_usage](https://127.0.0.1:25223/disk_usage). Use `admin` as the username and use the password previously generated. Allow the browser to connect to the self-signed certificate page. Or connect to [http://127.0.0.1:25222/disk_usage](http://127.0.0.1:25222/disk_usage) to avoid the certificate related warning.
 
