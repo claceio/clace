@@ -18,6 +18,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	DEFAULT_FILE_LIMIT = 10_000
+	MAX_FILE_LIMIT     = 100_000
+)
+
 func init() {
 	h := &fsPlugin{}
 	pluginFuncs := []utils.PluginFunc{
@@ -84,6 +89,13 @@ func (h *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args
 	limitInt, ok := limit.Int64()
 	if !ok {
 		return nil, fmt.Errorf("limit must be an integer")
+	}
+
+	if limitInt > MAX_FILE_LIMIT {
+		return nil, fmt.Errorf("file limit %d exceeds max limit %d", limitInt, MAX_FILE_LIMIT)
+	}
+	if limitInt <= 0 {
+		limitInt = DEFAULT_FILE_LIMIT
 	}
 
 	ctx := app.GetContext(thread)
