@@ -94,6 +94,8 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	if err != nil {
 		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
+
+	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return auditResult, nil
 }
 
@@ -371,7 +373,7 @@ func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, appInfo utils.
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppInfo, error) {
 	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
-	apps, err := s.db.GetAllApps(true)
+	apps, err := s.apps.GetAllApps()
 	if err != nil {
 		return utils.AppInfo{}, err
 	}

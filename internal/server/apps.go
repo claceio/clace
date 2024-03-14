@@ -16,7 +16,8 @@ import (
 // will load the app from the database.
 type AppStore struct {
 	*utils.Logger
-	server *Server
+	server  *Server
+	allApps []utils.AppInfo
 
 	mu     sync.RWMutex
 	appMap map[utils.AppPathDomain]*app.App
@@ -30,11 +31,28 @@ func NewAppStore(logger *utils.Logger, server *Server) *AppStore {
 	}
 }
 
-func (a *AppStore) AddApp(app *app.App) {
+func (a *AppStore) GetAllApps() ([]utils.AppInfo, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
+	if a.allApps != nil {
+		return a.allApps, nil
+	}
+
+	var err error
+	a.allApps, err = a.server.db.GetAllApps(true)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.allApps, nil
+}
+
+func (a *AppStore) ClearAllAppCache() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.allApps = nil
 }
 
 func (a *AppStore) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
@@ -46,6 +64,14 @@ func (a *AppStore) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
 		return nil, fmt.Errorf("app not found: %s", pathDomain)
 	}
 	return app, nil
+}
+
+func (a *AppStore) AddApp(app *app.App) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
+	a.allApps = nil
 }
 
 func (a *AppStore) DeleteLinkedApps(pathDomain utils.AppPathDomain) error {
@@ -60,6 +86,7 @@ func (a *AppStore) DeleteLinkedApps(pathDomain utils.AppPathDomain) error {
 	}
 
 	delete(a.appMap, pathDomain)
+	a.allApps = nil
 	return nil
 }
 
@@ -70,6 +97,7 @@ func (a *AppStore) DeleteApps(pathDomain []utils.AppPathDomain) {
 	for _, pd := range pathDomain {
 		delete(a.appMap, pd)
 	}
+	a.allApps = nil
 }
 
 func (a *AppStore) UpdateApps(apps []*app.App) {
@@ -80,4 +108,5 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 		app.ResetFS() // clear the transaction for DbFS
 		a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
 	}
+	a.allApps = nil
 }
