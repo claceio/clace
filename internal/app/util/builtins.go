@@ -28,6 +28,17 @@ const (
 	DEFAULT_REDIRECT_CODE = 303
 )
 
+const (
+	// Constants included in the ace builtin module
+	GET    = "GET"
+	POST   = "POST"
+	PUT    = "PUT"
+	DELETE = "DELETE"
+	HTML   = "HTML"
+	JSON   = "JSON"
+	TEXT   = "TEXT"
+)
+
 var (
 	once    sync.Once
 	builtin starlark.StringDict
@@ -92,8 +103,8 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 		fragments = starlark.NewList([]starlark.Value{})
 	}
 
-	rtypeStr := strings.ToLower(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+	rtypeStr := strings.ToUpper(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
 		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
 	}
 
@@ -124,8 +135,8 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		method = "GET"
 	}
 
-	rtypeStr := strings.ToLower(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+	rtypeStr := strings.ToUpper(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
 		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
 	}
 
@@ -195,8 +206,8 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		code = starlark.MakeInt(http.StatusOK)
 	}
 
-	rtypeStr := strings.ToLower(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != "html" && rtypeStr != "json" {
+	rtypeStr := strings.ToUpper(rtype.GoString())
+	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
 		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
 	}
 
@@ -276,6 +287,14 @@ func CreateBuiltin() starlark.StringDict {
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
+
+					GET:    starlark.String(GET),
+					POST:   starlark.String(POST),
+					PUT:    starlark.String(PUT),
+					DELETE: starlark.String(DELETE),
+					HTML:   starlark.String(HTML),
+					JSON:   starlark.String(JSON),
+					TEXT:   starlark.String(TEXT),
 				},
 			},
 		}

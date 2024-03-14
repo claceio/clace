@@ -116,6 +116,30 @@ def handler(req):
 	testutil.AssertEqualsInt(t, "b", int(ret["b"].(float64)), 1)
 }
 
+func TestRTypeText(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", pages = [ace.page("/", type=ace.JSON)])
+
+def handler(req):
+	return ace.response(100, type=ace.TEXT)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Header().Get("Content-Type"), "text/plain")
+	testutil.AssertEqualsString(t, "body", "100", response.Body.String())
+
+}
+
 func TestRTypeResponseInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
@@ -187,7 +211,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
-	testutil.AssertEqualsString(t, "error", "Error handling response: block not defined in response and type is not json\n", response.Body.String())
+	testutil.AssertEqualsString(t, "error", "Error handling response: block not defined in response and type is not json/text\n", response.Body.String())
 }
 
 func TestRTypeInvalidType(t *testing.T) {
@@ -200,5 +224,5 @@ def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
 	_, _, err := CreateDevModeTestApp(logger, fileData)
-	testutil.AssertErrorContains(t, err, "invalid type specified : abc")
+	testutil.AssertErrorContains(t, err, "invalid type specified : ABC")
 }

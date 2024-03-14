@@ -61,7 +61,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
 			r.Header.Get("sec-fetch-mode") == "navigate" &&
-			!(strings.ToLower(rtype) == "json") && !(isHtmxRequest && block != "") {
+			!(strings.ToUpper(rtype) == util.JSON) && !(isHtmxRequest && block != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
 		}
@@ -213,10 +213,20 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			}
 		}
 
-		if strings.ToLower(rtype) == "json" {
+		rtype = strings.ToUpper(rtype)
+		if rtype == util.JSON {
 			// If the route type is JSON, then return the handler response as JSON
 			w.Header().Set("Content-Type", "application/json")
 			err := json.NewEncoder(w).Encode(handlerResponse)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			return
+		} else if rtype == util.TEXT {
+			// If the route type is TEXT, then return the handler response as text
+			w.Header().Set("Content-Type", "text/plain")
+			_, err := fmt.Fprint(w, handlerResponse)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -301,9 +311,9 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		// Default to the type set at the route level
 		responseRtype = rtype
 	}
-
-	if templateBlock == "" && responseRtype != "json" {
-		return false, fmt.Errorf("block not defined in response and type is not json")
+	responseRtype = strings.ToUpper(responseRtype)
+	if templateBlock == "" && responseRtype != util.JSON && responseRtype != util.TEXT {
+		return false, fmt.Errorf("block not defined in response and type is not json/text")
 	}
 
 	code, err := util.GetIntAttr(retStruct, "code")
@@ -341,13 +351,25 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		return true, nil
 	}
 
-	if strings.ToLower(responseRtype) == "json" {
+	if strings.ToUpper(responseRtype) == util.JSON {
 		if deferredCleanup != nil && deferredCleanup() != nil {
 			return true, nil
 		}
 		// If the route type is JSON, then return the handler response as JSON
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(templateValue)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return true, nil
+		}
+		return true, nil
+	} else if strings.ToUpper(responseRtype) == util.TEXT {
+		if deferredCleanup != nil && deferredCleanup() != nil {
+			return true, nil
+		}
+		// If the route type is TEXT, then return the handler response as plain text
+		w.Header().Set("Content-Type", "text/plain")
+		_, err := fmt.Fprint(w, templateValue)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return true, nil

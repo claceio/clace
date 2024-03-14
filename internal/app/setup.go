@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/util"
@@ -307,7 +308,7 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return err
 	}
 
-	if rtypeStr == "" || rtypeStr == "html" {
+	if rtypeStr == "" || strings.ToUpper(rtypeStr) == util.HTML {
 		a.usesHtmlTemplate = true
 	}
 
@@ -376,7 +377,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 			return err
 		}
 
-		if rtypeStr == "" || rtypeStr == "html" {
+		if rtypeStr == "" || strings.ToUpper(rtypeStr) == util.HTML {
 			a.usesHtmlTemplate = true
 		}
 
