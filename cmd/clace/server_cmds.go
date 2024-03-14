@@ -11,6 +11,7 @@ import (
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/claceio/clace/pkg/api"
+	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -30,6 +31,7 @@ func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error)
 		newAltIntFlag("https.port", "", "The port to listen on for HTTPS", defaultServerConfig.Https.Port, &serverConfig.Https.Port),
 		newAltStringFlag("logging.level", "l", "The logging level to use", defaultServerConfig.Log.Level, &serverConfig.Log.Level),
 		newAltBoolFlag("logging.console", "c", "Enable console logging", defaultServerConfig.Log.Console, &serverConfig.Log.Console),
+		newAltStringFlag("profile_mode", "", "Enable profiling mode", defaultServerConfig.ProfileMode, &serverConfig.ProfileMode),
 	}
 
 	return []*cli.Command{
@@ -71,6 +73,27 @@ func startServer(cCtx *cli.Context, serverConfig *utils.ServerConfig) error {
 	if serverConfig.Https.Port >= 0 {
 		addr := fmt.Sprintf("https://%s:%d", serverConfig.Https.Host, serverConfig.Https.Port)
 		fmt.Fprintf(os.Stderr, "Server listening on %s\n", addr)
+	}
+
+	clHome := os.ExpandEnv("$CL_HOME")
+	switch serverConfig.ProfileMode {
+	case "cpu":
+		defer profile.Start(profile.CPUProfile, profile.ProfilePath(clHome)).Stop()
+	case "mem":
+		defer profile.Start(profile.MemProfile, profile.ProfilePath(clHome)).Stop()
+	case "mutex":
+		defer profile.Start(profile.MutexProfile, profile.ProfilePath(clHome)).Stop()
+	case "block":
+		defer profile.Start(profile.BlockProfile, profile.ProfilePath(clHome)).Stop()
+	case "":
+		// no profiling
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown profile mode: %s\n", serverConfig.ProfileMode)
+		os.Exit(1)
+	}
+	if serverConfig.ProfileMode != "" {
+		fmt.Fprintf(os.Stderr, "Profiling enabled: %s\n", serverConfig.ProfileMode)
+		select {} // block forever, profiling will exit on interrupt
 	}
 
 	c := make(chan os.Signal, 1)

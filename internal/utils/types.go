@@ -37,14 +37,15 @@ type GlobalConfig struct {
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
 	GlobalConfig
-	Http     HttpConfig                `toml:"http"`
-	Https    HttpsConfig               `toml:"https"`
-	Security SecurityConfig            `toml:"security"`
-	Metadata MetadataConfig            `toml:"metadata"`
-	Log      LogConfig                 `toml:"logging"`
-	System   SystemConfig              `toml:"system"`
-	GitAuth  map[string]GitAuthEntry   `toml:"git_auth"`
-	Plugins  map[string]PluginSettings `toml:"plugin"`
+	Http        HttpConfig                `toml:"http"`
+	Https       HttpsConfig               `toml:"https"`
+	Security    SecurityConfig            `toml:"security"`
+	Metadata    MetadataConfig            `toml:"metadata"`
+	Log         LogConfig                 `toml:"logging"`
+	System      SystemConfig              `toml:"system"`
+	GitAuth     map[string]GitAuthEntry   `toml:"git_auth"`
+	Plugins     map[string]PluginSettings `toml:"plugin"`
+	ProfileMode string                    `toml:"profile_mode"`
 }
 
 // HttpConfig is the configuration for the HTTP server
