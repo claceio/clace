@@ -307,6 +307,10 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return err
 	}
 
+	if rtypeStr == "" || rtypeStr == "html" {
+		a.usesHtmlTemplate = true
+	}
+
 	if htmlFile == "" {
 		if a.CustomLayout {
 			htmlFile = util.INDEX_FILE
@@ -370,6 +374,10 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 
 		if rtypeStr, err = util.GetStringAttr(fragmentDef, "type"); err != nil {
 			return err
+		}
+
+		if rtypeStr == "" || rtypeStr == "html" {
+			a.usesHtmlTemplate = true
 		}
 
 		if blockStr == "" {

@@ -94,6 +94,54 @@ def handler(req):
 	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
 }
 
+func TestAppLoadNoHtml(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", pages = [ace.page("/", type="json")])
+
+def handler(req):
+	return {"key": "myvalue"}
+		`,
+	}
+	a, _, err := CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), `{"key":"myvalue"}`)
+}
+
+func TestAppLoadNoHtmlCustomLayout(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, pages = [ace.page("/", type="json")])
+
+def handler(req):
+	return {"key": "myvalue"}
+		`,
+	}
+	a, _, err := CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), `{"key":"myvalue"}`)
+}
+
 func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{

@@ -44,15 +44,16 @@ type App struct {
 	storeInfo       *utils.StoreInfo
 	plugins         *AppPlugins
 
-	globals       starlark.StringDict
-	appDef        *starlarkstruct.Struct
-	errorHandler  starlark.Callable
-	appRouter     *chi.Mux
-	template      *template.Template
-	watcher       *fsnotify.Watcher
-	sseListeners  []chan SSEMessage
-	funcMap       template.FuncMap
-	starlarkCache map[string]*starlarkCacheEntry
+	globals          starlark.StringDict
+	appDef           *starlarkstruct.Struct
+	errorHandler     starlark.Callable
+	appRouter        *chi.Mux
+	usesHtmlTemplate bool // Whether the app uses HTML templates, false if only JSON APIs
+	template         *template.Template
+	watcher          *fsnotify.Watcher
+	sseListeners     []chan SSEMessage
+	funcMap          template.FuncMap
+	starlarkCache    map[string]*starlarkCacheEntry
 }
 
 type starlarkCacheEntry struct {
@@ -239,9 +240,11 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		}
 	}
 
-	// Parse HTML templates
-	if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
-		return false, err
+	// Parse HTML templates if there are HTML routes
+	if a.usesHtmlTemplate {
+		if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
+			return false, err
+		}
 	}
 	a.initialized = true
 
