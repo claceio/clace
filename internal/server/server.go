@@ -71,10 +71,16 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 	server.apps = NewAppStore(logger, server)
 	server.authHandler = NewAdminBasicAuth(logger, config)
 
-	accessLogger := utils.RollingFileLogger(&config.Log, "access.log")
-	customLogger := log.New(accessLogger, "", log.LstdFlags)
-	middleware.DefaultLogger = middleware.RequestLogger(
-		&middleware.DefaultLogFormatter{Logger: customLogger, NoColor: true})
+	if config.Log.AccessLogging {
+		accessLogger := utils.RollingFileLogger(&config.Log, "access.log")
+		customLogger := log.New(accessLogger, "", log.LstdFlags)
+		middleware.DefaultLogger = middleware.RequestLogger(
+			&middleware.DefaultLogFormatter{Logger: customLogger, NoColor: true})
+	} else {
+		middleware.DefaultLogger = func(next http.Handler) http.Handler {
+			return next // no-op, logging is disabled
+		}
+	}
 
 	return server, nil
 }

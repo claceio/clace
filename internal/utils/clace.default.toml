@@ -34,6 +34,7 @@ max_backups = 10
 max_size_mb = 50
 console = false
 file = true
+access_logging = true
 
 # Metadata Storage Config
 [metadata]

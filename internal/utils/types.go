@@ -79,11 +79,12 @@ type MetadataConfig struct {
 
 // LogConfig is the configuration for the Logger
 type LogConfig struct {
-	Level      string `toml:"level"`
-	MaxBackups int    `toml:"max_backups"`
-	MaxSizeMB  int    `toml:"max_size_mb"`
-	Console    bool   `toml:"console"`
-	File       bool   `toml:"file"`
+	Level         string `toml:"level"`
+	MaxBackups    int    `toml:"max_backups"`
+	MaxSizeMB     int    `toml:"max_size_mb"`
+	Console       bool   `toml:"console"`
+	File          bool   `toml:"file"`
+	AccessLogging bool   `toml:"access_logging"`
 }
 
 // SystemConfig is the system level configuration
