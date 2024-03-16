@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
@@ -304,22 +305,52 @@ func (a *App) startWatcher() error {
 				a.Error().Msgf("Recovered from panic in watcher: %s", r)
 			}
 		}()
+
+		inReload := atomic.Bool{}
+		reloadEndTime := atomic.Int64{}
+		inReload.Store(false)
+		reloadEndTime.Store(0)
+
 		for {
 			select {
 			case event, ok := <-a.watcher.Events:
 				if !ok {
 					return
 				}
-				a.Trace().Str("event", fmt.Sprint(event)).Msg("Received event")
-				if event.Op == fsnotify.Chmod {
+
+				if inReload.Load() {
+					// If a reload is in progress, ignore the event
+					a.Trace().Str("event", fmt.Sprint(event)).Msg("Ignoring event since reload is in progress")
 					continue
 				}
-				_, err := a.Reload(true, false)
-				if err != nil {
-					a.Error().Err(err).Msg("Error reloading app")
+				endTime := reloadEndTime.Load()
+				diff := time.Now().UnixMilli() - endTime
+				a.Trace().Int64("diff", diff).Msg("Time since last reload")
+				if endTime > 0 && (time.Now().UnixMilli()-endTime) < int64(a.systemConfig.FileWatcherDebounceMillis)*5 {
+					// If a reload has happened recently, ignore the event
+					a.Trace().Str("event", fmt.Sprint(event)).Msg("Ignoring event since reload happened recently")
+					continue
 				}
-				a.reloadError = err
-				a.notifyClients()
+
+				a.Trace().Str("event", fmt.Sprint(event)).Msg("Received event")
+
+				go func() {
+					defer func() {
+						if r := recover(); r != nil {
+							a.Error().Msgf("Recovered from panic in watcher: %s", r)
+						}
+					}()
+
+					inReload.Store(true)
+					defer inReload.Store(false)
+					_, err := a.Reload(true, false)
+					if err != nil {
+						a.Error().Err(err).Msg("Error reloading app")
+					}
+					a.reloadError = err
+					a.Trace().Msg("Reloaded app after file changes")
+					reloadEndTime.Store(time.Now().UnixMilli())
+				}()
 			case err, ok := <-a.watcher.Errors:
 				a.Error().Err(err).Msgf("Error in watcher error receiver")
 				if !ok {
