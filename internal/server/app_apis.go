@@ -878,5 +878,6 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 		return nil, err
 	}
 
+	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return ret, nil
 }
