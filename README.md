@@ -132,6 +132,50 @@ This will create an app at /disk_usage with the example disk_usage app. The disk
 
 To access the app, go to [https://127.0.0.1:25223/disk_usage](https://127.0.0.1:25223/disk_usage). Use `admin` as the username and use the password previously generated. Allow the browser to connect to the self-signed certificate page. Or connect to [http://127.0.0.1:25222/disk_usage](http://127.0.0.1:25222/disk_usage) to avoid the certificate related warning.
 
+## Sample App
+
+To create an app with a custom HTML page which shows a listing of files, create an directory `~/fileapp` with file `app.star` file containing:
+
+```python
+load("exec.in", "exec")
+
+def handler(req):
+   ret = exec.run("ls", ["-l"])
+   if ret.error:
+       return {"Error": ret.error, "Lines": []}
+   return {"Error": "", "Lines": ret.value}
+
+app = ace.app("File Listing",
+              custom_layout=True,
+              pages = [ace.page("/")],
+              permissions = [ace.permission("exec.in", "run", ["ls"])]
+             )
+```
+
+and file `index.go.html` containing:
+
+<!-- prettier-ignore -->
+```html
+<!doctype html>
+<html>
+  <head>
+    <title>File List</title>
+  </head>
+  <body>
+    <h1>File List</h1>
+    {{ .Data.Error }}
+    {{ range .Data.Lines }}
+       {{.}}
+       <br/>
+    {{end}}
+  </body>
+</html>
+```
+
+<!-- prettier-ignore-end -->
+
+Run `clace app create --auth-type=none --approve /files ~/fileapp`. The app is available at `https://localhost:25223/files`.
+
 ## Documentation
 
 Clace docs are at https://clace.io/docs/. If you need any clarifications about the docs, please check the discussions first. For doc bugs, raise a GitHub issue in the [docs](https://github.com/claceio/docs) repo.
