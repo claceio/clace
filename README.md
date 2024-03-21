@@ -178,17 +178,15 @@ Run `clace app create --auth-type=none --approve /files ~/fileapp`. The app is a
 
 ## Documentation
 
-Clace docs are at https://clace.io/docs/. If you need any clarifications about the docs, please check the discussions first. For doc bugs, raise a GitHub issue in the [docs](https://github.com/claceio/docs) repo.
+Clace docs are at https://clace.io/docs/. For doc bugs, raise a GitHub issue in the [docs](https://github.com/claceio/docs) repo.
 
 ## Getting help
 
-Please use [Github Discussions](https://github.com/claceio/clace/discussions) for discussing Clace related topics.
-
-Please use the bug tracker only for bug reports and feature requests. General questions should go to the discussion forum.
+Please use [Github Discussions](https://github.com/claceio/clace/discussions) for discussing Clace related topics. Please use the bug tracker only for bug reports and feature requests.
 
 ## Contributing
 
-PRs welcome for bug fixes, please file a bug first. Commit messages should [reference
+PRs welcome for bug fixes. Commit messages should [reference
 bugs](https://docs.github.com/en/github/writing-on-github/autolinked-references-and-urls).
 
 For feature enhancements, please first file a ticket with the `feature` label and discuss the change before working on the code changes.
