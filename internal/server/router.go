@@ -129,6 +129,8 @@ func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 		router.Mount(utils.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
 	}
 
+	server.ssoAuth.RegisterRoutes(router) // register SSO routes
+
 	router.HandleFunc("/*", handler.callApp)
 	return handler
 }
@@ -147,7 +149,7 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.server.serveApp(w, r, matchedApp.AppPathDomain)
+	h.server.authenticateAndServeApp(w, r, matchedApp.AppPathDomain)
 }
 
 func validatePathForCreate(inp string) error {

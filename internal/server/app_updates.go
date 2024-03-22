@@ -449,8 +449,7 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 		}
 
 		if updateAppRequest.AuthnType != utils.StringValueUndefined {
-			authnType := utils.AppAuthnType(updateAppRequest.AuthnType)
-			if authnType != utils.AppAuthnDefault && authnType != utils.AppAuthnNone {
+			if !s.ssoAuth.ValidateAuthType(string(updateAppRequest.AuthnType)) {
 				return nil, fmt.Errorf("invalid authentication type %s", updateAppRequest.AuthnType)
 			}
 			linkedApp.Settings.AuthnType = utils.AppAuthnType(updateAppRequest.AuthnType)

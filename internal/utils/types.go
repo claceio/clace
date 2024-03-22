@@ -45,6 +45,7 @@ type ServerConfig struct {
 	System      SystemConfig              `toml:"system"`
 	GitAuth     map[string]GitAuthEntry   `toml:"git_auth"`
 	Plugins     map[string]PluginSettings `toml:"plugin"`
+	Auth        map[string]AuthConfig     `toml:"auth"`
 	ProfileMode string                    `toml:"profile_mode"`
 }
 
@@ -69,6 +70,11 @@ type HttpsConfig struct {
 type SecurityConfig struct {
 	AdminOverTCP        bool   `toml:"admin_over_tcp"`
 	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
+	AppDefaultAuthType  string `toml:"app_default_auth_type"`
+	SessionSecret       string `toml:"session_secret"`
+	SessionMaxAge       int    `toml:"session_max_age"`
+	SessionHttpsOnly    bool   `toml:"session_https_only"`
+	CallbackUrl         string `toml:"callback_url"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer
@@ -99,6 +105,16 @@ type GitAuthEntry struct {
 	UserID      string `toml:"user_id"`       // the user id of the user, defaults to "git" https://github.com/src-d/go-git/issues/637
 	KeyFilePath string `toml:"key_file_path"` // the path to the private key file
 	Password    string `toml:"password"`      // the password for the private key file
+}
+
+// AuthConfig is the configuration for the Authentication provider
+type AuthConfig struct {
+	Key          string   `toml:"key"`           // the client id
+	Secret       string   `toml:"secret"`        // the client secret
+	OrgUrl       string   `toml:"org_url"`       // the org url, used for Okta
+	Domain       string   `toml:"auth_domain"`   // the domain, used for Auth0
+	DiscoveryUrl string   `toml:"discovery_url"` // the discovery url, used for OIDC
+	Scopes       []string `toml:"scopes"`        // oauth scopes
 }
 
 type PluginSettings map[string]any
@@ -168,8 +184,9 @@ type Permission struct {
 type AppAuthnType string
 
 const (
-	AppAuthnDefault AppAuthnType = "default" // Use whatever auth is the default for the system
 	AppAuthnNone    AppAuthnType = "none"    // No auth
+	AppAuthnDefault AppAuthnType = "default" // Use whatever auth is the default for the system
+	AppAuthnSystem  AppAuthnType = "system"  // Use the system admin user
 )
 
 // VersionMetadata contains the metadata for an app

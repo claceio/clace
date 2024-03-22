@@ -77,11 +77,10 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	appEntry.SourceUrl = appRequest.SourceUrl
 	appEntry.IsDev = appRequest.IsDev
 	if appRequest.AppAuthn != "" {
-		authType := utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
-		if authType != utils.AppAuthnDefault && authType != utils.AppAuthnNone {
-			return nil, utils.CreateRequestError("Invalid auth type: "+string(authType), http.StatusBadRequest)
+		if !s.ssoAuth.ValidateAuthType(string(appRequest.AppAuthn)) {
+			return nil, fmt.Errorf("invalid authentication type %s", appRequest.AppAuthn)
 		}
-		appEntry.Settings.AuthnType = utils.AppAuthnType(strings.ToLower(string(appRequest.AppAuthn)))
+		appEntry.Settings.AuthnType = appRequest.AppAuthn
 	} else {
 		appEntry.Settings.AuthnType = utils.AppAuthnDefault
 	}
@@ -345,7 +344,7 @@ func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (
 	return ret, nil
 }
 
-func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, appInfo utils.AppPathDomain) {
+func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request, appInfo utils.AppPathDomain) {
 	app, err := s.GetApp(appInfo, true)
 	if err != nil {
 		s.Error().Err(err).Msg("error getting App")
@@ -353,21 +352,43 @@ func (s *Server) serveApp(w http.ResponseWriter, r *http.Request, appInfo utils.
 		return
 	}
 
-	if app.Settings.AuthnType == utils.AppAuthnDefault || app.Settings.AuthnType == "" {
-		// The default authn type is to use the admin user account
+	appAuth := app.Settings.AuthnType
+	if app.Settings.AuthnType == "" || appAuth == utils.AppAuthnDefault {
+		appAuth = utils.AppAuthnType(s.config.Security.AppDefaultAuthType)
+	}
+
+	if appAuth == "" { // no default auth type set for system, default to system admin user auth
+		appAuth = utils.AppAuthnSystem
+	}
+
+	if app.Settings.AuthnType == utils.AppAuthnNone {
+		// No authentication required
+	} else if appAuth == utils.AppAuthnSystem {
+		// Use system admin user for authentication
 		authStatus := s.authHandler.authenticate(r.Header.Get("Authorization"))
 		if !authStatus {
 			w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, REALM))
 			http.Error(w, "Authentication failed", http.StatusUnauthorized)
 			return
 		}
-	} else if app.Settings.AuthnType == utils.AppAuthnNone {
-		// No authentication required
 	} else {
-		http.Error(w, "Unsupported authn type: "+string(app.Settings.AuthnType), http.StatusInternalServerError)
-		return
+		authString := string(app.Settings.AuthnType)
+		if !s.ssoAuth.VerifyProvider(authString) {
+			http.Error(w, "Unsupported authentication provider: "+authString, http.StatusInternalServerError)
+			return
+		}
+
+		// Redirect to the auth provider if not logged in
+		loggedIn, err := s.ssoAuth.CheckAuth(w, r, authString)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		if !loggedIn {
+			return // Redirected to auth provider
+		}
 	}
 
+	// Authentication successful, serve the app
 	app.ServeHTTP(w, r)
 }
 

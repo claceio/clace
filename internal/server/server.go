@@ -53,6 +53,7 @@ type Server struct {
 	handler     *Handler
 	apps        *AppStore
 	authHandler *AdminBasicAuth
+	ssoAuth     *SSOAuth
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -70,6 +71,12 @@ func NewServer(config *utils.ServerConfig) (*Server, error) {
 	}
 	server.apps = NewAppStore(logger, server)
 	server.authHandler = NewAdminBasicAuth(logger, config)
+
+	// Setup SSO auth
+	server.ssoAuth = NewSSOAuth(logger, config)
+	if err = server.ssoAuth.Setup(); err != nil {
+		return nil, err
+	}
 
 	if config.Log.AccessLogging {
 		accessLogger := utils.RollingFileLogger(&config.Log, "access.log")
