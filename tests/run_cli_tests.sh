@@ -44,7 +44,7 @@ CL_CONFIG_FILE=config_basic_test.toml ../clace server start  --http.port=9154 --
 sleep 2
 
 commander test $CL_TEST_VERBOSE test_basics.yaml
-rm -rf clace.db run/clace.sock config_basic_test.toml
+rm -rf clace.db* run/clace.sock config_basic_test.toml
 
 # Test server prints a password when started without config
 ../clace server start --http.port=9156 --https.port=9157 > server.stdout &

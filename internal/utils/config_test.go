@@ -31,7 +31,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsInt(t, "max size MB", 50, c.Log.MaxSizeMB)
 
 	// Metadata related settings
-	testutil.AssertEqualsString(t, "db connection", "sqlite:$CL_HOME/clace.db?_journal_mode=WAL", c.Metadata.DBConnection)
+	testutil.AssertEqualsString(t, "db connection", "sqlite:$CL_HOME/clace.db", c.Metadata.DBConnection)
 	testutil.AssertEqualsBool(t, "auto upgrade", true, c.Metadata.AutoUpgrade)
 
 	// HTTPS listen related settings

@@ -49,6 +49,16 @@ func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, e
 	if err != nil {
 		return nil, err
 	}
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout=10000"); err != nil {
+		return nil, err
+	}
+
 	m := &Metadata{
 		Logger: logger,
 		config: config,

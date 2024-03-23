@@ -40,6 +40,17 @@ func (s *SqlStore) initStore(ctx context.Context) error {
 		return fmt.Errorf("error opening db %s: %w", connectString, err)
 	}
 	s.isSqlite = true
+
+	if _, err := s.db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec("PRAGMA busy_timeout=10000"); err != nil {
+		return err
+	}
+
 	s.prefix = "db_" + string(s.pluginContext.AppId)[len(utils.ID_PREFIX_APP_PROD):]
 
 	autoKey := "INTEGER PRIMARY KEY AUTOINCREMENT"

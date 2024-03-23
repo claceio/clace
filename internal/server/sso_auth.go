@@ -143,24 +143,6 @@ func (s *SSOAuth) Setup() error {
 	return nil
 }
 
-func (s *SSOAuth) validateResponse(providerName string, user goth.User) error {
-	providerConfig := s.providerConfigs[providerName]
-	if providerConfig == nil {
-		return fmt.Errorf("provider %s not configured", providerName)
-	}
-
-	providerType := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)[0]
-	switch providerType {
-	case "google":
-		if providerConfig.HostedDomain != "" && user.RawData["hd"] != providerConfig.HostedDomain {
-			return fmt.Errorf("user does not belong to the required hosted domain. Found %s, expected %s",
-				user.RawData["hd"], providerConfig.HostedDomain)
-		}
-	}
-
-	return nil
-}
-
 func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 	mux.Get(utils.INTERNAL_URL_PREFIX+"/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
 		user, err := gothic.CompleteUserAuth(w, r)
@@ -196,9 +178,12 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
 	})
 
-	mux.Get(utils.INTERNAL_URL_PREFIX+"/logout/{provider}", func(w http.ResponseWriter, r *http.Request) {
-		gothic.Logout(w, r)
-		// Set user as authenticated in session
+	mux.Post(utils.INTERNAL_URL_PREFIX+"/logout/{provider}", func(w http.ResponseWriter, r *http.Request) {
+		if err := gothic.Logout(w, r); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Set user as not authenticated in session
 		session, err := s.cookieStore.Get(r, SESSION_COOKIE)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -231,6 +216,24 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 			gothic.BeginAuthHandler(w, r)
 		}
 	})
+}
+
+func (s *SSOAuth) validateResponse(providerName string, user goth.User) error {
+	providerConfig := s.providerConfigs[providerName]
+	if providerConfig == nil {
+		return fmt.Errorf("provider %s not configured", providerName)
+	}
+
+	providerType := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)[0]
+	switch providerType {
+	case "google":
+		if providerConfig.HostedDomain != "" && user.RawData["hd"] != providerConfig.HostedDomain {
+			return fmt.Errorf("user does not belong to the required hosted domain. Found %s, expected %s",
+				user.RawData["hd"], providerConfig.HostedDomain)
+		}
+	}
+
+	return nil
 }
 
 func (s *SSOAuth) VerifyProvider(provider string) bool {
