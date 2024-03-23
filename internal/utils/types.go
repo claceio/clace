@@ -112,8 +112,9 @@ type AuthConfig struct {
 	Key          string   `toml:"key"`           // the client id
 	Secret       string   `toml:"secret"`        // the client secret
 	OrgUrl       string   `toml:"org_url"`       // the org url, used for Okta
-	Domain       string   `toml:"auth_domain"`   // the domain, used for Auth0
+	Domain       string   `toml:"domain"`        // the domain, used for Auth0
 	DiscoveryUrl string   `toml:"discovery_url"` // the discovery url, used for OIDC
+	HostedDomain string   `toml:"hosted_domain"` // the hosted domain, used for Google
 	Scopes       []string `toml:"scopes"`        // oauth scopes
 }
 

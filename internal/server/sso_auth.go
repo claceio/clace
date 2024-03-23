@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
@@ -29,18 +30,19 @@ import (
 )
 
 const (
-	SESSION_COOKIE = "clace_session"
-	AUTH_KEY       = "authenticated"
-	USER_ID_KEY    = "user"
-	USER_EMAIL_KEY = "email"
-	REDIRECT_URL   = "redirect"
+	PROVIDER_NAME_DELIMITER = "_"
+	SESSION_COOKIE          = "clace_session"
+	AUTH_KEY                = "authenticated"
+	USER_ID_KEY             = "user"
+	USER_EMAIL_KEY          = "email"
+	REDIRECT_URL            = "redirect"
 )
 
 type SSOAuth struct {
 	*utils.Logger
-	config              *utils.ServerConfig
-	cookieStore         *sessions.CookieStore
-	configuredProviders map[string]bool
+	config          *utils.ServerConfig
+	cookieStore     *sessions.CookieStore
+	providerConfigs map[string]*utils.AuthConfig
 }
 
 func NewSSOAuth(logger *utils.Logger, config *utils.ServerConfig) *SSOAuth {
@@ -75,61 +77,87 @@ func (s *SSOAuth) Setup() error {
 
 	gothic.Store = s.cookieStore // Set the store for gothic
 	gothic.GetProviderName = getProviderName
+	s.providerConfigs = make(map[string]*utils.AuthConfig)
 
 	providers := make([]goth.Provider, 0)
-	for provider, auth := range s.config.Auth {
+	for providerName, auth := range s.config.Auth {
 		key := auth.Key
 		secret := auth.Secret
 		scopes := auth.Scopes
 
-		if provider == "" || key == "" || secret == "" {
+		if providerName == "" || key == "" || secret == "" {
 			return fmt.Errorf("provider, key, and secret must be set for each auth provider")
 		}
 
-		callbackUrl := s.config.Security.CallbackUrl + utils.INTERNAL_URL_PREFIX + "/auth/" + provider + "/callback"
+		callbackUrl := s.config.Security.CallbackUrl + utils.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/callback"
 
-		switch provider {
+		providerSplit := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)
+		providerType := providerSplit[0]
+
+		var provider goth.Provider
+		switch providerType {
 		case "github":
-			providers = append(providers, github.New(key, secret, callbackUrl, scopes...))
-		case "google":
-			providers = append(providers, google.New(key, secret, callbackUrl, scopes...))
+			provider = github.New(key, secret, callbackUrl, scopes...)
+		case "google": // google supports hosted domain option
+			gp := google.New(key, secret, callbackUrl, scopes...)
+			if auth.HostedDomain != "" {
+				gp.SetHostedDomain(auth.HostedDomain)
+			}
+			provider = gp
 		case "digitalocean":
-			providers = append(providers, digitalocean.New(key, secret, callbackUrl, scopes...))
+			provider = digitalocean.New(key, secret, callbackUrl, scopes...)
 		case "bitbucket":
-			providers = append(providers, bitbucket.New(key, secret, callbackUrl, scopes...))
+			provider = bitbucket.New(key, secret, callbackUrl, scopes...)
 		case "amazon":
-			providers = append(providers, amazon.New(key, secret, callbackUrl, scopes...))
+			provider = amazon.New(key, secret, callbackUrl, scopes...)
 		case "azuread": // azuread requires a resources array, setting nil for now
-			providers = append(providers, azuread.New(key, secret, callbackUrl, nil, scopes...))
+			provider = azuread.New(key, secret, callbackUrl, nil, scopes...)
 		case "microsoftonline":
-			providers = append(providers, microsoftonline.New(key, secret, callbackUrl, scopes...))
+			provider = microsoftonline.New(key, secret, callbackUrl, scopes...)
 		case "gitlab":
-			providers = append(providers, gitlab.New(key, secret, callbackUrl, scopes...))
+			provider = gitlab.New(key, secret, callbackUrl, scopes...)
 		case "auth0": // auth0 requires a domain
-			providers = append(providers, auth0.New(key, secret, callbackUrl, auth.Domain, scopes...))
+			provider = auth0.New(key, secret, callbackUrl, auth.Domain, scopes...)
 		case "okta": // okta requires an org url
-			providers = append(providers, okta.New(key, secret, callbackUrl, auth.OrgUrl, scopes...))
+			provider = okta.New(key, secret, callbackUrl, auth.OrgUrl, scopes...)
 		case "oidc": // openidConnect requires a discovery url
-			provider, err := openidConnect.New(key, secret, callbackUrl, auth.DiscoveryUrl, scopes...)
+			op, err := openidConnect.New(key, secret, callbackUrl, auth.DiscoveryUrl, scopes...)
 			if err != nil {
 				return fmt.Errorf("failed to create OIDC provider: %w", err)
 			}
-			providers = append(providers, provider)
+			provider = op
 		default:
-			return fmt.Errorf("unsupported auth provider: %s", provider)
+			return fmt.Errorf("unsupported auth provider: %s", providerName)
 		}
+
+		provider.SetName(providerName)
+		providers = append(providers, provider)
+		s.providerConfigs[providerName] = &auth
 	}
 
 	if len(providers) != 0 && s.config.Security.CallbackUrl == "" {
 		return fmt.Errorf("security.callback_url must be set for enabling SSO auth")
 	}
 
-	s.configuredProviders = make(map[string]bool)
-	for _, provider := range providers {
-		s.configuredProviders[provider.Name()] = true
+	goth.UseProviders(providers...) // Register the providers with goth
+	return nil
+}
+
+func (s *SSOAuth) validateResponse(providerName string, user goth.User) error {
+	providerConfig := s.providerConfigs[providerName]
+	if providerConfig == nil {
+		return fmt.Errorf("provider %s not configured", providerName)
 	}
 
-	goth.UseProviders(providers...) // Register the providers with goth
+	providerType := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)[0]
+	switch providerType {
+	case "google":
+		if providerConfig.HostedDomain != "" && user.RawData["hd"] != providerConfig.HostedDomain {
+			return fmt.Errorf("user does not belong to the required hosted domain. Found %s, expected %s",
+				user.RawData["hd"], providerConfig.HostedDomain)
+		}
+	}
+
 	return nil
 }
 
@@ -139,6 +167,12 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		if err != nil {
 			fmt.Fprintln(w, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		providerName := chi.URLParam(r, "provider")
+		if err := s.validateResponse(providerName, user); err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
 
@@ -200,7 +234,7 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 }
 
 func (s *SSOAuth) VerifyProvider(provider string) bool {
-	return s.configuredProviders[provider]
+	return s.providerConfigs[provider] != nil
 }
 
 func (s *SSOAuth) ValidateAuthType(authType string) bool {
