@@ -35,6 +35,7 @@ const (
 	AUTH_KEY                = "authenticated"
 	USER_ID_KEY             = "user"
 	USER_EMAIL_KEY          = "email"
+	PROVIDER_NAME_KEY       = "provider_name"
 	REDIRECT_URL            = "redirect"
 )
 
@@ -60,6 +61,10 @@ func getProviderName(r *http.Request) (string, error) {
 	return provider, nil
 }
 
+func genCookieName(provider string) string {
+	return fmt.Sprintf("%s_%s", provider, SESSION_COOKIE)
+}
+
 func (s *SSOAuth) Setup() error {
 	sessionKey := s.config.Security.SessionSecret
 	if sessionKey == "" {
@@ -81,6 +86,7 @@ func (s *SSOAuth) Setup() error {
 
 	providers := make([]goth.Provider, 0)
 	for providerName, auth := range s.config.Auth {
+		auth := auth
 		key := auth.Key
 		secret := auth.Secret
 		scopes := auth.Scopes
@@ -159,7 +165,8 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		}
 
 		// Set user as authenticated in session
-		session, err := s.cookieStore.Get(r, SESSION_COOKIE)
+		cookieName := genCookieName(providerName)
+		session, err := s.cookieStore.Get(r, cookieName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -167,6 +174,7 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		session.Values[AUTH_KEY] = true
 		session.Values[USER_ID_KEY] = user.UserID
 		session.Values[USER_EMAIL_KEY] = user.Email
+		session.Values[PROVIDER_NAME_KEY] = providerName
 		session.Save(r, w)
 
 		// Redirect to the original page, or default to the home page if not specified
@@ -184,7 +192,9 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 			return
 		}
 		// Set user as not authenticated in session
-		session, err := s.cookieStore.Get(r, SESSION_COOKIE)
+		providerName := chi.URLParam(r, "provider")
+		cookieName := genCookieName(providerName)
+		session, err := s.cookieStore.Get(r, cookieName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -197,24 +207,35 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 	})
 
 	mux.Get(utils.INTERNAL_URL_PREFIX+"/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
+		providerName := chi.URLParam(r, "provider")
 		// try to get the user without re-authenticating
 		if _, err := gothic.CompleteUserAuth(w, r); err == nil {
-			session, err := s.cookieStore.Get(r, SESSION_COOKIE)
+			loggedIn, err := s.CheckAuth(w, r, providerName, false)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			// Redirect to the original page, or default to the home page if not specified
-			redirectTo, ok := session.Values[REDIRECT_URL].(string)
-			if !ok || redirectTo == "" {
-				redirectTo = "/"
-			}
+			if loggedIn {
+				cookieName := genCookieName(providerName)
+				session, err := s.cookieStore.Get(r, cookieName)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
-			http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
-		} else {
-			// Start login process
-			gothic.BeginAuthHandler(w, r)
+				// Redirect to the original page, or default to the home page if not specified
+				redirectTo, ok := session.Values[REDIRECT_URL].(string)
+				if !ok || redirectTo == "" {
+					redirectTo = "/"
+				}
+
+				http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
+				return
+			}
 		}
+
+		// Start login process
+		gothic.BeginAuthHandler(w, r)
 	})
 }
 
@@ -236,7 +257,7 @@ func (s *SSOAuth) validateResponse(providerName string, user goth.User) error {
 	return nil
 }
 
-func (s *SSOAuth) VerifyProvider(provider string) bool {
+func (s *SSOAuth) ValidateProviderName(provider string) bool {
 	return s.providerConfigs[provider] != nil
 }
 
@@ -245,20 +266,33 @@ func (s *SSOAuth) ValidateAuthType(authType string) bool {
 	case string(utils.AppAuthnDefault), string(utils.AppAuthnSystem), string(utils.AppAuthnNone):
 		return true
 	default:
-		return s.VerifyProvider(authType)
+		return s.ValidateProviderName(authType)
 	}
 }
 
-func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, provider string) (bool, error) {
-	session, err := s.cookieStore.Get(r, SESSION_COOKIE)
+func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider string, updateRedirect bool) (bool, error) {
+	cookieName := genCookieName(appProvider)
+	session, err := s.cookieStore.Get(r, cookieName)
 	if err != nil {
 		return false, err
 	}
 	if auth, ok := session.Values[AUTH_KEY].(bool); !ok || !auth {
 		// Store the target URL before redirecting to login
-		session.Values[REDIRECT_URL] = r.RequestURI
-		session.Save(r, w)
-		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+provider, http.StatusTemporaryRedirect)
+		if updateRedirect {
+			session.Values[REDIRECT_URL] = r.RequestURI
+			session.Save(r, w)
+		}
+		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
+		return false, nil
+	}
+
+	// Check if provider name matches the one in the session
+	if providerName, ok := session.Values[PROVIDER_NAME_KEY].(string); !ok || providerName != appProvider {
+		if updateRedirect {
+			session.Values[REDIRECT_URL] = r.RequestURI
+			session.Save(r, w)
+		}
+		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
 		return false, nil
 	}
 

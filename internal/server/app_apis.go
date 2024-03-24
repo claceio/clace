@@ -373,18 +373,18 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 		}
 	} else {
 		authString := string(app.Settings.AuthnType)
-		if !s.ssoAuth.VerifyProvider(authString) {
+		if !s.ssoAuth.ValidateProviderName(authString) {
 			http.Error(w, "Unsupported authentication provider: "+authString, http.StatusInternalServerError)
 			return
 		}
 
 		// Redirect to the auth provider if not logged in
-		loggedIn, err := s.ssoAuth.CheckAuth(w, r, authString)
+		loggedIn, err := s.ssoAuth.CheckAuth(w, r, authString, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		if !loggedIn {
-			return // Redirected to auth provider
+			return // Already redirected to auth provider
 		}
 	}
 
