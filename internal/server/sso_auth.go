@@ -274,6 +274,7 @@ func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider 
 	cookieName := genCookieName(appProvider)
 	session, err := s.cookieStore.Get(r, cookieName)
 	if err != nil {
+		s.Warn().Err(err).Msg("failed to get session")
 		return false, err
 	}
 	if auth, ok := session.Values[AUTH_KEY].(bool); !ok || !auth {
@@ -282,6 +283,7 @@ func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider 
 			session.Values[REDIRECT_URL] = r.RequestURI
 			session.Save(r, w)
 		}
+		s.Warn().Err(err).Msg("no auth, redirecting to login")
 		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
 		return false, nil
 	}
@@ -292,6 +294,7 @@ func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider 
 			session.Values[REDIRECT_URL] = r.RequestURI
 			session.Save(r, w)
 		}
+		s.Warn().Err(err).Msg("provider mismatch, redirecting to login")
 		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
 		return false, nil
 	}

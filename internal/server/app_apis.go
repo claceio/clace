@@ -357,7 +357,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 		appAuth = utils.AppAuthnType(s.config.Security.AppDefaultAuthType)
 	}
 
-	if appAuth == "" { // no default auth type set for system, default to system admin user auth
+	if appAuth == "" { // no default auth type set, default to system admin user auth
 		appAuth = utils.AppAuthnSystem
 	}
 
@@ -372,7 +372,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	} else {
-		authString := string(app.Settings.AuthnType)
+		authString := string(appAuth)
 		if !s.ssoAuth.ValidateProviderName(authString) {
 			http.Error(w, "Unsupported authentication provider: "+authString, http.StatusInternalServerError)
 			return
