@@ -158,4 +158,4 @@ tests:
     stderr: "error: version commands not supported for dev app"
 
   versions99999: # Cleanup
-    command: rm -rf ./versionstest && ../clace app delete "*:versions**" && ../clace app delete "versions*:**"
+    command: (rm -rf ./versionstest; ../clace app delete "*:versions**"; ../clace app delete "versions*:**") || true
