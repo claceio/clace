@@ -39,6 +39,7 @@ jobs:
       - name: Test CLI
         env:
           CL_INFOCLACE_SSH: ${{ secrets.CL_INFOCLACE_SSH }}
+          CL_GITHUB_SECRET: ${{ secrets.CL_GITHUB_SECRET }}
         run: |
           export CL_HOME=`pwd`
           go install github.com/commander-cli/commander/v2/cmd/commander@latest

@@ -57,6 +57,7 @@ export CL_CONFIG_FILE=clace.toml
 cat <<EOF > $CL_CONFIG_FILE
 [security]
 admin_password_bcrypt = "\$2a\$10\$PMaPsOVMBfKuDG04RsqJbeKIOJjlYi1Ie1KQbPCZRQx38bqYfernm"
+callback_url = "https://localhost:25223"
 EOF
 
 if [[ -n "$CL_INFOCLACE_SSH" ]]; then
@@ -70,6 +71,18 @@ if [[ -n "$CL_INFOCLACE_SSH" ]]; then
 EOF
 fi
 
+if [[ -n "$CL_GITHUB_SECRET" ]]; then
+  # CL_GITHUB_SECRET env is set, test github oauth login redirect
+
+  cat <<EOF >> $CL_CONFIG_FILE
+
+[auth.github_test]
+key = "02507afb0ad9056fab09"
+secret = "$CL_GITHUB_SECRET"
+
+EOF
+fi
+
 ../clace server start  -l trace &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/
@@ -77,8 +90,14 @@ commander test $CL_TEST_VERBOSE --dir ./commander/
 echo $?
 
 if [[ -n "$CL_INFOCLACE_SSH" ]]; then
+  # test git ssh key access
   commander test $CL_TEST_VERBOSE test_github_auth.yaml
   rm ./infoclace_ssh
+fi
+
+if [[ -n "$CL_GITHUB_SECRET" ]]; then
+  # test git oauth access are tested 
+  commander test $CL_TEST_VERBOSE test_oauth.yaml
 fi
 
 cleanup
