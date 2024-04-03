@@ -238,7 +238,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		var err error
 		if isHtmxRequest && block != "" {
 			a.Trace().Msgf("Rendering block %s", block)
-			err = a.template.ExecuteTemplate(w, block, requestData)
+			err = a.executeTemplate(w, html, block, requestData)
 		} else {
 			referrer := r.Header.Get("Referer")
 			isUpdateRequest := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
@@ -250,7 +250,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 				return
 			} else {
 				a.Trace().Msgf("Rendering page %s", html)
-				err = a.template.ExecuteTemplate(w, html, requestData)
+				err = a.executeTemplate(w, html, "", requestData)
 			}
 		}
 
@@ -392,7 +392,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		return true, nil
 	}
 	w.WriteHeader(int(code))
-	err = a.template.ExecuteTemplate(w, templateBlock, requestData)
+	err = a.executeTemplate(w, "", templateBlock, requestData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true, nil

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -49,8 +50,9 @@ type App struct {
 	appDef           *starlarkstruct.Struct
 	errorHandler     starlark.Callable
 	appRouter        *chi.Mux
-	usesHtmlTemplate bool // Whether the app uses HTML templates, false if only JSON APIs
-	template         *template.Template
+	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
+	template         *template.Template            // unstructured templates, no base_templates defined
+	templateMap      map[string]*template.Template // structured templates, base_templates defined
 	watcher          *fsnotify.Watcher
 	sseListeners     []chan SSEMessage
 	funcMap          template.FuncMap
@@ -243,8 +245,42 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 
 	// Parse HTML templates if there are HTML routes
 	if a.usesHtmlTemplate {
-		if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
+		baseFiles, err := a.sourceFS.Glob(path.Join(a.Config.Routing.BaseTemplates, "*.go.html"))
+		if err != nil {
 			return false, err
+		}
+
+		if len(baseFiles) == 0 {
+			// No base templates found, use the default unstructured templates
+			if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
+				return false, err
+			}
+		} else {
+			// Base templates found, using structured templates
+			base, err := a.sourceFS.ParseFS(a.funcMap, baseFiles...)
+			if err != nil {
+				return false, err
+			}
+
+			a.templateMap = make(map[string]*template.Template)
+			for _, paths := range a.Config.Routing.TemplateLocations {
+				files, err := a.sourceFS.Glob(paths)
+				if err != nil {
+					return false, err
+				}
+
+				for _, file := range files {
+					tmpl, err := base.Clone()
+					if err != nil {
+						return false, err
+					}
+
+					a.templateMap[file], err = tmpl.ParseFS(a.sourceFS.ReadableFS, file)
+					if err != nil {
+						return false, err
+					}
+				}
+			}
 		}
 	}
 	a.initialized = true
@@ -253,6 +289,40 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		a.notifyClients()
 	}
 	return true, nil
+}
+
+func (a *App) executeTemplate(w io.Writer, template, partial string, data any) error {
+	var err error
+	if a.template != nil {
+		exec := partial
+		if partial == "" {
+			exec = template
+		}
+		if err = a.template.ExecuteTemplate(w, exec, data); err != nil {
+			return err
+		}
+	} else {
+		if template == "" {
+			if _, ok := a.templateMap[partial]; ok {
+				template = partial
+			} else {
+				template = "index.go.html"
+			}
+		}
+
+		t, ok := a.templateMap[template]
+		if !ok {
+			return fmt.Errorf("template %s not found", template)
+		}
+		exec := partial
+		if partial == "" {
+			exec = template
+		}
+		if err = t.ExecuteTemplate(w, exec, data); err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (a *App) loadSchemaInfo(sourceFS *util.SourceFs) error {

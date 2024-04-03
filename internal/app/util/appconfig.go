@@ -10,6 +10,7 @@ type AppConfig struct {
 
 type RouteConfig struct {
 	TemplateLocations []string `json:"template_locations"`
+	BaseTemplates     string   `json:"base_templates"`
 	StaticDir         string   `json:"static_dir"`
 	StaticRootDir     string   `json:"static_root_dir"`
 	PushEvents        bool     `json:"push_events"`
@@ -28,6 +29,7 @@ func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Routing: RouteConfig{
 			TemplateLocations: []string{"*.go.html"},
+			BaseTemplates:     "base_templates",
 			StaticDir:         "static",
 			StaticRootDir:     "static_root",
 			PushEvents:        false,
