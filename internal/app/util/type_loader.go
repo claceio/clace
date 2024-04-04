@@ -5,6 +5,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
@@ -31,16 +32,40 @@ func ReadStoreInfo(fileName string, inp []byte) (*utils.StoreInfo, error) {
 }
 
 func validateStoreInfo(storeInfo *utils.StoreInfo) error {
-	if err := validateTypes(storeInfo.Types); err != nil {
-		return err
+	typeNames := map[string]bool{}
+	for _, t := range storeInfo.Types {
+		if _, ok := typeNames[t.Name]; ok {
+			return fmt.Errorf("type %s already defined", t.Name)
+		}
+		typeNames[t.Name] = true
+
+		fieldNames := map[string]bool{}
+		for _, f := range t.Fields {
+			if _, ok := fieldNames[f.Name]; ok {
+				return fmt.Errorf("field %s already defined in type %s", f.Name, t.Name)
+			}
+			fieldNames[f.Name] = true
+		}
+
+		for _, i := range t.Indexes {
+			for _, f := range i.Fields {
+				split := strings.Split(f, ":")
+				if len(split) > 2 {
+					return fmt.Errorf("invalid index field %s in type %s", f, t.Name)
+				}
+				if len(split) == 2 {
+					lower := strings.ToLower(split[1])
+					if lower != "asc" && lower != "desc" {
+						return fmt.Errorf("invalid index field %s in type %s", f, t.Name)
+					}
+				}
+				if _, ok := fieldNames[split[0]]; !ok {
+					return fmt.Errorf("index field %s not defined in type %s", split[0], t.Name)
+				}
+			}
+		}
 	}
 
-	// TODO: validate collections
-	return nil
-}
-
-func validateTypes(types []utils.StoreType) error {
-	// TODO: validate types
 	return nil
 }
 
