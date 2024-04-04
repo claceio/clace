@@ -10,7 +10,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -61,7 +61,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
 			r.Header.Get("sec-fetch-mode") == "navigate" &&
-			!(strings.ToUpper(rtype) == util.JSON) && !(isHtmxRequest && block != "") {
+			!(strings.ToUpper(rtype) == apptype.JSON) && !(isHtmxRequest && block != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
 		}
@@ -214,7 +214,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		}
 
 		rtype = strings.ToUpper(rtype)
-		if rtype == util.JSON {
+		if rtype == apptype.JSON {
 			// If the route type is JSON, then return the handler response as JSON
 			w.Header().Set("Content-Type", "application/json")
 			err := json.NewEncoder(w).Encode(handlerResponse)
@@ -223,7 +223,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 				return
 			}
 			return
-		} else if rtype == util.TEXT {
+		} else if rtype == apptype.TEXT {
 			// If the route type is TEXT, then return the handler response as text
 			w.Header().Set("Content-Type", "text/plain")
 			_, err := fmt.Fprint(w, handlerResponse)
@@ -264,13 +264,13 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, w http.ResponseWriter, requestData utils.Request, rtype string, deferredCleanup func() error) (bool, error) {
 	// Handle ace.redirect type struct returned by handler
-	url, err := util.GetStringAttr(retStruct, "url")
+	url, err := apptype.GetStringAttr(retStruct, "url")
 	// starlark Type() is not implemented for structs, so we can't check the type
 	// Looked at the mandatory properties to decide on type for now
 	if err == nil {
 		// Redirect type struct returned by handler
-		code, err1 := util.GetIntAttr(retStruct, "code")
-		refresh, err2 := util.GetBoolAttr(retStruct, "refresh")
+		code, err1 := apptype.GetIntAttr(retStruct, "code")
+		refresh, err2 := apptype.GetBoolAttr(retStruct, "refresh")
 		if err1 != nil || err2 != nil {
 			http.Error(w, "Invalid redirect response", http.StatusInternalServerError)
 		}
@@ -289,7 +289,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 	}
 
 	// Handle ace.response type struct returned by handler
-	templateBlock, err := util.GetStringAttr(retStruct, "block")
+	templateBlock, err := apptype.GetStringAttr(retStruct, "block")
 	if err != nil {
 		return false, err
 	}
@@ -301,7 +301,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		return true, nil
 	}
 
-	responseRtype, err := util.GetStringAttr(retStruct, "type")
+	responseRtype, err := apptype.GetStringAttr(retStruct, "type")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting type from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -312,32 +312,32 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		responseRtype = rtype
 	}
 	responseRtype = strings.ToUpper(responseRtype)
-	if templateBlock == "" && responseRtype != util.JSON && responseRtype != util.TEXT {
+	if templateBlock == "" && responseRtype != apptype.JSON && responseRtype != apptype.TEXT {
 		return false, fmt.Errorf("block not defined in response and type is not json/text")
 	}
 
-	code, err := util.GetIntAttr(retStruct, "code")
+	code, err := apptype.GetIntAttr(retStruct, "code")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting code from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true, nil
 	}
 
-	retarget, err := util.GetStringAttr(retStruct, "retarget")
+	retarget, err := apptype.GetStringAttr(retStruct, "retarget")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting retarget from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true, nil
 	}
 
-	reswap, err := util.GetStringAttr(retStruct, "reswap")
+	reswap, err := apptype.GetStringAttr(retStruct, "reswap")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting reswap from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true, nil
 	}
 
-	redirect, err := util.GetStringAttr(retStruct, "redirect")
+	redirect, err := apptype.GetStringAttr(retStruct, "redirect")
 	if err != nil {
 		a.Error().Err(err).Msg("error getting redirect from response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -351,7 +351,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		return true, nil
 	}
 
-	if strings.ToUpper(responseRtype) == util.JSON {
+	if strings.ToUpper(responseRtype) == apptype.JSON {
 		if deferredCleanup != nil && deferredCleanup() != nil {
 			return true, nil
 		}
@@ -363,7 +363,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 			return true, nil
 		}
 		return true, nil
-	} else if strings.ToUpper(responseRtype) == util.TEXT {
+	} else if strings.ToUpper(responseRtype) == apptype.TEXT {
 		if deferredCleanup != nil && deferredCleanup() != nil {
 			return true, nil
 		}

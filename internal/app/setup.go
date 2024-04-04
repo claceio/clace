@@ -14,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/appfs"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
-	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/resolve"
@@ -30,9 +30,9 @@ func init() {
 func (a *App) loadStarlarkConfig() error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
-	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
 	if err != nil {
-		return fmt.Errorf("error reading %s: %w", util.APP_FILE_NAME, err)
+		return fmt.Errorf("error reading %s: %w", apptype.APP_FILE_NAME, err)
 	}
 
 	thread := &starlark.Thread{
@@ -46,7 +46,7 @@ func (a *App) loadStarlarkConfig() error {
 		return err
 	}
 
-	a.globals, err = starlark.ExecFile(thread, util.APP_FILE_NAME, buf, builtin)
+	a.globals, err = starlark.ExecFile(thread, apptype.APP_FILE_NAME, buf, builtin)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")
@@ -61,11 +61,11 @@ func (a *App) loadStarlarkConfig() error {
 		return err
 	}
 
-	a.Name, err = util.GetStringAttr(a.appDef, "name")
+	a.Name, err = apptype.GetStringAttr(a.appDef, "name")
 	if err != nil {
 		return err
 	}
-	a.CustomLayout, err = util.GetBoolAttr(a.appDef, "custom_layout")
+	a.CustomLayout, err = apptype.GetBoolAttr(a.appDef, "custom_layout")
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (a *App) loadStarlarkConfig() error {
 }
 
 func (a *App) createBuiltin() (starlark.StringDict, error) {
-	builtin := util.CreateBuiltin()
+	builtin := apptype.CreateBuiltin()
 	if builtin == nil {
 		return nil, errors.New("error creating builtin")
 	}
@@ -147,10 +147,10 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	}
 
 	docModule := starlarkstruct.Module{
-		Name:    util.DOC_MODULE,
+		Name:    apptype.DOC_MODULE,
 		Members: typeDict,
 	}
-	newBuiltins[util.DOC_MODULE] = &docModule
+	newBuiltins[apptype.DOC_MODULE] = &docModule
 
 	// Add table module for referencing table names
 	tableDict := starlark.StringDict{}
@@ -159,40 +159,40 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	}
 
 	tableModule := starlarkstruct.Module{
-		Name:    util.TABLE_MODULE,
+		Name:    apptype.TABLE_MODULE,
 		Members: tableDict,
 	}
-	newBuiltins[util.TABLE_MODULE] = &tableModule
+	newBuiltins[apptype.TABLE_MODULE] = &tableModule
 
 	return newBuiltins, nil
 }
 
 func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
-	if !globals.Has(util.APP_CONFIG_KEY) {
-		return nil, fmt.Errorf("%s not defined, check %s, add '%s = ace.app(...)'", util.APP_CONFIG_KEY, util.APP_FILE_NAME, util.APP_CONFIG_KEY)
+	if !globals.Has(apptype.APP_CONFIG_KEY) {
+		return nil, fmt.Errorf("%s not defined, check %s, add '%s = ace.app(...)'", apptype.APP_CONFIG_KEY, apptype.APP_FILE_NAME, apptype.APP_CONFIG_KEY)
 	}
-	appDef, ok := globals[util.APP_CONFIG_KEY].(*starlarkstruct.Struct)
+	appDef, ok := globals[apptype.APP_CONFIG_KEY].(*starlarkstruct.Struct)
 	if !ok {
-		return nil, fmt.Errorf("%s not of type ace.app in %s", util.APP_CONFIG_KEY, util.APP_FILE_NAME)
+		return nil, fmt.Errorf("%s not of type ace.app in %s", apptype.APP_CONFIG_KEY, apptype.APP_FILE_NAME)
 	}
 	return appDef, nil
 }
 
 func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
-	if a.globals.Has(util.DEFAULT_HANDLER) {
+	if a.globals.Has(apptype.DEFAULT_HANDLER) {
 		var ok bool
-		defaultHandler, ok = a.globals[util.DEFAULT_HANDLER].(starlark.Callable)
+		defaultHandler, ok = a.globals[apptype.DEFAULT_HANDLER].(starlark.Callable)
 		if !ok {
-			return fmt.Errorf("%s is not a function", util.DEFAULT_HANDLER)
+			return fmt.Errorf("%s is not a function", apptype.DEFAULT_HANDLER)
 		}
 	}
 
-	if a.globals.Has(util.ERROR_HANDLER) {
+	if a.globals.Has(apptype.ERROR_HANDLER) {
 		var ok bool
-		a.errorHandler, ok = a.globals[util.ERROR_HANDLER].(starlark.Callable)
+		a.errorHandler, ok = a.globals[apptype.ERROR_HANDLER].(starlark.Callable)
 		if !ok {
-			return fmt.Errorf("%s is not a function", util.ERROR_HANDLER)
+			return fmt.Errorf("%s is not a function", apptype.ERROR_HANDLER)
 		}
 	}
 
@@ -292,32 +292,32 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 		return fmt.Errorf("pages entry %d is not a struct", count)
 	}
 	var pathStr, htmlFile, blockStr, methodStr, rtypeStr string
-	if pathStr, err = util.GetStringAttr(pageDef, "path"); err != nil {
+	if pathStr, err = apptype.GetStringAttr(pageDef, "path"); err != nil {
 		return err
 	}
-	if methodStr, err = util.GetStringAttr(pageDef, "method"); err != nil {
+	if methodStr, err = apptype.GetStringAttr(pageDef, "method"); err != nil {
 		return err
 	}
-	if htmlFile, err = util.GetStringAttr(pageDef, "full"); err != nil {
+	if htmlFile, err = apptype.GetStringAttr(pageDef, "full"); err != nil {
 		return err
 	}
-	if blockStr, err = util.GetStringAttr(pageDef, "partial"); err != nil {
-		return err
-	}
-
-	if rtypeStr, err = util.GetStringAttr(pageDef, "type"); err != nil {
+	if blockStr, err = apptype.GetStringAttr(pageDef, "partial"); err != nil {
 		return err
 	}
 
-	if rtypeStr == "" || strings.ToUpper(rtypeStr) == util.HTML {
+	if rtypeStr, err = apptype.GetStringAttr(pageDef, "type"); err != nil {
+		return err
+	}
+
+	if rtypeStr == "" || strings.ToUpper(rtypeStr) == apptype.HTML {
 		a.usesHtmlTemplate = true
 	}
 
 	if htmlFile == "" {
 		if a.CustomLayout {
-			htmlFile = util.INDEX_FILE
+			htmlFile = apptype.INDEX_FILE
 		} else {
-			htmlFile = util.INDEX_GEN_FILE
+			htmlFile = apptype.INDEX_GEN_FILE
 		}
 	}
 
@@ -364,21 +364,21 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 		}
 
 		var pathStr, blockStr, methodStr, rtypeStr string
-		if pathStr, err = util.GetStringAttr(fragmentDef, "path"); err != nil {
+		if pathStr, err = apptype.GetStringAttr(fragmentDef, "path"); err != nil {
 			return err
 		}
-		if methodStr, err = util.GetStringAttr(fragmentDef, "method"); err != nil {
+		if methodStr, err = apptype.GetStringAttr(fragmentDef, "method"); err != nil {
 			return err
 		}
-		if blockStr, err = util.GetStringAttr(fragmentDef, "partial"); err != nil {
-			return err
-		}
-
-		if rtypeStr, err = util.GetStringAttr(fragmentDef, "type"); err != nil {
+		if blockStr, err = apptype.GetStringAttr(fragmentDef, "partial"); err != nil {
 			return err
 		}
 
-		if rtypeStr == "" || strings.ToUpper(rtypeStr) == util.HTML {
+		if rtypeStr, err = apptype.GetStringAttr(fragmentDef, "type"); err != nil {
+			return err
+		}
+
+		if rtypeStr == "" || strings.ToUpper(rtypeStr) == apptype.HTML {
 			a.usesHtmlTemplate = true
 		}
 
@@ -441,13 +441,13 @@ func (a *App) loadLibraryInfo() ([]dev.JSLibrary, error) {
 		if ok {
 			var name, version string
 			var esbuildArgs []string
-			if name, err = util.GetStringAttr(libStruct, "name"); err != nil {
+			if name, err = apptype.GetStringAttr(libStruct, "name"); err != nil {
 				return nil, err
 			}
-			if version, err = util.GetStringAttr(libStruct, "version"); err != nil {
+			if version, err = apptype.GetStringAttr(libStruct, "version"); err != nil {
 				return nil, err
 			}
-			if esbuildArgs, err = util.GetListStringAttr(libStruct, "args", true); err != nil {
+			if esbuildArgs, err = apptype.GetListStringAttr(libStruct, "args", true); err != nil {
 				return nil, err
 			}
 			jsLib := dev.NewLibraryESM(name, version, esbuildArgs)

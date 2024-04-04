@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/appfs"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -77,13 +77,13 @@ func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error 
 	var library string
 	var themes []string
 	var disableWatcher bool
-	if library, err = util.GetStringAttr(styleDef, "library"); err != nil {
+	if library, err = apptype.GetStringAttr(styleDef, "library"); err != nil {
 		return err
 	}
-	if themes, err = util.GetListStringAttr(styleDef, "themes", true); err != nil {
+	if themes, err = apptype.GetListStringAttr(styleDef, "themes", true); err != nil {
 		return err
 	}
-	if disableWatcher, err = util.GetBoolAttr(styleDef, "disable_watcher"); err != nil {
+	if disableWatcher, err = apptype.GetBoolAttr(styleDef, "disable_watcher"); err != nil {
 		return err
 	}
 	s.DisableWatcher = disableWatcher

@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/appfs"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -23,10 +23,10 @@ var indexEmbed, claceGenEmbed []byte
 
 func init() {
 	var err error
-	if indexEmbed, err = embedHtml.ReadFile(util.INDEX_GEN_FILE); err != nil {
+	if indexEmbed, err = embedHtml.ReadFile(apptype.INDEX_GEN_FILE); err != nil {
 		panic(err)
 	}
-	if claceGenEmbed, err = embedHtml.ReadFile(util.CLACE_GEN_FILE); err != nil {
+	if claceGenEmbed, err = embedHtml.ReadFile(apptype.CLACE_GEN_FILE); err != nil {
 		panic(err)
 	}
 }
@@ -38,7 +38,7 @@ type AppDev struct {
 	*utils.Logger
 
 	CustomLayout bool
-	Config       *util.AppConfig
+	Config       *apptype.AppConfig
 	systemConfig *utils.SystemConfig
 	sourceFS     *appfs.WritableSourceFs
 	workFS       *appfs.WorkFs
@@ -164,25 +164,25 @@ func (a *AppDev) GenerateHTML() error {
 	// file and updating the file causes the FS watcher to call reload, we have to make sure the
 	// file is updated only if there is an actual content change
 	if !a.CustomLayout {
-		indexData, err := a.sourceFS.ReadFile(util.INDEX_GEN_FILE)
+		indexData, err := a.sourceFS.ReadFile(apptype.INDEX_GEN_FILE)
 		if err != nil || !bytes.Equal(indexData, indexEmbed) {
-			if err := a.sourceFS.Write(util.INDEX_GEN_FILE, indexEmbed); err != nil {
+			if err := a.sourceFS.Write(apptype.INDEX_GEN_FILE, indexEmbed); err != nil {
 				return err
 			}
 		}
 	} else {
-		_, statErr := a.sourceFS.Stat(util.INDEX_GEN_FILE)
+		_, statErr := a.sourceFS.Stat(apptype.INDEX_GEN_FILE)
 		if statErr == nil {
 			// If generated index file exists, remove it
-			if err := a.sourceFS.Remove(util.INDEX_GEN_FILE); err != nil {
+			if err := a.sourceFS.Remove(apptype.INDEX_GEN_FILE); err != nil {
 				return err
 			}
 		}
 	}
 
-	claceGenData, err := a.sourceFS.ReadFile(util.CLACE_GEN_FILE)
+	claceGenData, err := a.sourceFS.ReadFile(apptype.CLACE_GEN_FILE)
 	if err != nil || !bytes.Equal(claceGenData, claceGenEmbed) {
-		if err := a.sourceFS.Write(util.CLACE_GEN_FILE, claceGenEmbed); err != nil {
+		if err := a.sourceFS.Write(apptype.CLACE_GEN_FILE, claceGenEmbed); err != nil {
 			return err
 		}
 	}
@@ -195,7 +195,7 @@ func (a *AppDev) SaveConfigLockFile() error {
 	if err != nil {
 		return err
 	}
-	err = a.sourceFS.Write(util.CONFIG_LOCK_FILE_NAME, buf)
+	err = a.sourceFS.Write(apptype.CONFIG_LOCK_FILE_NAME, buf)
 	return err
 }
 

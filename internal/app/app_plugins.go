@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -48,7 +48,7 @@ func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string)
 	// If account name is specified, use that to lookup the account map
 	accountLookupName := pluginInfo.PluginPath
 	if accountName != "" {
-		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, accountName) // store.in#myaccount
+		accountLookupName = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, apptype.ACCOUNT_SEPERATOR, accountName) // store.in#myaccount
 	}
 
 	pluginAccount := pluginInfo.PluginPath
@@ -56,8 +56,8 @@ func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string)
 	if ok {
 		pluginAccount = p.accountMap[accountLookupName]
 		// If it is just account name, make it full plugin path
-		if !strings.Contains(pluginAccount, util.ACCOUNT_SEPERATOR) {
-			pluginAccount = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, util.ACCOUNT_SEPERATOR, pluginAccount)
+		if !strings.Contains(pluginAccount, apptype.ACCOUNT_SEPERATOR) {
+			pluginAccount = fmt.Sprintf("%s%s%s", pluginInfo.PluginPath, apptype.ACCOUNT_SEPERATOR, pluginAccount)
 		}
 	}
 

@@ -14,7 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -42,7 +42,7 @@ func RegisterPlugin(name string, builder utils.NewPluginFunc, funcs []utils.Plug
 	loaderInitMutex.Lock()
 	defer loaderInitMutex.Unlock()
 
-	pluginPath := fmt.Sprintf("%s.%s", name, util.BUILTIN_PLUGIN_SUFFIX)
+	pluginPath := fmt.Sprintf("%s.%s", name, apptype.BUILTIN_PLUGIN_SUFFIX)
 	pluginMap := make(utils.PluginMap)
 	for _, f := range funcs {
 		info := utils.PluginInfo{
@@ -242,7 +242,7 @@ func runDeferredCleanup(thread *starlark.Thread) error {
 
 // loader is the starlark loader function
 func (a *App) loader(thread *starlark.Thread, moduleFullPath string) (starlark.StringDict, error) {
-	if strings.HasSuffix(moduleFullPath, util.STARLARK_FILE_SUFFIX) {
+	if strings.HasSuffix(moduleFullPath, apptype.STARLARK_FILE_SUFFIX) {
 		// Load the starlark file rather than the plugin
 		return a.loadStarlark(thread, moduleFullPath, a.starlarkCache)
 	}
@@ -272,9 +272,9 @@ func (a *App) loader(thread *starlark.Thread, moduleFullPath string) (starlark.S
 }
 
 func parseModulePath(moduleFullPath string) (string, string, string) {
-	parts := strings.Split(moduleFullPath, util.ACCOUNT_SEPERATOR)
+	parts := strings.Split(moduleFullPath, apptype.ACCOUNT_SEPERATOR)
 	modulePath := parts[0]
-	moduleName := strings.TrimSuffix(modulePath, "."+util.BUILTIN_PLUGIN_SUFFIX)
+	moduleName := strings.TrimSuffix(modulePath, "."+apptype.BUILTIN_PLUGIN_SUFFIX)
 	accountName := ""
 	if len(parts) > 1 {
 		accountName = parts[1]

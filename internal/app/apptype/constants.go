@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package util
+package apptype
 
 const (
 	APP_FILE_NAME         = "app.star"

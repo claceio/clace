@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 )
@@ -253,7 +253,7 @@ func (s *storePlugin) Select(thread *starlark.Thread, builtin *starlark.Builtin,
 		sort = starlark.NewList([]starlark.Value{})
 	}
 
-	sortList, err := util.GetStringList(sort)
+	sortList, err := apptype.GetStringList(sort)
 	if err != nil {
 		return nil, err
 	}

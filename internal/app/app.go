@@ -20,8 +20,8 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/appfs"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
-	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
@@ -36,7 +36,7 @@ type App struct {
 	Name         string
 	CustomLayout bool
 
-	Config          *util.AppConfig
+	Config          *apptype.AppConfig
 	sourceFS        *appfs.SourceFs
 	initMutex       sync.Mutex
 	initialized     bool
@@ -180,7 +180,7 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		return false, err
 	}
 
-	configData, err := a.sourceFS.ReadFile(util.CONFIG_LOCK_FILE_NAME)
+	configData, err := a.sourceFS.ReadFile(apptype.CONFIG_LOCK_FILE_NAME)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
 			return false, err
@@ -188,7 +188,7 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 
 		// Config lock is not present, use default config
 		a.Debug().Msg("No config lock file found, using default config")
-		a.Config = util.NewAppConfig()
+		a.Config = apptype.NewAppConfig()
 		if a.IsDev {
 			a.appDev.Config = a.Config
 			a.appDev.SaveConfigLockFile()
@@ -196,7 +196,7 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 	} else {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
-		a.Config = util.NewCompatibleAppConfig()
+		a.Config = apptype.NewCompatibleAppConfig()
 		if err := json.Unmarshal(configData, a.Config); err != nil {
 			return false, err
 		}
@@ -328,7 +328,7 @@ func (a *App) executeTemplate(w io.Writer, template, partial string, data any) e
 
 func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 	// Load the schema info
-	schemaInfoData, err := sourceFS.ReadFile(util.SCHEMA_FILE_NAME)
+	schemaInfoData, err := sourceFS.ReadFile(apptype.SCHEMA_FILE_NAME)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
 			return err
@@ -336,7 +336,7 @@ func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 		return nil // Ignore absence of schema file
 	}
 
-	a.storeInfo, err = util.ReadStoreInfo(util.SCHEMA_FILE_NAME, schemaInfoData)
+	a.storeInfo, err = apptype.ReadStoreInfo(apptype.SCHEMA_FILE_NAME, schemaInfoData)
 	if err != nil {
 		return fmt.Errorf("error reading schema info: %w", err)
 	}

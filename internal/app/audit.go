@@ -8,22 +8,22 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
 func (a *App) Audit() (*utils.ApproveResult, error) {
-	buf, err := a.sourceFS.ReadFile(util.APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
 	if err != nil {
-		return nil, fmt.Errorf("error reading %s file: %w", util.APP_FILE_NAME, err)
+		return nil, fmt.Errorf("error reading %s file: %w", apptype.APP_FILE_NAME, err)
 	}
 
 	starlarkCache := map[string]*starlarkCacheEntry{}
 	auditLoader := func(thread *starlark.Thread, moduleFullPath string) (starlark.StringDict, error) {
 
-		if strings.HasSuffix(moduleFullPath, util.STARLARK_FILE_SUFFIX) {
+		if strings.HasSuffix(moduleFullPath, apptype.STARLARK_FILE_SUFFIX) {
 			// Load the starlark file rather than the plugin
 			return a.loadStarlark(thread, moduleFullPath, starlarkCache)
 		}
@@ -70,7 +70,7 @@ func (a *App) Audit() (*utils.ApproveResult, error) {
 		return nil, err
 	}
 
-	_, prog, err := starlark.SourceProgram(util.APP_FILE_NAME, buf, builtin.Has)
+	_, prog, err := starlark.SourceProgram(apptype.APP_FILE_NAME, buf, builtin.Has)
 	if err != nil {
 		return nil, fmt.Errorf("parsing source failed %v", err)
 	}
@@ -162,13 +162,13 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 		}
 		var pluginStr, methodStr string
 		var args []string
-		if pluginStr, err = util.GetStringAttr(permStruct, "plugin"); err != nil {
+		if pluginStr, err = apptype.GetStringAttr(permStruct, "plugin"); err != nil {
 			return nil, err
 		}
-		if methodStr, err = util.GetStringAttr(permStruct, "method"); err != nil {
+		if methodStr, err = apptype.GetStringAttr(permStruct, "method"); err != nil {
 			return nil, err
 		}
-		if args, err = util.GetListStringAttr(permStruct, "arguments", true); err != nil {
+		if args, err = apptype.GetListStringAttr(permStruct, "arguments", true); err != nil {
 			return nil, err
 		}
 
@@ -179,7 +179,7 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 		}
 
 		if slices.Contains(permStruct.AttrNames(), "is_read") {
-			isRead, err := util.GetBoolAttr(permStruct, "is_read")
+			isRead, err := apptype.GetBoolAttr(permStruct, "is_read")
 			if err != nil {
 				return nil, err
 			}

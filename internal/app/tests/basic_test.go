@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/testutil"
 )
 
@@ -88,9 +88,9 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config util.AppConfig
+	var config apptype.AppConfig
 
-	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
 }
 
@@ -175,8 +175,8 @@ app = ace.app("testApp", pages = [ace.page("/", full="t1.tmpl")]
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"./templates/t1.tmpl":      `Template got {{ .Data.key }}.`,
-		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+		"./templates/t1.tmpl":         `Template got {{ .Data.key }}.`,
+		apptype.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
 	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
@@ -190,9 +190,9 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config util.AppConfig
+	var config apptype.AppConfig
 
-	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 
@@ -205,8 +205,8 @@ app = ace.app("testApp", pages = [ace.page("/", full="t12.tmpl")]
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"./templates/t1.tmpl":      `Template got {{ .key }}.`,
-		util.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
+		"./templates/t1.tmpl":         `Template got {{ .key }}.`,
+		apptype.CONFIG_LOCK_FILE_NAME: `{ "htmx": { "version": "1.8" } }`,
 	}
 	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
@@ -221,9 +221,9 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body",
 		`html/template: "t12.tmpl" is undefined`,
 		strings.TrimSpace(response.Body.String()))
-	var config util.AppConfig
+	var config apptype.AppConfig
 
-	json.Unmarshal([]byte(fileData[util.CONFIG_LOCK_FILE_NAME]), &config)
+	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
 }
 

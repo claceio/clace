@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 )
@@ -61,36 +61,36 @@ func (e *Entry) Unpack(value starlark.Value) error {
 	for _, attr := range v.AttrNames() {
 		switch attr {
 		case ID_FIELD:
-			id, err := util.GetIntAttr(v, attr)
+			id, err := apptype.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.Id = EntryId(id)
 		case VERSION_FIELD:
-			e.Version, err = util.GetIntAttr(v, attr)
+			e.Version, err = apptype.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 		case CREATED_BY_FIELD:
-			createdBy, err := util.GetStringAttr(v, attr)
+			createdBy, err := apptype.GetStringAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.CreatedBy = UserId(createdBy)
 		case UPDATED_BY_FIELD:
-			updatedBy, err := util.GetStringAttr(v, attr)
+			updatedBy, err := apptype.GetStringAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.UpdatedBy = UserId(updatedBy)
 		case CREATED_AT_FIELD:
-			createdAt, err := util.GetIntAttr(v, attr)
+			createdAt, err := apptype.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
 			e.CreatedAt = time.UnixMilli(createdAt)
 		case UPDATED_AT_FIELD:
-			updatedAt, err := util.GetIntAttr(v, attr)
+			updatedAt, err := apptype.GetIntAttr(v, attr)
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
