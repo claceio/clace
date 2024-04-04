@@ -50,7 +50,7 @@ func TestValidateStoreInfo(t *testing.T) {
 				},
 				Indexes: []utils.Index{
 					{
-						Fields: []string{"Field1"},
+						Fields: []string{"Field1:asc", "Field2:DESC"},
 						Unique: true,
 					},
 				},
