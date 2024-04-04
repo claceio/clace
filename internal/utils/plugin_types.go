@@ -3,6 +3,8 @@
 
 package utils
 
+import "github.com/claceio/clace/internal/app/starlark_type"
+
 type NewPluginFunc func(pluginContext *PluginContext) (any, error)
 
 // PluginMap is the plugin function mapping to PluginFuncs
@@ -28,6 +30,6 @@ type PluginInfo struct {
 type PluginContext struct {
 	Logger    *Logger
 	AppId     AppId
-	StoreInfo *StoreInfo
+	StoreInfo *starlark_type.StoreInfo
 	Config    PluginSettings
 }

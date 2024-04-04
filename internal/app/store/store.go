@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app/apptype"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"go.starlark.net/starlark"
 )
 
@@ -100,7 +100,7 @@ func (e *Entry) Unpack(value starlark.Value) error {
 			if err != nil {
 				return fmt.Errorf("error reading %s: %w", attr, err)
 			}
-			data, err := utils.UnmarshalStarlark(dataVal)
+			data, err := starlark_type.UnmarshalStarlark(dataVal)
 			if err != nil {
 				return fmt.Errorf("error unmarshalling %s : %w", attr, err)
 			}
@@ -148,7 +148,7 @@ type Store interface {
 	Delete(ctx context.Context, tx *sql.Tx, table string, filter map[string]any) (int64, error)
 }
 
-func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
+func CreateType(name string, entry *Entry) (*starlark_type.StarlarkType, error) {
 	data := make(map[string]starlark.Value)
 
 	data[ID_FIELD] = starlark.MakeInt(int(entry.Id))
@@ -160,12 +160,12 @@ func CreateType(name string, entry *Entry) (*utils.StarlarkType, error) {
 
 	var err error
 	for k, v := range entry.Data {
-		data[k], err = utils.MarshalStarlark(v)
+		data[k], err = starlark_type.MarshalStarlark(v)
 		if err != nil {
 			return nil, err
 		}
 		// TODO - add missing fields
 	}
 
-	return utils.NewStarlarkType(name, data), nil
+	return starlark_type.NewStarlarkType(name, data), nil
 }

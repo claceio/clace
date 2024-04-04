@@ -22,6 +22,7 @@ import (
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
@@ -44,7 +45,7 @@ type App struct {
 	reloadStartTime time.Time
 	appDev          *dev.AppDev
 	systemConfig    *utils.SystemConfig
-	storeInfo       *utils.StoreInfo
+	storeInfo       *starlark_type.StoreInfo
 	plugins         *AppPlugins
 
 	globals          starlark.StringDict

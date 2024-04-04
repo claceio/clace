@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -140,7 +141,7 @@ func (s *SqlStore) createSchemaInfo(ctx context.Context) error {
 	return nil
 }
 
-func createIndexStmt(unquotedTableName string, index utils.Index) (string, error) {
+func createIndexStmt(unquotedTableName string, index starlark_type.Index) (string, error) {
 	mappedColumns, err := genSortString(index.Fields, sqliteFieldMapper)
 	if err != nil {
 		return "", fmt.Errorf("error generating index columns for table %s: %w", unquotedTableName, err)

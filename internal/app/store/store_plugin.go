@@ -10,6 +10,7 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/apptype"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 )
@@ -189,7 +190,7 @@ func (s *storePlugin) SelectOne(thread *starlark.Thread, builtin *starlark.Built
 		filter = starlark.NewDict(0)
 	}
 
-	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
+	filterUnmarshalled, err := starlark_type.UnmarshalStarlark(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +218,7 @@ type filterData struct {
 }
 
 func (e *filterData) Unpack(value starlark.Value) error {
-	v, err := utils.UnmarshalStarlark(value)
+	v, err := starlark_type.UnmarshalStarlark(value)
 	if err != nil {
 		return err
 	}
@@ -277,7 +278,7 @@ func (s *storePlugin) Count(thread *starlark.Thread, builtin *starlark.Builtin, 
 		filter = starlark.NewDict(0)
 	}
 
-	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
+	filterUnmarshalled, err := starlark_type.UnmarshalStarlark(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +307,7 @@ func (s *storePlugin) Delete(thread *starlark.Thread, builtin *starlark.Builtin,
 		filter = starlark.NewDict(0)
 	}
 
-	filterUnmarshalled, err := utils.UnmarshalStarlark(filter)
+	filterUnmarshalled, err := starlark_type.UnmarshalStarlark(filter)
 	if err != nil {
 		return nil, err
 	}

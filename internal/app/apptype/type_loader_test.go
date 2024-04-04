@@ -6,28 +6,28 @@ package apptype
 import (
 	"testing"
 
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/testutil"
-	"github.com/claceio/clace/internal/utils"
 )
 
 func TestValidateStoreInfo(t *testing.T) {
-	storeInfo := &utils.StoreInfo{
-		Types: []utils.StoreType{
+	storeInfo := &starlark_type.StoreInfo{
+		Types: []starlark_type.StoreType{
 			{
 				Name: "Type1",
-				Fields: []utils.StoreField{
+				Fields: []starlark_type.StoreField{
 					{
 						Name:    "Field1",
-						Type:    utils.STRING,
+						Type:    starlark_type.STRING,
 						Default: "default",
 					},
 					{
 						Name:    "Field2",
-						Type:    utils.INT,
+						Type:    starlark_type.INT,
 						Default: 1,
 					},
 				},
-				Indexes: []utils.Index{
+				Indexes: []starlark_type.Index{
 					{
 						Fields: []string{"Field1"},
 						Unique: true,
@@ -36,19 +36,19 @@ func TestValidateStoreInfo(t *testing.T) {
 			},
 			{
 				Name: "Type2",
-				Fields: []utils.StoreField{
+				Fields: []starlark_type.StoreField{
 					{
 						Name:    "Field1",
-						Type:    utils.STRING,
+						Type:    starlark_type.STRING,
 						Default: "default",
 					},
 					{
 						Name:    "Field2",
-						Type:    utils.INT,
+						Type:    starlark_type.INT,
 						Default: 1,
 					},
 				},
-				Indexes: []utils.Index{
+				Indexes: []starlark_type.Index{
 					{
 						Fields: []string{"Field1:asc", "Field2:DESC"},
 						Unique: true,
@@ -63,17 +63,17 @@ func TestValidateStoreInfo(t *testing.T) {
 		t.Fatalf("Error %s", err)
 	}
 
-	storeInfo.Types = append(storeInfo.Types, utils.StoreType{
+	storeInfo.Types = append(storeInfo.Types, starlark_type.StoreType{
 		Name: "Type1",
-		Fields: []utils.StoreField{
+		Fields: []starlark_type.StoreField{
 			{
 				Name:    "Field1",
-				Type:    utils.STRING,
+				Type:    starlark_type.STRING,
 				Default: "default",
 			},
 			{
 				Name:    "Field1",
-				Type:    utils.INT,
+				Type:    starlark_type.INT,
 				Default: 1,
 			},
 		},
@@ -95,7 +95,7 @@ func TestValidateStoreInfo(t *testing.T) {
 	}
 
 	storeInfo.Types[2].Fields[1].Name = "Field2"
-	storeInfo.Types[2].Indexes = []utils.Index{
+	storeInfo.Types[2].Indexes = []starlark_type.Index{
 		{
 			Fields: []string{"Invalid"},
 			Unique: true,

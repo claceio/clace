@@ -16,6 +16,7 @@ import (
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/resolve"
@@ -87,7 +88,7 @@ func (a *App) loadStarlarkConfig() error {
 			return errors.New("settings is not a starlark dict")
 		}
 		var converted any
-		if converted, err = utils.UnmarshalStarlark(dict); err != nil {
+		if converted, err = starlark_type.UnmarshalStarlark(dict); err != nil {
 			return err
 		}
 		if settingsMap, ok = converted.(map[string]interface{}); !ok {
@@ -142,7 +143,7 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	// Add type module for referencing type names
 	typeDict := starlark.StringDict{}
 	for _, t := range a.storeInfo.Types {
-		tb := utils.TypeBuilder{Name: t.Name, Fields: t.Fields}
+		tb := starlark_type.TypeBuilder{Name: t.Name, Fields: t.Fields}
 		typeDict[t.Name] = starlark.NewBuiltin(t.Name, tb.CreateType)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/apptype"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -75,7 +76,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			pagePath = ""
 		}
 		appUrl := getRequestUrl(r) + appPath
-		requestData := utils.Request{
+		requestData := starlark_type.Request{
 			AppName:     a.Name,
 			AppPath:     appPath,
 			AppUrl:      appUrl,
@@ -198,7 +199,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 			if ret != nil {
 				// Response from handler, or if handler failed, response from error_handler if defined
-				handlerResponse, err = utils.UnmarshalStarlark(ret)
+				handlerResponse, err = starlark_type.UnmarshalStarlark(ret)
 				if err != nil {
 					a.Error().Err(err).Msg("error converting response")
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -262,7 +263,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 	return goHandler
 }
 
-func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, w http.ResponseWriter, requestData utils.Request, rtype string, deferredCleanup func() error) (bool, error) {
+func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, w http.ResponseWriter, requestData starlark_type.Request, rtype string, deferredCleanup func() error) (bool, error) {
 	// Handle ace.redirect type struct returned by handler
 	url, err := apptype.GetStringAttr(retStruct, "url")
 	// starlark Type() is not implemented for structs, so we can't check the type
@@ -344,7 +345,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		return true, nil
 	}
 
-	templateValue, err := utils.UnmarshalStarlark(data)
+	templateValue, err := starlark_type.UnmarshalStarlark(data)
 	if err != nil {
 		a.Error().Err(err).Msg("error converting response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)

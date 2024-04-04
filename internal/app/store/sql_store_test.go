@@ -6,7 +6,7 @@ package store
 import (
 	"testing"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/app/starlark_type"
 )
 
 func TestGenTableName(t *testing.T) {
@@ -53,7 +53,7 @@ func TestGenSortString(t *testing.T) {
 // test for createIndexStmt
 func TestCreateIndexStmt(t *testing.T) {
 	table := "prefix_table"
-	index := utils.Index{
+	index := starlark_type.Index{
 		Fields: []string{"field:asc", "_id:desc"},
 		Unique: false,
 	}
@@ -68,7 +68,7 @@ func TestCreateIndexStmt(t *testing.T) {
 		t.Errorf("Expected %s, but got %s", expected, result)
 	}
 
-	index = utils.Index{
+	index = starlark_type.Index{
 		Fields: []string{"map.key", "_id:desc"},
 		Unique: true,
 	}

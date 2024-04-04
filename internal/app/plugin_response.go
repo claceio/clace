@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -74,7 +75,7 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 		if v, ok := r.value.(*starlarkstruct.Struct); ok {
 			return v, nil
 		}
-		return utils.MarshalStarlark(r.value)
+		return starlark_type.MarshalStarlark(r.value)
 
 	default:
 		return starlark.None, fmt.Errorf("response has no attribute '%s'", name)
@@ -129,4 +130,4 @@ func (r *PluginResponse) UnmarshalStarlarkType() (any, error) {
 }
 
 var _ starlark.Value = (*PluginResponse)(nil)
-var _ utils.TypeUnmarshaler = (*PluginResponse)(nil)
+var _ starlark_type.TypeUnmarshaler = (*PluginResponse)(nil)

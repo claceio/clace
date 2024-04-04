@@ -1,7 +1,7 @@
 // Based on https://github.com/qri-io/starlib/blob/master/util/util.go
 // Copyright (c) 2018 QRI, Inc. The MIT License (MIT)
 
-package utils
+package starlark_type
 
 import (
 	"fmt"
