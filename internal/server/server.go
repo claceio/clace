@@ -18,8 +18,8 @@ import (
 
 	"github.com/caddyserver/certmagic"
 	"github.com/claceio/clace/internal/metadata"
+	"github.com/claceio/clace/internal/passwd"
 	"github.com/claceio/clace/internal/types"
-	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
 
@@ -110,12 +110,12 @@ func (s *Server) setupAdminAccount() (string, error) {
 
 	s.Debug().Msg("Generating admin password")
 	var err error
-	password, err := utils.GenerateRandomPassword()
+	password, err := passwd.GenerateRandomPassword()
 	if err != nil {
 		return "", err
 	}
 
-	bcryptHash, err := bcrypt.GenerateFromPassword([]byte(password), utils.BCRYPT_COST)
+	bcryptHash, err := bcrypt.GenerateFromPassword([]byte(password), passwd.BCRYPT_COST)
 	if err != nil {
 		return "", err
 	}

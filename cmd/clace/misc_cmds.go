@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/claceio/clace/internal/passwd"
 	"github.com/claceio/clace/internal/types"
-	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
@@ -55,7 +55,7 @@ func generatePassword(cCtx *cli.Context) error {
 			return cli.Exit(err, 1)
 		}
 	} else if cCtx.Bool("random") || !cCtx.IsSet("value") {
-		password, err = utils.GenerateRandomPassword()
+		password, err = passwd.GenerateRandomPassword()
 		if err != nil {
 			return cli.Exit(err, 1)
 		}
@@ -65,7 +65,7 @@ func generatePassword(cCtx *cli.Context) error {
 		return cli.Exit("must specify a password value", 1)
 	}
 
-	bcryptPassword, err := bcrypt.GenerateFromPassword([]byte(password), utils.BCRYPT_COST)
+	bcryptPassword, err := bcrypt.GenerateFromPassword([]byte(password), passwd.BCRYPT_COST)
 	if err != nil {
 		return cli.Exit(err, 1)
 	}
