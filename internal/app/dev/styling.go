@@ -13,6 +13,7 @@ import (
 
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -264,7 +265,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *ap
 
 	// Start watcher process, wait async for it to complete
 	s.watcher = exec.Command(split[0], args...)
-	utils.SetProcessGroup(s.watcher) // // ensure process group
+	system.SetProcessGroup(s.watcher) // // ensure process group
 
 	s.watcher.Stdin = os.Stdin // this seems to be required for the process to start
 	s.watcher.Stdout = s.watcherStdout
@@ -284,7 +285,7 @@ func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *ap
 func (s *AppStyle) StopWatcher() error {
 	if s.watcher != nil && s.watcher.Process != nil {
 		fmt.Println("Stopping watcher")
-		if err := utils.KillGroup(s.watcher.Process); err != nil {
+		if err := system.KillGroup(s.watcher.Process); err != nil {
 			fmt.Printf("error killing previous watcher process : %s\n", err)
 		}
 		s.watcher = nil

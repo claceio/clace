@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
@@ -49,7 +50,7 @@ func versionListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 				return fmt.Errorf("requires one argument: <appPath>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 
@@ -126,7 +127,7 @@ func versionFilesCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfi
 				return fmt.Errorf("requires argument: <appPath> [<version>]")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			if cCtx.NArg() > 1 {
@@ -205,7 +206,7 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 				return fmt.Errorf("requires argument: <appPath> <version>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			values.Add("version", cCtx.Args().Get(1))
@@ -252,7 +253,7 @@ func versionRevertCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 				return fmt.Errorf("requires argument: <appPath>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			values.Add("version", "revert") // Use revert as the switch API version

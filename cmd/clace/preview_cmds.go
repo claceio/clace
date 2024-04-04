@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
@@ -48,7 +49,7 @@ func previewCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 				return fmt.Errorf("requires two arguments: <appPath> <gitCommitId>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			values.Add("commitId", cCtx.Args().Get(1))

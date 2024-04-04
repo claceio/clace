@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/claceio/clace/pkg/api"
 	"github.com/pkg/profile"
@@ -17,7 +18,7 @@ import (
 )
 
 func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
-	_, _, defaultServerConfig, err := utils.GetDefaultConfigs()
+	_, _, defaultServerConfig, err := system.GetDefaultConfigs()
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package system
 
 import (
 	"bytes"
@@ -15,6 +15,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/claceio/clace/internal/utils"
 )
 
 const (
@@ -116,7 +118,7 @@ func (h *HttpClient) request(method, apiPath string, params url.Values, input an
 		if err != nil {
 			return err
 		}
-		var errResp RequestError
+		var errResp utils.RequestError
 		parseErr := json.Unmarshal(errBody, &errResp)
 		if parseErr != nil || errResp.Code == 0 {
 			errResp.Code = resp.StatusCode

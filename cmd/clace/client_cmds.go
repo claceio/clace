@@ -4,12 +4,13 @@
 package main
 
 import (
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 )
 
 func getClientCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error) {
-	defaultClientConfig, err := utils.NewClientConfigEmbedded()
+	defaultClientConfig, err := system.NewClientConfigEmbedded()
 	if err != nil {
 		return nil, err
 	}

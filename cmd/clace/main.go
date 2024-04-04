@@ -10,6 +10,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -77,13 +78,13 @@ func parseConfig(cCtx *cli.Context, globalConfig *utils.GlobalConfig, clientConf
 		return err
 	}
 
-	if err := utils.LoadGlobalConfig(string(buf), globalConfig); err != nil {
+	if err := system.LoadGlobalConfig(string(buf), globalConfig); err != nil {
 		return err
 	}
-	if err := utils.LoadClientConfig(string(buf), clientConfig); err != nil {
+	if err := system.LoadClientConfig(string(buf), clientConfig); err != nil {
 		return err
 	}
-	if err := utils.LoadServerConfig(string(buf), serverConfig); err != nil {
+	if err := system.LoadServerConfig(string(buf), serverConfig); err != nil {
 		return err
 	}
 
@@ -91,7 +92,7 @@ func parseConfig(cCtx *cli.Context, globalConfig *utils.GlobalConfig, clientConf
 }
 
 func main() {
-	globalConfig, clientConfig, serverConfig, err := utils.GetDefaultConfigs()
+	globalConfig, clientConfig, serverConfig, err := system.GetDefaultConfigs()
 	if err != nil {
 		log.Fatal(err)
 	}

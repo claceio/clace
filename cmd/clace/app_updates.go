@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
@@ -52,7 +53,7 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 				return fmt.Errorf("requires two argument: <pathSpec> <value>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -114,7 +115,7 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 				return fmt.Errorf("requires two argument: <pathSpec> <value>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -176,7 +177,7 @@ The second required argument <value> is a string, default or none.
 				return fmt.Errorf("requires two argument: <pathSpec> <value>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -230,7 +231,7 @@ Set to "-" to remove the git_auth entry.
 				return fmt.Errorf("requires two argument: <pathSpec> <entryName>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))

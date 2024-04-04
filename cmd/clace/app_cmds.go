@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
@@ -86,7 +87,7 @@ Examples:
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().Get(0))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
@@ -167,7 +168,7 @@ Examples:
 				values.Add("pathSpec", cCtx.Args().Get(0))
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			var appListResponse utils.AppListResponse
 			err := client.Get("/_clace/apps", values, &appListResponse)
 			if err != nil {
@@ -299,7 +300,7 @@ Examples:
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -350,7 +351,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -434,7 +435,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
@@ -521,7 +522,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := utils.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))

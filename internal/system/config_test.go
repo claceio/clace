@@ -1,17 +1,16 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package utils_test
+package system
 
 import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
-	"github.com/claceio/clace/internal/utils"
 )
 
 func TestServerConfig(t *testing.T) {
-	c, err := utils.NewServerConfigEmbedded()
+	c, err := NewServerConfigEmbedded()
 	if err != nil {
 		t.Fatalf("failed to load embedded config: %v", err)
 	}
@@ -58,7 +57,7 @@ func TestServerConfig(t *testing.T) {
 }
 
 func TestClientConfig(t *testing.T) {
-	c, err := utils.NewClientConfigEmbedded()
+	c, err := NewClientConfigEmbedded()
 	if err != nil {
 		t.Fatalf("failed to load embedded config: %v", err)
 	}

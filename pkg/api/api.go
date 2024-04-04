@@ -7,6 +7,7 @@ import (
 	"context"
 
 	clserver "github.com/claceio/clace/internal/server"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -16,7 +17,7 @@ type ServerConfig struct {
 }
 
 func NewServerConfig() (*ServerConfig, error) {
-	embedConfig, err := utils.NewServerConfigEmbedded()
+	embedConfig, err := system.NewServerConfigEmbedded()
 	if err != nil {
 		return nil, err
 	}
