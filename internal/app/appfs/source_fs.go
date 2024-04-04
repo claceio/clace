@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package util
+package appfs
 
 import (
 	"crypto/sha256"

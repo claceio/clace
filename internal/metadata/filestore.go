@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -130,7 +130,7 @@ func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, metad
 		compressionType := ""
 		storeBuf := buf
 		if len(buf) > COMPRESSION_THRESHOLD {
-			compressionType = util.COMPRESSION_TYPE
+			compressionType = appfs.COMPRESSION_TYPE
 			byteBuf.Reset()
 			br := brotli.NewWriterLevel(&byteBuf, BROTLI_COMPRESSION_LEVEL)
 

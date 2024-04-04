@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/utils"
 )
 
@@ -93,7 +93,7 @@ func NewbFileReader(compressionType string, data []byte) *DbFileReader {
 func (f *DbFileReader) uncompress() error {
 	if f.compressionType == "" {
 		f.uncompressedReader = f.compressedReader
-	} else if f.compressionType == util.COMPRESSION_TYPE {
+	} else if f.compressionType == appfs.COMPRESSION_TYPE {
 		br := brotli.NewReader(f.compressedReader)
 		uncompressed, err := io.ReadAll(br)
 		if err != nil {
@@ -182,7 +182,7 @@ func (d *DbFs) ReadFile(name string) ([]byte, error) {
 		return nil, err
 	}
 	if compressionType != "" {
-		if compressionType != util.COMPRESSION_TYPE {
+		if compressionType != appfs.COMPRESSION_TYPE {
 			return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
 		}
 		gz := brotli.NewReader(bytes.NewReader(fileBytes))

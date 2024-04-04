@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
@@ -62,7 +62,7 @@ func NewLibraryESM(packageName string, version string, esbuildArgs []string) *JS
 	return &j
 }
 
-func (j *JSLibrary) Setup(dev *AppDev, sourceFS *util.WritableSourceFs, workFS *util.WorkFs) (string, error) {
+func (j *JSLibrary) Setup(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
 	if j.libType == Library {
 		targetFile := path.Join(LIB_PATH, j.sanitizedFileName)
 		targetDir := path.Dir(targetFile)
@@ -80,7 +80,7 @@ func (j *JSLibrary) Setup(dev *AppDev, sourceFS *util.WritableSourceFs, workFS *
 	}
 }
 
-func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *util.WritableSourceFs, workFS *util.WorkFs) (string, error) {
+func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
 	targetDir := path.Join(sourceFS.Root, ESM_PATH)
 	targetFile := path.Join(targetDir, j.sanitizedFileName)
 
@@ -153,7 +153,7 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *util.WritableSourceFs, w
 	return options.Outfile, nil
 }
 
-func (j *JSLibrary) generateSourceFile(workFS *util.WorkFs) (string, error) {
+func (j *JSLibrary) generateSourceFile(workFS *appfs.WorkFs) (string, error) {
 	sourceFileName := j.sanitizedFileName
 	sourceContent := fmt.Sprintf(`export * from "%s"`, j.packageName)
 	if err := workFS.Write(sourceFileName, []byte(sourceContent)); err != nil {

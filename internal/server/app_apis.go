@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-git/go-git/v5"
@@ -219,7 +219,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := utils.Logger{Logger: &subLogger}
-	var sourceFS *util.SourceFs
+	var sourceFS *appfs.SourceFs
 	if !appEntry.IsDev {
 		// Prod mode, use DB as source
 		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
@@ -227,15 +227,15 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 		if err != nil {
 			return nil, err
 		}
-		sourceFS, err = util.NewSourceFs("", dbFs, false)
+		sourceFS, err = appfs.NewSourceFs("", dbFs, false)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		// Dev mode, use local disk as source
 		var err error
-		sourceFS, err = util.NewSourceFs(appEntry.SourceUrl,
-			&util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
+		sourceFS, err = appfs.NewSourceFs(appEntry.SourceUrl,
+			&appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appEntry.SourceUrl)},
 			appEntry.IsDev)
 		if err != nil {
 			return nil, err
@@ -243,7 +243,7 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 	}
 
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
-	workFS := util.NewWorkFs(appPath, &util.DiskWriteFS{DiskReadFS: util.NewDiskReadFS(&appLogger, appPath)})
+	workFS := appfs.NewWorkFs(appPath, &appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath)})
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins)
 
 	return application, nil

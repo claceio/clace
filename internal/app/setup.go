@@ -13,6 +13,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
@@ -224,7 +225,7 @@ func (a *App) initRouter() error {
 
 	// Mount static dir
 	staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
-	router.Handle(staticPattern, http.StripPrefix(a.Path, util.FileServer(a.sourceFS)))
+	router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
 
 	err = a.addStaticRoot(router)
 	if err != nil {

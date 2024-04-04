@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/util"
 	"github.com/claceio/clace/internal/utils"
@@ -36,7 +37,7 @@ type App struct {
 	CustomLayout bool
 
 	Config          *util.AppConfig
-	sourceFS        *util.SourceFs
+	sourceFS        *appfs.SourceFs
 	initMutex       sync.Mutex
 	initialized     bool
 	reloadError     error
@@ -69,7 +70,7 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger,
+func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *utils.Logger,
 	appEntry *utils.AppEntry, systemConfig *utils.SystemConfig,
 	plugins map[string]utils.PluginSettings) *App {
 	newApp := &App{
@@ -82,7 +83,7 @@ func NewApp(sourceFS *util.SourceFs, workFS *util.WorkFs, logger *utils.Logger,
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 
 	if appEntry.IsDev {
-		newApp.appDev = dev.NewAppDev(logger, &util.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
+		newApp.appDev = dev.NewAppDev(logger, &appfs.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
 	}
 
 	funcMap := sprig.FuncMap()
@@ -325,7 +326,7 @@ func (a *App) executeTemplate(w io.Writer, template, partial string, data any) e
 	return err
 }
 
-func (a *App) loadSchemaInfo(sourceFS *util.SourceFs) error {
+func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 	// Load the schema info
 	schemaInfoData, err := sourceFS.ReadFile(util.SCHEMA_FILE_NAME)
 	if err != nil {

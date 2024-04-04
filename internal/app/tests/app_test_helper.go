@@ -11,34 +11,37 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/app/util"
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/utils"
 
 	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
 	_ "github.com/claceio/clace/plugins"            // Register builtin plugins
 )
 
-func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, nil, nil, nil)
 }
 
-func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*app.App, *util.WorkFs, error) {
+func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
+func CreateTestAppPlugin(logger *utils.Logger, fileData map[string]string,
+	plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, false, plugins, permissions, pluginConfig)
 }
 
-func CreateDevAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
+func CreateDevAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string,
+	permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, plugins, permissions, pluginConfig)
 }
 
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool, plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *util.WorkFs, error) {
+func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool,
+	plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
 	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
 	var fs utils.ReadableFS
 	if isDev {
@@ -46,7 +49,7 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 	} else {
 		fs = &TestReadFS{fileData: fileData}
 	}
-	sourceFS, err := util.NewSourceFs("", fs, isDev)
+	sourceFS, err := appfs.NewSourceFs("", fs, isDev)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,7 +69,7 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 		Loads:       plugins,
 		Permissions: permissions,
 	}
-	workFS := util.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
+	workFS := appfs.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a := app.NewApp(sourceFS, workFS, logger,
 		createTestAppEntry(path, isDev, metadata), &systemConfig, pluginConfig)
 	err = a.Initialize()
