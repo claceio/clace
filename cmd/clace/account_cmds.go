@@ -9,12 +9,12 @@ import (
 	"strconv"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func initAccountCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func initAccountCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "account",
 		Usage: "Manage Clace accounts",
@@ -25,7 +25,7 @@ func initAccountCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 	}
 }
 
-func accountLinkCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func accountLinkCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -58,7 +58,7 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
-			var linkResponse utils.AppLinkAccountResponse
+			var linkResponse types.AppLinkAccountResponse
 			err := client.Post("/_clace/link_account", values, nil, &linkResponse)
 			if err != nil {
 				return err
@@ -90,7 +90,7 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 	}
 }
 
-func accountListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func accountListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -117,7 +117,7 @@ func accountListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 
-			var response utils.AppGetResponse
+			var response types.AppGetResponse
 			err := client.Get("/_clace/app", values, &response)
 			if err != nil {
 				return err

@@ -9,92 +9,92 @@ import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestParsePathSpec(t *testing.T) {
 	tests := map[string]struct {
 		spec      string
-		apps      []utils.AppPathDomain
-		want      []utils.AppPathDomain
+		apps      []types.AppPathDomain
+		want      []types.AppPathDomain
 		wantError error
 	}{
 		"Match *": {
 			spec:      "*", // defaults to no domain :*
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app"}, {Domain: "mydomain", Path: "/app"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app"}, {Domain: "mydomain", Path: "/app"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app"}},
 			wantError: nil,
 		},
 		"Match :*": {
 			spec:      ":*", // same as *
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app"}, {Domain: "mydomain", Path: "/app"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app"}, {Domain: "mydomain", Path: "/app"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app"}},
 			wantError: nil,
 		},
 		"Match * none": {
 			spec:      "*",
-			apps:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/app"}},
-			want:      []utils.AppPathDomain{},
+			apps:      []types.AppPathDomain{{Domain: "mydomain", Path: "/app"}},
+			want:      []types.AppPathDomain{},
 			wantError: nil,
 		},
 		"Match /abc": {
 			spec:      "/abc",
-			apps:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/abc"}},
+			apps:      []types.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/abc"}},
 			wantError: nil,
 		},
 		"Match /abc*": {
 			spec:      "/abc*",
-			apps:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}},
+			apps:      []types.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}},
 			wantError: nil,
 		},
 		"Match /abc/*": {
 			spec:      "/abc/*",
-			apps:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/abc/def"}},
+			apps:      []types.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/abc/def"}},
 			wantError: nil,
 		},
 		"Match /abc/**": {
 			spec:      "/abc/**",
-			apps:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
+			apps:      []types.AppPathDomain{{Domain: "mydomain", Path: "/abc"}, {Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc2"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/abc"}, {Domain: "", Path: "/abc/def"}, {Domain: "", Path: "/abc/def/xyz"}},
 			wantError: nil,
 		},
 		"Match *:*": {
 			spec:      "*:*",
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}},
 			wantError: nil,
 		},
 		"Match *:**": {
 			spec:      "*:**",
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
 		"Match all": {
 			spec:      "all",
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
 		"Match empty": {
 			spec:      "",
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
 		"Match **:**": {
 			spec:      "**:**",
-			apps:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},
 			wantError: nil,
 		},
 		"Match mydomain*:**": {
 			spec:      "mydomain*:**",
-			apps:      []utils.AppPathDomain{{Domain: "testdomain", Path: "/app1"}, {Domain: "mydomain", Path: "/app/def"}, {Domain: "mydomain.test", Path: "/app2/def"}},
-			want:      []utils.AppPathDomain{{Domain: "mydomain", Path: "/app/def"}, {Domain: "mydomain.test", Path: "/app2/def"}},
+			apps:      []types.AppPathDomain{{Domain: "testdomain", Path: "/app1"}, {Domain: "mydomain", Path: "/app/def"}, {Domain: "mydomain.test", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "mydomain", Path: "/app/def"}, {Domain: "mydomain.test", Path: "/app2/def"}},
 			wantError: nil,
 		},
 	}
@@ -135,7 +135,7 @@ func TestParsePathSpecErrors(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, gotError := ParseSpec(tc.spec, []utils.AppPathDomain{{Domain: "", Path: "/app1"}})
+			_, gotError := ParseSpec(tc.spec, []types.AppPathDomain{{Domain: "", Path: "/app1"}})
 			testutil.AssertErrorContains(t, gotError, tc.wantError.Error())
 		})
 	}

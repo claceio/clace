@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 const (
@@ -118,7 +118,7 @@ func (h *HttpClient) request(method, apiPath string, params url.Values, input an
 		if err != nil {
 			return err
 		}
-		var errResp utils.RequestError
+		var errResp types.RequestError
 		parseErr := json.Unmarshal(errBody, &errResp)
 		if parseErr != nil || errResp.Code == 0 {
 			errResp.Code = resp.StatusCode

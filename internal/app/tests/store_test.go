@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestStoreBasics(t *testing.T) {
@@ -142,7 +142,7 @@ indexes=[
 	}
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"store.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "store.in", Method: "insert"},
 			{Plugin: "store.in", Method: "select_by_id"},
 			{Plugin: "store.in", Method: "update"},
@@ -151,7 +151,7 @@ indexes=[
 			{Plugin: "store.in", Method: "delete"},
 			{Plugin: "store.in", Method: "count"},
 			{Plugin: "store.in", Method: "select_one"},
-		}, map[string]utils.PluginSettings{
+		}, map[string]types.PluginSettings{
 			"store.in": {
 				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
 			},
@@ -282,7 +282,7 @@ type("mytype", fields=[
 	}
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"store.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "store.in", Method: "insert"},
 			{Plugin: "store.in", Method: "begin"},
 			{Plugin: "store.in", Method: "commit"},
@@ -291,7 +291,7 @@ type("mytype", fields=[
 			{Plugin: "store.in", Method: "delete"},
 			{Plugin: "store.in", Method: "count"},
 			{Plugin: "store.in", Method: "select_one"},
-		}, map[string]utils.PluginSettings{
+		}, map[string]types.PluginSettings{
 			"store.in": {
 				"db_connection": "sqlite:/tmp/clace_app.db?_journal_mode=WAL",
 			},

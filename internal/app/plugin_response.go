@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -52,7 +52,7 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 	case "error":
 		// Error value is being checked in the handler code, clear the thread local state
 		if r.thread != nil {
-			r.thread.SetLocal(utils.TL_PLUGIN_API_FAILED_ERROR, nil)
+			r.thread.SetLocal(types.TL_PLUGIN_API_FAILED_ERROR, nil)
 		}
 
 		if r.err == nil {
@@ -100,7 +100,7 @@ func (r *PluginResponse) Freeze() {
 func (r *PluginResponse) Truth() starlark.Bool {
 	// Error value is being checked in the handler code, clear the thread local state
 	if r.thread != nil {
-		r.thread.SetLocal(utils.TL_PLUGIN_API_FAILED_ERROR, nil)
+		r.thread.SetLocal(types.TL_PLUGIN_API_FAILED_ERROR, nil)
 	}
 	return r.err == nil
 }

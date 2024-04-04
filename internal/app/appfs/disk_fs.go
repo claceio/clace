@@ -13,18 +13,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 type DiskReadFS struct {
-	*utils.Logger
+	*types.Logger
 	root string
 	fs   fs.FS
 }
 
-var _ utils.ReadableFS = (*DiskReadFS)(nil)
+var _ ReadableFS = (*DiskReadFS)(nil)
 
-func NewDiskReadFS(logger *utils.Logger, root string) *DiskReadFS {
+func NewDiskReadFS(logger *types.Logger, root string) *DiskReadFS {
 	return &DiskReadFS{
 		Logger: logger,
 		root:   root,

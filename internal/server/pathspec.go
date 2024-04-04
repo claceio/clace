@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 // createPathDomain creates a slice of AppPathDomain from a slice of AppInfo
-func createPathDomain(apps []utils.AppInfo) []utils.AppPathDomain {
-	ret := make([]utils.AppPathDomain, 0, len(apps))
+func createPathDomain(apps []types.AppInfo) []types.AppPathDomain {
+	ret := make([]types.AppPathDomain, 0, len(apps))
 	for _, app := range apps {
 		ret = append(ret, app.AppPathDomain)
 	}
@@ -24,7 +24,7 @@ func createPathDomain(apps []utils.AppInfo) []utils.AppPathDomain {
 
 // ParseSpecFromInfo parses a path spec in the format of domain:path.  If domain is not specified, it will match empty domain.
 // glob patters are supported, *:** matches all apps.
-func ParseSpecFromInfo(pathSpec string, apps []utils.AppInfo) ([]utils.AppInfo, error) {
+func ParseSpecFromInfo(pathSpec string, apps []types.AppInfo) ([]types.AppInfo, error) {
 	appPathDomain := createPathDomain(apps)
 	pathDomains, error := ParseSpec(pathSpec, appPathDomain)
 	if error != nil {
@@ -35,7 +35,7 @@ func ParseSpecFromInfo(pathSpec string, apps []utils.AppInfo) ([]utils.AppInfo, 
 		found[pathDomain.String()] = true
 	}
 
-	ret := make([]utils.AppInfo, 0, len(found))
+	ret := make([]types.AppInfo, 0, len(found))
 	for _, app := range apps {
 		if found[app.AppPathDomain.String()] {
 			ret = append(ret, app)
@@ -46,7 +46,7 @@ func ParseSpecFromInfo(pathSpec string, apps []utils.AppInfo) ([]utils.AppInfo, 
 
 // ParseSpec parses a path spec in the format of domain:path. If domain is not specified, it will match empty domain.
 // glob patters are supported, *:** matches all apps.
-func ParseSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDomain, error) {
+func ParseSpec(pathSpec string, apps []types.AppPathDomain) ([]types.AppPathDomain, error) {
 	if pathSpec == "" || strings.ToLower(pathSpec) == "all" {
 		pathSpec = "*:**"
 	}
@@ -70,7 +70,7 @@ func ParseSpec(pathSpec string, apps []utils.AppPathDomain) ([]utils.AppPathDoma
 		app = "/*"
 	}
 
-	ret := make([]utils.AppPathDomain, 0)
+	ret := make([]types.AppPathDomain, 0)
 	for _, entry := range apps {
 		appMatch, err := doublestar.Match(app, entry.Path)
 		if err != nil {

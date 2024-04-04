@@ -1,11 +1,12 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package types
 
 import (
-	"io/fs"
 	"time"
+
+	"github.com/claceio/clace/internal/app/starlark_type"
 )
 
 const (
@@ -47,6 +48,15 @@ type ServerConfig struct {
 	Plugins     map[string]PluginSettings `toml:"plugin"`
 	Auth        map[string]AuthConfig     `toml:"auth"`
 	ProfileMode string                    `toml:"profile_mode"`
+}
+
+type PluginSettings map[string]any
+
+type PluginContext struct {
+	Logger    *Logger
+	AppId     AppId
+	StoreInfo *starlark_type.StoreInfo
+	Config    PluginSettings
 }
 
 // HttpConfig is the configuration for the HTTP server
@@ -117,8 +127,6 @@ type AuthConfig struct {
 	HostedDomain string   `toml:"hosted_domain"` // the hosted domain, used for Google
 	Scopes       []string `toml:"scopes"`        // oauth scopes
 }
-
-type PluginSettings map[string]any
 
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
@@ -249,28 +257,6 @@ type AppSettings struct {
 type AccountLink struct {
 	Plugin      string `json:"plugin"`
 	AccountName string `json:"account_name"`
-}
-
-// WritableFS is the interface for the writable underlying file system used by AppFS
-type ReadableFS interface {
-	fs.FS
-	fs.ReadFileFS
-	fs.GlobFS
-	// Stat returns the stats for the named file.
-	Stat(name string) (fs.FileInfo, error)
-	Reset()                // Used to reset the file system transaction for the DbFs, no-op for others
-	StaticFiles() []string // Return list of static files
-}
-
-type CompressedReader interface {
-	ReadCompressed() (data []byte, compressionType string, err error)
-}
-
-// WritableFS is the interface for the writable underlying file system used by AppFS
-type WritableFS interface {
-	ReadableFS
-	Write(name string, bytes []byte) error
-	Remove(name string) error
 }
 
 type BoolValue int

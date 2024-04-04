@@ -17,20 +17,20 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/metadata"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/segmentio/ksuid"
 )
 
-func parseAppPath(inp string) (utils.AppPathDomain, error) {
+func parseAppPath(inp string) (types.AppPathDomain, error) {
 	domain := ""
 	path := ""
 	if strings.Contains(inp, ":") {
 		split := strings.Split(inp, ":")
 		if len(split) != 2 {
-			return utils.AppPathDomain{}, fmt.Errorf("invalid app path %s, expected one \":\"", inp)
+			return types.AppPathDomain{}, fmt.Errorf("invalid app path %s, expected one \":\"", inp)
 		}
 		domain = split[0]
 		path = split[1]
@@ -39,7 +39,7 @@ func parseAppPath(inp string) (utils.AppPathDomain, error) {
 	}
 
 	path = normalizePath(path)
-	return utils.AppPathDomain{Domain: domain, Path: path}, nil
+	return types.AppPathDomain{Domain: domain, Path: path}, nil
 }
 
 func normalizePath(inp string) string {
@@ -52,26 +52,26 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun bool, appRequest utils.CreateAppRequest) (*utils.AppCreateResponse, error) {
+func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun bool, appRequest types.CreateAppRequest) (*types.AppCreateResponse, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
 	}
 	if err := validatePathForCreate(appPathDomain.Path); err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	matchedApp, err := s.CheckAppValid(appPathDomain.Domain, appPathDomain.Path)
 	if err != nil {
-		return nil, utils.CreateRequestError(
+		return nil, types.CreateRequestError(
 			fmt.Sprintf("error matching app: %s", err), http.StatusInternalServerError)
 	}
 	if matchedApp != "" {
-		return nil, utils.CreateRequestError(
+		return nil, types.CreateRequestError(
 			fmt.Sprintf("App already exists at %s", matchedApp), http.StatusBadRequest)
 	}
 
-	var appEntry utils.AppEntry
+	var appEntry types.AppEntry
 	appEntry.Path = appPathDomain.Path
 	appEntry.Domain = appPathDomain.Domain
 	appEntry.SourceUrl = appRequest.SourceUrl
@@ -82,23 +82,23 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 		}
 		appEntry.Settings.AuthnType = appRequest.AppAuthn
 	} else {
-		appEntry.Settings.AuthnType = utils.AppAuthnDefault
+		appEntry.Settings.AuthnType = types.AppAuthnDefault
 	}
 
-	appEntry.Metadata.VersionMetadata = utils.VersionMetadata{
+	appEntry.Metadata.VersionMetadata = types.VersionMetadata{
 		Version: 0,
 	}
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*utils.AppCreateResponse, error) {
+func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*types.AppCreateResponse, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -124,9 +124,9 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	defer tx.Rollback()
 
 	if appEntry.IsDev {
-		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_DEV + id.String())
+		appEntry.Id = types.AppId(types.ID_PREFIX_APP_DEV + id.String())
 	} else {
-		appEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PROD + id.String())
+		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + id.String())
 	}
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
 		return nil, err
@@ -136,8 +136,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	stageAppEntry := *appEntry
 	workEntry := appEntry
 	if !appEntry.IsDev {
-		stageAppEntry.Path = appEntry.Path + utils.STAGE_SUFFIX
-		stageAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_STAGE + string(appEntry.Id)[len(utils.ID_PREFIX_APP_PROD):])
+		stageAppEntry.Path = appEntry.Path + types.STAGE_SUFFIX
+		stageAppEntry.Id = types.AppId(types.ID_PREFIX_APP_STAGE + string(appEntry.Id)[len(types.ID_PREFIX_APP_PROD):])
 		stageAppEntry.MainApp = appEntry.Id
 		stageAppEntry.Metadata.VersionMetadata.Version = 1
 		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
@@ -180,7 +180,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 		return nil, err
 	}
 
-	results := []utils.ApproveResult{*auditResult}
+	results := []types.ApproveResult{*auditResult}
 	if !workEntry.IsDev {
 		// Update the prod app metadata, promote from stage
 		if err = s.promoteApp(ctx, tx, &stageAppEntry, appEntry); err != nil {
@@ -199,7 +199,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 		results = append(results, *prodAuditResult)
 	}
 
-	ret := &utils.AppCreateResponse{
+	ret := &types.AppCreateResponse{
 		DryRun:         dryRun,
 		ApproveResults: results,
 	}
@@ -216,9 +216,9 @@ func (s *Server) createApp(ctx context.Context, appEntry *utils.AppEntry, approv
 	return ret, nil
 }
 
-func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*app.App, error) {
+func (s *Server) setupApp(appEntry *types.AppEntry, tx metadata.Transaction) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
-	appLogger := utils.Logger{Logger: &subLogger}
+	appLogger := types.Logger{Logger: &subLogger}
 	var sourceFS *appfs.SourceFs
 	if !appEntry.IsDev {
 		// Prod mode, use DB as source
@@ -249,7 +249,7 @@ func (s *Server) setupApp(appEntry *utils.AppEntry, tx metadata.Transaction) (*a
 	return application, nil
 }
 
-func (s *Server) GetAppApi(ctx context.Context, appPath string) (*utils.AppGetResponse, error) {
+func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -266,16 +266,16 @@ func (s *Server) GetAppApi(ctx context.Context, appPath string) (*utils.AppGetRe
 		return nil, error
 	}
 
-	return &utils.AppGetResponse{
+	return &types.AppGetResponse{
 		AppEntry: *appEntry,
 	}, nil
 }
 
-func (s *Server) GetAppEntry(ctx context.Context, tx metadata.Transaction, pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
+func (s *Server) GetAppEntry(ctx context.Context, tx metadata.Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
 	return s.db.GetAppTx(ctx, tx, pathDomain)
 }
 
-func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, error) {
+func (s *Server) GetApp(pathDomain types.AppPathDomain, init bool) (*app.App, error) {
 	application, err := s.apps.GetApp(pathDomain)
 	if err != nil {
 		// App not found in cache, get from DB
@@ -303,10 +303,10 @@ func (s *Server) GetApp(pathDomain utils.AppPathDomain, init bool) (*app.App, er
 	return application, nil
 }
 
-func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppDeleteResponse, error) {
+func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (*types.AppDeleteResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	tx, err := s.db.BeginTransaction(ctx)
@@ -321,7 +321,7 @@ func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (
 		}
 	}
 
-	ret := &utils.AppDeleteResponse{
+	ret := &types.AppDeleteResponse{
 		DryRun:  dryRun,
 		AppInfo: filteredApps,
 	}
@@ -344,7 +344,7 @@ func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (
 	return ret, nil
 }
 
-func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request, appInfo utils.AppPathDomain) {
+func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request, appInfo types.AppPathDomain) {
 	app, err := s.GetApp(appInfo, true)
 	if err != nil {
 		s.Error().Err(err).Msg("error getting App")
@@ -353,17 +353,17 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	}
 
 	appAuth := app.Settings.AuthnType
-	if app.Settings.AuthnType == "" || appAuth == utils.AppAuthnDefault {
-		appAuth = utils.AppAuthnType(s.config.Security.AppDefaultAuthType)
+	if app.Settings.AuthnType == "" || appAuth == types.AppAuthnDefault {
+		appAuth = types.AppAuthnType(s.config.Security.AppDefaultAuthType)
 	}
 
 	if appAuth == "" { // no default auth type set, default to system admin user auth
-		appAuth = utils.AppAuthnSystem
+		appAuth = types.AppAuthnSystem
 	}
 
-	if app.Settings.AuthnType == utils.AppAuthnNone {
+	if app.Settings.AuthnType == types.AppAuthnNone {
 		// No authentication required
-	} else if appAuth == utils.AppAuthnSystem {
+	} else if appAuth == types.AppAuthnSystem {
 		// Use system admin user for authentication
 		authStatus := s.authHandler.authenticate(r.Header.Get("Authorization"))
 		if !authStatus {
@@ -392,11 +392,11 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	app.ServeHTTP(w, r)
 }
 
-func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppInfo, error) {
+func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
 	apps, err := s.apps.GetAllApps()
 	if err != nil {
-		return utils.AppInfo{}, err
+		return types.AppInfo{}, err
 	}
 	matchPath = normalizePath(matchPath)
 
@@ -429,7 +429,7 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppInfo, error) {
 
 		if strings.HasPrefix(matchPath, appInfo.Path) {
 			if len(appInfo.Path) == 1 || len(appInfo.Path) == len(matchPath) || matchPath[len(appInfo.Path)] == '/' {
-				if appInfo.Path == "/" && strings.HasPrefix(matchPath, "/"+utils.STAGE_SUFFIX) {
+				if appInfo.Path == "/" && strings.HasPrefix(matchPath, "/"+types.STAGE_SUFFIX) {
 					// Do not match /_cl_stage to /
 					continue
 				}
@@ -439,7 +439,7 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (utils.AppInfo, error) {
 		}
 	}
 
-	return utils.AppInfo{}, errors.New("no matching app found")
+	return types.AppInfo{}, errors.New("no matching app found")
 }
 
 func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
@@ -453,7 +453,7 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 		// If /test is in use, do not allow /test/other
 		if strings.HasPrefix(matchPath, path) {
 			if len(path) == 1 || len(path) == len(matchPath) || matchPath[len(path)] == '/' {
-				matchedApp = utils.AppPathDomain{Domain: domain, Path: path}.String()
+				matchedApp = types.AppPathDomain{Domain: domain, Path: path}.String()
 				s.Debug().Msgf("Matched app %s for path %s", matchedApp, matchPath)
 				break
 			}
@@ -462,7 +462,7 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 		// If /test/other is in use, do not allow /test
 		if strings.HasPrefix(path, matchPath) {
 			if len(matchPath) == 1 || len(path) == len(matchPath) || path[len(matchPath)] == '/' {
-				matchedApp = utils.AppPathDomain{Domain: domain, Path: path}.String()
+				matchedApp = types.AppPathDomain{Domain: domain, Path: path}.String()
 				s.Debug().Msgf("Matched app %s for path %s", matchedApp, matchPath)
 				break
 			}
@@ -472,7 +472,7 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 	return matchedApp, nil
 }
 
-func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*utils.ApproveResult, error) {
+func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*types.ApproveResult, error) {
 	auditResult, err := app.Audit()
 	if err != nil {
 		return nil, err
@@ -490,7 +490,7 @@ func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app
 	return auditResult, nil
 }
 
-func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, entries []utils.AppPathDomain, dryRun bool) error {
+func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, entries []types.AppPathDomain, dryRun bool) error {
 	if dryRun {
 		return nil
 	}
@@ -506,15 +506,15 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transactio
 	return nil
 }
 
-func (s *Server) getStageApp(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) (*utils.AppEntry, error) {
+func (s *Server) getStageApp(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry) (*types.AppEntry, error) {
 	if appEntry.IsDev {
 		return nil, fmt.Errorf("cannot get stage for dev app %s", appEntry.AppPathDomain())
 	}
-	if strings.HasSuffix(appEntry.Path, utils.STAGE_SUFFIX) {
+	if strings.HasSuffix(appEntry.Path, types.STAGE_SUFFIX) {
 		return nil, fmt.Errorf("app is already a stage app %s", appEntry.AppPathDomain())
 	}
 
-	stageAppPath := utils.AppPathDomain{Domain: appEntry.Domain, Path: appEntry.Path + utils.STAGE_SUFFIX}
+	stageAppPath := types.AppPathDomain{Domain: appEntry.Domain, Path: appEntry.Path + types.STAGE_SUFFIX}
 	stageAppEntry, err := s.db.GetAppTx(ctx, tx, stageAppPath)
 	if err != nil {
 		return nil, err
@@ -585,7 +585,7 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 	}, nil
 }
 
-func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
 	if err != nil {
@@ -712,7 +712,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction,
 	return nil
 }
 
-func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry) error {
+func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry) error {
 	s.Info().Msgf("Loading app sources from %s", appEntry.SourceUrl)
 	appEntry.Metadata.VersionMetadata.GitBranch = ""
 	appEntry.Metadata.VersionMetadata.GitCommit = ""
@@ -738,16 +738,16 @@ func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction
 	return nil
 }
 
-func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.AppInfo, error) {
+func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]types.AppInfo, error) {
 	apps, err := s.db.GetAllApps(includeInternal)
 	if err != nil {
 		return nil, err
 	}
 
-	linkedApps := make(map[string][]utils.AppInfo)
-	var mainApps []utils.AppInfo
+	linkedApps := make(map[string][]types.AppInfo)
+	var mainApps []types.AppInfo
 	if includeInternal {
-		mainApps = make([]utils.AppInfo, 0, len(apps))
+		mainApps = make([]types.AppInfo, 0, len(apps))
 
 		for _, appInfo := range apps {
 			if appInfo.MainApp != "" {
@@ -770,7 +770,7 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 	}
 
 	// Include staging and preview apps for prod apps
-	result := make([]utils.AppInfo, 0, 2*len(filteredApps))
+	result := make([]types.AppInfo, 0, 2*len(filteredApps))
 	for _, appInfo := range filteredApps {
 		result = append(result, appInfo)
 		result = append(result, linkedApps[string(appInfo.Id)]...)
@@ -779,7 +779,7 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]utils.A
 	return result, nil
 }
 
-func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([]utils.AppResponse, error) {
+func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([]types.AppResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -788,18 +788,18 @@ func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([
 
 	filteredApps, err := s.FilterApps(pathSpec, internal)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	ret := make([]utils.AppResponse, 0, len(filteredApps))
+	ret := make([]types.AppResponse, 0, len(filteredApps))
 	for _, app := range filteredApps {
 		retApp, err := s.GetApp(app.AppPathDomain, false)
 		if err != nil {
-			return nil, utils.CreateRequestError(err.Error(), http.StatusInternalServerError)
+			return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)
 		}
 
 		stagedChanges := false
-		if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) {
+		if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PROD) {
 			stageApp, err := s.getStageApp(ctx, tx, retApp.AppEntry)
 			if err != nil {
 				return nil, err
@@ -809,12 +809,12 @@ func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([
 				stagedChanges = true
 			}
 		}
-		ret = append(ret, utils.AppResponse{AppEntry: *retApp.AppEntry, StagedChanges: stagedChanges})
+		ret = append(ret, types.AppResponse{AppEntry: *retApp.AppEntry, StagedChanges: stagedChanges})
 	}
 	return ret, nil
 }
 
-func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, approve, dryRun bool) (*utils.AppPreviewResponse, error) {
+func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, approve, dryRun bool) (*types.AppPreviewResponse, error) {
 	mainAppPathDomain, err := parseAppPath(mainAppPath)
 	if err != nil {
 		return nil, err
@@ -836,16 +836,16 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 	}
 
 	previewAppEntry := *mainAppEntry
-	previewAppEntry.Path = mainAppEntry.Path + utils.PREVIEW_SUFFIX + "_" + commitId
+	previewAppEntry.Path = mainAppEntry.Path + types.PREVIEW_SUFFIX + "_" + commitId
 	previewAppEntry.MainApp = mainAppEntry.Id
-	previewAppEntry.Id = utils.AppId(utils.ID_PREFIX_APP_PREVIEW + string(mainAppEntry.Id)[len(utils.ID_PREFIX_APP_PROD):])
+	previewAppEntry.Id = types.AppId(types.ID_PREFIX_APP_PREVIEW + string(mainAppEntry.Id)[len(types.ID_PREFIX_APP_PROD):])
 
 	// Check if it already exists
 	if _, err = s.db.GetAppTx(ctx, tx, previewAppEntry.AppPathDomain()); err == nil {
 		return nil, fmt.Errorf("preview app %s already exists", previewAppEntry.AppPathDomain())
 	}
 
-	previewAppEntry.Metadata.VersionMetadata = utils.VersionMetadata{
+	previewAppEntry.Metadata.VersionMetadata = types.VersionMetadata{
 		Version: 0,
 	}
 
@@ -880,7 +880,7 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 		return nil, err
 	}
 
-	ret := &utils.AppPreviewResponse{
+	ret := &types.AppPreviewResponse{
 		DryRun:        dryRun,
 		ApproveResult: *auditResult,
 		Success:       true,

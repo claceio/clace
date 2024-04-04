@@ -12,7 +12,7 @@ import (
 
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -56,7 +56,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 		}
 
 		// Save the request context in the starlark thread local
-		thread.SetLocal(utils.TL_CONTEXT, r.Context())
+		thread.SetLocal(types.TL_CONTEXT, r.Context())
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
 
@@ -125,7 +125,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
 
 			if err == nil && a.errorHandler != nil {
-				pluginErrLocal := thread.Local(utils.TL_PLUGIN_API_FAILED_ERROR)
+				pluginErrLocal := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
 				if pluginErrLocal != nil {
 					pluginErr := pluginErrLocal.(error)
 					a.Error().Err(pluginErr).Msg("handler had plugin API failure")

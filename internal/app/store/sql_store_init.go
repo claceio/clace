@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 func (s *SqlStore) initStore(ctx context.Context) error {
@@ -52,7 +52,7 @@ func (s *SqlStore) initStore(ctx context.Context) error {
 		return err
 	}
 
-	s.prefix = "db_" + string(s.pluginContext.AppId)[len(utils.ID_PREFIX_APP_PROD):]
+	s.prefix = "db_" + string(s.pluginContext.AppId)[len(types.ID_PREFIX_APP_PROD):]
 
 	autoKey := "INTEGER PRIMARY KEY AUTOINCREMENT"
 	if !s.isSqlite {

@@ -6,12 +6,12 @@ package testutil
 import (
 	"os"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/rs/zerolog"
 )
 
-func TestLogger() *utils.Logger {
+func TestLogger() *types.Logger {
 	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-	logger := zerolog.New(consoleWriter).Level(zerolog.TraceLevel).With().Caller().Timestamp().Logger()
-	return &utils.Logger{Logger: &logger}
+	l := zerolog.New(consoleWriter).Level(zerolog.TraceLevel).With().Caller().Timestamp().Logger()
+	return &types.Logger{Logger: &l}
 }

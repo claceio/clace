@@ -3,18 +3,16 @@
 
 package appfs
 
-import "github.com/claceio/clace/internal/utils"
-
 // WorkFs is the implementation of work file system
 type WorkFs struct {
-	utils.WritableFS
+	WritableFS
 	Root string
 }
 
-var _ utils.WritableFS = (*WorkFs)(nil)
+var _ WritableFS = (*WorkFs)(nil)
 
 // NewWorkFs creates a new work file system
-func NewWorkFs(dir string, fs utils.WritableFS) *WorkFs {
+func NewWorkFs(dir string, fs WritableFS) *WorkFs {
 	return &WorkFs{
 		Root:       dir,
 		WritableFS: fs,

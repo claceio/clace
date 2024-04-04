@@ -18,7 +18,8 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/plugin"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -38,7 +39,7 @@ const (
 
 func init() {
 	h := &httpPlugin{}
-	pluginFuncs := []utils.PluginFunc{
+	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApi(h.Get, app.READ),
 		app.CreatePluginApi(h.Head, app.READ),
 		app.CreatePluginApi(h.Options, app.READ),
@@ -54,7 +55,7 @@ type httpPlugin struct {
 	client *http.Client
 }
 
-func NewHttpPlugin(pluginContext *utils.PluginContext) (any, error) {
+func NewHttpPlugin(pluginContext *types.PluginContext) (any, error) {
 	return &httpPlugin{client: http.DefaultClient}, nil
 }
 

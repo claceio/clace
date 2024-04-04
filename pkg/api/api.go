@@ -8,12 +8,12 @@ import (
 
 	clserver "github.com/claceio/clace/internal/server"
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
-	*utils.ServerConfig
+	*types.ServerConfig
 }
 
 func NewServerConfig() (*ServerConfig, error) {

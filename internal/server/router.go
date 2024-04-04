@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
@@ -59,8 +59,8 @@ const (
 )
 
 type Handler struct {
-	*utils.Logger
-	config *utils.ServerConfig
+	*types.Logger
+	config *types.ServerConfig
 	server *Server
 	router *chi.Mux
 }
@@ -82,7 +82,7 @@ func panicRecovery(next http.Handler) http.Handler {
 }
 
 // NewUDSHandler creates a new handler for admin APIs over the unix domain socket
-func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
+func NewUDSHandler(logger *types.Logger, config *types.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
 	router.Use(panicRecovery)
 
@@ -96,7 +96,7 @@ func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 	router.Use(middleware.Logger)
 	router.Use(middleware.CleanPath)
 
-	router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal(false))
+	router.Mount(types.INTERNAL_URL_PREFIX, handler.serveInternal(false))
 
 	// App APIs are not mounted over UDS
 	// No authentication middleware is added for UDS, the unix file permissions are used
@@ -105,7 +105,7 @@ func NewUDSHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 
 // NewTCPHandler creates a new handler for HTTP/HTTPS requests. App API's are mounted amd
 // authentication is enabled. It also mounts the internal APIs if admin over TCP is enabled
-func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Server) *Handler {
+func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
 	router.Use(panicRecovery)
 
@@ -124,9 +124,9 @@ func NewTCPHandler(logger *utils.Logger, config *utils.ServerConfig, server *Ser
 	if config.Security.AdminOverTCP {
 		// Mount the internal API's only if admin over TCP is enabled
 		logger.Warn().Msg("Admin API access over TCP is enabled, enable 2FA for admin user account")
-		router.Mount(utils.INTERNAL_URL_PREFIX, handler.serveInternal(true))
+		router.Mount(types.INTERNAL_URL_PREFIX, handler.serveInternal(true))
 	} else {
-		router.Mount(utils.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
+		router.Mount(types.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
 	}
 
 	server.ssoAuth.RegisterRoutes(router) // register SSO routes
@@ -186,7 +186,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	resp, err := apiFunc(r)
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Err(err).Msg("API Received request")
 	if err != nil {
-		if reqError, ok := err.(utils.RequestError); ok {
+		if reqError, ok := err.(types.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")
 			errStr, _ := json.Marshal(reqError)
 			http.Error(w, string(errStr), reqError.Code)
@@ -214,7 +214,7 @@ func parseBoolArg(arg string, defaultValue bool) (bool, error) {
 	if arg != "" {
 		ret, err := strconv.ParseBool(arg)
 		if err != nil {
-			return defaultValue, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+			return defaultValue, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 		}
 		return ret, nil
 	}
@@ -230,10 +230,10 @@ func (h *Handler) getApps(r *http.Request) (any, error) {
 
 	filteredApps, err := h.server.GetApps(r.Context(), pathSpec, internal)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	return &utils.AppListResponse{Apps: filteredApps}, nil
+	return &types.AppListResponse{Apps: filteredApps}, nil
 }
 
 func (h *Handler) createApp(r *http.Request) (any, error) {
@@ -247,15 +247,15 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	var appRequest utils.CreateAppRequest
+	var appRequest types.CreateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&appRequest)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	results, err := h.server.CreateApp(r.Context(), appPath, approve, dryRun, appRequest)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return results, nil
@@ -269,12 +269,12 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
 	results, err := h.server.DeleteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 	return results, nil
 }
@@ -291,7 +291,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
 	approveResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.auditHandler, map[string]any{})
@@ -310,7 +310,7 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
 	args := map[string]any{
@@ -345,7 +345,7 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
@@ -359,7 +359,7 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 
 	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -373,12 +373,12 @@ func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
 	ret, err := h.server.PromoteApps(r.Context(), pathSpec, dryRun)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -391,11 +391,11 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 	}
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
 	commitId := r.URL.Query().Get("commitId")
 	if commitId == "" {
-		return nil, utils.CreateRequestError("commitId is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("commitId is required", http.StatusBadRequest)
 	}
 	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
 	if err != nil {
@@ -404,7 +404,7 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 
 	ret, err := h.server.PreviewApp(r.Context(), appPath, commitId, approve, dryRun)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -413,12 +413,12 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 func (h *Handler) getApp(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
 
 	ret, err := h.server.GetAppApi(r.Context(), appPath)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -432,18 +432,18 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	}
 
 	if pathSpec == "" {
-		return nil, utils.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
 	}
 
-	var updateAppRequest utils.UpdateAppRequest
+	var updateAppRequest types.UpdateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&updateAppRequest)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	ret, err := h.server.UpdateAppSettings(r.Context(), pathSpec, dryRun, updateAppRequest)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -452,12 +452,12 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 func (h *Handler) versionList(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
 
 	ret, err := h.server.VersionList(r.Context(), appPath)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -466,13 +466,13 @@ func (h *Handler) versionList(r *http.Request) (any, error) {
 func (h *Handler) versionFiles(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
 	version := r.URL.Query().Get("version")
 
 	ret, err := h.server.VersionFiles(r.Context(), appPath, version)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil
@@ -481,7 +481,7 @@ func (h *Handler) versionFiles(r *http.Request) (any, error) {
 func (h *Handler) versionSwitch(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
-		return nil, utils.CreateRequestError("appPath is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
 	version := r.URL.Query().Get("version")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
@@ -491,7 +491,7 @@ func (h *Handler) versionSwitch(r *http.Request) (any, error) {
 
 	ret, err := h.server.VersionSwitch(r.Context(), appPath, dryRun, version)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	return ret, nil

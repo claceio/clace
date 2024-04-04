@@ -18,6 +18,7 @@ import (
 
 	"github.com/caddyserver/certmagic"
 	"github.com/claceio/clace/internal/metadata"
+	"github.com/claceio/clace/internal/types"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
@@ -44,8 +45,8 @@ func init() {
 
 // Server is the instance of the Clace Server
 type Server struct {
-	*utils.Logger
-	config      *utils.ServerConfig
+	*types.Logger
+	config      *types.ServerConfig
 	db          *metadata.Metadata
 	httpServer  *http.Server
 	httpsServer *http.Server
@@ -57,29 +58,29 @@ type Server struct {
 }
 
 // NewServer creates a new instance of the Clace Server
-func NewServer(config *utils.ServerConfig) (*Server, error) {
-	logger := utils.NewLogger(&config.Log)
-	db, err := metadata.NewMetadata(logger, config)
+func NewServer(config *types.ServerConfig) (*Server, error) {
+	l := types.NewLogger(&config.Log)
+	db, err := metadata.NewMetadata(l, config)
 	if err != nil {
 		return nil, err
 	}
 
 	server := &Server{
-		Logger: logger,
+		Logger: l,
 		config: config,
 		db:     db,
 	}
-	server.apps = NewAppStore(logger, server)
-	server.authHandler = NewAdminBasicAuth(logger, config)
+	server.apps = NewAppStore(l, server)
+	server.authHandler = NewAdminBasicAuth(l, config)
 
 	// Setup SSO auth
-	server.ssoAuth = NewSSOAuth(logger, config)
+	server.ssoAuth = NewSSOAuth(l, config)
 	if err = server.ssoAuth.Setup(); err != nil {
 		return nil, err
 	}
 
 	if config.Log.AccessLogging {
-		accessLogger := utils.RollingFileLogger(&config.Log, "access.log")
+		accessLogger := types.RollingFileLogger(&config.Log, "access.log")
 		customLogger := log.New(accessLogger, "", log.LstdFlags)
 		middleware.DefaultLogger = middleware.RequestLogger(
 			&middleware.DefaultLogFormatter{Logger: customLogger, NoColor: true})

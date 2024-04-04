@@ -12,38 +12,38 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/appfs"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 
 	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
 	_ "github.com/claceio/clace/plugins"            // Register builtin plugins
 )
 
-func CreateDevModeTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
+func CreateDevModeTestApp(logger *types.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, nil, nil, nil)
 }
 
-func CreateTestApp(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
+func CreateTestApp(logger *types.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppRoot(logger *utils.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
+func CreateTestAppRoot(logger *types.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/", fileData, false, nil, nil, nil)
 }
 
-func CreateTestAppPlugin(logger *utils.Logger, fileData map[string]string,
-	plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
+func CreateTestAppPlugin(logger *types.Logger, fileData map[string]string,
+	plugins []string, permissions []types.Permission, pluginConfig map[string]types.PluginSettings) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, false, plugins, permissions, pluginConfig)
 }
 
-func CreateDevAppPlugin(logger *utils.Logger, fileData map[string]string, plugins []string,
-	permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
+func CreateDevAppPlugin(logger *types.Logger, fileData map[string]string, plugins []string,
+	permissions []types.Permission, pluginConfig map[string]types.PluginSettings) (*app.App, *appfs.WorkFs, error) {
 	return CreateTestAppInt(logger, "/test", fileData, true, plugins, permissions, pluginConfig)
 }
 
-func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]string, isDev bool,
-	plugins []string, permissions []utils.Permission, pluginConfig map[string]utils.PluginSettings) (*app.App, *appfs.WorkFs, error) {
-	systemConfig := utils.SystemConfig{TailwindCSSCommand: ""}
-	var fs utils.ReadableFS
+func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]string, isDev bool,
+	plugins []string, permissions []types.Permission, pluginConfig map[string]types.PluginSettings) (*app.App, *appfs.WorkFs, error) {
+	systemConfig := types.SystemConfig{TailwindCSSCommand: ""}
+	var fs appfs.ReadableFS
 	if isDev {
 		fs = &TestWriteFS{TestReadFS: &TestReadFS{fileData: fileData}}
 	} else {
@@ -58,14 +58,14 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 		plugins = []string{}
 	}
 	if permissions == nil {
-		permissions = []utils.Permission{}
+		permissions = []types.Permission{}
 	}
 
 	if pluginConfig == nil {
-		pluginConfig = map[string]utils.PluginSettings{}
+		pluginConfig = map[string]types.PluginSettings{}
 	}
 
-	metadata := utils.AppMetadata{
+	metadata := types.AppMetadata{
 		Loads:       plugins,
 		Permissions: permissions,
 	}
@@ -76,8 +76,8 @@ func CreateTestAppInt(logger *utils.Logger, path string, fileData map[string]str
 	return a, workFS, err
 }
 
-func createTestAppEntry(path string, isDev bool, metadata utils.AppMetadata) *utils.AppEntry {
-	return &utils.AppEntry{
+func createTestAppEntry(path string, isDev bool, metadata types.AppMetadata) *types.AppEntry {
+	return &types.AppEntry{
 		Id:        "app_prd_testapp",
 		Path:      path,
 		Domain:    "",
@@ -91,13 +91,13 @@ type TestReadFS struct {
 	fileData map[string]string
 }
 
-var _ utils.ReadableFS = (*TestReadFS)(nil)
+var _ appfs.ReadableFS = (*TestReadFS)(nil)
 
 type TestWriteFS struct {
 	*TestReadFS
 }
 
-var _ utils.WritableFS = (*TestWriteFS)(nil)
+var _ appfs.WritableFS = (*TestWriteFS)(nil)
 
 type TestFileInfo struct {
 	f *TestFile

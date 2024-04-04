@@ -10,14 +10,14 @@ import (
 	"os/signal"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/claceio/clace/pkg/api"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
+func getServerCommands(serverConfig *types.ServerConfig) ([]*cli.Command, error) {
 	_, _, defaultServerConfig, err := system.GetDefaultConfigs()
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func getServerCommands(serverConfig *utils.ServerConfig) ([]*cli.Command, error)
 	}, nil
 }
 
-func startServer(cCtx *cli.Context, serverConfig *utils.ServerConfig) error {
+func startServer(cCtx *cli.Context, serverConfig *types.ServerConfig) error {
 	apiConfig := api.ServerConfig{ServerConfig: serverConfig}
 	server, err := api.NewServer(&apiConfig)
 	if err != nil {

@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/metadata"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
-func (s *Server) VersionList(ctx context.Context, mainAppPath string) (*utils.AppVersionListResponse, error) {
+func (s *Server) VersionList(ctx context.Context, mainAppPath string) (*types.AppVersionListResponse, error) {
 	appPathDomain, err := parseAppPath(mainAppPath)
 	if err != nil {
 		return nil, err
@@ -46,10 +46,10 @@ func (s *Server) VersionList(ctx context.Context, mainAppPath string) (*utils.Ap
 		}
 	}
 
-	return &utils.AppVersionListResponse{Versions: versions}, nil
+	return &types.AppVersionListResponse{Versions: versions}, nil
 }
 
-func (s *Server) VersionFiles(ctx context.Context, mainAppPath, version string) (*utils.AppVersionFilesResponse, error) {
+func (s *Server) VersionFiles(ctx context.Context, mainAppPath, version string) (*types.AppVersionFilesResponse, error) {
 	appPathDomain, err := parseAppPath(mainAppPath)
 	if err != nil {
 		return nil, err
@@ -86,10 +86,10 @@ func (s *Server) VersionFiles(ctx context.Context, mainAppPath, version string) 
 		return nil, err
 	}
 
-	return &utils.AppVersionFilesResponse{Files: files}, nil
+	return &types.AppVersionFilesResponse{Files: files}, nil
 }
 
-func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun bool, version string) (*utils.AppVersionSwitchResponse, error) {
+func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun bool, version string) (*types.AppVersionSwitchResponse, error) {
 	appPathDomain, err := parseAppPath(mainAppPath)
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 		return nil, err
 	}
 
-	ret := &utils.AppVersionSwitchResponse{
+	ret := &types.AppVersionSwitchResponse{
 		DryRun:      dryRun,
 		FromVersion: fromVersion,
 		ToVersion:   versionInt,
@@ -187,6 +187,6 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 		return nil, err
 	}
 
-	s.apps.DeleteApps([]utils.AppPathDomain{appPathDomain})
+	s.apps.DeleteApps([]types.AppPathDomain{appPathDomain})
 	return ret, nil
 }

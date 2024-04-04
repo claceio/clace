@@ -19,13 +19,33 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/claceio/clace/internal/utils"
 )
+
+// WritableFS is the interface for the writable underlying file system used by AppFS
+type ReadableFS interface {
+	fs.FS
+	fs.ReadFileFS
+	fs.GlobFS
+	// Stat returns the stats for the named file.
+	Stat(name string) (fs.FileInfo, error)
+	Reset()                // Used to reset the file system transaction for the DbFs, no-op for others
+	StaticFiles() []string // Return list of static files
+}
+
+type CompressedReader interface {
+	ReadCompressed() (data []byte, compressionType string, err error)
+}
+
+// WritableFS is the interface for the writable underlying file system used by AppFS
+type WritableFS interface {
+	ReadableFS
+	Write(name string, bytes []byte) error
+	Remove(name string) error
+}
 
 // SourceFs is the implementation of source file system
 type SourceFs struct {
-	utils.ReadableFS
+	ReadableFS
 	Root  string
 	isDev bool
 
@@ -35,19 +55,19 @@ type SourceFs struct {
 	hashToName  map[string][2]string // reverse lookup (hash path to path)
 }
 
-var _ utils.ReadableFS = (*SourceFs)(nil)
+var _ ReadableFS = (*SourceFs)(nil)
 
 type WritableSourceFs struct {
 	*SourceFs
 }
 
-var _ utils.WritableFS = (*WritableSourceFs)(nil)
+var _ WritableFS = (*WritableSourceFs)(nil)
 
 func (w *WritableSourceFs) Write(name string, bytes []byte) error {
 	if !w.isDev {
 		return fmt.Errorf("cannot write to source fs")
 	}
-	wfs, ok := w.ReadableFS.(utils.WritableFS)
+	wfs, ok := w.ReadableFS.(WritableFS)
 	if !ok {
 		return fmt.Errorf("cannot write to source fs (not writable mode)")
 	}
@@ -58,14 +78,14 @@ func (w *WritableSourceFs) Remove(name string) error {
 	if !w.isDev {
 		return fmt.Errorf("cannot remove file from source fs")
 	}
-	wfs, ok := w.ReadableFS.(utils.WritableFS)
+	wfs, ok := w.ReadableFS.(WritableFS)
 	if !ok {
 		return fmt.Errorf("cannot remove file from source fs (not writable mode)")
 	}
 	return wfs.Remove(name)
 }
 
-func NewSourceFs(dir string, fs utils.ReadableFS, isDev bool) (*SourceFs, error) {
+func NewSourceFs(dir string, fs ReadableFS, isDev bool) (*SourceFs, error) {
 	var staticFiles []string
 	if !isDev {
 		// For prod mode, get the list of static files for early hints
@@ -317,7 +337,7 @@ func (h *fsHandler) serveCompressed(w http.ResponseWriter, r *http.Request, file
 	if !h.canServeCompressed(r) {
 		return false, nil
 	}
-	compressedReader, ok := content.(utils.CompressedReader)
+	compressedReader, ok := content.(CompressedReader)
 	if !ok {
 		return false, nil
 	}

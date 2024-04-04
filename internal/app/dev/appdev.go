@@ -14,7 +14,7 @@ import (
 
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 //go:embed index_gen.go.html clace_gen.go.html
@@ -35,11 +35,11 @@ func init() {
 // and handles the styling and js library related functionalities. Access to this is synced through the initMutex in App.
 // The reload method in App is the main access point to this object
 type AppDev struct {
-	*utils.Logger
+	*types.Logger
 
 	CustomLayout bool
 	Config       *apptype.AppConfig
-	systemConfig *utils.SystemConfig
+	systemConfig *types.SystemConfig
 	sourceFS     *appfs.WritableSourceFs
 	workFS       *appfs.WorkFs
 	AppStyle     *AppStyle
@@ -49,7 +49,7 @@ type AppDev struct {
 	jsCache         map[JSLibrary]string
 }
 
-func NewAppDev(logger *utils.Logger, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, systemConfig *utils.SystemConfig) *AppDev {
+func NewAppDev(logger *types.Logger, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, systemConfig *types.SystemConfig) *AppDev {
 	dev := &AppDev{
 		Logger:          logger,
 		sourceFS:        sourceFS,

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 
 	_ "modernc.org/sqlite"
@@ -30,10 +30,10 @@ const (
 )
 
 type SqlStore struct {
-	*utils.Logger
+	*types.Logger
 	sync.Mutex
 	isInitialized bool
-	pluginContext *utils.PluginContext
+	pluginContext *types.PluginContext
 	db            *sql.DB
 	prefix        string
 	isSqlite      bool // false means postgres, no other options
@@ -41,7 +41,7 @@ type SqlStore struct {
 
 var _ Store = (*SqlStore)(nil)
 
-func NewSqlStore(pluginContext *utils.PluginContext) (*SqlStore, error) {
+func NewSqlStore(pluginContext *types.PluginContext) (*SqlStore, error) {
 	return &SqlStore{
 		Logger:        pluginContext.Logger,
 		pluginContext: pluginContext,

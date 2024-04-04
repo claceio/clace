@@ -9,12 +9,12 @@ import (
 	"strconv"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func initPreviewCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func initPreviewCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "preview",
 		Usage: "Manage Clace preview apps",
@@ -24,7 +24,7 @@ func initPreviewCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 	}
 }
 
-func previewCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func previewCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
@@ -56,7 +56,7 @@ func previewCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var previewResponse utils.AppPreviewResponse
+			var previewResponse types.AppPreviewResponse
 			err := client.Post("/_clace/preview", values, nil, &previewResponse)
 			if err != nil {
 				return err

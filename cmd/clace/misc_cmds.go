@@ -9,13 +9,14 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/claceio/clace/internal/types"
 	"github.com/claceio/clace/internal/utils"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
 )
 
-func getPasswordCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error) {
+func getPasswordCommands(clientConfig *types.ClientConfig) ([]*cli.Command, error) {
 	flags := []cli.Flag{
 		newBoolFlag("random", "r", "Generate a random password", false),
 		newBoolFlag("prompt", "p", "Prompt for password", false),
@@ -102,7 +103,7 @@ func readPassword() (string, error) {
 	return strings.TrimSpace(password), nil
 }
 
-func getVersionCommands(clientConfig *utils.ClientConfig) ([]*cli.Command, error) {
+func getVersionCommands(clientConfig *types.ClientConfig) ([]*cli.Command, error) {
 	return []*cli.Command{
 		{
 			Action: func(cCtx *cli.Context) error {

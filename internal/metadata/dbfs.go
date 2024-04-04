@@ -14,18 +14,18 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/claceio/clace/internal/app/appfs"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 type DbFs struct {
-	*utils.Logger
+	*types.Logger
 	fileStore *FileStore
 	fileInfo  map[string]DbFileInfo
 }
 
-var _ utils.ReadableFS = (*DbFs)(nil)
+var _ appfs.ReadableFS = (*DbFs)(nil)
 
-func NewDbFs(logger *utils.Logger, fileStore *FileStore) (*DbFs, error) {
+func NewDbFs(logger *types.Logger, fileStore *FileStore) (*DbFs, error) {
 	fileInfo, error := fileStore.getFileInfoTx()
 	if error != nil {
 		return nil, error
@@ -83,7 +83,7 @@ type DbFileReader struct {
 }
 
 var _ io.ReadSeeker = (*DbFileReader)(nil)
-var _ utils.CompressedReader = (*DbFileReader)(nil)
+var _ appfs.CompressedReader = (*DbFileReader)(nil)
 
 func NewbFileReader(compressionType string, data []byte) *DbFileReader {
 	compressedReader := bytes.NewReader(data)

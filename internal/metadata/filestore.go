@@ -19,7 +19,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/claceio/clace/internal/app/appfs"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 )
 
 type FileStore struct {
-	appId    utils.AppId
+	appId    types.AppId
 	version  int
 	metadata *Metadata
 	db       *sql.DB
@@ -40,11 +40,11 @@ type FileStore struct {
 	// After app is committed to database, this is not used, auto-commit transactions are used for reads
 }
 
-func NewFileStore(appId utils.AppId, version int, metadata *Metadata, tx Transaction) *FileStore {
+func NewFileStore(appId types.AppId, version int, metadata *Metadata, tx Transaction) *FileStore {
 	return &FileStore{appId: appId, version: version, metadata: metadata, db: metadata.db, initTx: tx}
 }
 
-func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, metadata *utils.AppMetadata) error {
+func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, metadata *types.AppMetadata) error {
 	currentVersion := metadata.VersionMetadata.Version
 	nextVersion, err := f.GetHighestVersion(ctx, tx, f.appId)
 	if err != nil {
@@ -72,7 +72,7 @@ func (f *FileStore) IncrementAppVersion(ctx context.Context, tx Transaction, met
 	return nil
 }
 
-func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, metadata utils.AppMetadata, checkoutDir string) error {
+func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx Transaction, metadata types.AppMetadata, checkoutDir string) error {
 	metadataJson, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
@@ -233,7 +233,7 @@ func (f *FileStore) getFileInfo(ctx context.Context, tx Transaction) (map[string
 	return fileInfo, nil
 }
 
-func (f *FileStore) GetHighestVersion(ctx context.Context, tx Transaction, appId utils.AppId) (int, error) {
+func (f *FileStore) GetHighestVersion(ctx context.Context, tx Transaction, appId types.AppId) (int, error) {
 	var maxId int
 	row := tx.QueryRowContext(ctx, `select max(version) from app_versions where appid = ?`, appId)
 	if err := row.Scan(&maxId); err != nil {
@@ -242,7 +242,7 @@ func (f *FileStore) GetHighestVersion(ctx context.Context, tx Transaction, appId
 	return maxId, nil
 }
 
-func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId utils.AppId, metadata *utils.AppMetadata) error {
+func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId types.AppId, metadata *types.AppMetadata) error {
 	metadataJson, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
@@ -287,16 +287,16 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx Transaction, prodAppId ut
 	return nil
 }
 
-func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]utils.AppVersion, error) {
+func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]types.AppVersion, error) {
 	rows, err := tx.Query(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? order by version asc`, f.appId)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
 
-	versions := make([]utils.AppVersion, 0)
+	versions := make([]types.AppVersion, 0)
 	defer rows.Close()
 	for rows.Next() {
-		v := utils.AppVersion{}
+		v := types.AppVersion{}
 		var metadataStr sql.NullString
 
 		err = rows.Scan(&v.Version, &v.PreviousVersion, &v.UserId, &v.CreateTime, &metadataStr)
@@ -321,10 +321,10 @@ func (f *FileStore) GetAppVersions(ctx context.Context, tx Transaction) ([]utils
 	return versions, nil
 }
 
-func (f *FileStore) GetAppVersion(ctx context.Context, tx Transaction, version int) (*utils.AppVersion, error) {
+func (f *FileStore) GetAppVersion(ctx context.Context, tx Transaction, version int) (*types.AppVersion, error) {
 	row := tx.QueryRow(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? and version = ?`, f.appId, version)
 
-	v := utils.AppVersion{}
+	v := types.AppVersion{}
 	var metadataStr sql.NullString
 
 	err := row.Scan(&v.Version, &v.PreviousVersion, &v.UserId, &v.CreateTime, &metadataStr)
@@ -342,22 +342,22 @@ func (f *FileStore) GetAppVersion(ctx context.Context, tx Transaction, version i
 	return &v, nil
 }
 
-func (f *FileStore) GetAppFiles(ctx context.Context, tx Transaction) ([]utils.AppFile, error) {
+func (f *FileStore) GetAppFiles(ctx context.Context, tx Transaction) ([]types.AppFile, error) {
 	files, err := f.getFileInfo(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
 
-	fileList := make([]utils.AppFile, 0, len(files))
+	fileList := make([]types.AppFile, 0, len(files))
 	for _, fileInfo := range files {
-		fileList = append(fileList, utils.AppFile{
+		fileList = append(fileList, types.AppFile{
 			Name: fileInfo.name,
 			Etag: fileInfo.sha,
 			Size: fileInfo.len,
 		})
 	}
 
-	slices.SortFunc(fileList, func(a, b utils.AppFile) int {
+	slices.SortFunc(fileList, func(a, b types.AppFile) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 

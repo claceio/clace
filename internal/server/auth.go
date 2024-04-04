@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -21,14 +21,14 @@ import (
 // Caching the sha of the successful auth header allows us to skip the bcrypt check
 // which significantly improves performance.
 type AdminBasicAuth struct {
-	*utils.Logger
-	config *utils.ServerConfig
+	*types.Logger
+	config *types.ServerConfig
 
 	mu            sync.RWMutex
 	authShaCached string
 }
 
-func NewAdminBasicAuth(logger *utils.Logger, config *utils.ServerConfig) *AdminBasicAuth {
+func NewAdminBasicAuth(logger *types.Logger, config *types.ServerConfig) *AdminBasicAuth {
 	return &AdminBasicAuth{
 		Logger: logger,
 		config: config,

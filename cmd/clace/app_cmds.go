@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -29,7 +29,7 @@ To prevent shell expansion for *, placing the path in quotes is recommended.
 	PROMOTE_ARG  = "promote"
 )
 
-func initAppCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func initAppCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "app",
 		Usage: "Manage Clace apps",
@@ -49,7 +49,7 @@ func dryRunFlag() *cli.BoolFlag {
 	return newBoolFlag(DRY_RUN_FLAG, "", "Verify command but don't commit any changes", false)
 }
 
-func appCreateCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("dev", "d", "Is the application in development mode", false))
@@ -93,15 +93,15 @@ Examples:
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateAppRequest{
+			body := types.CreateAppRequest{
 				SourceUrl:   cCtx.Args().Get(1),
 				IsDev:       cCtx.Bool("dev"),
-				AppAuthn:    utils.AppAuthnType(cCtx.String("auth-type")),
+				AppAuthn:    types.AppAuthnType(cCtx.String("auth-type")),
 				GitBranch:   cCtx.String("branch"),
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
 			}
-			var createResult utils.AppCreateResponse
+			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)
 			if err != nil {
 				return err
@@ -133,7 +133,7 @@ Examples:
 	}
 }
 
-func appListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("internal", "i", "Include internal apps", false))
@@ -169,7 +169,7 @@ Examples:
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
-			var appListResponse utils.AppListResponse
+			var appListResponse types.AppListResponse
 			err := client.Get("/_clace/apps", values, &appListResponse)
 			if err != nil {
 				return err
@@ -180,7 +180,7 @@ Examples:
 	}
 }
 
-func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
+func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 	switch format {
 	case FORMAT_JSON:
 		enc := json.NewEncoder(cCtx.App.Writer)
@@ -222,19 +222,19 @@ func printAppList(cCtx *cli.Context, apps []utils.AppResponse, format string) {
 	}
 }
 
-func appType(app utils.AppResponse) string {
+func appType(app types.AppResponse) string {
 	if app.IsDev {
 		return "DEV"
 	} else {
-		if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) {
+		if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PROD) {
 			if app.StagedChanges {
 				return "PROD*"
 			} else {
 				return "PROD"
 			}
-		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PREVIEW) {
+		} else if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PREVIEW) {
 			return "VIEW"
-		} else if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
+		} else if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE) {
 			return "STG"
 		} else {
 			return "----"
@@ -242,17 +242,17 @@ func appType(app utils.AppResponse) string {
 	}
 }
 
-func authType(app utils.AppResponse) string {
-	if app.Settings.AuthnType == utils.AppAuthnNone {
+func authType(app types.AppResponse) string {
+	if app.Settings.AuthnType == types.AppAuthnNone {
 		return "NONE"
-	} else if app.Settings.AuthnType == utils.AppAuthnDefault {
+	} else if app.Settings.AuthnType == types.AppAuthnDefault {
 		return "SYST"
 	} else {
 		return "----"
 	}
 }
 
-func permType(perm utils.Permission) string {
+func permType(perm types.Permission) string {
 	permType := ""
 	if perm.IsRead != nil {
 		if *perm.IsRead {
@@ -264,7 +264,7 @@ func permType(perm utils.Permission) string {
 	return permType
 }
 
-func printApproveResult(approveResult utils.ApproveResult) {
+func printApproveResult(approveResult types.ApproveResult) {
 	fmt.Printf("  Plugins :\n")
 	for _, load := range approveResult.NewLoads {
 		fmt.Printf("    %s\n", load)
@@ -275,7 +275,7 @@ func printApproveResult(approveResult utils.ApproveResult) {
 	}
 }
 
-func appDeleteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -305,7 +305,7 @@ Examples:
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var deleteResult utils.AppDeleteResponse
+			var deleteResult types.AppDeleteResponse
 			err := client.Delete("/_clace/app", values, &deleteResult)
 			if err != nil {
 				return err
@@ -324,7 +324,7 @@ Examples:
 	}
 }
 
-func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appApproveCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -357,7 +357,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
-			var approveResponse utils.AppApproveResponse
+			var approveResponse types.AppApproveResponse
 			err := client.Post("/_clace/approve", values, nil, &approveResponse)
 			if err != nil {
 				return err
@@ -397,7 +397,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 	}
 }
 
-func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
@@ -445,7 +445,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 			values.Add("gitAuth", cCtx.String("git-auth"))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var reloadResponse utils.AppReloadResponse
+			var reloadResponse types.AppReloadResponse
 			err := client.Post("/_clace/reload", values, nil, &reloadResponse)
 			if err != nil {
 				return err
@@ -498,7 +498,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) 
 	}
 }
 
-func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appPromoteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -527,7 +527,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig)
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var promoteResponse utils.AppPromoteResponse
+			var promoteResponse types.AppPromoteResponse
 			err := client.Post("/_clace/promote", values, nil, &promoteResponse)
 			if err != nil {
 				return err

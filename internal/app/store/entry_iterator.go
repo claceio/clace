@@ -10,18 +10,18 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 )
 
 type StoreEntryIterable struct {
 	thread *starlark.Thread
-	*utils.Logger
+	*types.Logger
 	table string
 	rows  *sql.Rows
 }
 
-func NewStoreEntryIterabe(thread *starlark.Thread, logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterable {
+func NewStoreEntryIterabe(thread *starlark.Thread, logger *types.Logger, table string, rows *sql.Rows) *StoreEntryIterable {
 	return &StoreEntryIterable{
 		thread: thread,
 		Logger: logger,
@@ -58,14 +58,14 @@ func (s *StoreEntryIterable) Hash() (uint32, error) {
 
 type StoreEntryIterator struct {
 	thread *starlark.Thread
-	*utils.Logger
+	*types.Logger
 	table string
 	rows  *sql.Rows
 }
 
 var _ starlark.Iterator = (*StoreEntryIterator)(nil)
 
-func NewStoreEntryIterator(thread *starlark.Thread, logger *utils.Logger, table string, rows *sql.Rows) *StoreEntryIterator {
+func NewStoreEntryIterator(thread *starlark.Thread, logger *types.Logger, table string, rows *sql.Rows) *StoreEntryIterator {
 	return &StoreEntryIterator{
 		thread: thread,
 		Logger: logger,

@@ -9,29 +9,29 @@ import (
 	"sync"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 // AppStore is a store of apps. Apps are initialized lazily, the first GetApp call on each app
 // will load the app from the database.
 type AppStore struct {
-	*utils.Logger
+	*types.Logger
 	server  *Server
-	allApps []utils.AppInfo
+	allApps []types.AppInfo
 
 	mu     sync.RWMutex
-	appMap map[utils.AppPathDomain]*app.App
+	appMap map[types.AppPathDomain]*app.App
 }
 
-func NewAppStore(logger *utils.Logger, server *Server) *AppStore {
+func NewAppStore(logger *types.Logger, server *Server) *AppStore {
 	return &AppStore{
 		Logger: logger,
 		server: server,
-		appMap: make(map[utils.AppPathDomain]*app.App),
+		appMap: make(map[types.AppPathDomain]*app.App),
 	}
 }
 
-func (a *AppStore) GetAllApps() ([]utils.AppInfo, error) {
+func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -55,7 +55,7 @@ func (a *AppStore) ClearAllAppCache() {
 	a.allApps = nil
 }
 
-func (a *AppStore) GetApp(pathDomain utils.AppPathDomain) (*app.App, error) {
+func (a *AppStore) GetApp(pathDomain types.AppPathDomain) (*app.App, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -70,15 +70,15 @@ func (a *AppStore) AddApp(app *app.App) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
+	a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
 	a.allApps = nil
 }
 
-func (a *AppStore) DeleteLinkedApps(pathDomain utils.AppPathDomain) error {
+func (a *AppStore) DeleteLinkedApps(pathDomain types.AppPathDomain) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	linkedAppPrefix := pathDomain.Path + utils.INTERNAL_APP_DELIM
+	linkedAppPrefix := pathDomain.Path + types.INTERNAL_APP_DELIM
 	for key, app := range a.appMap {
 		if app.Domain == pathDomain.Domain && strings.HasPrefix(app.Path, linkedAppPrefix) {
 			delete(a.appMap, key)
@@ -90,7 +90,7 @@ func (a *AppStore) DeleteLinkedApps(pathDomain utils.AppPathDomain) error {
 	return nil
 }
 
-func (a *AppStore) DeleteApps(pathDomain []utils.AppPathDomain) {
+func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 
 	for _, app := range apps {
 		app.ResetFS() // clear the transaction for DbFS
-		a.appMap[utils.CreateAppPathDomain(app.Path, app.Domain)] = app
+		a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
 	}
 	a.allApps = nil
 }

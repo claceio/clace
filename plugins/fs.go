@@ -13,7 +13,8 @@ import (
 	"sync"
 
 	"github.com/claceio/clace/internal/app"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/plugin"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"golang.org/x/sync/errgroup"
 )
@@ -25,7 +26,7 @@ const (
 
 func init() {
 	h := &fsPlugin{}
-	pluginFuncs := []utils.PluginFunc{
+	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApi(h.Abs, app.READ),
 		app.CreatePluginApi(h.List, app.READ),
 		app.CreatePluginApi(h.Find, app.READ),
@@ -36,7 +37,7 @@ func init() {
 type fsPlugin struct {
 }
 
-func NewFSPlugin(pluginContext *utils.PluginContext) (any, error) {
+func NewFSPlugin(pluginContext *types.PluginContext) (any, error) {
 	return &fsPlugin{}, nil
 }
 

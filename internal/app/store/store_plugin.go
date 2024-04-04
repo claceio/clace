@@ -11,7 +11,8 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/plugin"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 )
 
@@ -21,7 +22,7 @@ const (
 
 func init() {
 	h := &storePlugin{}
-	pluginFuncs := []utils.PluginFunc{
+	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApi(h.Begin, app.READ),
 		app.CreatePluginApi(h.Commit, app.WRITE),
 		app.CreatePluginApi(h.Rollback, app.READ),
@@ -42,7 +43,7 @@ type storePlugin struct {
 	sqlStore *SqlStore
 }
 
-func NewStorePlugin(pluginContext *utils.PluginContext) (any, error) {
+func NewStorePlugin(pluginContext *types.PluginContext) (any, error) {
 	sqlStore, err := NewSqlStore(pluginContext)
 
 	return &storePlugin{

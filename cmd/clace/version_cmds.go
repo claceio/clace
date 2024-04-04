@@ -10,12 +10,12 @@ import (
 	"strconv"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func initVersionCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func initVersionCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "version",
 		Usage: "Manage app versions",
@@ -28,7 +28,7 @@ func initVersionCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 	}
 }
 
-func versionListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func versionListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
@@ -54,7 +54,7 @@ func versionListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 
-			var response utils.AppVersionListResponse
+			var response types.AppVersionListResponse
 			err := client.Get("/_clace/version", values, &response)
 			if err != nil {
 				return err
@@ -66,7 +66,7 @@ func versionListCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig
 	}
 }
 
-func printVersionList(cCtx *cli.Context, versions []utils.AppVersion, format string) {
+func printVersionList(cCtx *cli.Context, versions []types.AppVersion, format string) {
 	switch format {
 	case FORMAT_JSON:
 		enc := json.NewEncoder(cCtx.App.Writer)
@@ -104,7 +104,7 @@ func printVersionList(cCtx *cli.Context, versions []utils.AppVersion, format str
 	}
 }
 
-func versionFilesCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func versionFilesCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
@@ -134,7 +134,7 @@ func versionFilesCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfi
 				values.Add("version", cCtx.Args().Get(1))
 			}
 
-			var response utils.AppVersionFilesResponse
+			var response types.AppVersionFilesResponse
 			err := client.Get("/_clace/version/files", values, &response)
 			if err != nil {
 				return err
@@ -146,7 +146,7 @@ func versionFilesCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfi
 	}
 }
 
-func printFileList(cCtx *cli.Context, files []utils.AppFile, format string) {
+func printFileList(cCtx *cli.Context, files []types.AppFile, format string) {
 	switch format {
 	case FORMAT_JSON:
 		enc := json.NewEncoder(cCtx.App.Writer)
@@ -180,7 +180,7 @@ func printFileList(cCtx *cli.Context, files []utils.AppFile, format string) {
 	}
 }
 
-func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -212,7 +212,7 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 			values.Add("version", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var response utils.AppVersionSwitchResponse
+			var response types.AppVersionSwitchResponse
 			err := client.Post("/_clace/version", values, nil, &response)
 			if err != nil {
 				return err
@@ -229,7 +229,7 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 	}
 }
 
-func versionRevertCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func versionRevertCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -259,7 +259,7 @@ func versionRevertCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConf
 			values.Add("version", "revert") // Use revert as the switch API version
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			var response utils.AppVersionSwitchResponse
+			var response types.AppVersionSwitchResponse
 			err := client.Post("/_clace/version", values, nil, &response)
 			if err != nil {
 				return err

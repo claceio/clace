@@ -1,11 +1,13 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package plugin
 
-import "github.com/claceio/clace/internal/app/starlark_type"
+import (
+	"github.com/claceio/clace/internal/types"
+)
 
-type NewPluginFunc func(pluginContext *PluginContext) (any, error)
+type NewPluginFunc func(pluginContext *types.PluginContext) (any, error)
 
 // PluginMap is the plugin function mapping to PluginFuncs
 type PluginMap map[string]*PluginInfo
@@ -25,11 +27,4 @@ type PluginInfo struct {
 	IsRead      bool
 	HandlerName string
 	Builder     NewPluginFunc
-}
-
-type PluginContext struct {
-	Logger    *Logger
-	AppId     AppId
-	StoreInfo *starlark_type.StoreInfo
-	Config    PluginSettings
 }

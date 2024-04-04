@@ -9,12 +9,12 @@ import (
 	"strconv"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "update",
 		Usage: "Update Clace apps settings",
@@ -27,7 +27,7 @@ func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *utils.Client
 	}
 }
 
-func appUpdateStageWrite(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appUpdateStageWrite(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -58,18 +58,18 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateUpdateAppRequest()
+			body := types.CreateUpdateAppRequest()
 			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
 			if err != nil {
 				return fmt.Errorf("invalid value %s for stage-write-access, expected true or false", cCtx.Args().Get(1))
 			}
 			if boolValue {
-				body.StageWriteAccess = utils.BoolValueTrue
+				body.StageWriteAccess = types.BoolValueTrue
 			} else {
-				body.StageWriteAccess = utils.BoolValueFalse
+				body.StageWriteAccess = types.BoolValueFalse
 			}
 
-			var updateResponse utils.AppUpdateSettingsResponse
+			var updateResponse types.AppUpdateSettingsResponse
 			err = client.Post("/_clace/app_settings", values, body, &updateResponse)
 			if err != nil {
 				return err
@@ -89,7 +89,7 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	}
 }
 
-func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -120,18 +120,18 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateUpdateAppRequest()
+			body := types.CreateUpdateAppRequest()
 			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
 			if err != nil {
 				return fmt.Errorf("invalid value %s for preview-write-access, expected true or false", cCtx.Args().Get(1))
 			}
 			if boolValue {
-				body.PreviewWriteAccess = utils.BoolValueTrue
+				body.PreviewWriteAccess = types.BoolValueTrue
 			} else {
-				body.PreviewWriteAccess = utils.BoolValueFalse
+				body.PreviewWriteAccess = types.BoolValueFalse
 			}
 
-			var updateResponse utils.AppUpdateSettingsResponse
+			var updateResponse types.AppUpdateSettingsResponse
 			err = client.Post("/_clace/app_settings", values, body, &updateResponse)
 			if err != nil {
 				return err
@@ -151,7 +151,7 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	}
 }
 
-func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -182,10 +182,10 @@ The second required argument <value> is a string, default or none.
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateUpdateAppRequest()
-			body.AuthnType = utils.StringValue(cCtx.Args().Get(1))
+			body := types.CreateUpdateAppRequest()
+			body.AuthnType = types.StringValue(cCtx.Args().Get(1))
 
-			var updateResponse utils.AppUpdateSettingsResponse
+			var updateResponse types.AppUpdateSettingsResponse
 			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
 				return err
 			}
@@ -204,7 +204,7 @@ The second required argument <value> is a string, default or none.
 	}
 }
 
-func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *utils.ClientConfig) *cli.Command {
+func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
@@ -236,10 +236,10 @@ Set to "-" to remove the git_auth entry.
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
-			body := utils.CreateUpdateAppRequest()
-			body.GitAuthName = utils.StringValue(cCtx.Args().Get(1))
+			body := types.CreateUpdateAppRequest()
+			body.GitAuthName = types.StringValue(cCtx.Args().Get(1))
 
-			var updateResponse utils.AppUpdateSettingsResponse
+			var updateResponse types.AppUpdateSettingsResponse
 			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
 				return err
 			}

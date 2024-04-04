@@ -17,7 +17,7 @@ import (
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
@@ -409,7 +409,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 
 func (a *App) createInternalRoutes(router *chi.Mux) error {
 	if a.IsDev || a.Config.Routing.PushEvents {
-		router.Get(utils.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
+		router.Get(types.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
 	}
 
 	return nil

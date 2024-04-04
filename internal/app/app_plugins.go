@@ -9,7 +9,8 @@ import (
 	"sync"
 
 	"github.com/claceio/clace/internal/app/apptype"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/plugin"
+	"github.com/claceio/clace/internal/types"
 )
 
 type AppPlugins struct {
@@ -17,11 +18,11 @@ type AppPlugins struct {
 	plugins map[string]any
 
 	app          *App
-	pluginConfig map[string]utils.PluginSettings // pluginName -> accountName -> PluginSettings, from clace.toml
+	pluginConfig map[string]types.PluginSettings // pluginName -> accountName -> PluginSettings, from clace.toml
 	accountMap   map[string]string               // pluginName -> accountName, from app account links
 }
 
-func NewAppPlugins(app *App, pluginConfig map[string]utils.PluginSettings, appAccounts []utils.AccountLink) *AppPlugins {
+func NewAppPlugins(app *App, pluginConfig map[string]types.PluginSettings, appAccounts []types.AccountLink) *AppPlugins {
 	accountMap := make(map[string]string)
 	for _, entry := range appAccounts {
 		accountMap[entry.Plugin] = entry.AccountName
@@ -35,14 +36,14 @@ func NewAppPlugins(app *App, pluginConfig map[string]utils.PluginSettings, appAc
 	}
 }
 
-func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string) (any, error) {
+func (p *AppPlugins) GetPlugin(pluginInfo *plugin.PluginInfo, accountName string) (any, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	plugin, ok := p.plugins[pluginInfo.PluginPath]
+	appPlugin, ok := p.plugins[pluginInfo.PluginPath]
 	if ok {
 		// Already initialized, use that
-		return plugin, nil
+		return appPlugin, nil
 	}
 
 	// If account name is specified, use that to lookup the account map
@@ -61,22 +62,22 @@ func (p *AppPlugins) GetPlugin(pluginInfo *utils.PluginInfo, accountName string)
 		}
 	}
 
-	appConfig := utils.PluginSettings{}
+	appConfig := types.PluginSettings{}
 	if _, ok := p.pluginConfig[pluginAccount]; ok {
 		appConfig = p.pluginConfig[pluginAccount]
 	}
 
-	pluginContext := &utils.PluginContext{
+	pluginContext := &types.PluginContext{
 		Logger:    p.app.Logger,
 		AppId:     p.app.AppEntry.Id,
 		StoreInfo: p.app.storeInfo,
 		Config:    appConfig,
 	}
-	plugin, err := pluginInfo.Builder(pluginContext)
+	appPlugin, err := pluginInfo.Builder(pluginContext)
 	if err != nil {
 		return nil, fmt.Errorf("error creating plugin %s: %w", pluginInfo.FuncName, err)
 	}
 
-	p.plugins[pluginInfo.PluginPath] = plugin
-	return plugin, nil
+	p.plugins[pluginInfo.PluginPath] = appPlugin
+	return appPlugin, nil
 }

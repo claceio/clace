@@ -23,7 +23,7 @@ import (
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/starlark_type"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -32,8 +32,8 @@ import (
 
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
-	*utils.Logger
-	*utils.AppEntry
+	*types.Logger
+	*types.AppEntry
 	Name         string
 	CustomLayout bool
 
@@ -44,7 +44,7 @@ type App struct {
 	reloadError     error
 	reloadStartTime time.Time
 	appDev          *dev.AppDev
-	systemConfig    *utils.SystemConfig
+	systemConfig    *types.SystemConfig
 	storeInfo       *starlark_type.StoreInfo
 	plugins         *AppPlugins
 
@@ -71,9 +71,9 @@ type SSEMessage struct {
 	data  string
 }
 
-func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *utils.Logger,
-	appEntry *utils.AppEntry, systemConfig *utils.SystemConfig,
-	plugins map[string]utils.PluginSettings) *App {
+func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
+	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
+	plugins map[string]types.PluginSettings) *App {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,

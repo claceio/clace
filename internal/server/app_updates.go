@@ -10,13 +10,13 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
-func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*utils.AppReloadResponse, error) {
+func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	tx, err := s.db.BeginTransaction(ctx)
@@ -25,18 +25,18 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 	}
 	defer tx.Rollback()
 
-	reloadResults := make([]utils.AppPathDomain, 0, len(filteredApps))
-	approveResults := make([]utils.ApproveResult, 0, len(filteredApps))
-	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
+	reloadResults := make([]types.AppPathDomain, 0, len(filteredApps))
+	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
+	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
-	prodAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
-	stageAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
-	devAppEntries := make([]*utils.AppEntry, 0, len(filteredApps))
+	prodAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
+	stageAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
+	devAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
 
 	// Track the staging and prod apps
 	for _, appInfo := range filteredApps {
 		if appInfo.IsDev {
-			var devAppEntry *utils.AppEntry
+			var devAppEntry *types.AppEntry
 			if devAppEntry, err = s.GetAppEntry(ctx, tx, appInfo.AppPathDomain); err != nil {
 				return nil, err
 			}
@@ -162,7 +162,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 		return nil, err
 	}
 
-	ret := &utils.AppReloadResponse{
+	ret := &types.AppReloadResponse{
 		DryRun:         dryRun,
 		ReloadResults:  reloadResults,
 		ApproveResults: approveResults,
@@ -172,7 +172,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 	return ret, nil
 }
 
-func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
 	s.Info().Msgf("Reloading app code %v", appEntry)
 
 	if isGit(appEntry.SourceUrl) {
@@ -190,7 +190,7 @@ func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEn
 	return nil
 }
 
-func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*utils.AppStagedUpdateResponse, error) {
+func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*types.AppStagedUpdateResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -202,7 +202,7 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 		return nil, err
 	}
 
-	ret := &utils.AppStagedUpdateResponse{
+	ret := &types.AppStagedUpdateResponse{
 		DryRun:              dryRun,
 		StagedUpdateResults: result,
 		PromoteResults:      promoteResults,
@@ -215,24 +215,24 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 	return ret, nil
 }
 
-type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error)
+type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error)
 
-func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []utils.AppPathDomain, []utils.AppPathDomain, error) {
+func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []types.AppPathDomain, []types.AppPathDomain, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	results := make([]any, 0, len(filteredApps))
-	entries := make([]utils.AppPathDomain, 0, len(filteredApps))
-	promoteResults := make([]utils.AppPathDomain, 0, len(filteredApps))
+	entries := make([]types.AppPathDomain, 0, len(filteredApps))
+	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("error getting prod app %s: %w", appInfo, err)
 		}
 
-		var prodAppEntry *utils.AppEntry
+		var prodAppEntry *types.AppEntry
 		if !appEntry.IsDev {
 			// For prod apps, update the staging app
 			prodAppEntry = appEntry
@@ -278,7 +278,7 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 	return results, entries, promoteResults, nil
 }
 
-func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error) {
+func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
 	appPathDomain := appEntry.AppPathDomain()
 	app, err := s.setupApp(appEntry, tx)
 	if err != nil {
@@ -292,10 +292,10 @@ func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appE
 	return result, appPathDomain, nil
 }
 
-func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*utils.AppPromoteResponse, error) {
+func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*types.AppPromoteResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	tx, err := s.db.BeginTransaction(ctx)
@@ -304,7 +304,7 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 	}
 	defer tx.Rollback()
 
-	result := make([]utils.AppPathDomain, 0, len(filteredApps))
+	result := make([]types.AppPathDomain, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		if appInfo.IsDev {
 			// Not a prod app, skip
@@ -339,12 +339,12 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 		return nil, err
 	}
 
-	return &utils.AppPromoteResponse{
+	return &types.AppPromoteResponse{
 		DryRun:         dryRun,
 		PromoteResults: result}, nil
 }
 
-func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *utils.AppEntry, prodApp *utils.AppEntry) error {
+func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *types.AppEntry, prodApp *types.AppEntry) error {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
 	prodFileStore := metadata.NewFileStore(prodApp.Id, prodApp.Metadata.VersionMetadata.Version, s.db, tx)
 	prevVersion := prodApp.Metadata.VersionMetadata.Version
@@ -372,10 +372,10 @@ func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagin
 	return nil
 }
 
-func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun bool, updateAppRequest utils.UpdateAppRequest) (*utils.AppUpdateSettingsResponse, error) {
+func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun bool, updateAppRequest types.UpdateAppRequest) (*types.AppUpdateSettingsResponse, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
-		return nil, utils.CreateRequestError(err.Error(), http.StatusBadRequest)
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
 	tx, err := s.db.BeginTransaction(ctx)
@@ -384,7 +384,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun 
 	}
 	defer tx.Rollback()
 
-	results := make([]utils.AppPathDomain, 0, len(filteredApps))
+	results := make([]types.AppPathDomain, 0, len(filteredApps))
 	for _, appInfo := range filteredApps {
 		_, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
 		if err != nil {
@@ -399,7 +399,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun 
 		results = append(results, appResults...)
 	}
 
-	ret := &utils.AppUpdateSettingsResponse{
+	ret := &types.AppUpdateSettingsResponse{
 		DryRun:        dryRun,
 		UpdateResults: results,
 	}
@@ -417,7 +417,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun 
 	return ret, nil
 }
 
-func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction, appPathDomain utils.AppPathDomain, updateAppRequest utils.UpdateAppRequest) ([]utils.AppPathDomain, error) {
+func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction, appPathDomain types.AppPathDomain, updateAppRequest types.UpdateAppRequest) ([]types.AppPathDomain, error) {
 	mainAppEntry, err := s.db.GetAppTx(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, err
@@ -430,32 +430,32 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 
 	linkedApps = append(linkedApps, mainAppEntry) // Include the main app
 
-	ret := make([]utils.AppPathDomain, 0, len(linkedApps))
+	ret := make([]types.AppPathDomain, 0, len(linkedApps))
 	for _, linkedApp := range linkedApps {
-		if updateAppRequest.StageWriteAccess != utils.BoolValueUndefined {
-			if updateAppRequest.StageWriteAccess == utils.BoolValueTrue {
+		if updateAppRequest.StageWriteAccess != types.BoolValueUndefined {
+			if updateAppRequest.StageWriteAccess == types.BoolValueTrue {
 				linkedApp.Settings.StageWriteAccess = true
 			} else {
 				linkedApp.Settings.StageWriteAccess = false
 			}
 		}
 
-		if updateAppRequest.PreviewWriteAccess != utils.BoolValueUndefined {
-			if updateAppRequest.PreviewWriteAccess == utils.BoolValueTrue {
+		if updateAppRequest.PreviewWriteAccess != types.BoolValueUndefined {
+			if updateAppRequest.PreviewWriteAccess == types.BoolValueTrue {
 				linkedApp.Settings.PreviewWriteAccess = true
 			} else {
 				linkedApp.Settings.PreviewWriteAccess = false
 			}
 		}
 
-		if updateAppRequest.AuthnType != utils.StringValueUndefined {
+		if updateAppRequest.AuthnType != types.StringValueUndefined {
 			if !s.ssoAuth.ValidateAuthType(string(updateAppRequest.AuthnType)) {
 				return nil, fmt.Errorf("invalid authentication type %s", updateAppRequest.AuthnType)
 			}
-			linkedApp.Settings.AuthnType = utils.AppAuthnType(updateAppRequest.AuthnType)
+			linkedApp.Settings.AuthnType = types.AppAuthnType(updateAppRequest.AuthnType)
 		}
 
-		if updateAppRequest.GitAuthName != utils.StringValueUndefined {
+		if updateAppRequest.GitAuthName != types.StringValueUndefined {
 			if updateAppRequest.GitAuthName == "-" {
 				linkedApp.Settings.GitAuthName = ""
 			} else {
@@ -473,9 +473,9 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 	return ret, nil
 }
 
-func (s *Server) accountLinkHandler(ctx context.Context, tx metadata.Transaction, appEntry *utils.AppEntry, args map[string]any) (any, utils.AppPathDomain, error) {
+func (s *Server) accountLinkHandler(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
 	if appEntry.Metadata.Accounts == nil {
-		appEntry.Metadata.Accounts = []utils.AccountLink{}
+		appEntry.Metadata.Accounts = []types.AccountLink{}
 	}
 
 	plugin := args["plugin"].(string)
@@ -492,7 +492,7 @@ func (s *Server) accountLinkHandler(ctx context.Context, tx metadata.Transaction
 	}
 	if matchIndex == -1 {
 		// Add new value
-		appEntry.Metadata.Accounts = append(appEntry.Metadata.Accounts, utils.AccountLink{
+		appEntry.Metadata.Accounts = append(appEntry.Metadata.Accounts, types.AccountLink{
 			Plugin:      plugin,
 			AccountName: account,
 		})

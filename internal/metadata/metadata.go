@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	_ "modernc.org/sqlite"
 )
 
@@ -21,8 +21,8 @@ const CURRENT_DB_VERSION = 3
 
 // Metadata is the metadata persistence layer
 type Metadata struct {
-	*utils.Logger
-	config *utils.ServerConfig
+	*types.Logger
+	config *types.ServerConfig
 	db     *sql.DB
 }
 
@@ -38,7 +38,7 @@ func checkConnectString(connStr string) (string, error) {
 }
 
 // NewMetadata creates a new metadata persistence layer
-func NewMetadata(logger *utils.Logger, config *utils.ServerConfig) (*Metadata, error) {
+func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
 	dbPath, err := checkConnectString(config.Metadata.DBConnection)
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ func (m *Metadata) initFileTables(ctx context.Context, tx Transaction) error {
 	return nil
 }
 
-func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
+func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *types.AppEntry) error {
 	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
 		return fmt.Errorf("error marshalling settings: %w", err)
@@ -173,7 +173,7 @@ func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *utils.App
 	return nil
 }
 
-func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
+func (m *Metadata) GetApp(pathDomain types.AppPathDomain) (*types.AppEntry, error) {
 	tx, err := m.BeginTransaction(context.Background())
 	if err != nil {
 		return nil, err
@@ -182,13 +182,13 @@ func (m *Metadata) GetApp(pathDomain utils.AppPathDomain) (*utils.AppEntry, erro
 	return m.GetAppTx(context.Background(), tx, pathDomain)
 }
 
-func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain utils.AppPathDomain) (*utils.AppEntry, error) {
+func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
 	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
-	var app utils.AppEntry
+	var app types.AppEntry
 	var settings, metadata sql.NullString
 	err = row.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.UserID, &app.CreateTime, &app.UpdateTime, &settings, &metadata)
 	if err != nil {
@@ -216,7 +216,7 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain util
 	return &app, nil
 }
 
-func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id utils.AppId) error {
+func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id types.AppId) error {
 	if _, err := tx.ExecContext(ctx, `delete from app_versions where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 	return paths, nil
 }
 
-func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
+func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 	sql := `select domain, path, is_dev, id, main_app from apps`
 	if !includeInternal {
 		sql += ` where main_app = ''`
@@ -280,7 +280,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
-	apps := make([]utils.AppInfo, 0)
+	apps := make([]types.AppInfo, 0)
 	defer rows.Close()
 	for rows.Next() {
 		var path, domain, id, mainApp string
@@ -289,7 +289,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error querying apps: %w", err)
 		}
-		apps = append(apps, utils.CreateAppInfo(utils.AppId(id), path, domain, isDev, utils.AppId(mainApp)))
+		apps = append(apps, types.CreateAppInfo(types.AppId(id), path, domain, isDev, types.AppId(mainApp)))
 	}
 	if closeErr := rows.Close(); closeErr != nil {
 		return nil, fmt.Errorf("error closing rows: %w", closeErr)
@@ -298,7 +298,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]utils.AppInfo, error) {
 }
 
 // GetLinkedApps gets all the apps linked to the given main app (staging and preview apps)
-func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId utils.AppId) ([]*utils.AppEntry, error) {
+func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId types.AppId) ([]*types.AppEntry, error) {
 	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where main_app = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
@@ -307,10 +307,10 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId 
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
 	}
-	apps := make([]*utils.AppEntry, 0)
+	apps := make([]*types.AppEntry, 0)
 	defer rows.Close()
 	for rows.Next() {
-		var app utils.AppEntry
+		var app types.AppEntry
 		var settings, metadata sql.NullString
 		err = rows.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.UserID, &app.CreateTime, &app.UpdateTime, &settings, &metadata)
 		if err != nil {
@@ -344,7 +344,7 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId 
 	return apps, nil
 }
 
-func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
+func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *types.AppEntry) error {
 	metadataJson, err := json.Marshal(app.Metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
@@ -355,7 +355,7 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *u
 		return fmt.Errorf("error updating app metadata: %w", err)
 	}
 
-	if strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(app.Id), utils.ID_PREFIX_APP_STAGE) {
+	if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE) {
 		_, err = tx.ExecContext(ctx, `UPDATE app_versions set metadata = ? where appid = ? and version = ?`, string(metadataJson), app.Id, app.Metadata.VersionMetadata.Version)
 		if err != nil {
 			return fmt.Errorf("error updating app metadata: %w", err)
@@ -365,7 +365,7 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *u
 	return nil
 }
 
-func (m *Metadata) UpdateAppSettings(ctx context.Context, tx Transaction, app *utils.AppEntry) error {
+func (m *Metadata) UpdateAppSettings(ctx context.Context, tx Transaction, app *types.AppEntry) error {
 	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
 		return fmt.Errorf("error marshalling settings: %w", err)

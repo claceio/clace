@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
@@ -40,13 +40,13 @@ const (
 )
 
 type SSOAuth struct {
-	*utils.Logger
-	config          *utils.ServerConfig
+	*types.Logger
+	config          *types.ServerConfig
 	cookieStore     *sessions.CookieStore
-	providerConfigs map[string]*utils.AuthConfig
+	providerConfigs map[string]*types.AuthConfig
 }
 
-func NewSSOAuth(logger *utils.Logger, config *utils.ServerConfig) *SSOAuth {
+func NewSSOAuth(logger *types.Logger, config *types.ServerConfig) *SSOAuth {
 	return &SSOAuth{
 		Logger: logger,
 		config: config,
@@ -82,7 +82,7 @@ func (s *SSOAuth) Setup() error {
 
 	gothic.Store = s.cookieStore // Set the store for gothic
 	gothic.GetProviderName = getProviderName
-	s.providerConfigs = make(map[string]*utils.AuthConfig)
+	s.providerConfigs = make(map[string]*types.AuthConfig)
 
 	providers := make([]goth.Provider, 0)
 	for providerName, auth := range s.config.Auth {
@@ -95,7 +95,7 @@ func (s *SSOAuth) Setup() error {
 			return fmt.Errorf("provider, key, and secret must be set for each auth provider")
 		}
 
-		callbackUrl := s.config.Security.CallbackUrl + utils.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/callback"
+		callbackUrl := s.config.Security.CallbackUrl + types.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/callback"
 
 		providerSplit := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)
 		providerType := providerSplit[0]
@@ -150,7 +150,7 @@ func (s *SSOAuth) Setup() error {
 }
 
 func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
-	mux.Get(utils.INTERNAL_URL_PREFIX+"/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.Get(types.INTERNAL_URL_PREFIX+"/auth/{provider}/callback", func(w http.ResponseWriter, r *http.Request) {
 		user, err := gothic.CompleteUserAuth(w, r)
 		if err != nil {
 			fmt.Fprintln(w, err)
@@ -186,7 +186,7 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		http.Redirect(w, r, redirectTo, http.StatusTemporaryRedirect)
 	})
 
-	mux.Post(utils.INTERNAL_URL_PREFIX+"/logout/{provider}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Post(types.INTERNAL_URL_PREFIX+"/logout/{provider}", func(w http.ResponseWriter, r *http.Request) {
 		if err := gothic.Logout(w, r); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -206,7 +206,7 @@ func (s *SSOAuth) RegisterRoutes(mux *chi.Mux) {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 	})
 
-	mux.Get(utils.INTERNAL_URL_PREFIX+"/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Get(types.INTERNAL_URL_PREFIX+"/auth/{provider}", func(w http.ResponseWriter, r *http.Request) {
 		providerName := chi.URLParam(r, "provider")
 		// try to get the user without re-authenticating
 		if _, err := gothic.CompleteUserAuth(w, r); err == nil {
@@ -263,7 +263,7 @@ func (s *SSOAuth) ValidateProviderName(provider string) bool {
 
 func (s *SSOAuth) ValidateAuthType(authType string) bool {
 	switch authType {
-	case string(utils.AppAuthnDefault), string(utils.AppAuthnSystem), string(utils.AppAuthnNone):
+	case string(types.AppAuthnDefault), string(types.AppAuthnSystem), string(types.AppAuthnNone):
 		return true
 	default:
 		return s.ValidateProviderName(authType)
@@ -284,7 +284,7 @@ func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider 
 			session.Save(r, w)
 		}
 		s.Warn().Err(err).Msg("no auth, redirecting to login")
-		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, types.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
 		return false, nil
 	}
 
@@ -295,7 +295,7 @@ func (s *SSOAuth) CheckAuth(w http.ResponseWriter, r *http.Request, appProvider 
 			session.Save(r, w)
 		}
 		s.Warn().Err(err).Msg("provider mismatch, redirecting to login")
-		http.Redirect(w, r, utils.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, types.INTERNAL_URL_PREFIX+"/auth/"+appProvider, http.StatusTemporaryRedirect)
 		return false, nil
 	}
 

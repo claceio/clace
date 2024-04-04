@@ -8,7 +8,7 @@ import (
 	"embed"
 
 	"github.com/BurntSushi/toml"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 const DEFAULT_CONFIG = "clace.default.toml"
@@ -33,56 +33,56 @@ func getEmbeddedToml() (string, error) {
 }
 
 // NewServerConfigEmbedded reads the embedded toml file and creates a ServerConfig
-func NewServerConfigEmbedded() (*utils.ServerConfig, error) {
+func NewServerConfigEmbedded() (*types.ServerConfig, error) {
 	contents, err := getEmbeddedToml()
 	if err != nil {
 		return nil, err
 	}
 
-	var config utils.ServerConfig
+	var config types.ServerConfig
 	err = LoadServerConfig(contents, &config)
 	return &config, err
 }
 
 // LoadServerConfig loads a ServerConfig from the given contents
-func LoadServerConfig(contents string, config *utils.ServerConfig) error {
+func LoadServerConfig(contents string, config *types.ServerConfig) error {
 	_, err := toml.Decode(contents, &config)
 	return err
 }
 
 // NewClientConfigEmbedded reads the embedded toml file and creates a ClientConfig
-func NewClientConfigEmbedded() (*utils.ClientConfig, error) {
+func NewClientConfigEmbedded() (*types.ClientConfig, error) {
 	contents, err := getEmbeddedToml()
 	if err != nil {
 		return nil, err
 	}
 
-	var config utils.ClientConfig
+	var config types.ClientConfig
 	err = LoadClientConfig(contents, &config)
 	return &config, err
 }
 
 // LoadClientConfig load a ClientConfig from the given contents
-func LoadClientConfig(contents string, config *utils.ClientConfig) error {
+func LoadClientConfig(contents string, config *types.ClientConfig) error {
 	_, err := toml.Decode(contents, &config)
 	return err
 }
 
 // LoadGlobalConfig load a GlobalConfig from the given contents
-func LoadGlobalConfig(contents string, config *utils.GlobalConfig) error {
+func LoadGlobalConfig(contents string, config *types.GlobalConfig) error {
 	_, err := toml.Decode(contents, &config)
 	return err
 }
 
-func GetDefaultConfigs() (*utils.GlobalConfig, *utils.ClientConfig, *utils.ServerConfig, error) {
+func GetDefaultConfigs() (*types.GlobalConfig, *types.ClientConfig, *types.ServerConfig, error) {
 	contents, err := getEmbeddedToml()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	var globalConfig utils.GlobalConfig
-	var clientConfig utils.ClientConfig
-	var serverConfig utils.ServerConfig
+	var globalConfig types.GlobalConfig
+	var clientConfig types.ClientConfig
+	var serverConfig types.ServerConfig
 	if _, err := toml.Decode(contents, &globalConfig); err != nil {
 		return nil, nil, nil, err
 	}

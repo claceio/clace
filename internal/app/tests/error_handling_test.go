@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestNoErrorHandler(t *testing.T) {
@@ -35,9 +35,9 @@ app = ace.app("testApp", custom_layout=True,
 	}
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"fs.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "fs.in", Method: "list"},
-		}, map[string]utils.PluginSettings{})
+		}, map[string]types.PluginSettings{})
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -81,9 +81,9 @@ app = ace.app("testApp", custom_layout=True,
 	}
 
 	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "fs.in", Method: "list"},
-		}, map[string]utils.PluginSettings{})
+		}, map[string]types.PluginSettings{})
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -125,9 +125,9 @@ app = ace.app("testApp", custom_layout=True,
 	}
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"fs.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "fs.in", Method: "list"},
-		}, map[string]utils.PluginSettings{})
+		}, map[string]types.PluginSettings{})
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -189,9 +189,9 @@ app = ace.app("testApp", custom_layout=True,
 	}
 
 	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "fs.in", Method: "list"},
-		}, map[string]utils.PluginSettings{})
+		}, map[string]types.PluginSettings{})
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -272,9 +272,9 @@ app = ace.app("testApp", custom_layout=True,
 	}
 
 	a, _, err := CreateDevAppPlugin(logger, fileData, []string{"fs.in"},
-		[]utils.Permission{
+		[]types.Permission{
 			{Plugin: "fs.in", Method: "list"},
-		}, map[string]utils.PluginSettings{})
+		}, map[string]types.PluginSettings{})
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

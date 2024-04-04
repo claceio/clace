@@ -11,7 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 )
 
 // Added by goreleaser as build information
@@ -22,7 +22,7 @@ var (
 
 const configFileFlagName = "config-file"
 
-func getAllCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) ([]*cli.Command, error) {
+func getAllCommands(globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command
 	serverCommands, err := getServerCommands(serverConfig)
 	if err != nil {
@@ -49,7 +49,7 @@ func getAllCommands(globalConfig *utils.GlobalConfig, clientConfig *utils.Client
 	return allCommands, nil
 }
 
-func globalFlags(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig) ([]cli.Flag, error) {
+func globalFlags(globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig) ([]cli.Flag, error) {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:        configFileFlagName,
@@ -66,7 +66,7 @@ func globalFlags(globalConfig *utils.GlobalConfig, clientConfig *utils.ClientCon
 	}, nil
 }
 
-func parseConfig(cCtx *cli.Context, globalConfig *utils.GlobalConfig, clientConfig *utils.ClientConfig, serverConfig *utils.ServerConfig) error {
+func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
 	if !cCtx.IsSet(configFileFlagName) {
 		return nil
 	}

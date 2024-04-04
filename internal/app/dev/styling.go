@@ -14,7 +14,7 @@ import (
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/system"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -38,7 +38,7 @@ const (
 // CSS file when the tailwind/daisy config changes. The reload mutex lock in App is used to
 // ensure only one call to the watcher is done at a time, no locking is implemented in AppStyle
 type AppStyle struct {
-	appId          utils.AppId
+	appId          types.AppId
 	library        StyleType
 	themes         []string
 	libraryUrl     string
@@ -55,7 +55,7 @@ type WatcherState struct {
 }
 
 // Init initializes the AppStyle object from the app definition
-func (s *AppStyle) Init(appId utils.AppId, appDef *starlarkstruct.Struct) error {
+func (s *AppStyle) Init(appId types.AppId, appDef *starlarkstruct.Struct) error {
 	var ok bool
 	var err error
 
@@ -215,7 +215,7 @@ func (s *AppStyle) StartWatcher(dev *AppDev) error {
 	}
 }
 
-func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, systemConfig *utils.SystemConfig) error {
+func (s *AppStyle) startTailwindWatcher(templateLocations []string, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, systemConfig *types.SystemConfig) error {
 	tailwindCmd := strings.TrimSpace(systemConfig.TailwindCSSCommand)
 	if tailwindCmd == "" {
 		fmt.Println("Warning: tailwindcss command not configured. Skipping tailwindcss watcher") // TODO: log

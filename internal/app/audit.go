@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/apptype"
-	"github.com/claceio/clace/internal/utils"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
-func (a *App) Audit() (*utils.ApproveResult, error) {
+func (a *App) Audit() (*types.ApproveResult, error) {
 	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %s file: %w", apptype.APP_FILE_NAME, err)
@@ -94,12 +94,12 @@ func (a *App) Audit() (*utils.ApproveResult, error) {
 	return a.createApproveResponse(loads, globals)
 }
 
-func needsApproval(a *utils.ApproveResult) bool {
+func needsApproval(a *types.ApproveResult) bool {
 	if !slices.Equal(a.NewLoads, a.ApprovedLoads) {
 		return true
 	}
 
-	permEquals := func(a, b utils.Permission) bool {
+	permEquals := func(a, b types.Permission) bool {
 		if a.Plugin != b.Plugin || a.Method != b.Method {
 			return false
 		}
@@ -122,7 +122,7 @@ func needsApproval(a *utils.ApproveResult) bool {
 	return !slices.EqualFunc(a.NewPermissions, a.ApprovedPermissions, permEquals)
 }
 
-func (a *App) createApproveResponse(loads []string, globals starlark.StringDict) (*utils.ApproveResult, error) {
+func (a *App) createApproveResponse(loads []string, globals starlark.StringDict) (*types.ApproveResult, error) {
 	// the App entry should not get updated during the audit call, since there
 	// can be audit calls when the app is running.
 	appDef, err := verifyConfig(globals)
@@ -130,8 +130,8 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 		return nil, err
 	}
 
-	perms := []utils.Permission{}
-	results := utils.ApproveResult{
+	perms := []types.Permission{}
+	results := types.ApproveResult{
 		AppPathDomain:       a.AppEntry.AppPathDomain(),
 		Id:                  a.Id,
 		NewLoads:            loads,
@@ -172,7 +172,7 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 			return nil, err
 		}
 
-		perm := utils.Permission{
+		perm := types.Permission{
 			Plugin:    pluginStr,
 			Method:    methodStr,
 			Arguments: args,
