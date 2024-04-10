@@ -46,7 +46,7 @@ db_connection = "sqlite:$CL_HOME/clace.db"
 auto_upgrade = true
 
 [system]
-tailwindcss_command = "npx tailwindcss"
+tailwindcss_command = "tailwindcss"
 file_watcher_debounce_millis = 300
 node_path = "" # node module lookup paths https://esbuild.github.io/api/#node-paths
 

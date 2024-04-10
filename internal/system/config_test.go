@@ -43,7 +43,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "cache", "$CL_HOME/config/certificates", c.Https.CertLocation)
 
 	// System settings
-	testutil.AssertEqualsString(t, "tailwind command", "npx tailwindcss", c.System.TailwindCSSCommand)
+	testutil.AssertEqualsString(t, "tailwind command", "tailwindcss", c.System.TailwindCSSCommand)
 	testutil.AssertEqualsInt(t, "file debounce", 300, c.System.FileWatcherDebounceMillis)
 	testutil.AssertEqualsString(t, "node path", "", c.System.NodePath)
 
