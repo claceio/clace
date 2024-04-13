@@ -86,11 +86,7 @@ func (w *WritableSourceFs) Remove(name string) error {
 }
 
 func NewSourceFs(dir string, fs ReadableFS, isDev bool) (*SourceFs, error) {
-	var staticFiles []string
-	if !isDev {
-		// For prod mode, get the list of static files for early hints
-		staticFiles = fs.StaticFiles()
-	}
+	staticFiles := fs.StaticFiles()
 
 	return &SourceFs{
 		Root:        dir,

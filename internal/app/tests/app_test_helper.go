@@ -194,7 +194,13 @@ func (f *TestReadFS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (d *TestReadFS) StaticFiles() []string {
-	return []string{} // Not implemented for disk fs, used only in prod mode
+	staticFiles := []string{}
+	for name := range d.fileData {
+		if strings.HasPrefix(name, "static/") || strings.HasPrefix(name, "static_root/") {
+			staticFiles = append(staticFiles, name)
+		}
+	}
+	return staticFiles
 }
 
 func (f *TestReadFS) Reset() {

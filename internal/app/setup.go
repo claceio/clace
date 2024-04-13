@@ -243,19 +243,14 @@ func (a *App) initRouter() error {
 // addStaticRoot adds the static root directory contents to the router
 // Files can be referenced by /<filename>, without /static or /static_root
 func (a *App) addStaticRoot(router *chi.Mux) error {
-	staticRoot := a.Config.Routing.StaticRootDir
-	if staticRoot == "" {
-		return nil
-	}
-
-	rootFiles, err := a.sourceFS.Glob(staticRoot + "/*")
-	if err != nil {
-		return err
-	}
-
-	for _, rootFile := range rootFiles {
-		baseName := path.Base(rootFile)
-		router.Get("/"+baseName, func(w http.ResponseWriter, r *http.Request) {
+	staticFiles := a.sourceFS.StaticFiles()
+	for _, rootFile := range staticFiles {
+		if !strings.HasPrefix(rootFile, "static_root/") {
+			continue
+		}
+		rootFile := rootFile
+		fileName := rootFile[len("static_root/"):]
+		router.Get("/"+fileName, func(w http.ResponseWriter, r *http.Request) {
 			f, err := a.sourceFS.Open(rootFile)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -277,7 +272,7 @@ func (a *App) addStaticRoot(router *chi.Mux) error {
 				return
 			}
 
-			http.ServeContent(w, r, baseName, fi.ModTime(), seeker)
+			http.ServeContent(w, r, fileName, fi.ModTime(), seeker)
 		})
 
 	}

@@ -16,6 +16,9 @@ tests:
   versions0050: # check curl
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
     stdout: "1"
+  versions0051: # check curl
+    command: curl -su "admin:qwerty" localhost:25222/versions_local1/abc/def/test.txt
+    stdout: "abc"
   versions0060: # check list, four apps on version 1
     command: ../clace app list -i "/versions*" | grep "1 SYST" | wc -l
     stdout: "4"

@@ -206,7 +206,7 @@ func (d *DbFs) Stat(name string) (fs.FileInfo, error) {
 
 func (d *DbFs) Glob(pattern string) (matches []string, err error) {
 	matchedFiles := []string{}
-	for name, _ := range d.fileInfo {
+	for name := range d.fileInfo {
 		if matched, _ := path.Match(pattern, name); matched {
 			matchedFiles = append(matchedFiles, name)
 		}
@@ -218,7 +218,7 @@ func (d *DbFs) Glob(pattern string) (matches []string, err error) {
 func (d *DbFs) StaticFiles() []string {
 	staticFiles := []string{}
 	for name := range d.fileInfo {
-		if strings.HasPrefix(name, "static/") {
+		if strings.HasPrefix(name, "static/") || strings.HasPrefix(name, "static_root/") {
 			staticFiles = append(staticFiles, name)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/claceio/clace/internal/types"
 )
 
@@ -85,7 +86,19 @@ func (d *DiskReadFS) Glob(pattern string) (matches []string, err error) {
 }
 
 func (d *DiskReadFS) StaticFiles() []string {
-	return []string{} // Not implemented for disk fs, used only in prod mode
+	staticFiles, err := doublestar.Glob(d.fs, "static/**/*")
+	if err != nil {
+		d.Logger.Err(err).Msg("error getting static files")
+		return nil
+	}
+	var staticRootFiles []string
+	staticRootFiles, err = doublestar.Glob(d.fs, "static_root/**/*")
+	if err != nil {
+		d.Logger.Err(err).Msg("error getting static_root files")
+		return nil
+	}
+	staticFiles = append(staticFiles, staticRootFiles...)
+	return staticFiles
 }
 
 func (d *DiskReadFS) Reset() {

@@ -18,10 +18,11 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
-		"index.go.html":          `abc {{static "file1"}} def {{static "file2.txt"}}`,
-		"static/file1":           `file1data`,
-		"static/file2.txt":       `file2data`,
-		"static_root/robots.txt": `deny *`,
+		"index.go.html":                `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":                 `file1data`,
+		"static/file2.txt":             `file2data`,
+		"static_root/robots.txt":       `deny *`,
+		"static_root/abc/def/test.txt": `abc`,
 	}
 
 	a, _, err := CreateTestApp(logger, fileData)
@@ -62,6 +63,13 @@ def handler(req):
 	testutil.AssertEqualsString(t, "header etag", response.Header().Get("ETag"), "") // etag is not set for now
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "body", `deny *`, response.Body.String())
+
+	// Test static_root read
+	request = httptest.NewRequest("GET", "/test/abc/def/test.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `abc`, response.Body.String())
 }
 
 func TestStaticLoadDevMode(t *testing.T) {
