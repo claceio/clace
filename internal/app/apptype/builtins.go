@@ -48,18 +48,18 @@ var (
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var customLayout starlark.Bool
 	var name starlark.String
-	var pages *starlark.List
+	var routes *starlark.List
 	var settings *starlark.Dict
 	var permissions, libraries *starlark.List
 	var style *starlarkstruct.Struct
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
-		"pages?", &pages, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
+		"routes?", &routes, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
 		&settings, "custom_layout?", &customLayout); err != nil {
 		return nil, err
 	}
 
-	if pages == nil {
-		pages = starlark.NewList([]starlark.Value{})
+	if routes == nil {
+		routes = starlark.NewList([]starlark.Value{})
 	}
 	if libraries == nil {
 		libraries = starlark.NewList([]starlark.Value{})
@@ -75,7 +75,7 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	fields := starlark.StringDict{
 		"name":          name,
 		"custom_layout": customLayout,
-		"pages":         pages,
+		"routes":        routes,
 		"settings":      settings,
 		"permissions":   permissions,
 		"libraries":     libraries,

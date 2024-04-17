@@ -24,7 +24,7 @@ def test1(req):
 	ret = fs.list("/tmp")
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [
+	routes = [
 		ace.page("/test1", type="json", handler=test1),
 	],
 	permissions=[
@@ -70,7 +70,7 @@ def error_handler(req, cause):
 	return {"error": cause["error"]}
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [
+	routes = [
 		ace.page("/test1", type="json", handler=test1),
 	],
 	permissions=[
@@ -114,7 +114,7 @@ def error_handler(req, cause):
 	return {"error": cause["error"]}
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [
+	routes = [
 		ace.page("/test1", type="json", handler=test1),
 	],
 	permissions=[
@@ -174,7 +174,7 @@ def error_handler(req, cause):
 	return {"error": cause["error"]}
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [
+	routes = [
 		ace.page("/test1_value", type="json", handler=test1_value),
 		ace.page("/test2_error", type="json", handler=test2_error),
 		ace.page("/test3_truth", type="json", handler=test3_truth),
@@ -261,7 +261,7 @@ def error_handler(req, cause):
 	return 1/0 # bad error handler
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [
+	routes = [
 		ace.page("/test1", type="json", handler=test1),
 	],
 	permissions=[

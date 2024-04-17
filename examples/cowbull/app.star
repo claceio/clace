@@ -104,7 +104,7 @@ def join(req):
 
 app = ace.app("CowBull",
               custom_layout=True,
-              pages=[
+              routes=[
                   ace.page("/", "index.go.html"),
 
                   ace.page("/game", "",

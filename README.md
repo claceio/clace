@@ -146,7 +146,7 @@ def handler(req):
 
 app = ace.app("File Listing",
               custom_layout=True,
-              pages = [ace.page("/")],
+              routes = [ace.page("/")],
               permissions = [ace.permission("exec.in", "run", ["ls"])]
              )
 ```

@@ -204,24 +204,24 @@ func (a *App) initRouter() error {
 		return err
 	}
 
-	// Iterate through all the pages
-	pages, err := a.appDef.Attr("pages")
+	// Iterate through all the routes
+	routes, err := a.appDef.Attr("routes")
 	if err != nil {
 		return err
 	}
 
 	var ok bool
-	var pageList *starlark.List
-	if pageList, ok = pages.(*starlark.List); !ok {
-		return fmt.Errorf("pages is not a list")
+	var routeList *starlark.List
+	if routeList, ok = routes.(*starlark.List); !ok {
+		return fmt.Errorf("routes is not a list")
 	}
-	iter := pageList.Iterate()
+	iter := routeList.Iterate()
 	var val starlark.Value
 	count := 0
 	for iter.Next(&val) {
 		count++
 
-		if err = a.addPageRoute(count, router, val, defaultHandler); err != nil {
+		if err = a.addRoute(count, router, val, defaultHandler); err != nil {
 			return err
 		}
 	}
@@ -281,13 +281,13 @@ func (a *App) addStaticRoot(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, defaultHandler starlark.Callable) error {
+func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defaultHandler starlark.Callable) error {
 	var ok bool
 	var err error
 	var pageDef *starlarkstruct.Struct
 
-	if pageDef, ok = pageVal.(*starlarkstruct.Struct); !ok {
-		return fmt.Errorf("pages entry %d is not a struct", count)
+	if pageDef, ok = routeVal.(*starlarkstruct.Struct); !ok {
+		return fmt.Errorf("routes entry %d is not a struct", count)
 	}
 
 	var pathStr, htmlFile, blockStr, methodStr, rtypeStr string

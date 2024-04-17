@@ -14,7 +14,7 @@ func TestLoadStarlark(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test.star", "testpage")
-app = ace.app("testApp", custom_layout=True, pages = testpage)`,
+app = ace.app("testApp", custom_layout=True, routes = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test.star":     `testpage = [ace.page("/")]`,
 	}
@@ -34,11 +34,11 @@ app = ace.app("testApp", custom_layout=True, pages = testpage)`,
 func TestLoadStarlarkMulti(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
-		"app.star": `load("test1.star", "testpages")
-app = ace.app("testApp", custom_layout=True, pages = testpages)`,
+		"app.star": `load("test1.star", "testroutes")
+app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star": `load ("test2.star", "mypage")
-testpages = [mypage]`,
+testroutes = [mypage]`,
 		"test2.star": `mypage = ace.page("/")`,
 	}
 	a, _, err := CreateTestAppRoot(logger, fileData)
@@ -57,11 +57,11 @@ testpages = [mypage]`,
 func TestLoadStarlarkLoop(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
-		"app.star": `load("test1.star", "testpages")
-app = ace.app("testApp", custom_layout=True, pages = testpages)`,
+		"app.star": `load("test1.star", "testroutes")
+app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star": `load ("app.star", "mypage")
-testpages = [mypage]`,
+testroutes = [mypage]`,
 	}
 	_, _, err := CreateTestAppRoot(logger, fileData)
 	testutil.AssertErrorContains(t, err, "cycle in starlark load graph during load of test1.star")
@@ -72,10 +72,10 @@ func TestLoadStarlarkLoopRuntime(t *testing.T) {
 	// is also detecting a loop
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
-		"app.star": `load("test1.star", "testpages")
-app = ace.app("testApp", custom_layout=True, pages = testpages)`,
+		"app.star": `load("test1.star", "testroutes")
+app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test1.star":    `testpages = [ace.page("/")]`,
+		"test1.star":    `testroutes = [ace.page("/")]`,
 	}
 	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestLoadStarlarkError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `load("test2.star", "testpage")
-app = ace.app("testApp", custom_layout=True, pages = testpage)`,
+app = ace.app("testApp", custom_layout=True, routes = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test.star":     `testpage = [ace.page("/")]`,
 	}

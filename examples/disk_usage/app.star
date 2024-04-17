@@ -37,7 +37,7 @@ def handler(req, files=False, find=False):
 
 
 app = ace.app("Disk Usage",
-              pages=[
+              routes=[
                   ace.page("/", partial="du_table_block",
                            fragments=[ace.fragment("files", handler=lambda req: handler(req, files=True)),
                                       ace.fragment("find", handler=lambda req: handler(req, find=True))])

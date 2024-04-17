@@ -27,7 +27,7 @@ func TestProxyBasics(t *testing.T) {
 		"app.star": fmt.Sprintf(`
 load("proxy.in", "proxy")
 
-app = ace.app("testApp", pages = [ace.proxy("/", proxy.config("%s"))],
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
 permissions=[
 	ace.permission("proxy.in", "config"),
 ]
@@ -66,7 +66,7 @@ load("proxy.in", "proxy")
 def handler(req):
     return "handler text"
 
-app = ace.app("testApp", pages = [
+app = ace.app("testApp", routes = [
 	ace.page("/", type=ace.TEXT),
 	ace.proxy("/pp", proxy.config("%s")),
 	ace.page("/np", type=ace.TEXT)],
@@ -119,7 +119,7 @@ func TestProxyPermsSuccess(t *testing.T) {
 		"app.star": fmt.Sprintf(`
 load("proxy.in", "proxy")
 
-app = ace.app("testApp", pages = [ace.proxy("/", proxy.config("%s"))],
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
 permissions=[
 	ace.permission("proxy.in", "config", ["%s"]),
 ]
@@ -155,7 +155,7 @@ func TestProxyPermsFailure(t *testing.T) {
 		"app.star": fmt.Sprintf(`
 load("proxy.in", "proxy")
 
-app = ace.app("testApp", pages = [ace.proxy("/", proxy.config("%s"))],
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
 permissions=[
 	ace.permission("proxy.in", "config", ["example.com"]),
 ]
@@ -183,7 +183,7 @@ func TestProxyStripPath(t *testing.T) {
 		"app.star": fmt.Sprintf(`
 load("proxy.in", "proxy")
 
-app = ace.app("testApp", pages = [ace.proxy("/ppp", proxy.config("%s", strip_path="/ppp"))],
+app = ace.app("testApp", routes = [ace.proxy("/ppp", proxy.config("%s", strip_path="/ppp"))],
 permissions=[
 	ace.permission("proxy.in", "config"),
 ]

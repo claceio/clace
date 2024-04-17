@@ -19,7 +19,7 @@ func TestStoreBasics(t *testing.T) {
 		"app.star": `
 load("store.in", "store")
 
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/", type="json")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/", type="json")],
 permissions=[
 	ace.permission("store.in", "insert"),
 	ace.permission("store.in", "select_by_id"),
@@ -254,7 +254,7 @@ def select_leak(req):
 	return {}
 
 app = ace.app("testApp", custom_layout=True, 
-	pages = [ace.page("/create", type="json", handler=create),
+	routes = [ace.page("/create", type="json", handler=create),
 			ace.page("/select", type="json", handler=select),
 			ace.page("/count", type="json", handler=count),
 			ace.page("/create_no_commit", type="json", handler=create_no_commit),

@@ -14,7 +14,7 @@ func TestFragmentBasics(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[ace.fragment("frag", "ff")]
 )])
 
@@ -64,7 +64,7 @@ func TestFragmentInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", partial="ff",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc", partial="ff",
 	fragments=[ace.fragment("frag")]
 )])
 
@@ -119,7 +119,7 @@ def handler(req):
 def handler2(req):
 	return {"key": "myvalue3", "key2": "myvalue4"}
 
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[ace.fragment("frag", "ff", handler=handler2)]
 )])
 		`,
@@ -172,7 +172,7 @@ def handler(req):
 def handler2(req):
 	return {"key": "myvalue3", "key2": "myvalue4"}
 
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[ace.fragment("frag", "ff", handler=handler2), ace.fragment("frag2", "ff2", method="POST")]
 )])
 		`,
@@ -229,7 +229,7 @@ func TestFragmentErrors(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=10
 )])
 		`,
@@ -242,7 +242,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		"app.star": `
 def handler(req):
 		return {"key": "myvalue", "key2": "myvalue2"}
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[10]
 )])
 		`,
@@ -255,7 +255,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 		"app.star": `
 def handler(req):
 		return {"key": "myvalue", "key2": "myvalue2"}
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[ace.fragment("frag", abc="ff", handler=handler)]
 )])
 		`,
@@ -266,7 +266,7 @@ app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
 
 	fileData = map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc",
 	fragments=[ace.fragment("frag", "ff", handler=10)]
 )])
 		`,
@@ -280,7 +280,7 @@ func TestFragmentPostRedirect(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, pages = [ace.page("/abc", partial="ff",
+app = ace.app("testApp", custom_layout=True, routes = [ace.page("/abc", partial="ff",
 	fragments=[ace.fragment("frag", method="POST")]
 )])
 
