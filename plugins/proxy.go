@@ -28,29 +28,32 @@ func NewProxyPlugin(pluginContext *types.PluginContext) (any, error) {
 }
 
 func (h *proxyPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var url starlark.String
-	if err := starlark.UnpackArgs("config", args, kwargs, "url", &url); err != nil {
+	var url, stripPath starlark.String
+	if err := starlark.UnpackArgs("config", args, kwargs, "url", &url, "strip_path?", &stripPath); err != nil {
 		return nil, err
 	}
 
-	return ProxyConfig{Url: string(url)}, nil
+	return ProxyConfig{Url: string(url), StripPath: string(stripPath)}, nil
 }
 
 type ProxyConfig struct {
-	Url string
+	Url       string
+	StripPath string
 }
 
 func (p ProxyConfig) Attr(name string) (starlark.Value, error) {
 	switch name {
 	case "Url":
 		return starlark.String(p.Url), nil
+	case "StripPath":
+		return starlark.String(p.StripPath), nil
 	default:
 		return starlark.None, fmt.Errorf("proxy config has no attribute '%s'", name)
 	}
 }
 
 func (p ProxyConfig) AttrNames() []string {
-	return []string{"Url"}
+	return []string{"Url", "StripPath"}
 }
 
 func (p ProxyConfig) String() string {
@@ -69,7 +72,7 @@ func (p ProxyConfig) Truth() starlark.Bool {
 }
 
 func (p ProxyConfig) Hash() (uint32, error) {
-	return starlark.Tuple{starlark.String(p.Url)}.Hash()
+	return starlark.Tuple{starlark.String(p.Url), starlark.String(p.StripPath)}.Hash()
 }
 
 var _ starlark.Value = (*ProxyConfig)(nil)

@@ -374,12 +374,16 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		return fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
 	}
 
-	var urlValue starlark.Value
+	var urlValue, stripPathValue starlark.Value
 	if urlValue, err = configAttr.Attr("Url"); err != nil {
+		return err
+	}
+	if stripPathValue, err = configAttr.Attr("StripPath"); err != nil {
 		return err
 	}
 
 	urlStr := urlValue.(starlark.String).GoString()
+	stripPathStr := stripPathValue.(starlark.String).GoString()
 	url, err := url.Parse(urlStr)
 	if err != nil {
 		return fmt.Errorf("error parsing url %s: %w", urlStr, err)
@@ -391,7 +395,13 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			r.Out.Host = url.Host
 		},
 	}
-	router.Mount(pathStr, http.StripPrefix(a.Path, proxy))
+
+	if stripPathStr == "" {
+		stripPathStr = a.Path // default to striping app path
+	} else {
+		stripPathStr = path.Join(a.Path, stripPathStr)
+	}
+	router.Mount(pathStr, http.StripPrefix(stripPathStr, proxy))
 	return nil
 }
 
