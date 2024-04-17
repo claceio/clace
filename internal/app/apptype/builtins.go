@@ -38,6 +38,8 @@ const (
 	HTML   = "HTML"
 	JSON   = "JSON"
 	TEXT   = "TEXT"
+	READ   = "READ"
+	WRITE  = "WRITE"
 )
 
 var (
@@ -311,6 +313,8 @@ func CreateBuiltin() starlark.StringDict {
 					HTML:   starlark.String(HTML),
 					JSON:   starlark.String(JSON),
 					TEXT:   starlark.String(TEXT),
+					READ:   starlark.String(READ),
+					WRITE:  starlark.String(WRITE),
 				},
 			},
 		}
