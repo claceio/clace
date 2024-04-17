@@ -41,24 +41,23 @@ tests:
   # Test preview app
   # These tests depend on a commit which has the disk usage app set to write type for the fs plugin. If the app requires
   # updates, these commits have to be recreated. See:
-  # https://github.com/claceio/clace/commit/2ce5aaafea9e99de9547d50d91f924edc8191c57
-  # https://github.com/claceio/clace/commit/d163ab2e334a02c1cf8ef3e48d0b84bdd72d8ec3
+  # https://github.com/claceio/clace/commit/0210463c7bf37cc4b19183697c189bf7f9e94365
   perms0200: # Create preview app from git
     command: ../clace app create --approve /permsgit1 github.com/claceio/clace/examples/disk_usage
   perms0201: # Create preview app from git
     command: ../clace app create --approve /permsgit2 github.com/claceio/clace/examples/disk_usage
   perms0202: # Create preview app
-    command: ../clace preview create --approve /permsgit1 2ce5aaafea9e99de9547d50d91f924edc8191c57
+    command: ../clace preview create --approve /permsgit1 0210463c7bf37cc4b19183697c189bf7f9e94365
   perms0203: # test preview app
-    command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_2ce5aaafea9e99de9547d50d91f924edc8191c57
+    command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0210463c7bf37cc4b19183697c189bf7f9e94365
     stdout: "Preview app does not have access to write operation"
   perms0204: # Update preview perms
     command: ../clace app update preview-write-access "/perms*" true
   perms0205: # test preview app
-    command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_2ce5aaafea9e99de9547d50d91f924edc8191c57
+    command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0210463c7bf37cc4b19183697c189bf7f9e94365
     stdout: "Disk Usage"
   perms0206: # Create preview app for non git
-    command: ../clace preview create /perms1 2ce5aaafea9e99de9547d50d91f924edc8191c57
+    command: ../clace preview create /perms1 0210463c7bf37cc4b19183697c189bf7f9e94365
     stderr: "source is not git"
     exit-code: 1
 
