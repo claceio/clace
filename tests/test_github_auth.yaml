@@ -15,11 +15,11 @@ tests:
     stderr: ""
     exit-code: 0
   github0040: # Create app, git url with commit id, with auth
-    command: ../clace app create --git-auth infoclace --approve --commit fdda2c5dce481bee052810ad300adc23a9a53170 /ghauth3 git@github.com:claceio/clace.git/examples/disk_usage
+    command: ../clace app create --git-auth infoclace --approve --commit c9b3c8effdd85183c93d1574cc078de7850d73b8 /ghauth3 git@github.com:claceio/clace.git/examples/disk_usage
     stderr: ""
     exit-code: 0
   github0050: # Create app, git url with commit id, with invalid auth
-    command: ../clace app create --git-auth invalid --approve --commit fdda2c5dce481bee052810ad300adc23a9a53170 /ghauth4 git@github.com:claceio/clace.git/examples/disk_usage
+    command: ../clace app create --git-auth invalid --approve --commit c9b3c8effdd85183c93d1574cc078de7850d73b8 /ghauth4 git@github.com:claceio/clace.git/examples/disk_usage
     stderr: "git auth entry invalid not found in server config"
     exit-code: 1
 
