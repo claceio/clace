@@ -25,6 +25,7 @@ const (
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
 	LIBRARY               = "library"
+	PROXY                 = "proxy"
 	DEFAULT_REDIRECT_CODE = 303
 )
 
@@ -273,6 +274,20 @@ func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark
 	return starlarkstruct.FromStringDict(starlark.String(LIBRARY), fields), nil
 }
 
+func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var path starlark.String
+	var config starlark.Value
+	if err := starlark.UnpackArgs(PROXY, args, kwargs, "path", &path, "config", &config); err != nil {
+		return nil, err
+	}
+
+	fields := starlark.StringDict{
+		"path":   path,
+		"config": config,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(PROXY), fields), nil
+}
+
 func CreateBuiltin() starlark.StringDict {
 	once.Do(func() {
 		builtin = starlark.StringDict{
@@ -287,6 +302,7 @@ func CreateBuiltin() starlark.StringDict {
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
+					PROXY:      starlark.NewBuiltin(PROXY, createProxyBuiltin),
 
 					GET:    starlark.String(GET),
 					POST:   starlark.String(POST),

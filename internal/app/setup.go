@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"path"
 	"strings"
 
@@ -287,7 +289,14 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	if pageDef, ok = pageVal.(*starlarkstruct.Struct); !ok {
 		return fmt.Errorf("pages entry %d is not a struct", count)
 	}
+
 	var pathStr, htmlFile, blockStr, methodStr, rtypeStr string
+	_, err = pageDef.Attr("config")
+	if err == nil {
+		// "config" is defined, this must be a proxy config instead of a page definition
+		return a.addProxyConfig(count, router, pageDef)
+	}
+
 	if pathStr, err = apptype.GetStringAttr(pageDef, "path"); err != nil {
 		return err
 	}
@@ -331,6 +340,58 @@ func (a *App) addPageRoute(count int, router *chi.Mux, pageVal starlark.Value, d
 	}
 	a.Trace().Msgf("Adding page route %s <%s>", methodStr, pathStr)
 	router.Method(methodStr, pathStr, handlerFunc)
+	return nil
+}
+
+func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruct.Struct) error {
+	var err error
+	var pathStr string
+	if pathStr, err = apptype.GetStringAttr(proxyDef, "path"); err != nil {
+		return err
+	}
+
+	var ok bool
+	var responseAttr starlark.HasAttrs
+	pluginResponse, err := proxyDef.Attr("config")
+	if err != nil {
+		return err
+	}
+	if responseAttr, ok = pluginResponse.(starlark.HasAttrs); !ok {
+		return fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
+	}
+
+	config, err := responseAttr.Attr("value")
+	if err != nil {
+		return err
+	}
+
+	if config.Type() != "ProxyConfig" {
+		return fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
+	}
+
+	var configAttr starlark.HasAttrs
+	if configAttr, ok = config.(starlark.HasAttrs); !ok {
+		return fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
+	}
+
+	var urlValue starlark.Value
+	if urlValue, err = configAttr.Attr("Url"); err != nil {
+		return err
+	}
+
+	urlStr := urlValue.(starlark.String).GoString()
+	url, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("error parsing url %s: %w", urlStr, err)
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(url)
+			r.Out.Host = url.Host
+		},
+	}
+	router.Mount(pathStr, http.StripPrefix(a.Path, proxy))
 	return nil
 }
 
