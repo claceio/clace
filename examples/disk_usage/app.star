@@ -43,9 +43,9 @@ app = ace.app("Disk Usage",
                                       ace.fragment("find", handler=lambda req: handler(req, find=True))])
               ],
               permissions=[
-                  ace.permission("fs.in", "abs"),
-                  ace.permission("fs.in", "list"),
-                  ace.permission("fs.in", "find"),
+                  ace.permission("fs.in", "abs", type=ace.WRITE),
+                  ace.permission("fs.in", "list", type=ace.WRITE),
+                  ace.permission("fs.in", "find", type=ace.WRITE),
               ],
               style=ace.style(
                   "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"),
