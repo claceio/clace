@@ -23,7 +23,7 @@ func TestLibraryBasic(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     libraries=["%s"])`, testUrl),
 	}
 
@@ -60,7 +60,7 @@ func TestLibraryESM(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     libraries=[ace.library("mylib", "1.0.0")])`,
 	}
 	_, _, err := CreateDevModeTestApp(logger, fileData)
@@ -68,7 +68,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
 
 	fileData = map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=["--minify"])])`,
 	}
 	_, _, err = CreateDevModeTestApp(logger, fileData)
@@ -76,7 +76,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
 
 	fileData = map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=["--invalid"])])`,
 	}
 	_, _, err = CreateDevModeTestApp(logger, fileData)
@@ -84,7 +84,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
 
 	fileData = map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     libraries=[ace.library("mylib", "1.0.0", args=10)])`,
 	}
 	_, _, err = CreateDevModeTestApp(logger, fileData)

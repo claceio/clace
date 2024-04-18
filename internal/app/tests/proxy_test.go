@@ -67,9 +67,9 @@ def handler(req):
     return "handler text"
 
 app = ace.app("testApp", routes = [
-	ace.page("/", type=ace.TEXT),
+	ace.api("/", type=ace.TEXT),
 	ace.proxy("/pp", proxy.config("%s")),
-	ace.page("/np", type=ace.TEXT)],
+	ace.api("/np", type=ace.TEXT)],
 permissions=[
 	ace.permission("proxy.in", "config"),
 ]

@@ -48,7 +48,7 @@ func getRequestUrl(r *http.Request) string {
 	}
 }
 
-func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, rtype string) http.HandlerFunc {
+func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Callable, rtype string) http.HandlerFunc {
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
 			Name:  a.Path,
@@ -62,7 +62,7 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
 			r.Header.Get("sec-fetch-mode") == "navigate" &&
-			!(strings.ToUpper(rtype) == apptype.JSON) && !(isHtmxRequest && block != "") {
+			rtype == apptype.HTML_TYPE && !(isHtmxRequest && fragment != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
 		}
@@ -237,21 +237,21 @@ func (a *App) createHandlerFunc(html, block string, handler starlark.Callable, r
 
 		requestData.Data = handlerResponse
 		var err error
-		if isHtmxRequest && block != "" {
-			a.Trace().Msgf("Rendering block %s", block)
-			err = a.executeTemplate(w, html, block, requestData)
+		if isHtmxRequest && fragment != "" {
+			a.Trace().Msgf("Rendering block %s", fragment)
+			err = a.executeTemplate(w, fullHtml, fragment, requestData)
 		} else {
 			referrer := r.Header.Get("Referer")
 			isUpdateRequest := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
-			if !isHtmxRequest && isUpdateRequest && block != "" && referrer != "" {
+			if !isHtmxRequest && isUpdateRequest && fragment != "" && referrer != "" {
 				// If block is defined, and this is a non-GET request, then redirect to the referrer page
 				// This handles the Post/Redirect/Get pattern required if HTMX is disabled
 				a.Trace().Msgf("Redirecting to %s with code %d", referrer, http.StatusSeeOther)
 				http.Redirect(w, r, referrer, http.StatusSeeOther)
 				return
 			} else {
-				a.Trace().Msgf("Rendering page %s", html)
-				err = a.executeTemplate(w, html, "", requestData)
+				a.Trace().Msgf("Rendering page %s", fullHtml)
+				err = a.executeTemplate(w, fullHtml, "", requestData)
 			}
 		}
 
@@ -313,7 +313,7 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 		responseRtype = rtype
 	}
 	responseRtype = strings.ToUpper(responseRtype)
-	if templateBlock == "" && responseRtype != apptype.JSON && responseRtype != apptype.TEXT {
+	if templateBlock == "" && responseRtype == apptype.HTML_TYPE {
 		return false, fmt.Errorf("block not defined in response and type is not json/text")
 	}
 

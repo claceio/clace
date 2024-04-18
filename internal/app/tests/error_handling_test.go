@@ -25,7 +25,7 @@ def test1(req):
 
 app = ace.app("testApp", custom_layout=True, 
 	routes = [
-		ace.page("/test1", type="json", handler=test1),
+		ace.api("/test1", handler=test1),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),
@@ -71,7 +71,7 @@ def error_handler(req, cause):
 
 app = ace.app("testApp", custom_layout=True, 
 	routes = [
-		ace.page("/test1", type="json", handler=test1),
+		ace.api("/test1", handler=test1),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),
@@ -115,7 +115,7 @@ def error_handler(req, cause):
 
 app = ace.app("testApp", custom_layout=True, 
 	routes = [
-		ace.page("/test1", type="json", handler=test1),
+		ace.api("/test1", type="json", handler=test1),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),
@@ -175,11 +175,11 @@ def error_handler(req, cause):
 
 app = ace.app("testApp", custom_layout=True, 
 	routes = [
-		ace.page("/test1_value", type="json", handler=test1_value),
-		ace.page("/test2_error", type="json", handler=test2_error),
-		ace.page("/test3_truth", type="json", handler=test3_truth),
-		ace.page("/test4_last_call", type="json", handler=test4_last_call),
-		ace.page("/test5_failure", type="json", handler=test5_failure),
+		ace.api("/test1_value", handler=test1_value),
+		ace.api("/test2_error", handler=test2_error),
+		ace.api("/test3_truth", handler=test3_truth),
+		ace.api("/test4_last_call", handler=test4_last_call),
+		ace.api("/test5_failure", handler=test5_failure),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),
@@ -262,7 +262,7 @@ def error_handler(req, cause):
 
 app = ace.app("testApp", custom_layout=True, 
 	routes = [
-		ace.page("/test1", type="json", handler=test1),
+		ace.api("/test1", handler=test1),
 	],
 	permissions=[
 		ace.permission("fs.in", "list"),

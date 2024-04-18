@@ -1,6 +1,6 @@
 app = ace.app("Demo Home",
               routes=[
-                  ace.page("/"),
+                  ace.html("/"),
               ],
               style=ace.style("daisyui", themes=["dark"])
               )

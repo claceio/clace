@@ -19,7 +19,7 @@ func TestStoreBasics(t *testing.T) {
 		"app.star": `
 load("store.in", "store")
 
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/", type="json")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")],
 permissions=[
 	ace.permission("store.in", "insert"),
 	ace.permission("store.in", "select_by_id"),
@@ -254,13 +254,13 @@ def select_leak(req):
 	return {}
 
 app = ace.app("testApp", custom_layout=True, 
-	routes = [ace.page("/create", type="json", handler=create),
-			ace.page("/select", type="json", handler=select),
-			ace.page("/count", type="json", handler=count),
-			ace.page("/create_no_commit", type="json", handler=create_no_commit),
-			ace.page("/create_rollback", type="json", handler=create_rollback),
-			ace.page("/select_leak", type="json", handler=select_leak),
-			ace.page("/select_leak_html", handler=select_leak)],
+	routes = [ace.api("/create", handler=create),
+			ace.api("/select", handler=select),
+			ace.api("/count", handler=count),
+			ace.api("/create_no_commit", handler=create_no_commit),
+			ace.api("/create_rollback", handler=create_rollback),
+			ace.api("/select_leak", handler=select_leak),
+			ace.html("/select_leak_html", handler=select_leak)],
 	permissions=[
 		ace.permission("store.in", "insert"),
 		ace.permission("store.in", "begin"),

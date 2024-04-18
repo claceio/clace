@@ -16,7 +16,7 @@ func TestLoadStarlark(t *testing.T) {
 		"app.star": `load("test.star", "testpage")
 app = ace.app("testApp", custom_layout=True, routes = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test.star":     `testpage = [ace.page("/")]`,
+		"test.star":     `testpage = [ace.html("/")]`,
 	}
 	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
@@ -39,7 +39,7 @@ app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
 		"test1.star": `load ("test2.star", "mypage")
 testroutes = [mypage]`,
-		"test2.star": `mypage = ace.page("/")`,
+		"test2.star": `mypage = ace.html("/")`,
 	}
 	a, _, err := CreateTestAppRoot(logger, fileData)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestLoadStarlarkLoopRuntime(t *testing.T) {
 		"app.star": `load("test1.star", "testroutes")
 app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test1.star":    `testroutes = [ace.page("/")]`,
+		"test1.star":    `testroutes = [ace.html("/")]`,
 	}
 	a, _, err := CreateDevModeTestApp(logger, fileData)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestLoadStarlarkError(t *testing.T) {
 		"app.star": `load("test2.star", "testpage")
 app = ace.app("testApp", custom_layout=True, routes = testpage)`,
 		"index.go.html": `Template contents {{.AppName}}.`,
-		"test.star":     `testpage = [ace.page("/")]`,
+		"test.star":     `testpage = [ace.html("/")]`,
 	}
 	_, _, err := CreateTestAppRoot(logger, fileData)
 	testutil.AssertErrorContains(t, err, "cannot load test2.star: file does not exist")

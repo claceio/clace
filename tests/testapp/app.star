@@ -8,8 +8,8 @@ def json_handler(req):
 
 
 app = ace.app("TestApp",
-              routes=[ace.page("/"),
-                      ace.page("/test1", handler=json_handler, type='json')],
+              routes=[ace.html("/"),
+                      ace.api("/test1", handler=json_handler)],
               permissions=[
                   # ace.permission("http.in", "get"),
               ])

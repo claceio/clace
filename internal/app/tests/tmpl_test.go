@@ -14,7 +14,7 @@ func TestBaseTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -38,7 +38,7 @@ func TestBaseTemplateResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return ace.response({"key": "myvalue"}, "index.go.html")`,
@@ -63,8 +63,8 @@ func TestBaseTemplateComplete(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 app = ace.app("testApp", custom_layout=True, routes = [
-	ace.page("/"),
-	ace.page("/second", "second.go.html"),
+	ace.html("/"),
+	ace.html("/second", "second.go.html"),
 	])
 
 def handler(req):

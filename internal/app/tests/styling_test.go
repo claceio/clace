@@ -17,7 +17,7 @@ func TestStyleNone(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 settings={"style":{"library": ""}})`,
 	}
 
@@ -44,7 +44,7 @@ func TestStyleOther(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": fmt.Sprintf(`
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 			     style=ace.style("%s"))`, testUrl),
 		"static/mystyle.css": `mystyle contents`,
 	}
@@ -66,7 +66,7 @@ func TestStyleTailwindCSS(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 		        style=ace.style(library="tailwindcss"))`,
 	}
 
@@ -88,7 +88,7 @@ func TestStyleDaisyUI(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 				style=ace.style(library="daisyui"))`,
 	}
 
@@ -110,7 +110,7 @@ func TestStyleDaisyUIThemes(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 				style=ace.style(library="daisyui", themes=["dark", "cupcake"]))`,
 	}
 
@@ -132,7 +132,7 @@ func TestStyleCustom(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=False, routes = [ace.page("/")])`,
+app = ace.app("testApp", custom_layout=False, routes = [ace.html("/")])`,
 		"static/css/style.css": "body { background-color: red; }",
 		"app.go.html":          `{{block "clace_body" .}}ABC{{end}}`,
 	}
@@ -156,7 +156,7 @@ func TestStyleError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")],
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
                 style=ace.style(library="unknown"))`,
 	}
 

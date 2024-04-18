@@ -290,11 +290,17 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 		return fmt.Errorf("routes entry %d is not a struct", count)
 	}
 
-	var pathStr, htmlFile, blockStr, methodStr, rtypeStr string
+	var pathStr, htmlFile, blockStr, methodStr string
 	_, err = pageDef.Attr("config")
 	if err == nil {
 		// "config" is defined, this must be a proxy config instead of a page definition
 		return a.addProxyConfig(count, router, pageDef)
+	}
+
+	_, err = pageDef.Attr("full")
+	if err != nil {
+		// "full" is not defined, this must be a API route instead of a html route
+		return a.addAPIRoute("", router, pageDef, defaultHandler)
 	}
 
 	if pathStr, err = apptype.GetStringAttr(pageDef, "path"); err != nil {
@@ -310,14 +316,7 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 		return err
 	}
 
-	if rtypeStr, err = apptype.GetStringAttr(pageDef, "type"); err != nil {
-		return err
-	}
-
-	if rtypeStr == "" || strings.ToUpper(rtypeStr) == apptype.HTML {
-		a.usesHtmlTemplate = true
-	}
-
+	a.usesHtmlTemplate = true
 	if htmlFile == "" {
 		if a.CustomLayout {
 			htmlFile = apptype.INDEX_FILE
@@ -334,7 +333,7 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 		}
 	}
 
-	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler, rtypeStr)
+	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler, apptype.HTML_TYPE)
 	if err = a.handleFragments(router, pathStr, count, htmlFile, blockStr, pageDef, handler); err != nil {
 		return err
 	}
@@ -405,6 +404,40 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 	return nil
 }
 
+func (a *App) addAPIRoute(basePath string, router *chi.Mux, apiDef *starlarkstruct.Struct, defaultHandler starlark.Callable) error {
+	var err error
+	var pathStr, method, rtype string
+	if pathStr, err = apptype.GetStringAttr(apiDef, "path"); err != nil {
+		return err
+	}
+
+	if method, err = apptype.GetStringAttr(apiDef, "method"); err != nil {
+		return err
+	}
+
+	if rtype, err = apptype.GetStringAttr(apiDef, "type"); err != nil {
+		return err
+	}
+
+	var ok bool
+	handler := defaultHandler // Use app level default handler, which could also be nil
+	handlerAttr, _ := apiDef.Attr("handler")
+	if handlerAttr != nil {
+		if handler, ok = handlerAttr.(starlark.Callable); !ok {
+			return fmt.Errorf("handler for API %s is not a function", pathStr)
+		}
+	}
+
+	handlerFunc := a.createHandlerFunc("", "", handler, rtype)
+
+	fullPath := pathStr
+	if basePath != "" {
+		fullPath = path.Join(basePath, pathStr)
+	}
+	router.Method(method, fullPath, handlerFunc)
+	return nil
+}
+
 func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, htmlFile string, block string, page *starlarkstruct.Struct, handlerCallable starlark.Callable) error {
 	// Iterate through all the pages
 	var err error
@@ -430,7 +463,16 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 			return fmt.Errorf("page %d fragment %d is not a struct", pageCount, count)
 		}
 
-		var pathStr, blockStr, methodStr, rtypeStr string
+		_, err = fragmentDef.Attr("partial")
+		if err != nil {
+			// "partial" is not defined, this must be a API route instead of a html route
+			if err = a.addAPIRoute(pagePath, router, fragmentDef, handlerCallable); err != nil {
+				return err
+			}
+			continue
+		}
+
+		var pathStr, blockStr, methodStr string
 		if pathStr, err = apptype.GetStringAttr(fragmentDef, "path"); err != nil {
 			return err
 		}
@@ -439,14 +481,6 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 		}
 		if blockStr, err = apptype.GetStringAttr(fragmentDef, "partial"); err != nil {
 			return err
-		}
-
-		if rtypeStr, err = apptype.GetStringAttr(fragmentDef, "type"); err != nil {
-			return err
-		}
-
-		if rtypeStr == "" || strings.ToUpper(rtypeStr) == apptype.HTML {
-			a.usesHtmlTemplate = true
 		}
 
 		if blockStr == "" {
@@ -463,7 +497,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 				return fmt.Errorf("handler for page %d fragment %d is not a function", pageCount, count)
 			}
 		}
-		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback, rtypeStr)
+		handlerFunc := a.createHandlerFunc(htmlFile, blockStr, fragmentCallback, apptype.HTML_TYPE)
 
 		fragmentPath := path.Join(pagePath, pathStr)
 		a.Trace().Msgf("Adding fragment route %s <%s>", methodStr, fragmentPath)

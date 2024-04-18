@@ -105,11 +105,11 @@ def join(req):
 app = ace.app("CowBull",
               custom_layout=True,
               routes=[
-                  ace.page("/", "index.go.html"),
+                  ace.html("/", "index.go.html"),
 
-                  ace.page("/game", "",
+                  ace.html("/game", "",
                            method="POST", handler=create_game),
-                  ace.page("/game/{game_id}", "game.go.html", "game_info_tmpl", handler=game_handler,
+                  ace.html("/game/{game_id}", "game.go.html", "game_info_tmpl", handler=game_handler,
                            fragments=[
                                ace.fragment(
                                    "submit", method="POST", handler=lambda req: post_game_update(req, "submit")),
@@ -119,16 +119,16 @@ app = ace.app("CowBull",
                                    "resign", method="POST", handler=lambda req: post_game_update(req, "resign")),
                            ]),
 
-                  ace.page("/challenge", "challenge.go.html",
+                  ace.html("/challenge", "challenge.go.html",
                            method="POST", handler=create_challenge),
-                  ace.page("/challenge/{challenge_id}", "challenge.go.html", "challenge_info_tmpl", handler=challenge_handler,
+                  ace.html("/challenge/{challenge_id}", "challenge.go.html", "challenge_info_tmpl", handler=challenge_handler,
                            fragments=[
                                ace.fragment(
                                    "play", method="POST", handler=play_challenge),
                            ]),
 
-                  ace.page("/join", "", method="POST", handler=join),
-                  ace.page("/help", "help.go.html"),
+                  ace.html("/join", "", method="POST", handler=join),
+                  ace.html("/help", "help.go.html"),
               ],
               permissions=[
                   ace.permission("http.in", "get"),

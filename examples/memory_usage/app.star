@@ -94,8 +94,8 @@ def get_children(ppid, id_to_process, child_map, memory_usage, depth, max_depth)
 app = ace.app("Memory Usage",
               custom_layout=True,
               routes=[
-                  ace.page("/"),
-                  ace.page("/memory", handler=memory_handler, type="json"),
+                  ace.html("/"),
+                  ace.api("/memory", handler=memory_handler),
               ],
               permissions=[
                   ace.permission("exec.in", "run", ["ps"]),

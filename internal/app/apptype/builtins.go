@@ -18,28 +18,29 @@ const (
 	DOC_MODULE            = "doc"
 	TABLE_MODULE          = "table"
 	APP                   = "app"
-	PAGE                  = "page"
+	HTML                  = "html"
+	API                   = "api"
+	PROXY                 = "proxy"
 	FRAGMENT              = "fragment"
 	STYLE                 = "style"
 	REDIRECT              = "redirect"
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
 	LIBRARY               = "library"
-	PROXY                 = "proxy"
 	DEFAULT_REDIRECT_CODE = 303
 )
 
 const (
 	// Constants included in the ace builtin module
-	GET    = "GET"
-	POST   = "POST"
-	PUT    = "PUT"
-	DELETE = "DELETE"
-	HTML   = "HTML"
-	JSON   = "JSON"
-	TEXT   = "TEXT"
-	READ   = "READ"
-	WRITE  = "WRITE"
+	GET       = "GET"
+	POST      = "POST"
+	PUT       = "PUT"
+	DELETE    = "DELETE"
+	HTML_TYPE = "HTML"
+	JSON      = "JSON"
+	TEXT      = "TEXT"
+	READ      = "READ"
+	WRITE     = "WRITE"
 )
 
 var (
@@ -90,12 +91,12 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 }
 
 func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, html, block, rtype starlark.String
+	var path, html, block starlark.String
 	var handler starlark.Callable
 	var fragments *starlark.List
 	var method starlark.String
-	if err := starlark.UnpackArgs(PAGE, args, kwargs, "path", &path, "full?", &html,
-		"partial?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method, "type?", &rtype); err != nil {
+	if err := starlark.UnpackArgs(HTML, args, kwargs, "path", &path, "full?", &html,
+		"partial?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -106,31 +107,25 @@ func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 		fragments = starlark.NewList([]starlark.Value{})
 	}
 
-	rtypeStr := strings.ToUpper(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
-		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
-	}
-
 	fields := starlark.StringDict{
 		"path":      path,
 		"full":      html,
 		"partial":   block,
 		"fragments": fragments,
 		"method":    method,
-		"type":      rtype,
 	}
 	if handler != nil {
 		fields["handler"] = handler
 	}
-	return starlarkstruct.FromStringDict(starlark.String(PAGE), fields), nil
+	return starlarkstruct.FromStringDict(starlark.String(HTML), fields), nil
 }
 
 func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path, block, rtype starlark.String
+	var path, block starlark.String
 	var handler starlark.Callable
 	var method starlark.String
 	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "partial?", &block,
-		"handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
+		"handler?", &handler, "method?", &method); err != nil {
 		return nil, err
 	}
 
@@ -138,16 +133,10 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 		method = "GET"
 	}
 
-	rtypeStr := strings.ToUpper(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
-		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
-	}
-
 	fields := starlark.StringDict{
 		"path":    path,
 		"partial": block,
 		"method":  method,
-		"type":    rtype,
 	}
 	if handler != nil {
 		fields["handler"] = handler
@@ -210,7 +199,7 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	}
 
 	rtypeStr := strings.ToUpper(rtype.GoString())
-	if rtypeStr != "" && rtypeStr != HTML && rtypeStr != JSON && rtypeStr != TEXT {
+	if rtypeStr != "" && rtypeStr != HTML_TYPE && rtypeStr != JSON && rtypeStr != TEXT {
 		return nil, fmt.Errorf("invalid type specified : %s", rtypeStr)
 	}
 
@@ -290,6 +279,37 @@ func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.T
 	return starlarkstruct.FromStringDict(starlark.String(PROXY), fields), nil
 }
 
+func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var path, rtype starlark.String
+	var handler starlark.Callable
+	var method starlark.String
+	if err := starlark.UnpackArgs(HTML, args, kwargs, "path", &path, "handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
+		return nil, err
+	}
+
+	if method == "" {
+		method = "GET"
+	}
+
+	rtypeStr := strings.ToUpper(rtype.GoString())
+	if rtypeStr == "" {
+		rtypeStr = JSON
+	}
+	if rtypeStr != JSON && rtypeStr != TEXT {
+		return nil, fmt.Errorf("invalid API type specified : %s", rtypeStr)
+	}
+
+	fields := starlark.StringDict{
+		"path":   path,
+		"method": method,
+		"type":   starlark.String(rtypeStr),
+	}
+	if handler != nil {
+		fields["handler"] = handler
+	}
+	return starlarkstruct.FromStringDict(starlark.String(API), fields), nil
+}
+
 func CreateBuiltin() starlark.StringDict {
 	once.Do(func() {
 		builtin = starlark.StringDict{
@@ -297,20 +317,20 @@ func CreateBuiltin() starlark.StringDict {
 				Name: DEFAULT_MODULE,
 				Members: starlark.StringDict{
 					APP:        starlark.NewBuiltin(APP, createAppBuiltin),
-					PAGE:       starlark.NewBuiltin(PAGE, createPageBuiltin),
+					HTML:       starlark.NewBuiltin(HTML, createPageBuiltin),
+					PROXY:      starlark.NewBuiltin(PROXY, createProxyBuiltin),
+					API:        starlark.NewBuiltin(API, createAPIBuiltin),
 					FRAGMENT:   starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
 					REDIRECT:   starlark.NewBuiltin(REDIRECT, createRedirectBuiltin),
 					PERMISSION: starlark.NewBuiltin(PERMISSION, createPermissionBuiltin),
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
-					PROXY:      starlark.NewBuiltin(PROXY, createProxyBuiltin),
 
 					GET:    starlark.String(GET),
 					POST:   starlark.String(POST),
 					PUT:    starlark.String(PUT),
 					DELETE: starlark.String(DELETE),
-					HTML:   starlark.String(HTML),
 					JSON:   starlark.String(JSON),
 					TEXT:   starlark.String(TEXT),
 					READ:   starlark.String(READ),

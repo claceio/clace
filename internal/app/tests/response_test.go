@@ -15,7 +15,7 @@ func TestRTypeBasic(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/", type="json")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -42,7 +42,7 @@ func TestRTypeNoTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", type="json")])
+app = ace.app("testApp", routes = [ace.api("/")])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -68,7 +68,7 @@ func TestRTypeFragment(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", fragments=[ace.fragment("frag", type="json")])])
+app = ace.app("testApp", routes = [ace.html("/", fragments=[ace.api("frag")])])
 
 def handler(req):
 	return {"a": "aval", "b": 1}`,
@@ -94,7 +94,7 @@ func TestRTypeResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/")])
+app = ace.app("testApp", routes = [ace.html("/")])
 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1}, type="json")`,
@@ -120,7 +120,7 @@ func TestRTypeText(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", type=ace.JSON)])
+app = ace.app("testApp", routes = [ace.api("/", type=ace.JSON)])
 
 def handler(req):
 	return ace.response(100, type=ace.TEXT)`,
@@ -144,7 +144,7 @@ func TestRTypeResponseInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", type="json")])
+app = ace.app("testApp", routes = [ace.api("/")])
 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
@@ -170,7 +170,7 @@ func TestRTypeFragmentInherit(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", fragments=[ace.fragment("frag", type="json")])])
+app = ace.app("testApp", routes = [ace.html("/", fragments=[ace.api("frag")])])
 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
@@ -196,7 +196,7 @@ func TestRTypeResponseInvalid(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", fragments=[ace.fragment("frag")])])
+app = ace.app("testApp", routes = [ace.html("/", fragments=[ace.fragment("frag")])])
 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
@@ -218,11 +218,11 @@ func TestRTypeInvalidType(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", fragments=[ace.fragment("frag", type="abc")])])
+app = ace.app("testApp", routes = [ace.html("/", fragments=[ace.api("frag", type="abc")])])
 
 def handler(req):
 	return ace.response({"a": "aval", "b": 1})`,
 	}
 	_, _, err := CreateDevModeTestApp(logger, fileData)
-	testutil.AssertErrorContains(t, err, "invalid type specified : ABC")
+	testutil.AssertErrorContains(t, err, "invalid API type specified : ABC")
 }

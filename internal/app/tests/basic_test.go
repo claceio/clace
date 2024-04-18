@@ -37,7 +37,7 @@ func TestAppLoadError(t *testing.T) {
 
 	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/")])
+app = ace.app("testApp", routes = [ace.html("/")])
 handler = 10`,
 		"index.go.html": `{{.}}`,
 	})
@@ -45,10 +45,10 @@ handler = 10`,
 
 	_, _, err = CreateTestApp(logger, map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", handler=10)])`,
+app = ace.app("testApp", routes = [ace.html("/", handler=10)])`,
 		"index.go.html": `{{.}}`,
 	})
-	testutil.AssertErrorContains(t, err, "page: for parameter \"handler\": got int, want callable")
+	testutil.AssertErrorContains(t, err, "html: for parameter \"handler\": got int, want callable")
 }
 
 func TestAppRoutes(t *testing.T) {
@@ -69,7 +69,7 @@ func TestAppLoadSuccess(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -98,7 +98,7 @@ func TestAppLoadNoHtml(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", type="json")])
+app = ace.app("testApp", routes = [ace.api("/", type="json")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -122,7 +122,7 @@ func TestAppLoadNoHtmlCustomLayout(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/", type=ace.JSON)])
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")])
 
 def handler(req):
 	return {"key": "myvalue"}
@@ -146,7 +146,7 @@ func TestAppLoadPlain(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", type=ace.TEXT)])
+app = ace.app("testApp", routes = [ace.api("/", type=ace.TEXT)])
 
 def handler(req):
 	return "abc"
@@ -164,13 +164,14 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", "abc", response.Body.String())
+	testutil.AssertEqualsString(t, "content type", "text/plain", response.Header().Get("Content-Type"))
 }
 
 func TestAppLoadWithLockfile(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", full="t1.tmpl")]
+app = ace.app("testApp", routes = [ace.html("/", full="t1.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -200,7 +201,7 @@ func TestAppLoadWrongTemplate(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/", full="t12.tmpl")]
+app = ace.app("testApp", routes = [ace.html("/", full="t12.tmpl")]
 	, settings={"routing": {"template_locations": ['./templates/*.tmpl']}})
 
 def handler(req):
@@ -231,7 +232,7 @@ func TestAppHeaderCustom(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -256,7 +257,7 @@ func TestAppHeaderDefault(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/")])
+app = ace.app("testApp", routes = [ace.html("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -278,7 +279,7 @@ func TestNoHandler(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])`,
 		"index.go.html": `Template contents {{.Data}}.`,
 	}
 	a, _, err := CreateDevModeTestApp(logger, fileData)
@@ -298,7 +299,7 @@ func TestFullData(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
 	a, _, err := CreateDevModeTestApp(logger, fileData)
@@ -318,7 +319,7 @@ func TestFullDataRoot(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])`,
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])`,
 		"index.go.html": `Template contents {{.}}.`,
 	}
 	a, _, err := CreateTestAppRoot(logger, fileData)
@@ -338,7 +339,7 @@ func TestAppHeaderDefaultWithBody(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", routes = [ace.page("/")])
+app = ace.app("testApp", routes = [ace.html("/")])
 
 def handler(req):
 	return {"key": "myvalue"}`,
@@ -388,7 +389,7 @@ func TestRedirect(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 def handler(req):
 	return ace.redirect("/new_url", code=302)`,
 	}
@@ -407,7 +408,7 @@ def handler(req):
 	// Test default code is 303
 	fileData = map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 def handler(req):
 	return ace.redirect("/new_url")`,
 	}
@@ -428,7 +429,7 @@ func TestPost(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/", method=ace.POST)])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/", method=ace.POST)])
 def handler(req):
 	return ace.redirect("/new_url", code=302)`,
 	}
@@ -455,7 +456,7 @@ func TestResponse(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return ace.response({"key": "myvalue"}, "testtmpl")`,
@@ -478,7 +479,7 @@ func TestResponseRetarget(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
 	return ace.response({"key": "myvalue"}, "testtmpl", code=500, retarget="#abc", reswap="outerHTML")`,
@@ -513,7 +514,7 @@ type("mytype", fields=[
 		])
 		`,
 		"app.star": `
-app = ace.app("testApp", custom_layout=True, routes = [ace.page("/")])
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 
 def handler(req):
     myt = doc.mytype(aint=1, astring="abc", alist=[1,2,3], adict={"a": 1, "b": 2}, abool=False)
