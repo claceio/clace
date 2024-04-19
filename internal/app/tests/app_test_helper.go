@@ -19,7 +19,7 @@ import (
 )
 
 func CreateDevModeTestApp(logger *types.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true, nil, nil, nil, "app_prd_testapp", types.AppSettings{})
+	return CreateTestAppInt(logger, "/test", fileData, true, nil, nil, nil, "app_dev_testapp", types.AppSettings{})
 }
 
 func CreateTestApp(logger *types.Logger, fileData map[string]string) (*app.App, *appfs.WorkFs, error) {
@@ -37,7 +37,7 @@ func CreateTestAppPlugin(logger *types.Logger, fileData map[string]string,
 
 func CreateDevAppPlugin(logger *types.Logger, fileData map[string]string, plugins []string,
 	permissions []types.Permission, pluginConfig map[string]types.PluginSettings) (*app.App, *appfs.WorkFs, error) {
-	return CreateTestAppInt(logger, "/test", fileData, true, plugins, permissions, pluginConfig, "app_prd_testapp", types.AppSettings{})
+	return CreateTestAppInt(logger, "/test", fileData, true, plugins, permissions, pluginConfig, "app_dev_testapp", types.AppSettings{})
 }
 
 func CreateTestAppPluginId(logger *types.Logger, fileData map[string]string,
