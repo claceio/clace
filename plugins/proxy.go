@@ -15,7 +15,7 @@ import (
 func init() {
 	h := &proxyPlugin{}
 	pluginFuncs := []plugin.PluginFunc{
-		app.CreatePluginApi(h.Config, app.READ_WRITE),
+		app.CreatePluginApi(h.Config, app.READ), // config API, preview/stage permission checks happen in the reverse proxy wrapper
 	}
 	app.RegisterPlugin("proxy", NewProxyPlugin, pluginFuncs)
 }

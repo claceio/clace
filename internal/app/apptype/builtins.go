@@ -283,7 +283,7 @@ func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var path, rtype starlark.String
 	var handler starlark.Callable
 	var method starlark.String
-	if err := starlark.UnpackArgs(HTML, args, kwargs, "path", &path, "handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
+	if err := starlark.UnpackArgs(API, args, kwargs, "path", &path, "handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
 		return nil, err
 	}
 

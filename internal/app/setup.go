@@ -395,12 +395,30 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		},
 	}
 
+	permsHandler := func(p *httputil.ReverseProxy) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// If write APi, check if preview/stage app is allowed access
+			isWriteReques := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete
+			if isWriteReques {
+				if strings.HasPrefix(string(a.Id), types.ID_PREFIX_APP_PREVIEW) && !a.Settings.PreviewWriteAccess {
+					http.Error(w, "Preview app does not have access to proxy write APIs", http.StatusInternalServerError)
+					return
+				} else if strings.HasPrefix(string(a.Id), types.ID_PREFIX_APP_STAGE) && !a.Settings.StageWriteAccess {
+					http.Error(w, "Stage app does not have access to proxy write APIs", http.StatusInternalServerError)
+					return
+				}
+			}
+			// use the reverse proxy to handle the request
+			p.ServeHTTP(w, r)
+		})
+	}
+
 	if stripPathStr == "" {
 		stripPathStr = a.Path // default to striping app path
 	} else {
 		stripPathStr = path.Join(a.Path, stripPathStr)
 	}
-	router.Mount(pathStr, http.StripPrefix(stripPathStr, proxy))
+	router.Mount(pathStr, http.StripPrefix(stripPathStr, permsHandler(proxy)))
 	return nil
 }
 
