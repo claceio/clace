@@ -54,6 +54,9 @@ func TestServerConfig(t *testing.T) {
 	// Security Settings
 	testutil.AssertEqualsBool(t, "admin tcp", false, c.Security.AdminOverTCP)
 	testutil.AssertEqualsString(t, "admin password bcrypt", "", c.Security.AdminPasswordBcrypt)
+
+	// Container Settings
+	testutil.AssertEqualsString(t, "command", "auto", c.Container.Command)
 }
 
 func TestClientConfig(t *testing.T) {

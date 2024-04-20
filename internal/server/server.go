@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 	"time"
@@ -90,7 +91,26 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		}
 	}
 
+	if config.Container.Command == "auto" {
+		config.Container.Command = server.lookupContainerCommand()
+		// if command is empty string, that means either containers are disabled in config or no container command found
+	}
+	server.Trace().Str("cmd", config.Container.Command).Msg("Container management command")
 	return server, nil
+}
+
+const (
+	DOCKER_COMMAND = "docker"
+	PODMAN_COMMAND = "podman"
+)
+
+func (s *Server) lookupContainerCommand() string {
+	if _, err := exec.LookPath(PODMAN_COMMAND); err == nil {
+		return PODMAN_COMMAND
+	} else if _, err := exec.LookPath(DOCKER_COMMAND); err == nil {
+		return DOCKER_COMMAND
+	}
+	return ""
 }
 
 // setupAdminAccount sets up the basic auth password for admin account. If admin user is unset,
