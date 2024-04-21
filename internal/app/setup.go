@@ -403,11 +403,21 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		return rootWildcard, fmt.Errorf("error parsing url %s: %w", urlStr, err)
 	}
 
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			r.SetURL(url)
-			r.Out.Host = url.Host
-		},
+	proxy := httputil.NewSingleHostReverseProxy(url)
+	defaultDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		defaultDirector(req)
+		req.URL.Scheme = url.Scheme
+		req.URL.Host = url.Host
+
+		// To support WebSockets, we need to ensure that the `Connection`, `Upgrade`
+		// and `Host` headers are forwarded as-is and not modified.
+		if req.Header.Get("Upgrade") == "websocket" {
+			req.Header.Set("Connection", "Upgrade")
+			req.Header.Set("Upgrade", "websocket")
+		} else {
+			req.Host = url.Host // Set the Host header only for non-WebSocket requests
+		}
 	}
 
 	permsHandler := func(p *httputil.ReverseProxy) http.Handler {
