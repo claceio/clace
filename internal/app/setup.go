@@ -218,17 +218,25 @@ func (a *App) initRouter() error {
 	iter := routeList.Iterate()
 	var val starlark.Value
 	count := 0
+	rootWildcard := false
 	for iter.Next(&val) {
 		count++
 
-		if err = a.addRoute(count, router, val, defaultHandler); err != nil {
+		var rootWildcardSet bool
+		if rootWildcardSet, err = a.addRoute(count, router, val, defaultHandler); err != nil {
 			return err
+		}
+
+		if rootWildcardSet {
+			rootWildcard = true // Root wildcard path, static files are not served
 		}
 	}
 
 	// Mount static dir
-	staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
-	router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+	if !rootWildcard {
+		staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
+		router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+	}
 
 	err = a.addStaticRoot(router)
 	if err != nil {
@@ -281,13 +289,14 @@ func (a *App) addStaticRoot(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defaultHandler starlark.Callable) error {
+func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defaultHandler starlark.Callable) (bool, error) {
 	var ok bool
 	var err error
 	var pageDef *starlarkstruct.Struct
+	rootWildcard := false
 
 	if pageDef, ok = routeVal.(*starlarkstruct.Struct); !ok {
-		return fmt.Errorf("routes entry %d is not a struct", count)
+		return rootWildcard, fmt.Errorf("routes entry %d is not a struct", count)
 	}
 
 	var pathStr, htmlFile, blockStr, methodStr string
@@ -300,20 +309,20 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 	_, err = pageDef.Attr("full")
 	if err != nil {
 		// "full" is not defined, this must be a API route instead of a html route
-		return a.addAPIRoute("", router, pageDef, defaultHandler)
+		return rootWildcard, a.addAPIRoute("", router, pageDef, defaultHandler)
 	}
 
 	if pathStr, err = apptype.GetStringAttr(pageDef, "path"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 	if methodStr, err = apptype.GetStringAttr(pageDef, "method"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 	if htmlFile, err = apptype.GetStringAttr(pageDef, "full"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 	if blockStr, err = apptype.GetStringAttr(pageDef, "partial"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 
 	a.usesHtmlTemplate = true
@@ -329,63 +338,69 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 	handlerAttr, _ := pageDef.Attr("handler")
 	if handlerAttr != nil {
 		if handler, ok = handlerAttr.(starlark.Callable); !ok {
-			return fmt.Errorf("handler for page %s is not a function", pathStr)
+			return rootWildcard, fmt.Errorf("handler for page %s is not a function", pathStr)
 		}
 	}
 
 	handlerFunc := a.createHandlerFunc(htmlFile, blockStr, handler, apptype.HTML_TYPE)
 	if err = a.handleFragments(router, pathStr, count, htmlFile, blockStr, pageDef, handler); err != nil {
-		return err
+		return rootWildcard, err
 	}
 	a.Trace().Msgf("Adding page route %s <%s>", methodStr, pathStr)
 	router.Method(methodStr, pathStr, handlerFunc)
-	return nil
+	return rootWildcard, nil
 }
 
-func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruct.Struct) error {
+func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruct.Struct) (bool, error) {
 	var err error
 	var pathStr string
+	rootWildcard := false
+
 	if pathStr, err = apptype.GetStringAttr(proxyDef, "path"); err != nil {
-		return err
+		return rootWildcard, err
+	}
+
+	if pathStr == "/" {
+		rootWildcard = true // Root wildcard path, static files are not served
 	}
 
 	var ok bool
 	var responseAttr starlark.HasAttrs
 	pluginResponse, err := proxyDef.Attr("config")
 	if err != nil {
-		return err
+		return rootWildcard, err
 	}
 	if responseAttr, ok = pluginResponse.(starlark.HasAttrs); !ok {
-		return fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
+		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
 	}
 
 	config, err := responseAttr.Attr("value")
 	if err != nil {
-		return err
+		return rootWildcard, err
 	}
 
 	if config.Type() != "ProxyConfig" {
-		return fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
+		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
 	}
 
 	var configAttr starlark.HasAttrs
 	if configAttr, ok = config.(starlark.HasAttrs); !ok {
-		return fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
+		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
 	}
 
 	var urlValue, stripPathValue starlark.Value
 	if urlValue, err = configAttr.Attr("Url"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 	if stripPathValue, err = configAttr.Attr("StripPath"); err != nil {
-		return err
+		return rootWildcard, err
 	}
 
 	urlStr := urlValue.(starlark.String).GoString()
 	stripPathStr := stripPathValue.(starlark.String).GoString()
 	url, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("error parsing url %s: %w", urlStr, err)
+		return rootWildcard, fmt.Errorf("error parsing url %s: %w", urlStr, err)
 	}
 
 	proxy := &httputil.ReverseProxy{
@@ -419,7 +434,7 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		stripPathStr = path.Join(a.Path, stripPathStr)
 	}
 	router.Mount(pathStr, http.StripPrefix(stripPathStr, permsHandler(proxy)))
-	return nil
+	return rootWildcard, nil
 }
 
 func (a *App) addAPIRoute(basePath string, router *chi.Mux, apiDef *starlarkstruct.Struct, defaultHandler starlark.Callable) error {

@@ -50,6 +50,42 @@ permissions=[
 	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
 }
 
+func TestProxyBasicsRoot(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/abc/def" {
+			t.Fatalf("Invalid path %s", r.URL.Path)
+		}
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
+permissions=[
+	ace.permission("proxy.in", "config"),
+]
+)`, testServer.URL),
+	}
+
+	a, _, err := CreateTestAppPluginRoot(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config"},
+		}, map[string]types.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/abc/def", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+}
+
 func TestProxyMultiPath(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/pp/abc" {
@@ -234,6 +270,7 @@ permissions=[
 		t.Fatalf("Error %s", err)
 	}
 
+	// POST fails
 	request := httptest.NewRequest("POST", "/test/abc", nil)
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
@@ -241,7 +278,15 @@ permissions=[
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
 	testutil.AssertEqualsString(t, "body", "Preview app does not have access to proxy write APIs\n", response.Body.String())
 
-	// Enable write access
+	// GET works
+	request = httptest.NewRequest("GET", "/test/abc", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+
+	// Enable write access, POST works
 	a.Settings.PreviewWriteAccess = true
 
 	request = httptest.NewRequest("POST", "/test/abc", nil)
@@ -296,4 +341,48 @@ permissions=[
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+}
+
+func TestProxyStatic(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/static/f1" {
+			t.Fatalf("Invalid path %s", r.URL.Path)
+		}
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
+permissions=[
+	ace.permission("proxy.in", "config"),
+]
+)`, testServer.URL),
+		"static_root/f2": "static file contents",
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config"},
+		}, map[string]types.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/static/f1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String()) // goes to proxy instead of static
+
+	request = httptest.NewRequest("GET", "/test/f2", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "static file contents", response.Body.String())
 }
