@@ -386,3 +386,32 @@ permissions=[
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", "static file contents", response.Body.String())
 }
+
+func TestProxyError(t *testing.T) {
+	// Check error handling, proxy config is read in the route handler, error handler is not called
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/abc" {
+			t.Fatalf("Invalid path %s", r.URL.Path)
+		}
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config(abc="%s"))],
+permissions=[
+	ace.permission("proxy.in", "config"),
+]
+)`, testServer.URL),
+	}
+
+	_, _, err := CreateTestAppPlugin(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config"},
+		}, map[string]types.PluginSettings{})
+
+	testutil.AssertErrorContains(t, err, "error in proxy config: config: unexpected keyword argument \"abc\"")
+}
