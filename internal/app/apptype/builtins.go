@@ -55,9 +55,10 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var settings *starlark.Dict
 	var permissions, libraries *starlark.List
 	var style *starlarkstruct.Struct
+	var containerConfig starlark.Value
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
 		"routes?", &routes, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
-		&settings, "custom_layout?", &customLayout); err != nil {
+		&settings, "custom_layout?", &customLayout, "container?", &containerConfig); err != nil {
 		return nil, err
 	}
 
@@ -87,6 +88,11 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	if style != nil {
 		fields["style"] = style
 	}
+
+	if containerConfig != nil {
+		fields["container"] = containerConfig
+	}
+
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
 

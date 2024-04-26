@@ -30,7 +30,7 @@ func NewContainerPlugin(pluginContext *types.PluginContext) (any, error) {
 func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var lifetime starlark.String
 	var port starlark.Int
-	if err := starlark.UnpackArgs("config", args, kwargs, "lifetime", &lifetime, "port?", &port); err != nil {
+	if err := starlark.UnpackArgs("config", args, kwargs, "port", &port, "lifetime?", &lifetime); err != nil {
 		return nil, err
 	}
 	portInt, ok := port.Int64()

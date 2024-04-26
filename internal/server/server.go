@@ -91,11 +91,11 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		}
 	}
 
-	if config.Container.Command == "auto" {
-		config.Container.Command = server.lookupContainerCommand()
+	if config.System.ContainerCommand == "auto" {
+		config.System.ContainerCommand = server.lookupContainerCommand()
 		// if command is empty string, that means either containers are disabled in config or no container command found
 	}
-	server.Trace().Str("cmd", config.Container.Command).Msg("Container management command")
+	server.Trace().Str("cmd", config.System.ContainerCommand).Msg("Container management command")
 	return server, nil
 }
 

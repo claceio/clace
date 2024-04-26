@@ -44,7 +44,6 @@ type ServerConfig struct {
 	Metadata    MetadataConfig            `toml:"metadata"`
 	Log         LogConfig                 `toml:"logging"`
 	System      SystemConfig              `toml:"system"`
-	Container   ContainerConfig           `toml:"container"`
 	GitAuth     map[string]GitAuthEntry   `toml:"git_auth"`
 	Plugins     map[string]PluginSettings `toml:"plugin"`
 	Auth        map[string]AuthConfig     `toml:"auth"`
@@ -109,11 +108,7 @@ type SystemConfig struct {
 	TailwindCSSCommand        string `toml:"tailwindcss_command"`
 	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
 	NodePath                  string `toml:"node_path"`
-}
-
-// ContainerConfig is the container management config
-type ContainerConfig struct {
-	Command string `toml:"command"`
+	ContainerCommand          string `toml:"container_command"`
 }
 
 // GitAuth is a github auth config entry

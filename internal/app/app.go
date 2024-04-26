@@ -21,6 +21,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
+	"github.com/claceio/clace/internal/app/container"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/types"
@@ -30,6 +31,10 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+const (
+	CONTAINER_PROXY = "container" // special url to use for proxying to the container
+)
+
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger
@@ -37,28 +42,31 @@ type App struct {
 	Name         string
 	CustomLayout bool
 
-	Config          *apptype.AppConfig
-	sourceFS        *appfs.SourceFs
-	initMutex       sync.Mutex
-	initialized     bool
-	reloadError     error
-	reloadStartTime time.Time
-	appDev          *dev.AppDev
-	systemConfig    *types.SystemConfig
-	storeInfo       *starlark_type.StoreInfo
-	plugins         *AppPlugins
+	Config           *apptype.AppConfig
+	sourceFS         *appfs.SourceFs
+	initMutex        sync.Mutex
+	initialized      bool
+	reloadError      error
+	reloadStartTime  time.Time
+	appDev           *dev.AppDev
+	systemConfig     *types.SystemConfig
+	storeInfo        *starlark_type.StoreInfo
+	plugins          *AppPlugins
+	containerManager *container.Manager
 
-	globals          starlark.StringDict
-	appDef           *starlarkstruct.Struct
-	errorHandler     starlark.Callable
-	appRouter        *chi.Mux
+	globals      starlark.StringDict
+	appDef       *starlarkstruct.Struct
+	errorHandler starlark.Callable
+	appRouter    *chi.Mux
+
 	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
 	template         *template.Template            // unstructured templates, no base_templates defined
 	templateMap      map[string]*template.Template // structured templates, base_templates defined
-	watcher          *fsnotify.Watcher
-	sseListeners     []chan SSEMessage
-	funcMap          template.FuncMap
-	starlarkCache    map[string]*starlarkCacheEntry
+
+	watcher       *fsnotify.Watcher
+	sseListeners  []chan SSEMessage
+	funcMap       template.FuncMap
+	starlarkCache map[string]*starlarkCacheEntry
 }
 
 type starlarkCacheEntry struct {
@@ -291,6 +299,90 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		a.notifyClients()
 	}
 	return true, nil
+}
+
+const (
+	CONTAINERFILE = "Containerfile"
+	DOCKERFILE    = "Dockerfile"
+)
+
+func (a *App) loadContainerManager() error {
+	var fileName string
+	var cfErr, dfErr error
+
+	_, cfErr = a.sourceFS.Stat(CONTAINERFILE)
+	if cfErr == nil {
+		fileName = CONTAINERFILE
+	} else {
+		_, dfErr = a.sourceFS.Stat(DOCKERFILE)
+		fileName = DOCKERFILE
+	}
+
+	if cfErr != nil && dfErr != nil {
+		// No container files found, skip
+		return nil
+	}
+
+	containerConfig, err := a.appDef.Attr("container")
+	if err != nil || containerConfig == nil {
+		// Plugin not authorized, skip any container files
+		a.Warn().Msg("Container config not defined, skipping container initialization")
+		return nil
+	}
+
+	if a.systemConfig.ContainerCommand == "" {
+		return fmt.Errorf("app requires container support. Container manager command is not set in Clace server config. " +
+			"Install Docker/Podman and set the container_command in system config or set to auto (default) and ensure that " +
+			"the container manager command is in the PATH")
+	}
+
+	var ok bool
+	var responseAttr starlark.HasAttrs
+	if responseAttr, ok = containerConfig.(starlark.HasAttrs); !ok {
+		return fmt.Errorf("container config is not valid type")
+	}
+
+	errorValue, err := responseAttr.Attr("error")
+	if err != nil {
+		return fmt.Errorf("error in container config: %w", err)
+	}
+
+	if errorValue != nil && errorValue != starlark.None {
+		var errorString starlark.String
+		if errorString, ok = errorValue.(starlark.String); !ok {
+			return fmt.Errorf("error in container config: %w", err)
+		}
+
+		if errorString.GoString() != "" {
+			return fmt.Errorf("error in container config: %s", errorString.GoString())
+		}
+	}
+
+	config, err := responseAttr.Attr("value")
+	if err != nil {
+		return err
+	}
+
+	if config.Type() != "ContainerConfig" {
+		return fmt.Errorf("container config is not valid type: expected ContainerConfig, got %s", config.Type())
+	}
+
+	var configAttr starlark.HasAttrs
+	if configAttr, ok = config.(starlark.HasAttrs); !ok {
+		return fmt.Errorf("container config is not valid type")
+	}
+
+	port, err := apptype.GetIntAttr(configAttr, "Port")
+	if err != nil {
+		return fmt.Errorf("error reading port: %w", err)
+	}
+	lifetime, err := apptype.GetStringAttr(configAttr, "LifeTime")
+	if err != nil {
+		return fmt.Errorf("error reading lifetime: %w", err)
+	}
+
+	a.containerManager = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime)
+	return nil
 }
 
 func (a *App) executeTemplate(w io.Writer, template, partial string, data any) error {

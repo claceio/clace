@@ -56,7 +56,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "admin password bcrypt", "", c.Security.AdminPasswordBcrypt)
 
 	// Container Settings
-	testutil.AssertEqualsString(t, "command", "auto", c.Container.Command)
+	testutil.AssertEqualsString(t, "command", "auto", c.System.ContainerCommand)
 }
 
 func TestClientConfig(t *testing.T) {

@@ -109,6 +109,24 @@ func (a *App) loadStarlarkConfig() error {
 		return err
 	}
 
+	// Load container config. The proxy config in routes depends on this being loaded first
+	if err = a.loadContainerManager(); err != nil {
+		return err
+	}
+
+	if a.containerManager != nil {
+		// Container manager is present, reload the container
+		if a.IsDev {
+			if err = a.containerManager.DevReload(); err != nil {
+				return err
+			}
+		} else {
+			if err := a.containerManager.ProdReload(); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Initialize the router configuration
 	err = a.initRouter()
 	if err != nil {
@@ -374,6 +392,22 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
 	}
 
+	errorValue, err := responseAttr.Attr("error")
+	if err != nil {
+		return rootWildcard, fmt.Errorf("error in proxy config: %w", err)
+	}
+
+	if errorValue != nil && errorValue != starlark.None {
+		var errorString starlark.String
+		if errorString, ok = errorValue.(starlark.String); !ok {
+			return rootWildcard, fmt.Errorf("error in proxy config: %w", err)
+		}
+
+		if errorString.GoString() != "" {
+			return rootWildcard, fmt.Errorf("error in proxy config: %s", errorString.GoString())
+		}
+	}
+
 	config, err := responseAttr.Attr("value")
 	if err != nil {
 		return rootWildcard, err
@@ -397,6 +431,16 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 	}
 
 	urlStr := urlValue.(starlark.String).GoString()
+
+	if urlStr == CONTAINER_PROXY {
+		// proxying to container url
+		if a.containerManager == nil {
+			return rootWildcard, fmt.Errorf("container manager not initialized")
+		}
+
+		urlStr = fmt.Sprintf("http://localhost:%d", a.containerManager.HostPort) // support scheme config
+	}
+
 	stripPathStr := stripPathValue.(starlark.String).GoString()
 	url, err := url.Parse(urlStr)
 	if err != nil {
