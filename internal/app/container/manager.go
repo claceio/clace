@@ -32,34 +32,36 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 }
 
 func (m *Manager) DevReload() error {
-	id := string(m.appEntry.Id)
-	containers, err := GetRunningContainers(m.systemConfig, id)
+	imageName := GenImageName(string(m.appEntry.Id))
+	containerName := GenContainerName(string(m.appEntry.Id))
+
+	containers, err := GetRunningContainers(m.systemConfig, containerName)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
 
 	if len(containers) != 0 {
-		err := StopContainer(m.systemConfig, id)
+		err := StopContainer(m.systemConfig, containerName)
 		if err != nil {
 			return fmt.Errorf("error stopping container: %w", err)
 		}
 	}
 
-	_ = RemoveImage(m.systemConfig, string(m.appEntry.Id))
+	_ = RemoveImage(m.systemConfig, imageName)
 
-	err = BuildImage(m.systemConfig, string(m.appEntry.Id), m.appEntry.SourceUrl, m.containerFile)
+	err = BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	_ = RemoveContainer(m.systemConfig, string(m.appEntry.Id))
+	_ = RemoveContainer(m.systemConfig, containerName)
 
-	err = RunContainer(m.systemConfig, string(m.appEntry.Id), m.Port)
+	err = RunContainer(m.systemConfig, containerName, imageName, m.Port)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	containers, err = GetRunningContainers(m.systemConfig, id)
+	containers, err = GetRunningContainers(m.systemConfig, containerName)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}

@@ -5,6 +5,7 @@ package container
 
 import (
 	"bytes"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -24,8 +25,56 @@ type Container struct {
 	Port       int
 }
 
-func GetRunningContainers(config *types.SystemConfig, name string) ([]Container, error) {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
+type ContainerName string
+
+type ImageName string
+
+func genLowerCaseId(name string) string {
+	// The container id needs to be lower case. Use base32 to encode the name so that it can be lowercased
+	base32str := base32.StdEncoding.EncodeToString([]byte(name))
+	return strings.ToLower(strings.ReplaceAll(base32str, "=", ""))
+}
+
+func GenContainerName(name string) ContainerName {
+	return ContainerName("c" + genLowerCaseId(name))
+}
+
+func GenImageName(name string) ImageName {
+	return ImageName("i" + genLowerCaseId(name))
+}
+
+func RemoveImage(config *types.SystemConfig, name ImageName) error {
+	cmd := exec.Command(config.ContainerCommand, "rmi", string(name))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error removing image: %s : %s", output, err)
+	}
+
+	return nil
+}
+
+func BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, containerFile string) error {
+	cmd := exec.Command(config.ContainerCommand, "build", "-t", string(name), "-f", containerFile, ".")
+	cmd.Dir = sourceUrl
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error building image: %s : %s", output, err)
+	}
+
+	return nil
+}
+
+func RemoveContainer(config *types.SystemConfig, name ContainerName) error {
+	cmd := exec.Command(config.ContainerCommand, "rm", string(name))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error removing image: %s : %s", output, err)
+	}
+
+	return nil
+}
+
+func GetRunningContainers(config *types.SystemConfig, name ContainerName) ([]Container, error) {
 	args := []string{"ps", "--format", "json"}
 	if name != "" {
 		args = append(args, "--filter", fmt.Sprintf("name=%s", name))
@@ -112,9 +161,8 @@ func GetRunningContainers(config *types.SystemConfig, name string) ([]Container,
 	return resp, nil
 }
 
-func StopContainer(config *types.SystemConfig, name string) error {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
-	cmd := exec.Command(config.ContainerCommand, "stop", "-t", "1", name)
+func StopContainer(config *types.SystemConfig, name ContainerName) error {
+	cmd := exec.Command(config.ContainerCommand, "stop", "-t", "1", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error stopping container: %s : %s", output, err)
@@ -123,44 +171,9 @@ func StopContainer(config *types.SystemConfig, name string) error {
 	return nil
 }
 
-func RemoveImage(config *types.SystemConfig, name string) error {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
-	cmd := exec.Command(config.ContainerCommand, "rmi", name)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error removing image: %s : %s", output, err)
-	}
-
-	return nil
-}
-
-func BuildImage(config *types.SystemConfig, name, sourceUrl, containerFile string) error {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
-	cmd := exec.Command(config.ContainerCommand, "build", "-t", name, "-f", containerFile, ".")
-	cmd.Dir = sourceUrl
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error building image: %s : %s", output, err)
-	}
-
-	return nil
-}
-
-func RemoveContainer(config *types.SystemConfig, name string) error {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
-	cmd := exec.Command(config.ContainerCommand, "rm", name)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error removing image: %s : %s", output, err)
-	}
-
-	return nil
-}
-
-func RunContainer(config *types.SystemConfig, name string, port int64) error {
-	name = strings.ToLower(strings.ReplaceAll(name, "_", ""))
+func RunContainer(config *types.SystemConfig, containerName ContainerName, imageName ImageName, port int64) error {
 	publish := fmt.Sprintf("127.0.0.1:0:%d", port)
-	cmd := exec.Command(config.ContainerCommand, "run", "--name", name, "--detach", "--publish", publish, name)
+	cmd := exec.Command(config.ContainerCommand, "run", "--name", string(containerName), "--detach", "--publish", publish, string(imageName))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running container: %s : %s", output, err)
