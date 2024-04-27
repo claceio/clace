@@ -331,7 +331,7 @@ func (a *App) loadContainerManager() error {
 	}
 
 	if a.systemConfig.ContainerCommand == "" {
-		return fmt.Errorf("app requires container support. Container manager command is not set in Clace server config. " +
+		return fmt.Errorf("app requires container support. Container management is not enabled in Clace server config. " +
 			"Install Docker/Podman and set the container_command in system config or set to auto (default) and ensure that " +
 			"the container manager command is in the PATH")
 	}
@@ -376,12 +376,22 @@ func (a *App) loadContainerManager() error {
 	if err != nil {
 		return fmt.Errorf("error reading port: %w", err)
 	}
-	lifetime, err := apptype.GetStringAttr(configAttr, "LifeTime")
+	lifetime, err := apptype.GetStringAttr(configAttr, "Lifetime")
 	if err != nil {
 		return fmt.Errorf("error reading lifetime: %w", err)
 	}
 
-	a.containerManager = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime)
+	scheme, err := apptype.GetStringAttr(configAttr, "Scheme")
+	if err != nil {
+		return fmt.Errorf("error reading scheme: %w", err)
+	}
+
+	health, err := apptype.GetStringAttr(configAttr, "Health")
+	if err != nil {
+		return fmt.Errorf("error reading health: %w", err)
+	}
+
+	a.containerManager = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime, scheme, health)
 	return nil
 }
 

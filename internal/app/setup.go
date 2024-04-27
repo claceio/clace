@@ -438,7 +438,7 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			return rootWildcard, fmt.Errorf("container manager not initialized")
 		}
 
-		urlStr = fmt.Sprintf("http://localhost:%d", a.containerManager.HostPort) // support scheme config
+		urlStr = a.containerManager.GetProxyUrl()
 	}
 
 	stripPathStr := stripPathValue.(starlark.String).GoString()
