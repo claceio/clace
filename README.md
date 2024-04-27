@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Hypermedia Driven Web Tools Platform</p>
+  <p align="center">Web App Deployment Platform</p>
 </p>
 
 ### Menu
@@ -22,9 +22,9 @@
 
 ## Overview
 
-Clace is an Apache-2.0 licensed project building a platform to develop and deploy hypermedia driven web apps for internal tools. For running multiple web applications on a single machine, Clace provides functionality which usually requires stitching together multiple services: reverse proxy like nginx/caddy (for domain/path based routing, TLS certs, static file serving), application server like uwsgi/gunicorn with micro-framework like flask (for API handling) and deployment infrastructure like containers/VMs/k8s (for isolation across apps, versioning and staged deployments, gitops). For internal tools, Clace provides similar functionality in a single lightweight binary.
+Clace is an Apache-2.0 licensed project building a platform to develop and deploy web apps for internal tools. For running multiple web applications on a single machine, Clace provides functionality which usually requires stitching together multiple services: reverse proxy like nginx/caddy (for domain/path based routing, TLS certs, static file serving), application server like uwsgi/gunicorn with micro-framework like flask (for API handling) and deployment infrastructure like containers/VMs/k8s (for isolation across apps, versioning and staged deployments). For internal tool deployment, Clace provides similar functionality in a single lightweight binary, with gitops workflow out of the box.
 
-The project implements a server in Go and uses Starlark (a dialect of Python) for application configuration. The applications can call out to plugins implemented in Go. The plugin boundary (Starlark to Go) allows the specification of sandboxing rules which are enforced by the platform. As long as the application stays within the original rules, further application updates can be done without requiring any admin approval.
+The project implements a server in Go and uses Starlark (a dialect of Python) for web server configuration. Application backends can be defined in a Dockerfile, Clace builds and deploys the containers to serve the application.
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo.
 

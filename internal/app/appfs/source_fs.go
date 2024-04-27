@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-// WritableFS is the interface for the writable underlying file system used by AppFS
+// ReadableFS is the interface for the file system used by app to read source files
 type ReadableFS interface {
 	fs.FS
 	fs.ReadFileFS
