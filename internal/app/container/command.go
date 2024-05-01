@@ -29,10 +29,11 @@ type ContainerName string
 
 type ImageName string
 
+var base32encoder = base32.StdEncoding.WithPadding(base32.NoPadding)
+
 func genLowerCaseId(name string) string {
 	// The container id needs to be lower case. Use base32 to encode the name so that it can be lowercased
-	base32str := base32.StdEncoding.EncodeToString([]byte(name))
-	return strings.ToLower(strings.ReplaceAll(base32str, "=", ""))
+	return strings.ToLower(base32encoder.EncodeToString([]byte(name)))
 }
 
 func GenContainerName(name string) ContainerName {
@@ -94,7 +95,7 @@ func GetRunningContainers(config *types.SystemConfig, name ContainerName) ([]Con
 		// Podman format (Names and Ports are arrays)
 		type Port struct {
 			// only HostPort is needed
-			HostPort int `json:"HostPort"`
+			HostPort int `json:"host_port"`
 		}
 
 		type ContainerPodman struct {
@@ -172,7 +173,7 @@ func StopContainer(config *types.SystemConfig, name ContainerName) error {
 }
 
 func RunContainer(config *types.SystemConfig, containerName ContainerName, imageName ImageName, port int64) error {
-	publish := fmt.Sprintf("127.0.0.1:0:%d", port)
+	publish := fmt.Sprintf("127.0.0.1::%d", port)
 	cmd := exec.Command(config.ContainerCommand, "run", "--name", string(containerName), "--detach", "--publish", publish, string(imageName))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
