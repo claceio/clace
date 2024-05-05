@@ -216,7 +216,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	return ret, nil
 }
 
-func (s *Server) setupApp(appEntry *types.AppEntry, tx metadata.Transaction) (*app.App, error) {
+func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.App, error) {
 	subLogger := s.With().Str("id", string(appEntry.Id)).Str("path", appEntry.Path).Logger()
 	appLogger := types.Logger{Logger: &subLogger}
 	var sourceFS *appfs.SourceFs
@@ -271,7 +271,7 @@ func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetRe
 	}, nil
 }
 
-func (s *Server) GetAppEntry(ctx context.Context, tx metadata.Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
+func (s *Server) GetAppEntry(ctx context.Context, tx types.Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
 	return s.db.GetAppTx(ctx, tx, pathDomain)
 }
 
@@ -284,7 +284,7 @@ func (s *Server) GetApp(pathDomain types.AppPathDomain, init bool) (*app.App, er
 			return nil, err
 		}
 
-		application, err = s.setupApp(appEntry, metadata.Transaction{})
+		application, err = s.setupApp(appEntry, types.Transaction{})
 		if err != nil {
 			return nil, err
 		}
@@ -472,7 +472,7 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 	return matchedApp, nil
 }
 
-func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app.App, approve bool) (*types.ApproveResult, error) {
+func (s *Server) auditApp(ctx context.Context, tx types.Transaction, app *app.App, approve bool) (*types.ApproveResult, error) {
 	auditResult, err := app.Audit()
 	if err != nil {
 		return nil, err
@@ -490,7 +490,7 @@ func (s *Server) auditApp(ctx context.Context, tx metadata.Transaction, app *app
 	return auditResult, nil
 }
 
-func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transaction, entries []types.AppPathDomain, dryRun bool) error {
+func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, entries []types.AppPathDomain, dryRun bool) error {
 	if dryRun {
 		return nil
 	}
@@ -506,7 +506,7 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx metadata.Transactio
 	return nil
 }
 
-func (s *Server) getStageApp(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry) (*types.AppEntry, error) {
+func (s *Server) getStageApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry) (*types.AppEntry, error) {
 	if appEntry.IsDev {
 		return nil, fmt.Errorf("cannot get stage for dev app %s", appEntry.AppPathDomain())
 	}
@@ -585,7 +585,7 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 	}, nil
 }
 
-func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
 	if err != nil {
@@ -712,7 +712,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx metadata.Transaction,
 	return nil
 }
 
-func (s *Server) loadSourceFromDisk(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry) error {
+func (s *Server) loadSourceFromDisk(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry) error {
 	s.Info().Msgf("Loading app sources from %s", appEntry.SourceUrl)
 	appEntry.Metadata.VersionMetadata.GitBranch = ""
 	appEntry.Metadata.VersionMetadata.GitCommit = ""

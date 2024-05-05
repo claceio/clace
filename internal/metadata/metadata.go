@@ -141,7 +141,7 @@ func (m *Metadata) VersionUpgrade() error {
 	return nil
 }
 
-func (m *Metadata) initFileTables(ctx context.Context, tx Transaction) error {
+func (m *Metadata) initFileTables(ctx context.Context, tx types.Transaction) error {
 	if _, err := tx.ExecContext(ctx, `create table files (sha text, compression_type text, content blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (m *Metadata) initFileTables(ctx context.Context, tx Transaction) error {
 	return nil
 }
 
-func (m *Metadata) CreateApp(ctx context.Context, tx Transaction, app *types.AppEntry) error {
+func (m *Metadata) CreateApp(ctx context.Context, tx types.Transaction, app *types.AppEntry) error {
 	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
 		return fmt.Errorf("error marshalling settings: %w", err)
@@ -182,7 +182,7 @@ func (m *Metadata) GetApp(pathDomain types.AppPathDomain) (*types.AppEntry, erro
 	return m.GetAppTx(context.Background(), tx, pathDomain)
 }
 
-func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
+func (m *Metadata) GetAppTx(ctx context.Context, tx types.Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
 	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where path = ? and domain = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
@@ -216,7 +216,7 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx Transaction, pathDomain type
 	return &app, nil
 }
 
-func (m *Metadata) DeleteApp(ctx context.Context, tx Transaction, id types.AppId) error {
+func (m *Metadata) DeleteApp(ctx context.Context, tx types.Transaction, id types.AppId) error {
 	if _, err := tx.ExecContext(ctx, `delete from app_versions where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 }
 
 // GetLinkedApps gets all the apps linked to the given main app (staging and preview apps)
-func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId types.AppId) ([]*types.AppEntry, error) {
+func (m *Metadata) GetLinkedApps(ctx context.Context, tx types.Transaction, mainAppId types.AppId) ([]*types.AppEntry, error) {
 	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where main_app = ?`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
@@ -344,7 +344,7 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx Transaction, mainAppId 
 	return apps, nil
 }
 
-func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *types.AppEntry) error {
+func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx types.Transaction, app *types.AppEntry) error {
 	metadataJson, err := json.Marshal(app.Metadata)
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
@@ -365,7 +365,7 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx Transaction, app *t
 	return nil
 }
 
-func (m *Metadata) UpdateAppSettings(ctx context.Context, tx Transaction, app *types.AppEntry) error {
+func (m *Metadata) UpdateAppSettings(ctx context.Context, tx types.Transaction, app *types.AppEntry) error {
 	settingsJson, err := json.Marshal(app.Settings)
 	if err != nil {
 		return fmt.Errorf("error marshalling settings: %w", err)
@@ -379,27 +379,18 @@ func (m *Metadata) UpdateAppSettings(ctx context.Context, tx Transaction, app *t
 	return nil
 }
 
-// Transaction is a wrapper around sql.Tx
-type Transaction struct {
-	*sql.Tx
-}
-
-func (t *Transaction) IsInitialized() bool {
-	return t.Tx != nil
-}
-
-// BeginTransaction starts a new transaction
-func (m *Metadata) BeginTransaction(ctx context.Context) (Transaction, error) {
+// BeginTransaction starts a new Transaction
+func (m *Metadata) BeginTransaction(ctx context.Context) (types.Transaction, error) {
 	tx, err := m.db.BeginTx(ctx, nil)
-	return Transaction{tx}, err
+	return types.Transaction{tx}, err
 }
 
 // CommitTransaction commits a transaction
-func (m *Metadata) CommitTransaction(tx Transaction) error {
+func (m *Metadata) CommitTransaction(tx types.Transaction) error {
 	return tx.Commit()
 }
 
-// RollbackTransaction rolls back a transaction
-func (m *Metadata) RollbackTransaction(tx Transaction) error {
+// Rollbacktypes.Transaction rolls back a transaction
+func (m *Metadata) RollbackTransaction(tx types.Transaction) error {
 	return tx.Rollback()
 }

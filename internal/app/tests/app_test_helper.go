@@ -4,6 +4,7 @@
 package app_test
 
 import (
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -211,6 +212,14 @@ func (d *TestReadFS) StaticFiles() []string {
 		}
 	}
 	return staticFiles
+}
+
+func (d *TestReadFS) FileHash() (string, error) {
+	return "", fmt.Errorf("FileHash not implemented for test fs")
+}
+
+func (d *TestReadFS) CreateTempSourceDir() (string, error) {
+	return "", fmt.Errorf("CreateTempSourceDir not implemented for test fs")
 }
 
 func (f *TestReadFS) Reset() {

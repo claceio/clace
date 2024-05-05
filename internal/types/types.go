@@ -4,6 +4,7 @@
 package types
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -288,4 +289,13 @@ type AppFile struct {
 	Name string
 	Etag string
 	Size int64
+}
+
+// Transaction is a wrapper around sql.Tx
+type Transaction struct {
+	*sql.Tx
+}
+
+func (t *Transaction) IsInitialized() bool {
+	return t.Tx != nil
 }

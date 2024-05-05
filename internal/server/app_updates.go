@@ -172,7 +172,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 	return ret, nil
 }
 
-func (s *Server) loadAppCode(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
 	s.Info().Msgf("Reloading app code %v", appEntry)
 
 	if isGit(appEntry.SourceUrl) {
@@ -215,9 +215,9 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 	return ret, nil
 }
 
-type stagedUpdateHandler func(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error)
+type stagedUpdateHandler func(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error)
 
-func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []types.AppPathDomain, []types.AppPathDomain, error) {
+func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx types.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []types.AppPathDomain, []types.AppPathDomain, error) {
 	filteredApps, err := s.FilterApps(pathSpec, false)
 	if err != nil {
 		return nil, nil, nil, err
@@ -278,7 +278,7 @@ func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx metadata.Transaction
 	return results, entries, promoteResults, nil
 }
 
-func (s *Server) auditHandler(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
+func (s *Server) auditHandler(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
 	appPathDomain := appEntry.AppPathDomain()
 	app, err := s.setupApp(appEntry, tx)
 	if err != nil {
@@ -344,7 +344,7 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 		PromoteResults: result}, nil
 }
 
-func (s *Server) promoteApp(ctx context.Context, tx metadata.Transaction, stagingApp *types.AppEntry, prodApp *types.AppEntry) error {
+func (s *Server) promoteApp(ctx context.Context, tx types.Transaction, stagingApp *types.AppEntry, prodApp *types.AppEntry) error {
 	stagingFileStore := metadata.NewFileStore(stagingApp.Id, stagingApp.Metadata.VersionMetadata.Version, s.db, tx)
 	prodFileStore := metadata.NewFileStore(prodApp.Id, prodApp.Metadata.VersionMetadata.Version, s.db, tx)
 	prevVersion := prodApp.Metadata.VersionMetadata.Version
@@ -417,7 +417,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun 
 	return ret, nil
 }
 
-func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction, appPathDomain types.AppPathDomain, updateAppRequest types.UpdateAppRequest) ([]types.AppPathDomain, error) {
+func (s *Server) updateAppSettings(ctx context.Context, tx types.Transaction, appPathDomain types.AppPathDomain, updateAppRequest types.UpdateAppRequest) ([]types.AppPathDomain, error) {
 	mainAppEntry, err := s.db.GetAppTx(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, err
@@ -473,7 +473,7 @@ func (s *Server) updateAppSettings(ctx context.Context, tx metadata.Transaction,
 	return ret, nil
 }
 
-func (s *Server) accountLinkHandler(ctx context.Context, tx metadata.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
+func (s *Server) accountLinkHandler(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
 	if appEntry.Metadata.Accounts == nil {
 		appEntry.Metadata.Accounts = []types.AccountLink{}
 	}

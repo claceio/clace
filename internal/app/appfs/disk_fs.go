@@ -101,6 +101,14 @@ func (d *DiskReadFS) StaticFiles() []string {
 	return staticFiles
 }
 
+func (d *DiskReadFS) FileHash() (string, error) {
+	return "", fmt.Errorf("FileHash not implemented for dev apps : DiskReadFS")
+}
+
+func (d *DiskReadFS) CreateTempSourceDir() (string, error) {
+	return "", fmt.Errorf("CreateTempSourceDir not implemented for dev apps : DiskReadFS")
+}
+
 func (d *DiskReadFS) Reset() {
 	// do nothing
 }

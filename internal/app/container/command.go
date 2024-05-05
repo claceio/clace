@@ -25,6 +25,10 @@ type Container struct {
 	Port       int
 }
 
+type Image struct {
+	Repository string `json:"Repository"`
+}
+
 type ContainerName string
 
 type ImageName string
@@ -181,4 +185,55 @@ func RunContainer(config *types.SystemConfig, containerName ContainerName, image
 	}
 
 	return nil
+}
+
+func GetImages(config *types.SystemConfig, name ImageName) ([]Image, error) {
+	args := []string{"images", "--format", "json"}
+	if name != "" {
+		args = append(args, string(name))
+	}
+	cmd := exec.Command(config.ContainerCommand, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error listing images: %s : %s", output, err)
+	}
+
+	resp := []Image{}
+	if len(output) == 0 {
+		return resp, nil
+	}
+
+	if output[0] == '[' {
+		// Podman format
+		type ImagePodman struct {
+			Id string `json:"Id"`
+		}
+		result := []ImagePodman{}
+
+		// JSON output (podman)
+		err = json.Unmarshal(output, &result)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, i := range result {
+			resp = append(resp, Image{
+				Repository: i.Id,
+			})
+		}
+	} else if output[0] == '{' {
+		// Newline separated JSON (Docker)
+		decoder := json.NewDecoder(bytes.NewReader(output))
+		for decoder.More() {
+			var i Image
+			if err := decoder.Decode(&i); err != nil {
+				return nil, fmt.Errorf("error decoding image output: %v", err)
+			}
+
+			resp = append(resp, i)
+		}
+	} else {
+		return nil, fmt.Errorf("\"%s ps\" returned unknown output: %s", config.ContainerCommand, output)
+	}
+	return resp, nil
 }

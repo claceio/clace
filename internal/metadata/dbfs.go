@@ -5,10 +5,14 @@ package metadata
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -223,6 +227,55 @@ func (d *DbFs) StaticFiles() []string {
 		}
 	}
 	return staticFiles
+}
+
+// FileHash returns a hash of the file names and their corresponding sha256 hashes
+func (d *DbFs) FileHash() (string, error) {
+	fileNames := []string{}
+	for name := range d.fileInfo {
+		fileNames = append(fileNames, name)
+	}
+	slices.Sort(fileNames)
+
+	hashBuilder := strings.Builder{}
+	for _, name := range fileNames {
+		hashBuilder.WriteString(name)
+		hashBuilder.WriteByte(0)
+		hashBuilder.WriteString(d.fileInfo[name].sha)
+		hashBuilder.WriteByte(0)
+	}
+
+	sha := sha256.New()
+	if _, err := sha.Write([]byte(hashBuilder.String())); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(sha.Sum(nil)), nil
+}
+
+func (d *DbFs) CreateTempSourceDir() (string, error) {
+	tmpDir, err := os.MkdirTemp("", "cl_source")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp source dir: %w", err)
+	}
+
+	for name := range d.fileInfo {
+		fileBytes, err := d.ReadFile(name)
+		if err != nil {
+			return "", err
+		}
+		filePath := path.Join(tmpDir, name)
+
+		if err := os.MkdirAll(path.Dir(filePath), 0700); err != nil {
+			return "", fmt.Errorf("error creating directory %s : %w", path.Dir(filePath), err)
+		}
+
+		if err := os.WriteFile(filePath, fileBytes, 0700); err != nil {
+			return "", fmt.Errorf("error writing file %s : %w", filePath, err)
+		}
+	}
+
+	return tmpDir, nil
 }
 
 func (d *DbFs) Reset() {
