@@ -23,6 +23,7 @@ func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *types.Client
 			appUpdatePreviewWrite(commonFlags, clientConfig),
 			appUpdateAuthnType(commonFlags, clientConfig),
 			appUpdateGitAuth(commonFlags, clientConfig),
+			appUpdateAppType(commonFlags, clientConfig),
 		},
 	}
 }
@@ -184,6 +185,59 @@ The second required argument <value> is a string, default or none.
 
 			body := types.CreateUpdateAppRequest()
 			body.AuthnType = types.StringValue(cCtx.Args().Get(1))
+
+			var updateResponse types.AppUpdateSettingsResponse
+			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
+				return err
+			}
+
+			for _, updateResult := range updateResponse.UpdateResults {
+				fmt.Printf("Updating %s\n", updateResult)
+			}
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.UpdateResults))
+
+			if updateResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}
+
+func appUpdateAppType(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+
+	return &cli.Command{
+		Name:      "type",
+		Usage:     "Update app type for apps",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<pathSpec> <value:type_name|none>",
+
+		UsageText: `args: <pathSpec> <value:type_name|none>
+
+First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
+The second required argument <value> is a string, a valid app type name or none.
+
+	Examples:
+	  Update all apps, across domains: clace app update type all none
+	  Update apps in the example.com domain: clace app update type "example.com:**" proxy`,
+
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 2 {
+				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			values := url.Values{}
+			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+
+			body := types.CreateUpdateAppRequest()
+			body.Type = types.StringValue(cCtx.Args().Get(1))
 
 			var updateResponse types.AppUpdateSettingsResponse
 			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {

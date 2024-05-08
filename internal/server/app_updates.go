@@ -463,6 +463,17 @@ func (s *Server) updateAppSettings(ctx context.Context, tx types.Transaction, ap
 			}
 		}
 
+		if updateAppRequest.Type != types.StringValueUndefined {
+			var appFiles types.TypeFiles
+			var ok bool
+			if appFiles, ok = appTypes[string(updateAppRequest.Type)]; !ok {
+				return nil, fmt.Errorf("invalid app type %s", updateAppRequest.Type)
+			}
+
+			linkedApp.Settings.Type = types.AppType(updateAppRequest.Type)
+			linkedApp.Settings.TypeFiles = &appFiles
+		}
+
 		if err := s.db.UpdateAppSettings(ctx, tx, linkedApp); err != nil {
 			return nil, err
 		}

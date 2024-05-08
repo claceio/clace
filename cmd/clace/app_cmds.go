@@ -58,6 +58,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
+	flags = append(flags, newStringFlag("type", "t", "The app type to set", ""))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -100,6 +101,7 @@ Examples:
 				GitBranch:   cCtx.String("branch"),
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
+				Type:        types.AppType(cCtx.String("type")),
 			}
 			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)

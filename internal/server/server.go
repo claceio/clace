@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"embed"
 	"errors"
 	"fmt"
 	"log"
@@ -36,11 +37,82 @@ const (
 // CL_HOME is the root directory for Clace logs and temp files
 var CL_HOME = os.ExpandEnv("$CL_HOME")
 
+//go:embed app_types
+var embedAppTypes embed.FS
+
+var appTypes map[string]types.TypeFiles
+
 func init() {
 	if len(CL_HOME) == 0 {
 		// Default to current directory if CL_HOME is not set
 		CL_HOME = "."
 		os.Setenv("CL_HOME", CL_HOME)
+	}
+
+	// Read app type config embedded in the binary
+	appTypes = make(map[string]types.TypeFiles)
+	entries, err := embedAppTypes.ReadDir("app_types")
+	if err != nil {
+		panic(err)
+	}
+
+	for _, dir := range entries {
+		// Loop through all directories in app_types, each is a app_type
+		if !dir.IsDir() {
+			continue
+		}
+		files, err := embedAppTypes.ReadDir(path.Join("app_types", dir.Name()))
+		if err != nil {
+			panic(err)
+		}
+
+		appType := make(types.TypeFiles)
+		for _, file := range files {
+			// Loop through all files in the app_type directory
+			if file.IsDir() {
+				continue
+			}
+			data, err := embedAppTypes.ReadFile(path.Join("app_types", dir.Name(), file.Name()))
+			if err != nil {
+				panic(err)
+			}
+			appType[file.Name()] = string(data)
+		}
+
+		appTypes[dir.Name()] = appType
+	}
+
+	// Add custom app type config from conf folder
+	entries, err = os.ReadDir(os.ExpandEnv("$CL_HOME/config/app_types"))
+	if err != nil {
+		return
+	}
+
+	for _, dir := range entries {
+		// Loop through all directories in app_types, each is a app_type
+		if !dir.IsDir() {
+			continue
+		}
+		files, err := os.ReadDir(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), dir.Name()))
+		if err != nil {
+			continue
+		}
+
+		appType := make(types.TypeFiles)
+		for _, file := range files {
+			// Loop through all files in the app_type directory
+			if file.IsDir() {
+				continue
+			}
+			data, err := os.ReadFile(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), dir.Name(), file.Name()))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading file %s : %s\n", file.Name(), err)
+				continue
+			}
+			appType[file.Name()] = string(data)
+		}
+
+		appTypes[dir.Name()] = appType
 	}
 }
 

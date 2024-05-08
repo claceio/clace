@@ -5,6 +5,8 @@ package types
 
 import (
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -200,6 +202,8 @@ const (
 	AppAuthnSystem  AppAuthnType = "system"  // Use the system admin user
 )
 
+type AppType string
+
 // VersionMetadata contains the metadata for an app
 type VersionMetadata struct {
 	Version         int    `json:"version"`
@@ -253,6 +257,39 @@ type AppSettings struct {
 	GitAuthName        string       `json:"git_auth_name"`
 	StageWriteAccess   bool         `json:"stage_write_access"`
 	PreviewWriteAccess bool         `json:"preview_write_access"`
+	Type               AppType      `json:"type"`
+	TypeFiles          *TypeFiles   `json:"type_files"`
+}
+
+// TypeFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text
+type TypeFiles map[string]string
+
+func (t *TypeFiles) UnmarshalJSON(data []byte) error {
+	encodedData := map[string]string{}
+	if err := json.Unmarshal(data, &encodedData); err != nil {
+		return err
+	}
+
+	decoded := map[string]string{}
+	for name, encodedData := range encodedData {
+		decodedData, err := base64.StdEncoding.DecodeString(encodedData)
+		if err != nil {
+			return err
+		}
+		decoded[name] = string(decodedData)
+	}
+
+	*t = TypeFiles(decoded)
+	return nil
+}
+
+func (t *TypeFiles) MarshalJSON() ([]byte, error) {
+	encoded := map[string]string{}
+	for name, decodedData := range *t {
+		encoded[name] = base64.StdEncoding.EncodeToString([]byte(decodedData))
+	}
+
+	return json.Marshal(encoded)
 }
 
 // AccountLink links the account to use for each plugin

@@ -89,6 +89,8 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 		Version: 0,
 	}
 
+	appEntry.Settings.Type = appRequest.Type // validated in createApp
+
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -128,6 +130,17 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	} else {
 		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + id.String())
 	}
+
+	if appEntry.Settings.Type != "" {
+		var appFiles types.TypeFiles
+		var ok bool
+		if appFiles, ok = appTypes[string(appEntry.Settings.Type)]; !ok {
+			return nil, fmt.Errorf("invalid app type %s", appEntry.Settings.Type)
+		}
+
+		appEntry.Settings.TypeFiles = &appFiles
+	}
+
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
 		return nil, err
 	}
