@@ -4,13 +4,18 @@
 package container
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/types"
+
+	"github.com/moby/buildkit/frontend/dockerfile/parser"
 )
 
 type Manager struct {
@@ -27,7 +32,33 @@ type Manager struct {
 }
 
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
-	systemConfig *types.SystemConfig, port int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) *Manager {
+	systemConfig *types.SystemConfig, port int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) (*Manager, error) {
+
+	if port == 0 {
+		data, err := sourceFS.ReadFile(containerFile)
+		if err != nil {
+			return nil, fmt.Errorf("error reading container file %s : %w", containerFile, err)
+		}
+
+		result, err := parser.Parse(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("error parsing container file %s : %w", containerFile, err)
+		}
+
+		// Loop through the parsed result to find the EXPOSE instruction
+		for _, child := range result.AST.Children {
+			if strings.ToUpper(child.Value) == "EXPOSE" {
+				portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
+				if err != nil {
+					return nil, fmt.Errorf("error parsing port: %w", err)
+				}
+				port = int64(portVal)
+				logger.Debug().Msgf("Found EXPOSE port %d in container file %s", port, containerFile)
+				break
+			}
+		}
+
+	}
 	return &Manager{
 		Logger:        logger,
 		appEntry:      appEntry,
@@ -38,7 +69,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		scheme:        scheme,
 		health:        health,
 		sourceFS:      sourceFS,
-	}
+	}, nil
 }
 
 func (m *Manager) GetProxyUrl() string {
@@ -53,7 +84,7 @@ func (m *Manager) DevReload() error {
 	imageName := GenImageName(string(m.appEntry.Id))
 	containerName := GenContainerName(string(m.appEntry.Id))
 
-	containers, err := GetRunningContainers(m.systemConfig, containerName)
+	containers, err := GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
@@ -74,12 +105,12 @@ func (m *Manager) DevReload() error {
 
 	_ = RemoveContainer(m.systemConfig, containerName)
 
-	err = RunContainer(m.systemConfig, containerName, imageName, m.port)
+	err = RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	containers, err = GetRunningContainers(m.systemConfig, containerName)
+	containers, err = GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
@@ -129,14 +160,23 @@ func (m *Manager) ProdReload() error {
 	imageName := GenImageName(sourceHash)
 	containerName := GenContainerName(sourceHash)
 
-	containers, err := GetRunningContainers(m.systemConfig, containerName)
+	containers, err := GetContainers(m.systemConfig, containerName, true)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
 
 	if len(containers) != 0 {
+		if containers[0].State != "running" {
+			m.Debug().Msgf("container state %s, starting", containers[0].State)
+			err = StartContainer(m.systemConfig, containerName)
+			if err != nil {
+				return fmt.Errorf("error starting container: %w", err)
+			}
+		} else {
+			m.Debug().Msg("container already running")
+		}
+
 		m.hostPort = containers[0].Port
-		m.Debug().Msg("container already running, ignoring")
 		return nil
 	}
 
@@ -164,12 +204,12 @@ func (m *Manager) ProdReload() error {
 	}
 
 	// Start the container with newly built image
-	err = RunContainer(m.systemConfig, containerName, imageName, m.port)
+	err = RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	containers, err = GetRunningContainers(m.systemConfig, containerName)
+	containers, err = GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}

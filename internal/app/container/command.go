@@ -41,11 +41,11 @@ func genLowerCaseId(name string) string {
 }
 
 func GenContainerName(name string) ContainerName {
-	return ContainerName("c" + genLowerCaseId(name))
+	return ContainerName("clc" + genLowerCaseId(name))
 }
 
 func GenImageName(name string) ImageName {
-	return ImageName("i" + genLowerCaseId(name))
+	return ImageName("cli" + genLowerCaseId(name))
 }
 
 func RemoveImage(config *types.SystemConfig, name ImageName) error {
@@ -79,10 +79,14 @@ func RemoveContainer(config *types.SystemConfig, name ContainerName) error {
 	return nil
 }
 
-func GetRunningContainers(config *types.SystemConfig, name ContainerName) ([]Container, error) {
+func GetContainers(config *types.SystemConfig, name ContainerName, getAll bool) ([]Container, error) {
 	args := []string{"ps", "--format", "json"}
 	if name != "" {
 		args = append(args, "--filter", fmt.Sprintf("name=%s", name))
+	}
+
+	if getAll {
+		args = append(args, "--all")
 	}
 	cmd := exec.Command(config.ContainerCommand, args...)
 	output, err := cmd.CombinedOutput()
@@ -176,9 +180,36 @@ func StopContainer(config *types.SystemConfig, name ContainerName) error {
 	return nil
 }
 
-func RunContainer(config *types.SystemConfig, containerName ContainerName, imageName ImageName, port int64) error {
+func StartContainer(config *types.SystemConfig, name ContainerName) error {
+	cmd := exec.Command(config.ContainerCommand, "start", string(name))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error starting container: %s : %s", output, err)
+	}
+
+	return nil
+}
+
+const LABEL_PREFIX = "io.clace."
+
+func RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName, imageName ImageName, port int64) error {
 	publish := fmt.Sprintf("127.0.0.1::%d", port)
-	cmd := exec.Command(config.ContainerCommand, "run", "--name", string(containerName), "--detach", "--publish", publish, string(imageName))
+
+	args := []string{"run", "--name", string(containerName), "--detach", "--publish", publish}
+
+	args = append(args, "--label", LABEL_PREFIX+"app.id="+string(appEntry.Id))
+	if appEntry.IsDev {
+		args = append(args, "--label", LABEL_PREFIX+"dev=true")
+	} else {
+		args = append(args, "--label", LABEL_PREFIX+"dev=false")
+		args = append(args, "--label", LABEL_PREFIX+"app.version="+strconv.Itoa(appEntry.Metadata.VersionMetadata.Version))
+		args = append(args, "--label", LABEL_PREFIX+"git.sha="+appEntry.Metadata.VersionMetadata.GitCommit)
+		args = append(args, "--label", LABEL_PREFIX+"git.message="+appEntry.Metadata.VersionMetadata.GitMessage)
+	}
+
+	args = append(args, string(imageName))
+
+	cmd := exec.Command(config.ContainerCommand, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running container: %s : %s", output, err)

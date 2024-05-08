@@ -391,7 +391,10 @@ func (a *App) loadContainerManager() error {
 		return fmt.Errorf("error reading health: %w", err)
 	}
 
-	a.containerManager = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime, scheme, health, a.sourceFS)
+	a.containerManager, err = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime, scheme, health, a.sourceFS)
+	if err != nil {
+		return fmt.Errorf("error creating container manager: %w", err)
+	}
 	return nil
 }
 

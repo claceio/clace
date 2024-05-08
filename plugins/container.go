@@ -31,12 +31,12 @@ func NewContainerPlugin(pluginContext *types.PluginContext) (any, error) {
 func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var lifetime, scheme, health starlark.String
 	var port starlark.Int
-	if err := starlark.UnpackArgs("config", args, kwargs, "port", &port, "scheme?", &scheme, "health?", &health, "lifetime?", &lifetime); err != nil {
+	if err := starlark.UnpackArgs("config", args, kwargs, "port?", &port, "scheme?", &scheme, "health?", &health, "lifetime?", &lifetime); err != nil {
 		return nil, err
 	}
 	portInt, ok := port.Int64()
-	if !ok || portInt <= 0 {
-		return nil, fmt.Errorf("port must be an integer higher than zero")
+	if !ok || portInt < 0 {
+		return nil, fmt.Errorf("port must be an integer higher than or equal to zero")
 	}
 
 	return ContainerConfig{

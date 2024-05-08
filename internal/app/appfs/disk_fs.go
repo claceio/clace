@@ -19,17 +19,19 @@ import (
 
 type DiskReadFS struct {
 	*types.Logger
-	root string
-	fs   fs.FS
+	root      string
+	cleanRoot string
+	fs        fs.FS
 }
 
 var _ ReadableFS = (*DiskReadFS)(nil)
 
 func NewDiskReadFS(logger *types.Logger, root string) *DiskReadFS {
 	return &DiskReadFS{
-		Logger: logger,
-		root:   root,
-		fs:     os.DirFS(root),
+		Logger:    logger,
+		root:      root,
+		fs:        os.DirFS(root),
+		cleanRoot: filepath.Clean(root),
 	}
 }
 
@@ -64,9 +66,7 @@ func (d *DiskReadFS) ReadFile(name string) ([]byte, error) {
 }
 
 func (d *DiskReadFS) makeAbsolute(name string) (string, error) {
-	cleanRoot := filepath.Clean(d.root)
-
-	if !strings.HasPrefix(name, d.root) && !strings.HasPrefix(name, cleanRoot) {
+	if !strings.HasPrefix(name, d.root) && !strings.HasPrefix(name, d.cleanRoot) {
 		name = path.Join(d.root, name)
 	}
 
