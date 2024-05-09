@@ -158,7 +158,7 @@ func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
-		Name:      "auth-type",
+		Name:      "auth",
 		Usage:     "Update authentication type for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
@@ -170,8 +170,8 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 The second required argument <value> is a string, default or none.
 
 	Examples:
-	  Update all apps, across domains: clace app update auth-type all default
-	  Update apps in the example.com domain: clace app update auth-type "example.com:**" none`,
+	  Update all apps, across domains: clace app update auth all default
+	  Update apps in the example.com domain: clace app update auth "example.com:**" none`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {

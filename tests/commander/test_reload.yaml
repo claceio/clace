@@ -218,8 +218,8 @@ tests:
   reload069: # Update git-auth dryrun
     command: ../clace app update git-auth --dry-run "/reload_local*" testgit
     stdout: "dry-run mode"
-  reload070: # Delete auth-type dryrun
-    command: ../clace app update auth-type --dry-run "/reload_local*" none
+  reload070: # Delete auth dryrun
+    command: ../clace app update auth --dry-run "/reload_local*" none
     stdout: "dry-run mode"
   reload071: # Save stdout
     command: "../clace app list -i -f jsonl all > dryrun_out2.log"

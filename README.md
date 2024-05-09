@@ -173,7 +173,7 @@ and file `index.go.html` containing:
 
 <!-- prettier-ignore-end -->
 
-Run `clace app create --auth-type=none --approve /files ~/fileapp`. The app is available at `https://localhost:25223/files`.
+Run `clace app create --auth=none --approve /files ~/fileapp`. The app is available at `https://localhost:25223/files`.
 
 ## Documentation
 

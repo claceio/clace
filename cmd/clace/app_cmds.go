@@ -54,7 +54,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("dev", "d", "Is the application in development mode", false))
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
-	flags = append(flags, newStringFlag("auth-type", "", "The authentication type to use: can be default or none", "default"))
+	flags = append(flags, newStringFlag("auth", "", "The authentication type to use: can be default or none", "default"))
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
@@ -82,7 +82,7 @@ Examples:
   Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
   Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
   Create app using git url, with git private key auth: clace app create --approve --git-auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
-  Create app for specified domain, no auth : clace app create --approve --auth-type=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
+  Create app for specified domain, no auth : clace app create --approve --auth=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
 				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
@@ -97,7 +97,7 @@ Examples:
 			body := types.CreateAppRequest{
 				SourceUrl:   cCtx.Args().Get(1),
 				IsDev:       cCtx.Bool("dev"),
-				AppAuthn:    types.AppAuthnType(cCtx.String("auth-type")),
+				AppAuthn:    types.AppAuthnType(cCtx.String("auth")),
 				GitBranch:   cCtx.String("branch"),
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
