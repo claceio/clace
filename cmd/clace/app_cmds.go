@@ -59,6 +59,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
 	flags = append(flags, newStringFlag("type", "t", "The app type to set", ""))
+	flags = append(flags,
+		&cli.StringSliceFlag{
+			Name:    "param",
+			Aliases: []string{"p"},
+			Usage:   "Set a parameter value. Format is paramName=paramValue",
+		})
+
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -94,6 +101,16 @@ Examples:
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
+			params := cCtx.StringSlice("param")
+			paramValues := make(map[string]string)
+			for _, param := range params {
+				key, value, ok := strings.Cut(param, "=")
+				if !ok {
+					return fmt.Errorf("invalid param format: %s", param)
+				}
+				paramValues[key] = value
+			}
+
 			body := types.CreateAppRequest{
 				SourceUrl:   cCtx.Args().Get(1),
 				IsDev:       cCtx.Bool("dev"),
@@ -102,6 +119,7 @@ Examples:
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
 				Type:        types.AppType(cCtx.String("type")),
+				ParamValues: paramValues,
 			}
 			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)

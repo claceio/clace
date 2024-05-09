@@ -28,6 +28,7 @@ const (
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
 	LIBRARY               = "library"
+	CONTAINER             = "container" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
 
@@ -334,14 +335,15 @@ func CreateBuiltin() starlark.StringDict {
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
 
-					GET:    starlark.String(GET),
-					POST:   starlark.String(POST),
-					PUT:    starlark.String(PUT),
-					DELETE: starlark.String(DELETE),
-					JSON:   starlark.String(JSON),
-					TEXT:   starlark.String(TEXT),
-					READ:   starlark.String(READ),
-					WRITE:  starlark.String(WRITE),
+					GET:       starlark.String(GET),
+					POST:      starlark.String(POST),
+					PUT:       starlark.String(PUT),
+					DELETE:    starlark.String(DELETE),
+					JSON:      starlark.String(JSON),
+					TEXT:      starlark.String(TEXT),
+					READ:      starlark.String(READ),
+					WRITE:     starlark.String(WRITE),
+					CONTAINER: starlark.String(CONTAINER),
 				},
 			},
 		}

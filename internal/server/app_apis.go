@@ -90,6 +90,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	}
 
 	appEntry.Settings.Type = appRequest.Type // validated in createApp
+	appEntry.Metadata.ParamValues = appRequest.ParamValues
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {

@@ -30,10 +30,6 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-const (
-	CONTAINER_PROXY = "container" // special url to use for proxying to the container
-)
-
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger

@@ -30,13 +30,14 @@ func (r RequestError) Error() string {
 
 // CreateAppRequest is the request body for creating an app
 type CreateAppRequest struct {
-	SourceUrl   string       `json:"source_url"`
-	IsDev       bool         `json:"is_dev"`
-	AppAuthn    AppAuthnType `json:"app_authn"`
-	GitBranch   string       `json:"git_branch"`
-	GitCommit   string       `json:"git_commit"`
-	GitAuthName string       `json:"git_auth_name"`
-	Type        AppType      `json:"type"`
+	SourceUrl   string            `json:"source_url"`
+	IsDev       bool              `json:"is_dev"`
+	AppAuthn    AppAuthnType      `json:"app_authn"`
+	GitBranch   string            `json:"git_branch"`
+	GitCommit   string            `json:"git_commit"`
+	GitAuthName string            `json:"git_auth_name"`
+	Type        AppType           `json:"type"`
+	ParamValues map[string]string `json:"param_values"`
 }
 
 // UpdateAppRequest is the request body for updating an app settings
