@@ -11,7 +11,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"sync"
@@ -51,6 +50,7 @@ type App struct {
 	appDev           *dev.AppDev
 	systemConfig     *types.SystemConfig
 	storeInfo        *starlark_type.StoreInfo
+	paramInfo        map[string]apptype.AppParam
 	plugins          *AppPlugins
 	containerManager *container.Manager
 
@@ -189,9 +189,14 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 		return false, err
 	}
 
+	err = a.loadParamsInfo(a.sourceFS)
+	if err != nil {
+		return false, err
+	}
+
 	configData, err := a.sourceFS.ReadFile(apptype.CONFIG_LOCK_FILE_NAME)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return false, err
 		}
 
@@ -436,7 +441,7 @@ func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 	// Load the schema info
 	schemaInfoData, err := sourceFS.ReadFile(apptype.SCHEMA_FILE_NAME)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, fs.ErrNotExist) && !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		return nil // Ignore absence of schema file
@@ -449,6 +454,24 @@ func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 
 	return nil
 
+}
+
+func (a *App) loadParamsInfo(sourceFS *appfs.SourceFs) error {
+	// Load the params info
+	paramsInfoData, err := sourceFS.ReadFile(apptype.PARAMS_FILE_NAME)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil // Ignore absence of params file
+	}
+
+	a.paramInfo, err = apptype.ReadParamInfo(apptype.PARAMS_FILE_NAME, paramsInfoData)
+	if err != nil {
+		return fmt.Errorf("error reading params info: %w", err)
+	}
+
+	return nil
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {

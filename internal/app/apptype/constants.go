@@ -11,6 +11,7 @@ const (
 	METHODS_DELIMITER     = ","
 	CONFIG_LOCK_FILE_NAME = "config_gen.lock"
 	SCHEMA_FILE_NAME      = "schema.star"
+	PARAMS_FILE_NAME      = "params.star"
 	BUILTIN_PLUGIN_SUFFIX = "in"
 	STARLARK_FILE_SUFFIX  = ".star"
 	INDEX_FILE            = "index.go.html"
