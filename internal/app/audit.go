@@ -65,6 +65,11 @@ func (a *App) Audit() (*types.ApproveResult, error) {
 		return nil, err
 	}
 
+	err = a.loadParamsInfo(a.sourceFS)
+	if err != nil {
+		return nil, err
+	}
+
 	builtin, err := a.createBuiltin()
 	if err != nil {
 		return nil, err

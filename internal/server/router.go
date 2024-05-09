@@ -322,6 +322,30 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 	return linkResult, err
 }
 
+func (h *Handler) updateParam(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if pathSpec == "" {
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
+	args := map[string]any{
+		"paramName":  r.URL.Query().Get("paramName"),
+		"paramValue": r.URL.Query().Get("paramValue"),
+	}
+
+	updateResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.updateParamHandler, args)
+	return updateResult, err
+}
+
 func AddVaryHeader(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		value := w.Header().Get(VARY_HEADER)
@@ -549,6 +573,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to change account links
 	r.Post("/link_account", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.accountLink)
+	}))
+
+	// API to update param values
+	r.Post("/update_param", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.updateParam)
 	}))
 
 	// API to list versions for an app

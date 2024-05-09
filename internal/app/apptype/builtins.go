@@ -17,6 +17,7 @@ const (
 	DEFAULT_MODULE        = "ace"
 	DOC_MODULE            = "doc"
 	TABLE_MODULE          = "table"
+	PARAM_MODULE          = "param"
 	APP                   = "app"
 	HTML                  = "html"
 	API                   = "api"

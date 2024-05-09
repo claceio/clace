@@ -103,7 +103,7 @@ func accountListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 		ArgsUsage: "<appPath>",
 		UsageText: `args: <appPath>
 
-    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which the account link is to be created.
+    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which the accounts are to be listed.
 
 	Examples:
 	  List plugins for app: clace account list /myapp
@@ -131,6 +131,130 @@ func accountListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 			fmt.Fprintf(cCtx.App.Writer, "Account links for app %s : %s\n", appInfo.AppPathDomain(), appInfo.Id)
 			for _, plugin := range appInfo.Metadata.Accounts {
 				fmt.Fprintf(cCtx.App.Writer, "  %s: %s\n", plugin.Plugin, plugin.AccountName)
+			}
+
+			return nil
+		},
+	}
+}
+
+func initParamCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	return &cli.Command{
+		Name:  "param",
+		Usage: "Manage app parameter values",
+		Subcommands: []*cli.Command{
+			updateParamsCommand(commonFlags, clientConfig),
+			paramListCommand(commonFlags, clientConfig),
+		},
+	}
+}
+
+func updateParamsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+	flags = append(flags, newBoolFlag(PROMOTE_FLAG, "p", "Promote the change from stage to prod", false))
+
+	return &cli.Command{
+		Name:      "update",
+		Usage:     "Update parameter value for the app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<pathSpec> <paramName> <paramValue>",
+		UsageText: `args: <pathSpec> <paramName> <paramValue> 
+
+<pathSpec> is the first required argument. ` + PATH_SPEC_HELP + `<paramName> is the required second argument. This is the name of the parameter.
+<paramValue> is the required third argument. This is the value to set the param to. Use "-" to unset the parameter.
+
+	Examples:
+	  Update parameter value: clace param update /myapp port 8888
+	  Delete parameter value: clace param update /myapp port -`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 3 {
+				return fmt.Errorf("requires three arguments: <pathSpec> <paramName> <paramValue>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			values := url.Values{}
+			values.Add("pathSpec", cCtx.Args().First())
+			values.Add("paramName", cCtx.Args().Get(1))
+			values.Add("paramValue", cCtx.Args().Get(2))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
+
+			var updateResponse types.AppLinkAccountResponse
+			err := client.Post("/_clace/update_param", values, nil, &updateResponse)
+			if err != nil {
+				return err
+			}
+
+			for _, app := range updateResponse.StagedUpdateResults {
+				fmt.Printf("Updated app %s\n", app)
+			}
+
+			if len(updateResponse.PromoteResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")
+				for i, promoteResult := range updateResponse.PromoteResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", promoteResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated, %d app(s) promoted.\n", len(updateResponse.StagedUpdateResults), len(updateResponse.PromoteResults))
+
+			if updateResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}
+
+func paramListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+
+	return &cli.Command{
+		Name:      "list",
+		Usage:     "List the params for an app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<appPath>",
+		UsageText: `args: <appPath>
+
+    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which the params are to be listed.
+
+	Examples:
+	  List params for app: clace param list /myapp
+	  List params for app: clace param list example.com:/`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 1 {
+				return fmt.Errorf("requires one argument: <appPath>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			values := url.Values{}
+			values.Add("appPath", cCtx.Args().First())
+
+			var response types.AppGetResponse
+			err := client.Get("/_clace/app", values, &response)
+			if err != nil {
+				return err
+			}
+
+			appInfo := response.AppEntry
+			if len(appInfo.Metadata.ParamValues) == 0 {
+				fmt.Fprintf(cCtx.App.Writer, "No param values for app %s : %s\n", appInfo.AppPathDomain(), appInfo.Id)
+				return nil
+			}
+			fmt.Fprintf(cCtx.App.Writer, "Param values for app %s : %s\n", appInfo.AppPathDomain(), appInfo.Id)
+			for name, value := range appInfo.Metadata.ParamValues {
+				fmt.Fprintf(cCtx.App.Writer, "  %s: %s\n", name, value)
 			}
 
 			return nil

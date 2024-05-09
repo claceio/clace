@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/claceio/clace/internal/app/appfs"
@@ -146,6 +147,10 @@ func (a *App) createBuiltin() (starlark.StringDict, error) {
 		return nil, err
 	}
 
+	if builtin, err = a.addParams(builtin); err != nil {
+		return nil, err
+	}
+
 	return builtin, nil
 }
 
@@ -185,6 +190,82 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 	}
 	newBuiltins[apptype.TABLE_MODULE] = &tableModule
 
+	return newBuiltins, nil
+}
+
+func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error) {
+	if a.paramInfo == nil || len(a.paramInfo) == 0 {
+		return builtin, nil
+	}
+
+	// Create a copy of the builtins, don't modify the original
+	newBuiltins := starlark.StringDict{}
+	for k, v := range builtin {
+		newBuiltins[k] = v
+	}
+
+	// Add param module for referencing param values
+	paramDict := starlark.StringDict{}
+	for _, p := range a.paramInfo {
+		paramDict[p.Name] = p.DefaultValue
+		valueStr, ok := a.Metadata.ParamValues[p.Name]
+		if !ok {
+			if p.DefaultValue == starlark.None {
+				return nil, fmt.Errorf("param %s has no default value and is not set in metadata", p.Name)
+			} else {
+				// Non null default, use that
+				continue
+			}
+		}
+
+		switch p.Type {
+		case starlark_type.STRING:
+			paramDict[p.Name] = starlark.String(valueStr)
+		case starlark_type.INT:
+			intValue, err := strconv.Atoi(valueStr)
+			if err != nil {
+				return nil, fmt.Errorf("param %s is not an int", p.Name)
+			}
+
+			paramDict[p.Name] = starlark.MakeInt(intValue)
+		case starlark_type.BOOLEAN:
+			boolValue, err := strconv.ParseBool(valueStr)
+			if err != nil {
+				return nil, fmt.Errorf("param %s is not a boolean", p.Name)
+			}
+			paramDict[p.Name] = starlark.Bool(boolValue)
+		case starlark_type.DICT:
+			var dictValue map[string]any
+			if err := json.Unmarshal([]byte(valueStr), &dictValue); err != nil {
+				return nil, fmt.Errorf("param %s is not a json dict", p.Name)
+			}
+
+			dictVal, err := starlark_type.MarshalStarlark(dictValue)
+			if err != nil {
+				return nil, fmt.Errorf("param %s is not a starlark dict", p.Name)
+			}
+			paramDict[p.Name] = dictVal
+		case starlark_type.LIST:
+			var listValue []any
+			if err := json.Unmarshal([]byte(valueStr), &listValue); err != nil {
+				return nil, fmt.Errorf("param %s is not a json list", p.Name)
+			}
+			listVal, err := starlark_type.MarshalStarlark(listValue)
+			if err != nil {
+				return nil, fmt.Errorf("param %s is not a starlark list", p.Name)
+			}
+			paramDict[p.Name] = listVal
+		default:
+			return nil, fmt.Errorf("unknown type %s for param %s", p.Type, p.Name)
+		}
+	}
+
+	paramModule := starlarkstruct.Module{
+		Name:    apptype.PARAM_MODULE,
+		Members: paramDict,
+	}
+
+	newBuiltins[apptype.PARAM_MODULE] = &paramModule
 	return newBuiltins, nil
 }
 

@@ -21,7 +21,7 @@ type AppParam struct {
 	Name         string
 	Description  string
 	Type         starlark_type.TypeName
-	DefaultValue any
+	DefaultValue starlark.Value
 }
 
 func ReadParamInfo(fileName string, inp []byte) (map[string]AppParam, error) {
@@ -66,11 +66,6 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			return nil, fmt.Errorf("param %s already defined", name)
 		}
 
-		defaultVal, err := starlark_type.UnmarshalStarlark(defaultValue)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling default value for param %s: %w", name, err)
-		}
-
 		typeVal := starlark_type.TypeName(dataType)
 		if typeVal == "" {
 			typeVal = starlark_type.STRING
@@ -83,7 +78,7 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 		definedParams[string(name)] = AppParam{
 			Name:         string(name),
 			Type:         typeVal,
-			DefaultValue: defaultVal,
+			DefaultValue: defaultValue,
 			Description:  string(description),
 		}
 

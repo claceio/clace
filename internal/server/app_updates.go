@@ -520,3 +520,23 @@ func (s *Server) accountLinkHandler(ctx context.Context, tx types.Transaction, a
 	appPathDomain := appEntry.AppPathDomain()
 	return appPathDomain, appPathDomain, nil
 }
+
+func (s *Server) updateParamHandler(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
+	paramName := args["paramName"].(string)
+	paramValue := args["paramValue"].(string)
+
+	if appEntry.Metadata.ParamValues == nil {
+		appEntry.Metadata.ParamValues = make(map[string]string)
+	}
+
+	if paramValue == "-" {
+		// Delete the entry
+		delete(appEntry.Metadata.ParamValues, paramName)
+	} else {
+		// Update existing value
+		appEntry.Metadata.ParamValues[paramName] = paramValue
+	}
+
+	appPathDomain := appEntry.AppPathDomain()
+	return appPathDomain, appPathDomain, nil
+}

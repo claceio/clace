@@ -53,7 +53,7 @@ param("p2", description="param2 description", type=INT, default=10)
 param("p3", description="param3 description", type=BOOLEAN, default=True)
 param("p4", description="param4 description", type=LIST, default=[10])
 param("p5", type=DICT, default={"a": 10})
-param("p6")`
+param("p6", default="abc")`
 	_, _, err = CreateTestApp(logger, fileData)
 	if err != nil {
 		t.Fatalf("Error %s", err)
