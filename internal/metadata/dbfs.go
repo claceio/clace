@@ -25,11 +25,12 @@ type DbFs struct {
 	*types.Logger
 	fileStore *FileStore
 	fileInfo  map[string]DbFileInfo
+	typeFiles types.TypeFiles
 }
 
 var _ appfs.ReadableFS = (*DbFs)(nil)
 
-func NewDbFs(logger *types.Logger, fileStore *FileStore) (*DbFs, error) {
+func NewDbFs(logger *types.Logger, fileStore *FileStore, typeFiles types.TypeFiles) (*DbFs, error) {
 	fileInfo, error := fileStore.getFileInfoTx()
 	if error != nil {
 		return nil, error
@@ -38,6 +39,7 @@ func NewDbFs(logger *types.Logger, fileStore *FileStore) (*DbFs, error) {
 		Logger:    logger,
 		fileStore: fileStore,
 		fileInfo:  fileInfo,
+		typeFiles: typeFiles,
 	}, nil
 }
 
@@ -50,7 +52,7 @@ type DbFile struct {
 var _ fs.File = (*DbFile)(nil)
 
 func NewDBFile(name string, compressionType string, data []byte, fi DbFileInfo) *DbFile {
-	reader := NewbFileReader(compressionType, data)
+	reader := NewDbFileReader(compressionType, data)
 	return &DbFile{name: name, fi: fi, reader: reader}
 }
 
@@ -89,7 +91,7 @@ type DbFileReader struct {
 var _ io.ReadSeeker = (*DbFileReader)(nil)
 var _ appfs.CompressedReader = (*DbFileReader)(nil)
 
-func NewbFileReader(compressionType string, data []byte) *DbFileReader {
+func NewDbFileReader(compressionType string, data []byte) *DbFileReader {
 	compressedReader := bytes.NewReader(data)
 	return &DbFileReader{compressionType: compressionType, compressedReader: compressedReader}
 }
@@ -164,9 +166,26 @@ func (fi *DbFileInfo) Sys() any {
 	return nil
 }
 
+func computeSha(data string) string {
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
+}
+
 func (d *DbFs) Open(name string) (fs.File, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
+		// Check if the type files has it
+		if _, ok = d.typeFiles[name]; ok {
+			return &DbFile{
+				name: name,
+				fi: DbFileInfo{
+					name:    name,
+					len:     int64(len(d.typeFiles[name])),
+					sha:     computeSha(d.typeFiles[name]),
+					modTime: time.Time{}},
+				reader: NewDbFileReader("", []byte(d.typeFiles[name])),
+			}, nil
+		}
 		return nil, fs.ErrNotExist
 	}
 	fileBytes, compressionType, err := d.fileStore.GetFileByShaTx(fi.sha)
@@ -179,6 +198,10 @@ func (d *DbFs) Open(name string) (fs.File, error) {
 func (d *DbFs) ReadFile(name string) ([]byte, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
+		// Check if the type files has it
+		if _, ok = d.typeFiles[name]; ok {
+			return []byte(d.typeFiles[name]), nil
+		}
 		return nil, fs.ErrNotExist
 	}
 	fileBytes, compressionType, err := d.fileStore.GetFileByShaTx(fi.sha)
@@ -203,6 +226,13 @@ func (d *DbFs) ReadFile(name string) ([]byte, error) {
 func (d *DbFs) Stat(name string) (fs.FileInfo, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
+		// Check if the type files has it
+		if _, ok = d.typeFiles[name]; ok {
+			return &DbFileInfo{name: name,
+				len:     int64(len(d.typeFiles[name])),
+				sha:     computeSha(d.typeFiles[name]),
+				modTime: time.Time{}}, nil
+		}
 		return nil, fs.ErrNotExist
 	}
 	return &fi, nil
@@ -244,6 +274,15 @@ func (d *DbFs) FileHash() (string, error) {
 		hashBuilder.WriteString(d.fileInfo[name].sha)
 		hashBuilder.WriteByte(0)
 	}
+	for name := range d.typeFiles {
+		if _, ok := d.fileInfo[name]; !ok {
+			// Only include type files that are not already in the file info
+			hashBuilder.WriteString(name)
+			hashBuilder.WriteByte(0)
+			hashBuilder.WriteString(computeSha(d.typeFiles[name]))
+			hashBuilder.WriteByte(0)
+		}
+	}
 
 	sha := sha256.New()
 	if _, err := sha.Write([]byte(hashBuilder.String())); err != nil {
@@ -271,6 +310,22 @@ func (d *DbFs) CreateTempSourceDir() (string, error) {
 		}
 
 		if err := os.WriteFile(filePath, fileBytes, 0700); err != nil {
+			return "", fmt.Errorf("error writing file %s : %w", filePath, err)
+		}
+	}
+
+	for name := range d.typeFiles {
+		if _, ok := d.fileInfo[name]; ok {
+			// Skip files that are already in the file info
+			continue
+		}
+
+		filePath := path.Join(tmpDir, name)
+		if err := os.MkdirAll(path.Dir(filePath), 0700); err != nil {
+			return "", fmt.Errorf("error creating directory %s : %w", path.Dir(filePath), err)
+		}
+
+		if err := os.WriteFile(filePath, []byte(d.typeFiles[name]), 0700); err != nil {
 			return "", fmt.Errorf("error writing file %s : %w", filePath, err)
 		}
 	}
