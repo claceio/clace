@@ -4,8 +4,6 @@
       "*.go.html"
     ],
     "base_templates": "base_templates",
-    "static_dir": "static",
-    "static_root_dir": "static_root",
     "push_events": false,
     "early_hints": true
   },

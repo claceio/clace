@@ -335,7 +335,7 @@ func (a *App) initRouter() error {
 
 	// Mount static dir
 	if !rootWildcard {
-		staticPattern := path.Join("/", a.Config.Routing.StaticDir, "*")
+		staticPattern := path.Join("/", "static", "*")
 		router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
 	}
 

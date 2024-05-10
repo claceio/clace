@@ -93,12 +93,12 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 
 	funcMap := sprig.FuncMap()
 	funcMap["static"] = func(name string) string {
-		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
+		staticPath := path.Join("static", name)
 		fullPath := path.Join(newApp.Path, sourceFS.HashName(staticPath))
 		return fullPath
 	}
 	funcMap["fileNonEmpty"] = func(name string) bool {
-		staticPath := path.Join(newApp.Config.Routing.StaticDir, name)
+		staticPath := path.Join("static", name)
 		fi, err := sourceFS.Stat(staticPath)
 		if err != nil {
 			return false
