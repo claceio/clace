@@ -233,23 +233,23 @@ func (s *Server) Start() error {
 		}
 
 		udsHandler := NewUDSHandler(s.Logger, s.config, s)
-		socket, err := net.Listen("unix", serverUri)
-		if err != nil {
-			s.Debug().Err(err).Msgf("Error creating socket file, trying to dial socket file %s", serverUri)
+		socket, listenErr := net.Listen("unix", serverUri)
+		if listenErr != nil {
+			s.Debug().Err(listenErr).Msgf("Error creating socket file, trying to dial socket file %s", serverUri)
 			_, errDial := net.Dial("unix", serverUri)
 			if errDial != nil {
 				s.Debug().Err(errDial).Msg("Error dialling UDS, trying to remove socket file")
 				// Cannot dial also, so it's safe to delete the socket file
 				if removeErr := os.Remove(serverUri); removeErr != nil {
-					return fmt.Errorf("error removing socket file %s : %s", serverUri, removeErr)
+					return fmt.Errorf("error removing socket file %s : %s. Original error %s", serverUri, removeErr, listenErr)
 				}
+				var err error
 				socket, err = net.Listen("unix", serverUri)
 				if err != nil {
-					return fmt.Errorf("error creating socket after deleting old file  %s : %s", serverUri, err)
+					return fmt.Errorf("error creating socket after deleting old file  %s : %s. Original error %s", serverUri, err, listenErr)
 				}
-
 			} else {
-				return fmt.Errorf("error creating socket, another server already running %s : %s", serverUri, err)
+				return fmt.Errorf("error creating socket, another server already running %s : %s", serverUri, listenErr)
 			}
 		}
 
