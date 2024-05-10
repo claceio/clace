@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/types"
 )
@@ -259,10 +260,34 @@ func (d *DbFs) StaticFiles() []string {
 	return staticFiles
 }
 
+// GlobMatch returns true if the file name matches any of the patterns
+func GlobMatch(patterns []string, fileName string) (bool, error) {
+	for _, pattern := range patterns {
+		matched, err := doublestar.Match(pattern, fileName)
+		if err != nil {
+			return false, err
+		}
+		if matched {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // FileHash returns a hash of the file names and their corresponding sha256 hashes
-func (d *DbFs) FileHash() (string, error) {
+func (d *DbFs) FileHash(excludeGlob []string) (string, error) {
 	fileNames := []string{}
 	for name := range d.fileInfo {
+		matched, err := GlobMatch(excludeGlob, name)
+		if err != nil {
+			return "", err
+		}
+		if matched {
+			// Name is excluded from the hash, must be a file used by the clace hypermedia based UI
+			// We don't want a UI only change to cause a container rebuild
+			continue
+		}
 		fileNames = append(fileNames, name)
 	}
 	slices.Sort(fileNames)
@@ -277,6 +302,16 @@ func (d *DbFs) FileHash() (string, error) {
 
 	typeFileNames := []string{}
 	for name := range d.typeFiles {
+		matched, err := GlobMatch(excludeGlob, name)
+		if err != nil {
+			return "", err
+		}
+		if matched {
+			// Name is excluded from the hash, must be a file used by the clace hypermedia based UI
+			// We don't want a UI only change to cause a container rebuild
+			continue
+		}
+
 		typeFileNames = append(typeFileNames, name)
 	}
 	slices.Sort(typeFileNames)

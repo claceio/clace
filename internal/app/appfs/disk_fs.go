@@ -142,7 +142,7 @@ func (d *DiskReadFS) StaticFiles() []string {
 	return staticFiles
 }
 
-func (d *DiskReadFS) FileHash() (string, error) {
+func (d *DiskReadFS) FileHash(excludeGlob []string) (string, error) {
 	return "", fmt.Errorf("FileHash not implemented for dev apps : DiskReadFS")
 }
 

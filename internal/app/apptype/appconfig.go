@@ -13,6 +13,9 @@ type RouteConfig struct {
 	BaseTemplates     string   `json:"base_templates"`
 	PushEvents        bool     `json:"push_events"`
 	EarlyHints        bool     `json:"early_hints"`
+
+	// glob patterns for files which are excluded from container content change check
+	ContainerExclude []string `json:"container_exclude"`
 }
 
 type HtmxConfig struct {
@@ -30,6 +33,7 @@ func NewAppConfig() *AppConfig {
 			BaseTemplates:     "base_templates",
 			PushEvents:        false,
 			EarlyHints:        true,
+			ContainerExclude:  []string{"static/**/*", "static_root/**/*", "base_templates/**/*", "*.go.html", "*.star", "config_gen.lock"},
 		},
 		Htmx: HtmxConfig{
 			Version: "1.9.2",

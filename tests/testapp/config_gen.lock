@@ -5,7 +5,15 @@
     ],
     "base_templates": "base_templates",
     "push_events": false,
-    "early_hints": true
+    "early_hints": true,
+    "container_exclude": [
+      "static/**/*",
+      "static_root/**/*",
+      "base_templates/**/*",
+      "*.go.html",
+      "*.star",
+      "config_gen.lock"
+    ]
   },
   "htmx": {
     "version": "1.9.2"

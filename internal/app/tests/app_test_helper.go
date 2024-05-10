@@ -224,7 +224,7 @@ func (d *TestReadFS) StaticFiles() []string {
 	return staticFiles
 }
 
-func (d *TestReadFS) FileHash() (string, error) {
+func (d *TestReadFS) FileHash(excludeGlob []string) (string, error) {
 	return "", fmt.Errorf("FileHash not implemented for test fs")
 }
 

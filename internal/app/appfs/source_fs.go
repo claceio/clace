@@ -28,10 +28,10 @@ type ReadableFS interface {
 	fs.GlobFS
 	// Stat returns the stats for the named file.
 	Stat(name string) (fs.FileInfo, error)
-	Reset()                               // Used to reset the file system transaction for the DbFs, no-op for others
-	StaticFiles() []string                // Return list of static files
-	FileHash() (string, error)            // Return a hash of the source file contents
-	CreateTempSourceDir() (string, error) // Create a temporary directory with source files
+	Reset()                                        // Used to reset the file system transaction for the DbFs, no-op for others
+	StaticFiles() []string                         // Return list of static files
+	FileHash(excludeGlob []string) (string, error) // Return a hash of the source file contents
+	CreateTempSourceDir() (string, error)          // Create a temporary directory with source files
 }
 
 type CompressedReader interface {

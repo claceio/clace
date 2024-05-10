@@ -57,8 +57,13 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 				break
 			}
 		}
-
 	}
+
+	if port == 0 {
+		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
+			"add a EXPOSE directive in Containerfile/Dockerfile or add port in app config", containerFile)
+	}
+
 	return &Manager{
 		Logger:        logger,
 		appEntry:      appEntry,
@@ -152,8 +157,8 @@ func (m *Manager) WaitForHealth(url string) error {
 	return err
 }
 
-func (m *Manager) ProdReload() error {
-	sourceHash, err := m.sourceFS.FileHash()
+func (m *Manager) ProdReload(excludeGlob []string) error {
+	sourceHash, err := m.sourceFS.FileHash(excludeGlob)
 	if err != nil {
 		return fmt.Errorf("error getting file hash: %w", err)
 	}
