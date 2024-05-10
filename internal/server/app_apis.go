@@ -373,7 +373,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	}
 
 	appAuth := app.Settings.AuthnType
-	if app.Settings.AuthnType == "" || appAuth == types.AppAuthnDefault {
+	if appAuth == "" || appAuth == types.AppAuthnDefault {
 		appAuth = types.AppAuthnType(s.config.Security.AppDefaultAuthType)
 	}
 
@@ -381,7 +381,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 		appAuth = types.AppAuthnSystem
 	}
 
-	if app.Settings.AuthnType == types.AppAuthnNone {
+	if appAuth == types.AppAuthnNone {
 		// No authentication required
 	} else if appAuth == types.AppAuthnSystem {
 		// Use system admin user for authentication
