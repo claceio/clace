@@ -210,17 +210,19 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 		paramDict[p.Name] = p.DefaultValue
 		valueStr, ok := a.Metadata.ParamValues[p.Name]
 		if !ok {
-			if p.DefaultValue == starlark.None {
-				return nil, fmt.Errorf("param %s has no default value and is not set in metadata", p.Name)
-			} else {
-				// Non null default, use that
-				continue
+			// no custom value specified
+			if p.Required && p.DefaultValue == starlark.None {
+				return nil, fmt.Errorf("param %s is a required param, a value has to be provided", p.Name)
 			}
+			continue
 		}
 
 		switch p.Type {
 		case starlark_type.STRING:
 			paramDict[p.Name] = starlark.String(valueStr)
+			if p.Required && valueStr == "" {
+				return nil, fmt.Errorf("param %s is a required param, value cannot be empty", p.Name)
+			}
 		case starlark_type.INT:
 			intValue, err := strconv.Atoi(valueStr)
 			if err != nil {

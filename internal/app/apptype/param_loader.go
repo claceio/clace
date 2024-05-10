@@ -20,6 +20,7 @@ const (
 type AppParam struct {
 	Name         string
 	Description  string
+	Required     bool
 	Type         starlark_type.TypeName
 	DefaultValue starlark.Value
 }
@@ -47,6 +48,35 @@ func validateParamInfo(paramInfo map[string]AppParam) error {
 		if spaceRegex.MatchString(p.Name) {
 			return fmt.Errorf("param name \"%s\" has spaces", p.Name)
 		}
+
+		if p.DefaultValue == starlark.None {
+			continue
+		}
+
+		switch p.Type {
+		case starlark_type.INT:
+			if _, ok := p.DefaultValue.(starlark.Int); !ok {
+				return fmt.Errorf("param %s is of type int but default value is not an int", p.Name)
+			}
+		case starlark_type.STRING:
+			if _, ok := p.DefaultValue.(starlark.String); !ok {
+				return fmt.Errorf("param %s is of type string but default value is not a string", p.Name)
+			}
+		case starlark_type.BOOLEAN:
+			if _, ok := p.DefaultValue.(starlark.Bool); !ok {
+				return fmt.Errorf("param %s is of type bool but default value is not a bool", p.Name)
+			}
+		case starlark_type.DICT:
+			if _, ok := p.DefaultValue.(*starlark.Dict); !ok {
+				return fmt.Errorf("param %s is of type dict but default value is not a dict", p.Name)
+			}
+		case starlark_type.LIST:
+			if _, ok := p.DefaultValue.(*starlark.List); !ok {
+				return fmt.Errorf("param %s is of type list but default value is not a list", p.Name)
+			}
+		default:
+			return fmt.Errorf("unknown type %s for %s", p.Type, p.Name)
+		}
 	}
 	return nil
 }
@@ -57,8 +87,9 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 	paramBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var name, description, dataType starlark.String
 		var defaultValue starlark.Value = starlark.None
+		var required starlark.Bool = starlark.Bool(true)
 
-		if err := starlark.UnpackArgs(PARAM, args, kwargs, "name", &name, "type?", &dataType, "default?", &defaultValue, "description?", &description); err != nil {
+		if err := starlark.UnpackArgs(PARAM, args, kwargs, "name", &name, "type?", &dataType, "default?", &defaultValue, "description?", &description, "required?", &required); err != nil {
 			return nil, err
 		}
 
@@ -80,6 +111,7 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			Type:         typeVal,
 			DefaultValue: defaultValue,
 			Description:  string(description),
+			Required:     bool(required),
 		}
 
 		paramDict := starlark.StringDict{
@@ -87,9 +119,9 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			"type":        dataType,
 			"default":     defaultValue,
 			"description": description,
+			"required":    required,
 		}
-		newParam := starlarkstruct.FromStringDict(starlark.String(PARAM), paramDict)
-		return newParam, nil
+		return starlarkstruct.FromStringDict(starlark.String(PARAM), paramDict), nil
 	}
 
 	builtins := starlark.StringDict{
