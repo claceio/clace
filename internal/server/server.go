@@ -235,8 +235,10 @@ func (s *Server) Start() error {
 		udsHandler := NewUDSHandler(s.Logger, s.config, s)
 		socket, err := net.Listen("unix", serverUri)
 		if err != nil {
+			s.Debug().Err(err).Msgf("Error creating socket file, trying to dial socket file %s", serverUri)
 			_, errDial := net.Dial("unix", serverUri)
 			if errDial != nil {
+				s.Debug().Err(errDial).Msg("Error dialling UDS, trying to remove socket file")
 				// Cannot dial also, so it's safe to delete the socket file
 				if removeErr := os.Remove(serverUri); removeErr != nil {
 					return fmt.Errorf("error removing socket file %s : %s", serverUri, removeErr)
