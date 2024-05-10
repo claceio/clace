@@ -67,11 +67,11 @@ func globalFlags(globalConfig *types.GlobalConfig, clientConfig *types.ClientCon
 }
 
 func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
-	if !cCtx.IsSet(configFileFlagName) {
-		return nil
+	filePath := os.ExpandEnv("$CL_HOME/clace.toml")
+	if cCtx.IsSet(configFileFlagName) {
+		filePath = cCtx.String(configFileFlagName)
 	}
 
-	filePath := cCtx.String(configFileFlagName)
 	//fmt.Fprintf(os.Stderr, "Loading config file: %s\n", filePath)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
