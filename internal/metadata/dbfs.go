@@ -274,7 +274,14 @@ func (d *DbFs) FileHash() (string, error) {
 		hashBuilder.WriteString(d.fileInfo[name].sha)
 		hashBuilder.WriteByte(0)
 	}
+
+	typeFileNames := []string{}
 	for name := range d.typeFiles {
+		typeFileNames = append(typeFileNames, name)
+	}
+	slices.Sort(typeFileNames)
+
+	for _, name := range typeFileNames {
 		if _, ok := d.fileInfo[name]; !ok {
 			// Only include type files that are not already in the file info
 			hashBuilder.WriteString(name)
