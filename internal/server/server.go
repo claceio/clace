@@ -224,8 +224,16 @@ func (s *Server) Start() error {
 		return errors.New("server_uri is not set")
 	}
 
+	// Change to CL_HOME directory, helps avoid length limit on UDS file (around 104 chars)
+	clHome := os.Getenv("CL_HOME")
+	os.Chdir(clHome)
+
 	// Start unix domain socket server
 	if !strings.HasPrefix(serverUri, "http://") && !strings.HasPrefix(serverUri, "https://") {
+		if strings.HasPrefix(serverUri, clHome) {
+			serverUri = path.Join(".", serverUri[len(clHome):]) // use relative path
+		}
+
 		// Unix domain sockets is enabled
 		socketDir := path.Dir(serverUri)
 		if err := os.MkdirAll(socketDir, 0700); err != nil {

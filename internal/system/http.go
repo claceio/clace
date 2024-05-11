@@ -35,8 +35,18 @@ type HttpClient struct {
 func NewHttpClient(serverUri, user, password string, skipCertCheck bool) *HttpClient {
 	serverUri = os.ExpandEnv(serverUri)
 
+	// Change to CL_HOME directory, helps avoid length limit on UDS file (around 104 chars)
+	clHome := os.Getenv("CL_HOME")
+	if clHome != "" {
+		os.Chdir(clHome)
+	}
+
 	var client *http.Client
 	if !strings.HasPrefix(serverUri, "http://") && !strings.HasPrefix(serverUri, "https://") {
+		if clHome != "" && strings.HasPrefix(serverUri, clHome) {
+			serverUri = path.Join(".", serverUri[len(clHome):]) // use relative path
+		}
+
 		transport := &Transport{}
 		// Using unix domain sockets
 		transport.RegisterLocation(ClaceServiceLocation, serverUri)
