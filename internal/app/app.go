@@ -30,6 +30,12 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+const (
+	CONTAINER_SOURCE_AUTO         = "auto"
+	CONTAINER_SOURCE_NIXPACKS     = "nixpacks"
+	CONTAINER_SOURCE_IMAGE_PREFIX = "image:"
+)
+
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger
@@ -325,9 +331,9 @@ func (a *App) loadContainerManager() error {
 	}
 
 	containerConfig, err := a.appDef.Attr("container")
-	if err != nil || containerConfig == nil {
+	if err != nil || containerConfig == starlark.None {
 		// Plugin not authorized, skip any container files
-		a.Warn().Msg("Container config not defined, skipping container initialization")
+		a.Debug().Msg("Container config not defined, skipping container initialization")
 		return nil
 	}
 
