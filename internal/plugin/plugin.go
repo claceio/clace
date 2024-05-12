@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"github.com/claceio/clace/internal/types"
+	"go.starlark.net/starlark"
 )
 
 type NewPluginFunc func(pluginContext *types.PluginContext) (any, error)
@@ -17,14 +18,16 @@ type PluginFunc struct {
 	Name         string
 	IsRead       bool
 	FunctionName string
+	Constant     starlark.Value
 }
 
 // PluginFuncInfo is the Clace plugin function info for the starlark function
 type PluginInfo struct {
-	ModuleName  string // exec
-	PluginPath  string // exec.in
-	FuncName    string // run
-	IsRead      bool
-	HandlerName string
-	Builder     NewPluginFunc
+	ModuleName    string // exec
+	PluginPath    string // exec.in
+	FuncName      string // run
+	IsRead        bool
+	HandlerName   string
+	Builder       NewPluginFunc
+	ConstantValue starlark.Value
 }

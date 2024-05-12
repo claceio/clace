@@ -526,7 +526,7 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 
 	urlStr := urlValue.(starlark.String).GoString()
 
-	if urlStr == apptype.CONTAINER {
+	if urlStr == apptype.CONTAINER_URL {
 		// proxying to container url
 		if a.containerManager == nil {
 			return rootWildcard, fmt.Errorf("container manager not initialized")

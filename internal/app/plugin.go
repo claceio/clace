@@ -47,12 +47,13 @@ func RegisterPlugin(name string, builder plugin.NewPluginFunc, funcs []plugin.Pl
 	pluginMap := make(plugin.PluginMap)
 	for _, f := range funcs {
 		info := plugin.PluginInfo{
-			ModuleName:  name,
-			PluginPath:  pluginPath,
-			FuncName:    f.Name,
-			IsRead:      f.IsRead,
-			HandlerName: f.FunctionName,
-			Builder:     builder,
+			ModuleName:    name,
+			PluginPath:    pluginPath,
+			FuncName:      f.Name,
+			IsRead:        f.IsRead,
+			HandlerName:   f.FunctionName,
+			Builder:       builder,
+			ConstantValue: f.Constant,
 		}
 
 		pluginMap[f.Name] = &info
@@ -89,6 +90,13 @@ func pluginErrorWrapper(f StarlarkFunction, errorHandler starlark.Callable) Star
 
 		// Success response, wrapped in a PluginResponse
 		return NewResponse(val), nil
+	}
+}
+
+func CreatePluginConstant(name string, value starlark.Value) plugin.PluginFunc {
+	return plugin.PluginFunc{
+		Name:     name,
+		Constant: value,
 	}
 }
 
@@ -263,7 +271,11 @@ func (a *App) loader(thread *starlark.Thread, moduleFullPath string) (starlark.S
 	// The audit loader will replace the builtins with dummy methods, so the hook is not added for the audit loader
 	hookedDict := make(starlark.StringDict)
 	for funcName, pluginInfo := range plugin {
-		hookedDict[funcName] = a.pluginHook(moduleFullPath, accountName, funcName, pluginInfo)
+		if pluginInfo.HandlerName == "" {
+			hookedDict[funcName] = pluginInfo.ConstantValue
+		} else {
+			hookedDict[funcName] = a.pluginHook(moduleFullPath, accountName, funcName, pluginInfo)
+		}
 	}
 
 	ret := make(starlark.StringDict)

@@ -41,11 +41,15 @@ func (a *App) Audit() (*types.ApproveResult, error) {
 
 		// Replace all the builtins with dummy methods
 		dummyDict := make(starlark.StringDict)
-		for name := range pluginMap {
-			dummyDict[name] = starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-				a.Info().Msgf("Plugin called during audit: %s.%s", modulePath, name)
-				return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
-			})
+		for name, pluginInfo := range pluginMap {
+			if pluginInfo.HandlerName == "" {
+				dummyDict[name] = pluginInfo.ConstantValue
+			} else {
+				dummyDict[name] = starlark.NewBuiltin(name, func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+					a.Info().Msgf("Plugin called during audit: %s.%s", modulePath, name)
+					return starlarkstruct.FromStringDict(starlarkstruct.Default, make(starlark.StringDict)), nil
+				})
+			}
 		}
 
 		ret := make(starlark.StringDict)

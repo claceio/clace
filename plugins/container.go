@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/plugin"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
@@ -16,7 +17,8 @@ import (
 func init() {
 	h := &containerPlugin{}
 	pluginFuncs := []plugin.PluginFunc{
-		app.CreatePluginApi(h.Config, app.READ), // config API
+		app.CreatePluginApi(h.Config, app.READ),                                 // config API
+		app.CreatePluginConstant("URL", starlark.String(apptype.CONTAINER_URL)), // container constant
 	}
 	app.RegisterPlugin("container", NewContainerPlugin, pluginFuncs)
 }

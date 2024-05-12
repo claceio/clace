@@ -116,6 +116,7 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		if err != nil {
 			return nil, err
 		}
+
 		if err = setQueryParams(&rawurl, params); err != nil {
 			return nil, err
 		}
