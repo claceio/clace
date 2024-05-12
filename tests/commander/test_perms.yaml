@@ -17,12 +17,12 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
     stdout: "Stage app does not have access to write operation"
   perms0107: # Update stage perms
-    command: ../clace app update stage-write-access "/perms*" true
+    command: ../clace app update-settings stage-write-access "/perms*" true
   perms0108: # test stage app
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
     stdout: "Disk Usage"
   perms0109: # Update stage perms again to disallow write
-    command: ../clace app update stage-write-access "/perms*" false
+    command: ../clace app update-settings stage-write-access "/perms*" false
   perms0110: # test stage app
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
     stdout: "Stage app does not have access to write operation"
@@ -52,7 +52,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec
     stdout: "Preview app does not have access to write operation"
   perms0204: # Update preview perms
-    command: ../clace app update preview-write-access "/perms*" true
+    command: ../clace app update-settings preview-write-access "/perms*" true
   perms0205: # test preview app
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec
     stdout: "Disk Usage"

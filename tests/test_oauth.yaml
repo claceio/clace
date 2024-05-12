@@ -15,7 +15,7 @@ tests:
       exactly: '<a href="/_clace/auth/github_test">Temporary Redirect</a>.' # redirect to the auth url
 
   oauth0031: # update app to no auth
-    command: ../clace app update auth /oauth1 none
+    command: ../clace app update-settings auth /oauth1 none
 
   oauth0032: # check curl
     command: curl localhost:25222/oauth1
@@ -37,7 +37,7 @@ tests:
     exit-code: 1
 
   oauth0070: # update app to invalid
-    command: ../clace app update auth /oauth1 abc
+    command: ../clace app update-settings auth /oauth1 abc
     stderr: "error: invalid authentication type abc"
     exit-code: 1
 

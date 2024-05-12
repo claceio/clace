@@ -89,7 +89,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 		Version: 0,
 	}
 
-	appEntry.Settings.Type = appRequest.Type // validated in createApp
+	appEntry.Metadata.Type = appRequest.Type // validated in createApp
 	appEntry.Metadata.ParamValues = appRequest.ParamValues
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
@@ -132,17 +132,17 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + id.String())
 	}
 
-	if appEntry.Settings.Type != "" {
+	if appEntry.Metadata.Type != "" {
 		var appFiles types.TypeFiles
 		var ok bool
-		if appFiles, ok = appTypes[string(appEntry.Settings.Type)]; !ok {
-			return nil, fmt.Errorf("invalid app type %s", appEntry.Settings.Type)
+		if appFiles, ok = appTypes[string(appEntry.Metadata.Type)]; !ok {
+			return nil, fmt.Errorf("invalid app type %s", appEntry.Metadata.Type)
 		}
 
-		appEntry.Settings.TypeFiles = &appFiles
+		appEntry.Metadata.TypeFiles = &appFiles
 	} else {
 		tf := make(types.TypeFiles)
-		appEntry.Settings.TypeFiles = &tf
+		appEntry.Metadata.TypeFiles = &tf
 	}
 
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
@@ -240,7 +240,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 	if !appEntry.IsDev {
 		// Prod mode, use DB as source
 		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
-		dbFs, err := metadata.NewDbFs(s.Logger, fileStore, *appEntry.Settings.TypeFiles)
+		dbFs, err := metadata.NewDbFs(s.Logger, fileStore, *appEntry.Metadata.TypeFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +252,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 		// Dev mode, use local disk as source
 		var err error
 		sourceFS, err = appfs.NewSourceFs(appEntry.SourceUrl,
-			&appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appEntry.SourceUrl, *appEntry.Settings.TypeFiles)},
+			&appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appEntry.SourceUrl, *appEntry.Metadata.TypeFiles)},
 			appEntry.IsDev)
 		if err != nil {
 			return nil, err
@@ -262,7 +262,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
 	workFS := appfs.NewWorkFs(appPath,
 		&appfs.DiskWriteFS{
-			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Settings.TypeFiles),
+			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.TypeFiles),
 		})
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins)
 

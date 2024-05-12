@@ -59,6 +59,17 @@ func CreateUpdateAppRequest() UpdateAppRequest {
 	}
 }
 
+// UpdateAppMetdataRequest is the request body for updating an app metadata
+type UpdateAppMetadataRequest struct {
+	Type StringValue `json:"type"`
+}
+
+func CreateUpdateAppMetadataRequest() UpdateAppRequest {
+	return UpdateAppRequest{
+		Type: StringValueUndefined,
+	}
+}
+
 // ApproveResult represents the result of an app approval audit
 type ApproveResult struct {
 	Id                  AppId         `json:"id"`
@@ -125,6 +136,12 @@ type AppPreviewResponse struct {
 }
 
 type AppLinkAccountResponse struct {
+	DryRun              bool            `json:"dry_run"`
+	StagedUpdateResults []AppPathDomain `json:"staged_update_results"`
+	PromoteResults      []AppPathDomain `json:"promote_results"`
+}
+
+type AppUpdateMetadataResponse struct {
 	DryRun              bool            `json:"dry_run"`
 	StagedUpdateResults []AppPathDomain `json:"staged_update_results"`
 	PromoteResults      []AppPathDomain `json:"promote_results"`

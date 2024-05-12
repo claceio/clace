@@ -473,6 +473,36 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
+	pathSpec := r.URL.Query().Get("pathSpec")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if pathSpec == "" {
+		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	}
+
+	var updateAppRequest types.UpdateAppMetadataRequest
+	err = json.NewDecoder(r.Body).Decode(&updateAppRequest)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	args := map[string]any{
+		"metadata": updateAppRequest,
+	}
+
+	updateResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.updateMetadataHandler, args)
+	return updateResult, err
+
+}
+
 func (h *Handler) versionList(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
@@ -568,6 +598,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to update app settings
 	r.Post("/app_settings", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.updateAppSettings)
+	}))
+
+	// API to update app metadata
+	r.Post("/app_metadata", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.updateAppMetadata)
 	}))
 
 	// API to change account links

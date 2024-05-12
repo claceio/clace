@@ -41,6 +41,7 @@ func initAppCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *c
 			appReloadCommand(commonFlags, clientConfig),
 			appPromoteCommand(commonFlags, clientConfig),
 			appUpdateSettingsCommand(commonFlags, clientConfig),
+			appUpdateMetadataCommand(commonFlags, clientConfig),
 		},
 	}
 }

@@ -210,16 +210,16 @@ tests:
     command: ../clace app delete --dry-run "/reload_local*"
     stdout: "dry-run mode"
   reload067: # Update stage-write-access dryrun
-    command: ../clace app update stage-write-access --dry-run "/reload_local*" true
+    command: ../clace app update-settings stage-write-access --dry-run "/reload_local*" true
     stdout: "dry-run mode"
   reload068: # Update preview write access dryrun
-    command: ../clace app update preview-write-access --dry-run "/reload_local*" true
+    command: ../clace app update-settings preview-write-access --dry-run "/reload_local*" true
     stdout: "dry-run mode"
   reload069: # Update git-auth dryrun
-    command: ../clace app update git-auth --dry-run "/reload_local*" testgit
+    command: ../clace app update-settings git-auth --dry-run "/reload_local*" testgit
     stdout: "dry-run mode"
   reload070: # Delete auth dryrun
-    command: ../clace app update auth --dry-run "/reload_local*" none
+    command: ../clace app update-settings auth --dry-run "/reload_local*" none
     stdout: "dry-run mode"
   reload071: # Save stdout
     command: "../clace app list -i -f jsonl all > dryrun_out2.log"

@@ -463,17 +463,6 @@ func (s *Server) updateAppSettings(ctx context.Context, tx types.Transaction, ap
 			}
 		}
 
-		if updateAppRequest.Type != types.StringValueUndefined {
-			var appFiles types.TypeFiles
-			var ok bool
-			if appFiles, ok = appTypes[string(updateAppRequest.Type)]; !ok {
-				return nil, fmt.Errorf("invalid app type %s", updateAppRequest.Type)
-			}
-
-			linkedApp.Settings.Type = types.AppType(updateAppRequest.Type)
-			linkedApp.Settings.TypeFiles = &appFiles
-		}
-
 		if err := s.db.UpdateAppSettings(ctx, tx, linkedApp); err != nil {
 			return nil, err
 		}
@@ -535,6 +524,27 @@ func (s *Server) updateParamHandler(ctx context.Context, tx types.Transaction, a
 	} else {
 		// Update existing value
 		appEntry.Metadata.ParamValues[paramName] = paramValue
+	}
+
+	appPathDomain := appEntry.AppPathDomain()
+	return appPathDomain, appPathDomain, nil
+}
+
+func (s *Server) updateMetadataHandler(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
+	updateMetadata := args["metadata"].(types.UpdateAppMetadataRequest)
+
+	if updateMetadata.Type != types.StringValueUndefined {
+		// The type is being updated
+		appFiles := make(types.TypeFiles)
+		var ok bool
+		if updateMetadata.Type != "" {
+			if appFiles, ok = appTypes[string(updateMetadata.Type)]; !ok {
+				return nil, appEntry.AppPathDomain(), fmt.Errorf("invalid app type %s", updateMetadata.Type)
+			}
+		}
+
+		appEntry.Metadata.Type = types.AppType(updateMetadata.Type)
+		appEntry.Metadata.TypeFiles = &appFiles
 	}
 
 	appPathDomain := appEntry.AppPathDomain()

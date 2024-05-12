@@ -250,6 +250,8 @@ type AppMetadata struct {
 	Permissions     []Permission      `json:"permissions"`
 	Accounts        []AccountLink     `json:"accounts"`
 	ParamValues     map[string]string `json:"param_values"`
+	Type            AppType           `json:"type"`
+	TypeFiles       *TypeFiles        `json:"type_files"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
@@ -258,8 +260,6 @@ type AppSettings struct {
 	GitAuthName        string       `json:"git_auth_name"`
 	StageWriteAccess   bool         `json:"stage_write_access"`
 	PreviewWriteAccess bool         `json:"preview_write_access"`
-	Type               AppType      `json:"type"`
-	TypeFiles          *TypeFiles   `json:"type_files"`
 }
 
 // TypeFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text
