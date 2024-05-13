@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 
 	"github.com/urfave/cli/v2"
 
@@ -67,7 +68,7 @@ func globalFlags(globalConfig *types.GlobalConfig, clientConfig *types.ClientCon
 }
 
 func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
-	filePath := os.ExpandEnv("$CL_HOME/clace.toml")
+	filePath := path.Clean(os.ExpandEnv("$CL_HOME/clace.toml"))
 	if cCtx.IsSet(configFileFlagName) {
 		filePath = cCtx.String(configFileFlagName)
 	}

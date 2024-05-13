@@ -535,12 +535,14 @@ func (s *Server) updateMetadataHandler(ctx context.Context, tx types.Transaction
 
 	if updateMetadata.Type != types.StringValueUndefined {
 		// The type is being updated
-		appFiles := make(types.TypeFiles)
-		var ok bool
+		var appFiles types.TypeFiles
 		if updateMetadata.Type != "" {
-			if appFiles, ok = appTypes[string(updateMetadata.Type)]; !ok {
+			appFiles = s.GetAppType(types.AppType(updateMetadata.Type))
+			if appFiles == nil {
 				return nil, appEntry.AppPathDomain(), fmt.Errorf("invalid app type %s", updateMetadata.Type)
 			}
+		} else {
+			appFiles = make(types.TypeFiles)
 		}
 
 		appEntry.Metadata.Type = types.AppType(updateMetadata.Type)

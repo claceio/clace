@@ -53,12 +53,12 @@ func init() {
 	appTypes = make(map[string]types.TypeFiles)
 	entries, err := embedAppTypes.ReadDir("app_types")
 	if err != nil {
-		panic(err)
+		return
 	}
 
 	for _, dir := range entries {
 		// Loop through all directories in app_types, each is a app_type
-		if !dir.IsDir() {
+		if !dir.IsDir() || strings.HasPrefix(dir.Name(), ".") || dir.Name() == "dummy" {
 			continue
 		}
 		files, err := embedAppTypes.ReadDir(path.Join("app_types", dir.Name()))
@@ -81,39 +81,31 @@ func init() {
 
 		appTypes[dir.Name()] = appType
 	}
+}
 
+func (s *Server) GetAppType(name types.AppType) types.TypeFiles {
 	// Add custom app type config from conf folder
-	entries, err = os.ReadDir(os.ExpandEnv("$CL_HOME/config/app_types"))
+	entries, err := os.ReadDir(path.Clean(os.ExpandEnv(path.Join("$CL_HOME/config/app_types/", string(name)))))
 	if err != nil {
-		return
+		// Use bundled app if present
+		return appTypes[string(name)]
 	}
 
-	for _, dir := range entries {
-		// Loop through all directories in app_types, each is a app_type
-		if !dir.IsDir() {
+	newAppType := make(types.TypeFiles)
+	for _, file := range entries {
+		// Loop through all files in the app_type directory
+		if file.IsDir() {
 			continue
 		}
-		files, err := os.ReadDir(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), dir.Name()))
+		data, err := os.ReadFile(path.Clean(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), string(name), file.Name())))
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file %s : %s\n", file.Name(), err)
 			continue
 		}
-
-		appType := make(types.TypeFiles)
-		for _, file := range files {
-			// Loop through all files in the app_type directory
-			if file.IsDir() {
-				continue
-			}
-			data, err := os.ReadFile(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), dir.Name(), file.Name()))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading file %s : %s\n", file.Name(), err)
-				continue
-			}
-			appType[file.Name()] = string(data)
-		}
-
-		appTypes[dir.Name()] = appType
+		newAppType[file.Name()] = string(data)
 	}
+
+	return newAppType
 }
 
 // Server is the instance of the Clace Server

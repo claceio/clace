@@ -1,0 +1,2 @@
+Dummy file to enable fs embed when app_types repo is not checked out here.
+For release build, the https://github.com/claceio/app_types repo will be checked out here.

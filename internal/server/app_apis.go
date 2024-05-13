@@ -133,9 +133,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	}
 
 	if appEntry.Metadata.Type != "" {
-		var appFiles types.TypeFiles
-		var ok bool
-		if appFiles, ok = appTypes[string(appEntry.Metadata.Type)]; !ok {
+		appFiles := s.GetAppType(appEntry.Metadata.Type)
+		if appFiles == nil {
 			return nil, fmt.Errorf("invalid app type %s", appEntry.Metadata.Type)
 		}
 
