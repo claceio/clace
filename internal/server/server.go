@@ -32,12 +32,13 @@ import (
 const (
 	DEFAULT_CERT_FILE = "default.crt"
 	DEFAULT_KEY_FILE  = "default.key"
+	APP_BLUEPRINTS    = "app_blueprints"
 )
 
 // CL_HOME is the root directory for Clace logs and temp files
 var CL_HOME = os.ExpandEnv("$CL_HOME")
 
-//go:embed app_types
+//go:embed app_blueprints
 var embedAppTypes embed.FS
 
 var appTypes map[string]types.TypeFiles
@@ -51,17 +52,17 @@ func init() {
 
 	// Read app type config embedded in the binary
 	appTypes = make(map[string]types.TypeFiles)
-	entries, err := embedAppTypes.ReadDir("app_types")
+	entries, err := embedAppTypes.ReadDir(APP_BLUEPRINTS)
 	if err != nil {
 		return
 	}
 
 	for _, dir := range entries {
-		// Loop through all directories in app_types, each is a app_type
+		// Loop through all directories in blueprints, each is a app type
 		if !dir.IsDir() || strings.HasPrefix(dir.Name(), ".") || dir.Name() == "dummy" {
 			continue
 		}
-		files, err := embedAppTypes.ReadDir(path.Join("app_types", dir.Name()))
+		files, err := embedAppTypes.ReadDir(path.Join(APP_BLUEPRINTS, dir.Name()))
 		if err != nil {
 			panic(err)
 		}
@@ -72,7 +73,7 @@ func init() {
 			if file.IsDir() {
 				continue
 			}
-			data, err := embedAppTypes.ReadFile(path.Join("app_types", dir.Name(), file.Name()))
+			data, err := embedAppTypes.ReadFile(path.Join(APP_BLUEPRINTS, dir.Name(), file.Name()))
 			if err != nil {
 				panic(err)
 			}
@@ -85,7 +86,9 @@ func init() {
 
 func (s *Server) GetAppType(name types.AppType) types.TypeFiles {
 	// Add custom app type config from conf folder
-	entries, err := os.ReadDir(path.Clean(os.ExpandEnv(path.Join("$CL_HOME/config/app_types/", string(name)))))
+
+	customBlueprintsDir := path.Clean((path.Join(os.ExpandEnv("$CL_HOME/config"), APP_BLUEPRINTS, string(name))))
+	entries, err := os.ReadDir(customBlueprintsDir)
 	if err != nil {
 		// Use bundled app if present
 		return appTypes[string(name)]
@@ -97,7 +100,7 @@ func (s *Server) GetAppType(name types.AppType) types.TypeFiles {
 		if file.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(path.Clean(path.Join(os.ExpandEnv("$CL_HOME/config/app_types"), string(name), file.Name())))
+		data, err := os.ReadFile(path.Join(customBlueprintsDir, file.Name()))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading file %s : %s\n", file.Name(), err)
 			continue

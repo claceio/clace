@@ -45,8 +45,8 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	The second required argument <value> is a boolean value, true or false.
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings-settings-settings-settings-settings-settings-settings stage-write-access all true
-	  Update apps in the example.com domain: clace app stage-write-access "example.com:**" false`,
+	  Update all apps, across domains: clace app update-settings stage-write-access all true
+	  Update apps in the example.com domain: clace app update-settings stage-write-access "example.com:**" false`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
@@ -107,8 +107,8 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 	The second required argument <value> is a boolean value, true or false.
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings-settings-settings preview-write-access all true
-	  Update apps in the example.com domain: clace app update-settings-settings preview-write-access "example.com:**" false`,
+	  Update all apps, across domains: clace app update-settings preview-write-access all true
+	  Update apps in the example.com domain: clace app update-settings preview-write-access "example.com:**" false`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
@@ -158,7 +158,7 @@ func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 
 	return &cli.Command{
 		Name:      "auth",
-		Usage:     "Update authentication type for apps",
+		Usage:     "Update authentication mode for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<pathSpec> <value:default|none>",
@@ -169,7 +169,7 @@ First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 The second required argument <value> is a string, default or none.
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings-settings auth all default
+	  Update all apps, across domains: clace app update-settings auth all default
 	  Update apps in the example.com domain: clace app update-settings auth "example.com:**" none`,
 
 		Action: func(cCtx *cli.Context) error {
