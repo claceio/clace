@@ -32,34 +32,44 @@ type Manager struct {
 }
 
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
-	systemConfig *types.SystemConfig, port int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) (*Manager, error) {
+	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) (*Manager, error) {
 
-	if port == 0 {
-		data, err := sourceFS.ReadFile(containerFile)
-		if err != nil {
-			return nil, fmt.Errorf("error reading container file %s : %w", containerFile, err)
-		}
+	data, err := sourceFS.ReadFile(containerFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading container file %s : %w", containerFile, err)
+	}
 
-		result, err := parser.Parse(bytes.NewReader(data))
-		if err != nil {
-			return nil, fmt.Errorf("error parsing container file %s : %w", containerFile, err)
-		}
+	result, err := parser.Parse(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing container file %s : %w", containerFile, err)
+	}
 
-		// Loop through the parsed result to find the EXPOSE instruction
-		for _, child := range result.AST.Children {
-			if strings.ToUpper(child.Value) == "EXPOSE" {
-				portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
-				if err != nil {
-					return nil, fmt.Errorf("error parsing port: %w", err)
-				}
-				port = int64(portVal)
-				logger.Debug().Msgf("Found EXPOSE port %d in container file %s", port, containerFile)
-				break
+	var filePort int64
+	volumes := []string{}
+	// Loop through the parsed result to find the EXPOSE and VOLUME instructions
+	for _, child := range result.AST.Children {
+		switch strings.ToUpper(child.Value) {
+		case "EXPOSE":
+			portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
+			if err != nil {
+				return nil, fmt.Errorf("error parsing port: %w", err)
 			}
+			filePort = int64(portVal)
+			logger.Debug().Msgf("Found EXPOSE port %d in container file %s", filePort, containerFile)
+		case "VOLUME":
+			v := extractVolumes(child)
+			volumes = append(volumes, v...)
 		}
 	}
 
-	if port == 0 {
+	logger.Debug().Msgf("Found volumes %v in container file %s", volumes, containerFile)
+
+	if configPort == 0 {
+		// No port configured in app config, use the one from the container file
+		configPort = filePort
+	}
+
+	if configPort == 0 {
 		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
 			"add a EXPOSE directive in Containerfile/Dockerfile or add port in app config", containerFile)
 	}
@@ -69,12 +79,31 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		appEntry:      appEntry,
 		containerFile: containerFile,
 		systemConfig:  systemConfig,
-		port:          port,
+		port:          configPort,
 		lifetime:      lifetime,
 		scheme:        scheme,
 		health:        health,
 		sourceFS:      sourceFS,
 	}, nil
+}
+
+func extractVolumes(node *parser.Node) []string {
+	ret := []string{}
+	for node.Next != nil {
+		node = node.Next
+		ret = append(ret, stripQuotes(node.Value))
+	}
+	return ret
+}
+
+func stripQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
+		return s[1 : len(s)-1]
+	}
+	return s
 }
 
 func (m *Manager) GetProxyUrl() string {
