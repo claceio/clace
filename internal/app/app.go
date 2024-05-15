@@ -30,12 +30,6 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-const (
-	CONTAINER_SOURCE_AUTO         = "auto"
-	CONTAINER_SOURCE_NIXPACKS     = "nixpacks"
-	CONTAINER_SOURCE_IMAGE_PREFIX = "image:"
-)
-
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger
@@ -314,26 +308,9 @@ const (
 )
 
 func (a *App) loadContainerManager() error {
-	var fileName string
-	var cfErr, dfErr error
-
-	_, cfErr = a.sourceFS.Stat(CONTAINERFILE)
-	if cfErr == nil {
-		fileName = CONTAINERFILE
-	} else {
-		_, dfErr = a.sourceFS.Stat(DOCKERFILE)
-		fileName = DOCKERFILE
-	}
-
-	if cfErr != nil && dfErr != nil {
-		// No container files found, skip
-		return nil
-	}
-
 	containerConfig, err := a.appDef.Attr("container")
 	if err != nil || containerConfig == starlark.None {
 		// Plugin not authorized, skip any container files
-		a.Debug().Msg("Container config not defined, skipping container initialization")
 		return nil
 	}
 
@@ -379,6 +356,11 @@ func (a *App) loadContainerManager() error {
 		return fmt.Errorf("container config is not valid type")
 	}
 
+	src, err := apptype.GetStringAttr(configAttr, "Source")
+	if err != nil {
+		return fmt.Errorf("error reading source: %w", err)
+	}
+
 	port, err := apptype.GetIntAttr(configAttr, "Port")
 	if err != nil {
 		return fmt.Errorf("error reading port: %w", err)
@@ -396,6 +378,28 @@ func (a *App) loadContainerManager() error {
 	health, err := apptype.GetStringAttr(configAttr, "Health")
 	if err != nil {
 		return fmt.Errorf("error reading health: %w", err)
+	}
+
+	// Parse the source file specification
+	var fileName string
+	switch src {
+	case types.CONTAINER_SOURCE_AUTO:
+		if _, cfErr := a.sourceFS.Stat(CONTAINERFILE); cfErr == nil {
+			fileName = CONTAINERFILE
+		} else {
+			if _, dErr := a.sourceFS.Stat(DOCKERFILE); dErr == nil {
+				fileName = DOCKERFILE
+			}
+		}
+	case types.CONTAINER_SOURCE_NIXPACKS:
+		return fmt.Errorf("nixpacks container source not supported yet")
+	default:
+		// Custom container file (or image name prefixed with image:)
+		fileName = src
+	}
+
+	if fileName == "" {
+		return fmt.Errorf("no container file found, source is set to %s", src)
 	}
 
 	a.containerManager, err = container.NewContainerManager(a.Logger, a.AppEntry, fileName, a.systemConfig, port, lifetime, scheme, health, a.sourceFS)

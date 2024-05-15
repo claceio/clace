@@ -23,6 +23,7 @@ type Manager struct {
 	appEntry      *types.AppEntry
 	systemConfig  *types.SystemConfig
 	containerFile string
+	image         string
 	port          int64
 	hostPort      int
 	lifetime      string
@@ -34,50 +35,58 @@ type Manager struct {
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
 	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) (*Manager, error) {
 
-	data, err := sourceFS.ReadFile(containerFile)
-	if err != nil {
-		return nil, fmt.Errorf("error reading container file %s : %w", containerFile, err)
-	}
-
-	result, err := parser.Parse(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("error parsing container file %s : %w", containerFile, err)
-	}
-
-	var filePort int64
-	volumes := []string{}
-	// Loop through the parsed result to find the EXPOSE and VOLUME instructions
-	for _, child := range result.AST.Children {
-		switch strings.ToUpper(child.Value) {
-		case "EXPOSE":
-			portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
-			if err != nil {
-				return nil, fmt.Errorf("error parsing port: %w", err)
-			}
-			filePort = int64(portVal)
-			logger.Debug().Msgf("Found EXPOSE port %d in container file %s", filePort, containerFile)
-		case "VOLUME":
-			v := extractVolumes(child)
-			volumes = append(volumes, v...)
+	image := ""
+	if strings.HasPrefix(containerFile, types.CONTAINER_SOURCE_IMAGE_PREFIX) {
+		// Using an image
+		image = containerFile[len(types.CONTAINER_SOURCE_IMAGE_PREFIX):]
+	} else {
+		// Using a container file
+		data, err := sourceFS.ReadFile(containerFile)
+		if err != nil {
+			return nil, fmt.Errorf("error reading container file %s : %w", containerFile, err)
 		}
-	}
 
-	logger.Debug().Msgf("Found volumes %v in container file %s", volumes, containerFile)
+		result, err := parser.Parse(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("error parsing container file %s : %w", containerFile, err)
+		}
 
-	if configPort == 0 {
-		// No port configured in app config, use the one from the container file
-		configPort = filePort
+		var filePort int64
+		volumes := []string{}
+		// Loop through the parsed result to find the EXPOSE and VOLUME instructions
+		for _, child := range result.AST.Children {
+			switch strings.ToUpper(child.Value) {
+			case "EXPOSE":
+				portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
+				if err != nil {
+					return nil, fmt.Errorf("error parsing port: %w", err)
+				}
+				filePort = int64(portVal)
+				logger.Debug().Msgf("Found EXPOSE port %d in container file %s", filePort, containerFile)
+			case "VOLUME":
+				v := extractVolumes(child)
+				volumes = append(volumes, v...)
+			}
+		}
+
+		logger.Debug().Msgf("Found volumes %v in container file %s", volumes, containerFile)
+
+		if configPort == 0 {
+			// No port configured in app config, use the one from the container file
+			configPort = filePort
+		}
 	}
 
 	if configPort == 0 {
 		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
-			"add a EXPOSE directive in Containerfile/Dockerfile or add port in app config", containerFile)
+			"add a EXPOSE directive in %s or add port number in app config", containerFile, containerFile)
 	}
 
 	return &Manager{
 		Logger:        logger,
 		appEntry:      appEntry,
 		containerFile: containerFile,
+		image:         image,
 		systemConfig:  systemConfig,
 		port:          configPort,
 		lifetime:      lifetime,
@@ -115,7 +124,10 @@ func (m *Manager) GetHealthUrl() string {
 }
 
 func (m *Manager) DevReload() error {
-	imageName := GenImageName(string(m.appEntry.Id))
+	var imageName ImageName = ImageName(m.image)
+	if imageName == "" {
+		imageName = GenImageName(string(m.appEntry.Id))
+	}
 	containerName := GenContainerName(string(m.appEntry.Id))
 
 	containers, err := GetContainers(m.systemConfig, containerName, false)
@@ -130,11 +142,14 @@ func (m *Manager) DevReload() error {
 		}
 	}
 
-	_ = RemoveImage(m.systemConfig, imageName)
+	if m.image == "" {
+		// Using a container file, rebuild the image
+		_ = RemoveImage(m.systemConfig, imageName)
 
-	err = BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
-	if err != nil {
-		return fmt.Errorf("error building image: %w", err)
+		err = BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
+		if err != nil {
+			return fmt.Errorf("error building image: %w", err)
+		}
 	}
 
 	_ = RemoveContainer(m.systemConfig, containerName)
@@ -191,7 +206,12 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 	if err != nil {
 		return fmt.Errorf("error getting file hash: %w", err)
 	}
-	imageName := GenImageName(sourceHash)
+
+	var imageName ImageName = ImageName(m.image)
+	if imageName == "" {
+		imageName = GenImageName(sourceHash)
+	}
+
 	containerName := GenContainerName(sourceHash)
 
 	containers, err := GetContainers(m.systemConfig, containerName, true)
@@ -214,26 +234,29 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 		return nil
 	}
 
-	images, err := GetImages(m.systemConfig, imageName)
-	if err != nil {
-		return fmt.Errorf("error getting images: %w", err)
-	}
-
-	if len(images) == 0 {
-		tempDir, err := m.sourceFS.CreateTempSourceDir()
+	if m.image == "" {
+		// Using a container file, build the image if required
+		images, err := GetImages(m.systemConfig, imageName)
 		if err != nil {
-			return fmt.Errorf("error creating temp source dir: %w", err)
+			return fmt.Errorf("error getting images: %w", err)
 		}
 
-		buildErr := BuildImage(m.systemConfig, imageName, tempDir, m.containerFile)
+		if len(images) == 0 {
+			tempDir, err := m.sourceFS.CreateTempSourceDir()
+			if err != nil {
+				return fmt.Errorf("error creating temp source dir: %w", err)
+			}
 
-		// Cleanup temp dir after image has been built (even if build failed)
-		if err = os.RemoveAll(tempDir); err != nil {
-			return fmt.Errorf("error removing temp source dir: %w", err)
-		}
+			buildErr := BuildImage(m.systemConfig, imageName, tempDir, m.containerFile)
 
-		if buildErr != nil {
-			return fmt.Errorf("error building image: %w", buildErr)
+			// Cleanup temp dir after image has been built (even if build failed)
+			if err = os.RemoveAll(tempDir); err != nil {
+				return fmt.Errorf("error removing temp source dir: %w", err)
+			}
+
+			if buildErr != nil {
+				return fmt.Errorf("error building image: %w", buildErr)
+			}
 		}
 	}
 

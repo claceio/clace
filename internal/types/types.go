@@ -31,6 +31,12 @@ const (
 	TL_PLUGIN_API_FAILED_ERROR  = "TL_plugin_api_failed_error"
 )
 
+const (
+	CONTAINER_SOURCE_AUTO         = "auto"
+	CONTAINER_SOURCE_NIXPACKS     = "nixpacks"
+	CONTAINER_SOURCE_IMAGE_PREFIX = "image:"
+)
+
 // Config entries shared between client and server
 type GlobalConfig struct {
 	ConfigFile string `toml:"config_file"`

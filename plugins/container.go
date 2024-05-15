@@ -19,9 +19,9 @@ func init() {
 	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApi(h.Config, app.READ), // config API
 		app.CreatePluginConstant("URL", starlark.String(apptype.CONTAINER_URL)),
-		app.CreatePluginConstant("AUTO", starlark.String(app.CONTAINER_SOURCE_AUTO)),
-		app.CreatePluginConstant("NIXPACKS", starlark.String(app.CONTAINER_SOURCE_NIXPACKS)),
-		app.CreatePluginConstant("IMAGE_PREFIX", starlark.String(app.CONTAINER_SOURCE_IMAGE_PREFIX)),
+		app.CreatePluginConstant("AUTO", starlark.String(types.CONTAINER_SOURCE_AUTO)),
+		app.CreatePluginConstant("NIXPACKS", starlark.String(types.CONTAINER_SOURCE_NIXPACKS)),
+		app.CreatePluginConstant("IMAGE_PREFIX", starlark.String(types.CONTAINER_SOURCE_IMAGE_PREFIX)),
 	}
 	app.RegisterPlugin("container", NewContainerPlugin, pluginFuncs)
 }
@@ -34,9 +34,9 @@ func NewContainerPlugin(pluginContext *types.PluginContext) (any, error) {
 }
 
 func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var src, lifetime, scheme, health starlark.String
+	var src, lifetime, scheme, health, buildDir starlark.String
 	var port starlark.Int
-	if err := starlark.UnpackArgs("config", args, kwargs, "src?", &src, "port?", &port, "scheme?", &scheme, "health?", &health, "lifetime?", &lifetime); err != nil {
+	if err := starlark.UnpackArgs("config", args, kwargs, "src?", &src, "port?", &port, "scheme?", &scheme, "health?", &health, "lifetime?", &lifetime, "build_dir?", &buildDir); err != nil {
 		return nil, err
 	}
 	portInt, ok := port.Int64()
@@ -50,6 +50,7 @@ func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Buil
 		Port:     int(portInt),
 		Schema:   cmp.Or(string(scheme), "http"),
 		Health:   cmp.Or(string(health), "/"),
+		BuildDir: string(buildDir),
 	}, nil
 }
 
@@ -61,6 +62,7 @@ type ContainerConfig struct {
 	Port     int
 	Schema   string
 	Health   string
+	BuildDir string // directory to use for build context
 }
 
 func (p ContainerConfig) Attr(name string) (starlark.Value, error) {
@@ -75,17 +77,19 @@ func (p ContainerConfig) Attr(name string) (starlark.Value, error) {
 		return starlark.String(p.Schema), nil
 	case "Health":
 		return starlark.String(p.Health), nil
+	case "BuildDir":
+		return starlark.String(p.BuildDir), nil
 	default:
 		return starlark.None, fmt.Errorf("container config has no attribute '%s'", name)
 	}
 }
 
 func (p ContainerConfig) AttrNames() []string {
-	return []string{"Source", "Lifetime", "Port", "Scheme", "Health"}
+	return []string{"Source", "Lifetime", "Port", "Scheme", "Health", "BuildDir"}
 }
 
 func (p ContainerConfig) String() string {
-	return fmt.Sprintf("%s %d %s", p.Source, p.Port, p.Lifetime)
+	return fmt.Sprintf("%s %d %s %s", p.Source, p.Port, p.Lifetime, p.BuildDir)
 }
 
 func (p ContainerConfig) Type() string {
@@ -96,11 +100,12 @@ func (p ContainerConfig) Freeze() {
 }
 
 func (p ContainerConfig) Truth() starlark.Bool {
-	return p.Lifetime != ""
+	return p.Source != ""
 }
 
 func (p ContainerConfig) Hash() (uint32, error) {
-	return starlark.Tuple{starlark.String(p.Source), starlark.String(p.Lifetime), starlark.MakeInt(p.Port), starlark.String(p.Schema), starlark.String(p.Health)}.Hash()
+	return starlark.Tuple{starlark.String(p.Source), starlark.String(p.Lifetime), starlark.MakeInt(p.Port),
+		starlark.String(p.Schema), starlark.String(p.Health), starlark.String(p.BuildDir)}.Hash()
 }
 
 var _ starlark.Value = (*ContainerConfig)(nil)
