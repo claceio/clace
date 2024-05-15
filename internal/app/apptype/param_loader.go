@@ -106,6 +106,21 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			return nil, fmt.Errorf("unknown type %s for %s", typeVal, name)
 		}
 
+		if required == starlark.False && defaultValue == starlark.None {
+			switch typeVal {
+			case starlark_type.INT:
+				defaultValue = starlark.MakeInt(0)
+			case starlark_type.STRING:
+				defaultValue = starlark.String("")
+			case starlark_type.BOOLEAN:
+				defaultValue = starlark.Bool(false)
+			case starlark_type.DICT:
+				defaultValue = starlark.NewDict(0)
+			case starlark_type.LIST:
+				defaultValue = starlark.NewList(nil)
+			}
+		}
+
 		definedParams[string(name)] = AppParam{
 			Name:         string(name),
 			Type:         typeVal,
