@@ -40,15 +40,27 @@ func genLowerCaseId(name string) string {
 	return strings.ToLower(base32encoder.EncodeToString([]byte(name)))
 }
 
-func GenContainerName(name string) ContainerName {
-	return ContainerName("clc" + genLowerCaseId(name))
+func GenContainerName(appId types.AppId, contentHash string) ContainerName {
+	if contentHash == "" {
+		return ContainerName(fmt.Sprintf("clc-%s", appId))
+	} else {
+		return ContainerName(fmt.Sprintf("clc-%s-%s", appId, genLowerCaseId(contentHash)))
+	}
 }
 
-func GenImageName(name string) ImageName {
-	return ImageName("cli" + genLowerCaseId(name))
+func GenImageName(appId types.AppId, contentHash string) ImageName {
+	if contentHash == "" {
+		return ImageName(fmt.Sprintf("cli-%s", appId))
+	} else {
+		return ImageName(fmt.Sprintf("cli-%s-%s", appId, genLowerCaseId(contentHash)))
+	}
 }
 
-func RemoveImage(config *types.SystemConfig, name ImageName) error {
+type ContainerCommand struct {
+	*types.Logger
+}
+
+func (c ContainerCommand) RemoveImage(config *types.SystemConfig, name ImageName) error {
 	cmd := exec.Command(config.ContainerCommand, "rmi", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -58,7 +70,8 @@ func RemoveImage(config *types.SystemConfig, name ImageName) error {
 	return nil
 }
 
-func BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, containerFile string) error {
+func (c ContainerCommand) BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, containerFile string) error {
+	c.Debug().Msgf("Building image %s from %s with %s", name, containerFile, sourceUrl)
 	cmd := exec.Command(config.ContainerCommand, "build", "-t", string(name), "-f", containerFile, ".")
 	cmd.Dir = sourceUrl
 	output, err := cmd.CombinedOutput()
@@ -69,7 +82,8 @@ func BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, container
 	return nil
 }
 
-func RemoveContainer(config *types.SystemConfig, name ContainerName) error {
+func (c ContainerCommand) RemoveContainer(config *types.SystemConfig, name ContainerName) error {
+	c.Debug().Msgf("Removing container %s", name)
 	cmd := exec.Command(config.ContainerCommand, "rm", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -79,7 +93,8 @@ func RemoveContainer(config *types.SystemConfig, name ContainerName) error {
 	return nil
 }
 
-func GetContainers(config *types.SystemConfig, name ContainerName, getAll bool) ([]Container, error) {
+func (c ContainerCommand) GetContainers(config *types.SystemConfig, name ContainerName, getAll bool) ([]Container, error) {
+	c.Debug().Msgf("Getting containers with name %s, getAll %t", name, getAll)
 	args := []string{"ps", "--format", "json"}
 	if name != "" {
 		args = append(args, "--filter", fmt.Sprintf("name=%s", name))
@@ -96,6 +111,7 @@ func GetContainers(config *types.SystemConfig, name ContainerName, getAll bool) 
 
 	resp := []Container{}
 	if len(output) == 0 {
+		c.Debug().Msg("No containers found")
 		return resp, nil
 	}
 
@@ -167,10 +183,13 @@ func GetContainers(config *types.SystemConfig, name ContainerName, getAll bool) 
 	} else {
 		return nil, fmt.Errorf("\"%s ps\" returned unknown output: %s", config.ContainerCommand, output)
 	}
+
+	c.Debug().Msgf("Found containers: %+v", resp)
 	return resp, nil
 }
 
-func StopContainer(config *types.SystemConfig, name ContainerName) error {
+func (c ContainerCommand) StopContainer(config *types.SystemConfig, name ContainerName) error {
+	c.Debug().Msgf("Stopping container %s", name)
 	cmd := exec.Command(config.ContainerCommand, "stop", "-t", "1", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -180,7 +199,8 @@ func StopContainer(config *types.SystemConfig, name ContainerName) error {
 	return nil
 }
 
-func StartContainer(config *types.SystemConfig, name ContainerName) error {
+func (c ContainerCommand) StartContainer(config *types.SystemConfig, name ContainerName) error {
+	c.Debug().Msgf("Starting container %s", name)
 	cmd := exec.Command(config.ContainerCommand, "start", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -192,7 +212,8 @@ func StartContainer(config *types.SystemConfig, name ContainerName) error {
 
 const LABEL_PREFIX = "io.clace."
 
-func RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName, imageName ImageName, port int64) error {
+func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName, imageName ImageName, port int64) error {
+	c.Debug().Msgf("Running container %s from image %s with port %d", containerName, imageName, port)
 	publish := fmt.Sprintf("127.0.0.1::%d", port)
 
 	args := []string{"run", "--name", string(containerName), "--detach", "--publish", publish}
@@ -209,6 +230,7 @@ func RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containe
 
 	args = append(args, string(imageName))
 
+	c.Debug().Msgf("Running container with args: %v", args)
 	cmd := exec.Command(config.ContainerCommand, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -218,7 +240,8 @@ func RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containe
 	return nil
 }
 
-func GetImages(config *types.SystemConfig, name ImageName) ([]Image, error) {
+func (c ContainerCommand) GetImages(config *types.SystemConfig, name ImageName) ([]Image, error) {
+	c.Debug().Msgf("Getting images with name %s", name)
 	args := []string{"images", "--format", "json"}
 	if name != "" {
 		args = append(args, string(name))
@@ -266,5 +289,7 @@ func GetImages(config *types.SystemConfig, name ImageName) ([]Image, error) {
 	} else {
 		return nil, fmt.Errorf("\"%s ps\" returned unknown output: %s", config.ContainerCommand, output)
 	}
+
+	c.Debug().Msgf("Found images: %+v", resp)
 	return resp, nil
 }

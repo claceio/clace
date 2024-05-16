@@ -20,6 +20,7 @@ import (
 
 type Manager struct {
 	*types.Logger
+	command       ContainerCommand
 	appEntry      *types.AppEntry
 	systemConfig  *types.SystemConfig
 	containerFile string
@@ -93,6 +94,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		scheme:        scheme,
 		health:        health,
 		sourceFS:      sourceFS,
+		command:       ContainerCommand{logger},
 	}, nil
 }
 
@@ -126,17 +128,17 @@ func (m *Manager) GetHealthUrl() string {
 func (m *Manager) DevReload() error {
 	var imageName ImageName = ImageName(m.image)
 	if imageName == "" {
-		imageName = GenImageName(string(m.appEntry.Id))
+		imageName = GenImageName(m.appEntry.Id, "")
 	}
-	containerName := GenContainerName(string(m.appEntry.Id))
+	containerName := GenContainerName(m.appEntry.Id, "")
 
-	containers, err := GetContainers(m.systemConfig, containerName, false)
+	containers, err := m.command.GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
 
 	if len(containers) != 0 {
-		err := StopContainer(m.systemConfig, containerName)
+		err := m.command.StopContainer(m.systemConfig, containerName)
 		if err != nil {
 			return fmt.Errorf("error stopping container: %w", err)
 		}
@@ -144,22 +146,22 @@ func (m *Manager) DevReload() error {
 
 	if m.image == "" {
 		// Using a container file, rebuild the image
-		_ = RemoveImage(m.systemConfig, imageName)
+		_ = m.command.RemoveImage(m.systemConfig, imageName)
 
-		err = BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
+		err = m.command.BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
 		if err != nil {
 			return fmt.Errorf("error building image: %w", err)
 		}
 	}
 
-	_ = RemoveContainer(m.systemConfig, containerName)
+	_ = m.command.RemoveContainer(m.systemConfig, containerName)
 
-	err = RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	containers, err = GetContainers(m.systemConfig, containerName, false)
+	containers, err = m.command.GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
@@ -209,12 +211,12 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 
 	var imageName ImageName = ImageName(m.image)
 	if imageName == "" {
-		imageName = GenImageName(sourceHash)
+		imageName = GenImageName(m.appEntry.Id, sourceHash)
 	}
 
-	containerName := GenContainerName(sourceHash)
+	containerName := GenContainerName(m.appEntry.Id, sourceHash)
 
-	containers, err := GetContainers(m.systemConfig, containerName, true)
+	containers, err := m.command.GetContainers(m.systemConfig, containerName, true)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
@@ -222,7 +224,7 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 	if len(containers) != 0 {
 		if containers[0].State != "running" {
 			m.Debug().Msgf("container state %s, starting", containers[0].State)
-			err = StartContainer(m.systemConfig, containerName)
+			err = m.command.StartContainer(m.systemConfig, containerName)
 			if err != nil {
 				return fmt.Errorf("error starting container: %w", err)
 			}
@@ -236,7 +238,7 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 
 	if m.image == "" {
 		// Using a container file, build the image if required
-		images, err := GetImages(m.systemConfig, imageName)
+		images, err := m.command.GetImages(m.systemConfig, imageName)
 		if err != nil {
 			return fmt.Errorf("error getting images: %w", err)
 		}
@@ -247,7 +249,7 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
 
-			buildErr := BuildImage(m.systemConfig, imageName, tempDir, m.containerFile)
+			buildErr := m.command.BuildImage(m.systemConfig, imageName, tempDir, m.containerFile)
 
 			// Cleanup temp dir after image has been built (even if build failed)
 			if err = os.RemoveAll(tempDir); err != nil {
@@ -261,12 +263,12 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 	}
 
 	// Start the container with newly built image
-	err = RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
 
-	containers, err = GetContainers(m.systemConfig, containerName, false)
+	containers, err = m.command.GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}

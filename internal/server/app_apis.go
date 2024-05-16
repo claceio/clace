@@ -115,10 +115,12 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 		}
 	}
 
-	id, err := ksuid.NewRandom()
+	genId, err := ksuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
+
+	idStr := strings.ToLower(genId.String()) // Lowercase the ID, helps use the ID in container names
 
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
@@ -127,9 +129,9 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	defer tx.Rollback()
 
 	if appEntry.IsDev {
-		appEntry.Id = types.AppId(types.ID_PREFIX_APP_DEV + id.String())
+		appEntry.Id = types.AppId(types.ID_PREFIX_APP_DEV + idStr)
 	} else {
-		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + id.String())
+		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + idStr)
 	}
 
 	if appEntry.Metadata.Type != "" {
