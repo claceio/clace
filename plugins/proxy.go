@@ -30,7 +30,9 @@ func NewProxyPlugin(pluginContext *types.PluginContext) (any, error) {
 func (h *proxyPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var url, stripPath starlark.String
 	var preserveHost starlark.Bool
-	if err := starlark.UnpackArgs("config", args, kwargs, "url", &url, "strip_path?", &stripPath, "preserve_host?", &preserveHost); err != nil {
+	var stripApp starlark.Bool = starlark.True
+	if err := starlark.UnpackArgs("config", args, kwargs, "url", &url, "strip_path?",
+		&stripPath, "preserve_host?", &preserveHost, "strip_app?", &stripApp); err != nil {
 		return nil, err
 	}
 
@@ -38,6 +40,7 @@ func (h *proxyPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin,
 		Url:          string(url),
 		StripPath:    string(stripPath),
 		PreserveHost: bool(preserveHost),
+		StripApp:     bool(stripApp),
 	}, nil
 }
 
@@ -45,6 +48,7 @@ type ProxyConfig struct {
 	Url          string
 	StripPath    string
 	PreserveHost bool
+	StripApp     bool
 }
 
 func (p ProxyConfig) Attr(name string) (starlark.Value, error) {
@@ -55,13 +59,15 @@ func (p ProxyConfig) Attr(name string) (starlark.Value, error) {
 		return starlark.String(p.StripPath), nil
 	case "PreserveHost":
 		return starlark.Bool(p.PreserveHost), nil
+	case "StripApp":
+		return starlark.Bool(p.StripApp), nil
 	default:
 		return starlark.None, fmt.Errorf("proxy config has no attribute '%s'", name)
 	}
 }
 
 func (p ProxyConfig) AttrNames() []string {
-	return []string{"Url", "StripPath", "PreserveHost"}
+	return []string{"Url", "StripPath", "PreserveHost", "StripApp"}
 }
 
 func (p ProxyConfig) String() string {
@@ -80,7 +86,7 @@ func (p ProxyConfig) Truth() starlark.Bool {
 }
 
 func (p ProxyConfig) Hash() (uint32, error) {
-	return starlark.Tuple{starlark.String(p.Url), starlark.String(p.StripPath), starlark.Bool(p.PreserveHost)}.Hash()
+	return starlark.Tuple{starlark.String(p.Url), starlark.String(p.StripPath), starlark.Bool(p.PreserveHost), starlark.Bool(p.StripApp)}.Hash()
 }
 
 var _ starlark.Value = (*ProxyConfig)(nil)

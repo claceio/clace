@@ -208,6 +208,7 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 	if a.paramInfo == nil || len(a.paramInfo) == 0 {
 		return builtin, nil
 	}
+	a.paramMap = make(map[string]string)
 
 	// Create a copy of the builtins, don't modify the original
 	newBuiltins := starlark.StringDict{}
@@ -219,6 +220,34 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 	paramDict := starlark.StringDict{}
 	for _, p := range a.paramInfo {
 		paramDict[p.Name] = p.DefaultValue
+
+		if p.DefaultValue != starlark.None {
+			switch p.Type {
+			// Set the default value in the paramMap (in the string format)
+			case starlark_type.STRING:
+				a.paramMap[p.Name] = string(p.DefaultValue.(starlark.String))
+			case starlark_type.INT:
+				intVal, ok := p.DefaultValue.(starlark.Int).Int64()
+				if !ok {
+					return nil, fmt.Errorf("param %s is not an int", p.Name)
+				}
+				a.paramMap[p.Name] = fmt.Sprintf("%d", intVal)
+			case starlark_type.BOOLEAN:
+				a.paramMap[p.Name] = strconv.FormatBool(bool(p.DefaultValue.(starlark.Bool)))
+			case starlark_type.DICT:
+			case starlark_type.LIST:
+				val, err := starlark_type.UnmarshalStarlark(p.DefaultValue)
+				if err != nil {
+					return nil, err
+				}
+				jsonVal, err := json.Marshal(val)
+				if err != nil {
+					return nil, err
+				}
+				a.paramMap[p.Name] = string(jsonVal)
+			}
+		}
+
 		valueStr, ok := a.Metadata.ParamValues[p.Name]
 		if !ok {
 			// no custom value specified
@@ -227,6 +256,7 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 			}
 			continue
 		}
+		a.paramMap[p.Name] = valueStr // Update the paramMap with the custom value
 
 		switch p.Type {
 		case starlark_type.STRING:
@@ -527,8 +557,13 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 	if preserveHostValue, err = configAttr.Attr("PreserveHost"); err != nil {
 		return rootWildcard, err
 	}
+	var stripAppValue starlark.Value
+	if stripAppValue, err = configAttr.Attr("StripApp"); err != nil {
+		return rootWildcard, err
+	}
 	urlStr := urlValue.(starlark.String).GoString()
 	preserveHost := bool(preserveHostValue.(starlark.Bool))
+	stripApp := bool(stripAppValue.(starlark.Bool))
 
 	if urlStr == apptype.CONTAINER_URL {
 		// proxying to container url
@@ -578,10 +613,7 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			p.ServeHTTP(w, r)
 		})
 	}
-
-	if stripPathStr == "" {
-		stripPathStr = a.Path // default to striping app path
-	} else {
+	if stripApp {
 		stripPathStr = path.Join(a.Path, stripPathStr)
 	}
 	router.Mount(pathStr, http.StripPrefix(stripPathStr, permsHandler(proxy)))

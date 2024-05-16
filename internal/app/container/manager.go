@@ -5,9 +5,12 @@ package container
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -31,10 +34,12 @@ type Manager struct {
 	scheme        string
 	health        string
 	sourceFS      appfs.ReadableFS
+	paramMap      map[string]string
 }
 
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
-	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS) (*Manager, error) {
+	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS,
+	paramMap map[string]string) (*Manager, error) {
 
 	image := ""
 	if strings.HasPrefix(containerFile, types.CONTAINER_SOURCE_IMAGE_PREFIX) {
@@ -95,6 +100,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		health:        health,
 		sourceFS:      sourceFS,
 		command:       ContainerCommand{logger},
+		paramMap:      paramMap,
 	}, nil
 }
 
@@ -123,6 +129,35 @@ func (m *Manager) GetProxyUrl() string {
 
 func (m *Manager) GetHealthUrl() string {
 	return fmt.Sprintf("%s://127.0.0.1:%d%s", m.scheme, m.hostPort, m.health)
+}
+
+func (m *Manager) GetEnvMap() (map[string]string, string) {
+	paramKeys := []string{}
+	for k := range m.paramMap {
+		paramKeys = append(paramKeys, k)
+	}
+	slices.Sort(paramKeys) // Sort the keys to ensure consistent hash
+
+	ret := map[string]string{}
+	hashBuilder := strings.Builder{}
+	for _, paramName := range paramKeys {
+		paramVal := m.paramMap[paramName]
+		// Default to string
+		hashBuilder.WriteString(paramName)
+		hashBuilder.WriteByte(0)
+		hashBuilder.WriteString(paramVal)
+		hashBuilder.WriteByte(0)
+		ret[paramName] = paramVal
+	}
+
+	// Add the app path to the return map and hash
+	hashBuilder.WriteString("CL_APP_PATH")
+	hashBuilder.WriteByte(0)
+	hashBuilder.WriteString(m.appEntry.Path)
+	hashBuilder.WriteByte(0)
+	ret["CL_APP_PATH"] = m.appEntry.Path
+
+	return ret, hashBuilder.String()
 }
 
 func (m *Manager) DevReload() error {
@@ -156,7 +191,8 @@ func (m *Manager) DevReload() error {
 
 	_ = m.command.RemoveContainer(m.systemConfig, containerName)
 
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
+	envMap, _ := m.GetEnvMap()
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
@@ -209,12 +245,22 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 		return fmt.Errorf("error getting file hash: %w", err)
 	}
 
+	envMap, envHash := m.GetEnvMap()
+
+	fullHashVal := fmt.Sprintf("%s-%s", sourceHash, envHash)
+	sha := sha256.New()
+	if _, err := sha.Write([]byte(fullHashVal)); err != nil {
+		return err
+	}
+	fullHash := hex.EncodeToString(sha.Sum(nil))
+	m.Debug().Msgf("Source hash %s Env hash %s Full hash %s", sourceHash, envHash, fullHash)
+
 	var imageName ImageName = ImageName(m.image)
 	if imageName == "" {
-		imageName = GenImageName(m.appEntry.Id, sourceHash)
+		imageName = GenImageName(m.appEntry.Id, fullHash)
 	}
 
-	containerName := GenContainerName(m.appEntry.Id, sourceHash)
+	containerName := GenContainerName(m.appEntry.Id, fullHash)
 
 	containers, err := m.command.GetContainers(m.systemConfig, containerName, true)
 	if err != nil {
@@ -229,6 +275,7 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 				return fmt.Errorf("error starting container: %w", err)
 			}
 		} else {
+			// TODO handle case where image name is specified and param values change, need to restart container in that case
 			m.Debug().Msg("container already running")
 		}
 
@@ -263,7 +310,7 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 	}
 
 	// Start the container with newly built image
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port)
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}

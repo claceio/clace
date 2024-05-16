@@ -212,8 +212,9 @@ func (c ContainerCommand) StartContainer(config *types.SystemConfig, name Contai
 
 const LABEL_PREFIX = "io.clace."
 
-func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName, imageName ImageName, port int64) error {
-	c.Debug().Msgf("Running container %s from image %s with port %d", containerName, imageName, port)
+func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName,
+	imageName ImageName, port int64, envMap map[string]string) error {
+	c.Debug().Msgf("Running container %s from image %s with port %d env %+v", containerName, imageName, port, envMap)
 	publish := fmt.Sprintf("127.0.0.1::%d", port)
 
 	args := []string{"run", "--name", string(containerName), "--detach", "--publish", publish}
@@ -226,6 +227,10 @@ func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *typ
 		args = append(args, "--label", LABEL_PREFIX+"app.version="+strconv.Itoa(appEntry.Metadata.VersionMetadata.Version))
 		args = append(args, "--label", LABEL_PREFIX+"git.sha="+appEntry.Metadata.VersionMetadata.GitCommit)
 		args = append(args, "--label", LABEL_PREFIX+"git.message="+appEntry.Metadata.VersionMetadata.GitMessage)
+	}
+
+	for k, v := range envMap {
+		args = append(args, "--env", fmt.Sprintf("%s=%s", k, v))
 	}
 
 	args = append(args, string(imageName))
