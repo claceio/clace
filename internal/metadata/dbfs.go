@@ -26,12 +26,12 @@ type DbFs struct {
 	*types.Logger
 	fileStore *FileStore
 	fileInfo  map[string]DbFileInfo
-	typeFiles types.TypeFiles
+	specFiles types.SpecFiles
 }
 
 var _ appfs.ReadableFS = (*DbFs)(nil)
 
-func NewDbFs(logger *types.Logger, fileStore *FileStore, typeFiles types.TypeFiles) (*DbFs, error) {
+func NewDbFs(logger *types.Logger, fileStore *FileStore, specFiles types.SpecFiles) (*DbFs, error) {
 	fileInfo, error := fileStore.getFileInfoTx()
 	if error != nil {
 		return nil, error
@@ -40,7 +40,7 @@ func NewDbFs(logger *types.Logger, fileStore *FileStore, typeFiles types.TypeFil
 		Logger:    logger,
 		fileStore: fileStore,
 		fileInfo:  fileInfo,
-		typeFiles: typeFiles,
+		specFiles: specFiles,
 	}, nil
 }
 
@@ -175,16 +175,16 @@ func computeSha(data string) string {
 func (d *DbFs) Open(name string) (fs.File, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
-		// Check if the type files has it
-		if _, ok = d.typeFiles[name]; ok {
+		// Check if the spec files has it
+		if _, ok = d.specFiles[name]; ok {
 			return &DbFile{
 				name: name,
 				fi: DbFileInfo{
 					name:    name,
-					len:     int64(len(d.typeFiles[name])),
-					sha:     computeSha(d.typeFiles[name]),
+					len:     int64(len(d.specFiles[name])),
+					sha:     computeSha(d.specFiles[name]),
 					modTime: time.Time{}},
-				reader: NewDbFileReader("", []byte(d.typeFiles[name])),
+				reader: NewDbFileReader("", []byte(d.specFiles[name])),
 			}, nil
 		}
 		return nil, fs.ErrNotExist
@@ -199,9 +199,9 @@ func (d *DbFs) Open(name string) (fs.File, error) {
 func (d *DbFs) ReadFile(name string) ([]byte, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
-		// Check if the type files has it
-		if _, ok = d.typeFiles[name]; ok {
-			return []byte(d.typeFiles[name]), nil
+		// Check if the spec files has it
+		if _, ok = d.specFiles[name]; ok {
+			return []byte(d.specFiles[name]), nil
 		}
 		return nil, fs.ErrNotExist
 	}
@@ -227,11 +227,11 @@ func (d *DbFs) ReadFile(name string) ([]byte, error) {
 func (d *DbFs) Stat(name string) (fs.FileInfo, error) {
 	fi, ok := d.fileInfo[name]
 	if !ok {
-		// Check if the type files has it
-		if _, ok = d.typeFiles[name]; ok {
+		// Check if the spec files has it
+		if _, ok = d.specFiles[name]; ok {
 			return &DbFileInfo{name: name,
-				len:     int64(len(d.typeFiles[name])),
-				sha:     computeSha(d.typeFiles[name]),
+				len:     int64(len(d.specFiles[name])),
+				sha:     computeSha(d.specFiles[name]),
 				modTime: time.Time{}}, nil
 		}
 		return nil, fs.ErrNotExist
@@ -300,8 +300,8 @@ func (d *DbFs) FileHash(excludeGlob []string) (string, error) {
 		hashBuilder.WriteByte(0)
 	}
 
-	typeFileNames := []string{}
-	for name := range d.typeFiles {
+	specFileNames := []string{}
+	for name := range d.specFiles {
 		matched, err := GlobMatch(excludeGlob, name)
 		if err != nil {
 			return "", err
@@ -312,16 +312,16 @@ func (d *DbFs) FileHash(excludeGlob []string) (string, error) {
 			continue
 		}
 
-		typeFileNames = append(typeFileNames, name)
+		specFileNames = append(specFileNames, name)
 	}
-	slices.Sort(typeFileNames)
+	slices.Sort(specFileNames)
 
-	for _, name := range typeFileNames {
+	for _, name := range specFileNames {
 		if _, ok := d.fileInfo[name]; !ok {
-			// Only include type files that are not already in the file info
+			// Only include spec files that are not already in the file info
 			hashBuilder.WriteString(name)
 			hashBuilder.WriteByte(0)
-			hashBuilder.WriteString(computeSha(d.typeFiles[name]))
+			hashBuilder.WriteString(computeSha(d.specFiles[name]))
 			hashBuilder.WriteByte(0)
 		}
 	}
@@ -356,7 +356,7 @@ func (d *DbFs) CreateTempSourceDir() (string, error) {
 		}
 	}
 
-	for name := range d.typeFiles {
+	for name := range d.specFiles {
 		if _, ok := d.fileInfo[name]; ok {
 			// Skip files that are already in the file info
 			continue
@@ -367,7 +367,7 @@ func (d *DbFs) CreateTempSourceDir() (string, error) {
 			return "", fmt.Errorf("error creating directory %s : %w", path.Dir(filePath), err)
 		}
 
-		if err := os.WriteFile(filePath, []byte(d.typeFiles[name]), 0700); err != nil {
+		if err := os.WriteFile(filePath, []byte(d.specFiles[name]), 0700); err != nil {
 			return "", fmt.Errorf("error writing file %s : %w", filePath, err)
 		}
 	}

@@ -22,6 +22,7 @@ const (
 	INTERNAL_APP_DELIM      = "_cl_"
 	STAGE_SUFFIX            = INTERNAL_APP_DELIM + "stage"
 	PREVIEW_SUFFIX          = INTERNAL_APP_DELIM + "preview"
+	NO_SOURCE               = "-" // No source url is provided
 )
 
 const (
@@ -208,7 +209,7 @@ const (
 	AppAuthnSystem  AppAuthnType = "system"  // Use the system admin user
 )
 
-type AppType string
+type AppSpec string
 
 // VersionMetadata contains the metadata for an app
 type VersionMetadata struct {
@@ -256,8 +257,8 @@ type AppMetadata struct {
 	Permissions     []Permission      `json:"permissions"`
 	Accounts        []AccountLink     `json:"accounts"`
 	ParamValues     map[string]string `json:"param_values"`
-	Type            AppType           `json:"type"`
-	TypeFiles       *TypeFiles        `json:"type_files"`
+	Spec            AppSpec           `json:"spec"`
+	SpecFiles       *SpecFiles        `json:"spec_files"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
@@ -268,10 +269,10 @@ type AppSettings struct {
 	PreviewWriteAccess bool         `json:"preview_write_access"`
 }
 
-// TypeFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text
-type TypeFiles map[string]string
+// SpecFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text
+type SpecFiles map[string]string
 
-func (t *TypeFiles) UnmarshalJSON(data []byte) error {
+func (t *SpecFiles) UnmarshalJSON(data []byte) error {
 	encodedData := map[string]string{}
 	if err := json.Unmarshal(data, &encodedData); err != nil {
 		return err
@@ -286,11 +287,11 @@ func (t *TypeFiles) UnmarshalJSON(data []byte) error {
 		decoded[name] = string(decodedData)
 	}
 
-	*t = TypeFiles(decoded)
+	*t = SpecFiles(decoded)
 	return nil
 }
 
-func (t *TypeFiles) MarshalJSON() ([]byte, error) {
+func (t *SpecFiles) MarshalJSON() ([]byte, error) {
 	encoded := map[string]string{}
 	for name, decodedData := range *t {
 		encoded[name] = base64.StdEncoding.EncodeToString([]byte(decodedData))

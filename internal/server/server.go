@@ -41,7 +41,7 @@ var CL_HOME = os.ExpandEnv("$CL_HOME")
 //go:embed appspecs
 var embedAppTypes embed.FS
 
-var appTypes map[string]types.TypeFiles
+var appTypes map[string]types.SpecFiles
 
 func init() {
 	if len(CL_HOME) == 0 {
@@ -51,7 +51,7 @@ func init() {
 	}
 
 	// Read app type config embedded in the binary
-	appTypes = make(map[string]types.TypeFiles)
+	appTypes = make(map[string]types.SpecFiles)
 	entries, err := embedAppTypes.ReadDir(APPSPECS)
 	if err != nil {
 		return
@@ -67,7 +67,7 @@ func init() {
 			panic(err)
 		}
 
-		appType := make(types.TypeFiles)
+		appType := make(types.SpecFiles)
 		for _, file := range files {
 			// Loop through all files in the app_type directory
 			if file.IsDir() {
@@ -84,7 +84,7 @@ func init() {
 	}
 }
 
-func (s *Server) GetAppType(name types.AppType) types.TypeFiles {
+func (s *Server) GetAppSpec(name types.AppSpec) types.SpecFiles {
 	// Add custom app type config from conf folder
 
 	customSpecsDir := path.Clean((path.Join(os.ExpandEnv("$CL_HOME/config"), APPSPECS, string(name))))
@@ -94,7 +94,7 @@ func (s *Server) GetAppType(name types.AppType) types.TypeFiles {
 		return appTypes[string(name)]
 	}
 
-	newAppType := make(types.TypeFiles)
+	newAppType := make(types.SpecFiles)
 	for _, file := range entries {
 		// Loop through all files in the app_type directory
 		if file.IsDir() {

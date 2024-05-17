@@ -24,18 +24,18 @@ type DiskReadFS struct {
 	root      string
 	cleanRoot string
 	fs        fs.FS
-	typeFiles types.TypeFiles
+	specFiles types.SpecFiles
 }
 
 var _ ReadableFS = (*DiskReadFS)(nil)
 
-func NewDiskReadFS(logger *types.Logger, root string, typeFiles types.TypeFiles) *DiskReadFS {
+func NewDiskReadFS(logger *types.Logger, root string, specFiles types.SpecFiles) *DiskReadFS {
 	return &DiskReadFS{
 		Logger:    logger,
 		root:      root,
 		fs:        os.DirFS(root),
 		cleanRoot: filepath.Clean(root),
-		typeFiles: typeFiles,
+		specFiles: specFiles,
 	}
 }
 
@@ -46,11 +46,11 @@ type DiskWriteFS struct {
 func (d *DiskReadFS) Open(name string) (fs.File, error) {
 	f, err := d.fs.Open(name)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
-		if _, ok := d.typeFiles[name]; ok {
-			// File found in type files, use that
-			df := NewDiskFile(name, []byte(d.typeFiles[name]), DiskFileInfo{
+		if _, ok := d.specFiles[name]; ok {
+			// File found in spec files, use that
+			df := NewDiskFile(name, []byte(d.specFiles[name]), DiskFileInfo{
 				name:    name,
-				len:     int64(len(d.typeFiles[name])),
+				len:     int64(len(d.specFiles[name])),
 				modTime: time.Now(),
 			})
 			return df, nil
@@ -66,9 +66,9 @@ func (d *DiskReadFS) ReadFile(name string) ([]byte, error) {
 		}
 		bytes, err := dir.ReadFile(name)
 		if err != nil && errors.Is(err, fs.ErrNotExist) {
-			if _, ok := d.typeFiles[name]; ok {
-				// File found in type files, use that
-				return []byte(d.typeFiles[name]), nil
+			if _, ok := d.specFiles[name]; ok {
+				// File found in spec files, use that
+				return []byte(d.specFiles[name]), nil
 			}
 		}
 		return bytes, err
@@ -77,9 +77,9 @@ func (d *DiskReadFS) ReadFile(name string) ([]byte, error) {
 	file, err := d.fs.Open(name)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			if _, ok := d.typeFiles[name]; ok {
-				// File found in type files, use that
-				return []byte(d.typeFiles[name]), nil
+			if _, ok := d.specFiles[name]; ok {
+				// File found in spec files, use that
+				return []byte(d.specFiles[name]), nil
 			}
 		}
 		return nil, err
@@ -107,11 +107,11 @@ func (d *DiskReadFS) Stat(name string) (fs.FileInfo, error) {
 	absName := d.makeAbsolute(name)
 	fi, err := os.Stat(absName)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
-		if _, ok := d.typeFiles[name]; ok {
-			// File found in type files, use that
+		if _, ok := d.specFiles[name]; ok {
+			// File found in spec files, use that
 			fi := DiskFileInfo{
 				name:    name,
-				len:     int64(len(d.typeFiles[name])),
+				len:     int64(len(d.specFiles[name])),
 				modTime: time.Now(),
 			}
 			return &fi, nil
@@ -122,7 +122,7 @@ func (d *DiskReadFS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (d *DiskReadFS) Glob(pattern string) (matches []string, err error) {
-	// TODO glob does not look at type files
+	// TODO glob does not look at spec files
 	return fs.Glob(d.fs, pattern)
 }
 

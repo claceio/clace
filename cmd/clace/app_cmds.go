@@ -59,7 +59,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
-	flags = append(flags, newStringFlag("type", "t", "The app type to set", ""))
+	flags = append(flags, newStringFlag("spec", "", "The spec to use for the app", ""))
 	flags = append(flags,
 		&cli.StringSliceFlag{
 			Name:    "param",
@@ -78,9 +78,9 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		UsageText: `args: <app_path> <app_source_url>
 
 <app_path> is a required first argument. The optional domain and path are separated by a ":". If no domain is specified, the app is created for the default domain.
-<app_source_url> is a required second argument. The source url can be a git url or a local disk path on the Clace server. For local path, the path can be absolute or relative
- to the Clace server working directory. If using a non public git repo, the git_auth flag must be specified, which points to the git key as configured in the
- Clace server config file.
+<app_source_url> is a required second argument. The source url can be a git url or a local disk path on the Clace server. If no source is required, use "-" as the
+ source url. For local path, the path can be absolute or relative to the Clace server home directory CL_HOME. If using a non public git repo, the git_auth flag must be
+ specified, which points to the git key as configured in the Clace server config file.
 
 Examples:
   Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
@@ -119,7 +119,7 @@ Examples:
 				GitBranch:   cCtx.String("branch"),
 				GitCommit:   cCtx.String("commit"),
 				GitAuthName: cCtx.String("git-auth"),
-				Type:        types.AppType(cCtx.String("type")),
+				Spec:        types.AppSpec(cCtx.String("spec")),
 				ParamValues: paramValues,
 			}
 			var createResult types.AppCreateResponse

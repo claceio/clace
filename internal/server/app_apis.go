@@ -89,7 +89,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 		Version: 0,
 	}
 
-	appEntry.Metadata.Type = appRequest.Type // validated in createApp
+	appEntry.Metadata.Spec = appRequest.Spec // validated in createApp
 	appEntry.Metadata.ParamValues = appRequest.ParamValues
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
@@ -107,11 +107,13 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
 		}
 	} else {
-		// Make sure the source path is absolute
-		var err error
-		appEntry.SourceUrl, err = filepath.Abs(appEntry.SourceUrl)
-		if err != nil {
-			return nil, err
+		if appEntry.SourceUrl != types.NO_SOURCE {
+			// Make sure the source path is absolute
+			var err error
+			appEntry.SourceUrl, err = filepath.Abs(appEntry.SourceUrl)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -134,16 +136,16 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 		appEntry.Id = types.AppId(types.ID_PREFIX_APP_PROD + idStr)
 	}
 
-	if appEntry.Metadata.Type != "" {
-		appFiles := s.GetAppType(appEntry.Metadata.Type)
-		if appFiles == nil {
-			return nil, fmt.Errorf("invalid app type %s", appEntry.Metadata.Type)
+	if appEntry.Metadata.Spec != "" {
+		specFiles := s.GetAppSpec(appEntry.Metadata.Spec)
+		if specFiles == nil {
+			return nil, fmt.Errorf("invalid app type %s", appEntry.Metadata.Spec)
 		}
 
-		appEntry.Metadata.TypeFiles = &appFiles
+		appEntry.Metadata.SpecFiles = &specFiles
 	} else {
-		tf := make(types.TypeFiles)
-		appEntry.Metadata.TypeFiles = &tf
+		tf := make(types.SpecFiles)
+		appEntry.Metadata.SpecFiles = &tf
 	}
 
 	if err := s.db.CreateApp(ctx, tx, appEntry); err != nil {
@@ -241,7 +243,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 	if !appEntry.IsDev {
 		// Prod mode, use DB as source
 		fileStore := metadata.NewFileStore(appEntry.Id, appEntry.Metadata.VersionMetadata.Version, s.db, tx)
-		dbFs, err := metadata.NewDbFs(s.Logger, fileStore, *appEntry.Metadata.TypeFiles)
+		dbFs, err := metadata.NewDbFs(s.Logger, fileStore, *appEntry.Metadata.SpecFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +255,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 		// Dev mode, use local disk as source
 		var err error
 		sourceFS, err = appfs.NewSourceFs(appEntry.SourceUrl,
-			&appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appEntry.SourceUrl, *appEntry.Metadata.TypeFiles)},
+			&appfs.DiskWriteFS{DiskReadFS: appfs.NewDiskReadFS(&appLogger, appEntry.SourceUrl, *appEntry.Metadata.SpecFiles)},
 			appEntry.IsDev)
 		if err != nil {
 			return nil, err
@@ -263,7 +265,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 	appPath := fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
 	workFS := appfs.NewWorkFs(appPath,
 		&appfs.DiskWriteFS{
-			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.TypeFiles),
+			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.SpecFiles),
 		})
 	application := app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins)
 

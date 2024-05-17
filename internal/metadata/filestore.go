@@ -93,6 +93,11 @@ func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx types.Transaction,
 		return err
 	}
 
+	if checkoutDir == types.NO_SOURCE {
+		// No source code to add
+		return nil
+	}
+
 	fsys := os.DirFS(checkoutDir)
 
 	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, inErr error) error {

@@ -213,9 +213,9 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx types.Transaction, pathDomai
 		}
 	}
 
-	if app.Metadata.TypeFiles == nil {
-		tf := make(types.TypeFiles)
-		app.Metadata.TypeFiles = &tf
+	if app.Metadata.SpecFiles == nil {
+		tf := make(types.SpecFiles)
+		app.Metadata.SpecFiles = &tf
 	}
 
 	return &app, nil

@@ -263,32 +263,32 @@ func appUpdateMetadataCommand(commonFlags []cli.Flag, clientConfig *types.Client
 		Name:  "update-metadata",
 		Usage: "Update Clace apps metadata. Metadata updates are staged and can be promoted to prod.",
 		Subcommands: []*cli.Command{
-			appUpdateAppType(commonFlags, clientConfig),
+			appUpdateAppSpec(commonFlags, clientConfig),
 		},
 	}
 }
 
-func appUpdateAppType(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+func appUpdateAppSpec(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, dryRunFlag())
 	flags = append(flags, newBoolFlag(PROMOTE_FLAG, "p", "Promote the change from stage to prod", false))
 
 	return &cli.Command{
-		Name:      "type",
-		Usage:     "Update app type for apps",
+		Name:      "spec",
+		Usage:     "Update app spec for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:type_name|none>",
+		ArgsUsage: "<pathSpec> <value:spec_name|none>",
 
-		UsageText: `args: <pathSpec> <value:type_name|none>
+		UsageText: `args: <pathSpec> <value:spec_name|none>
 
 First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-The second required argument <value> is a string, a valid app type name or none.
+The second required argument <value> is a string, a valid app spec name or - (to unset spec).
 
 	Examples:
-	  Update all apps, across domains: clace app update-metadata type all none
-	  Update apps in the example.com domain: clace app update-metadata type "example.com:**" proxy`,
+	  Update all apps, across domains: clace app update-metadata spec all -
+	  Update apps in the example.com domain: clace app update-metadata spec "example.com:**" proxy`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
@@ -302,7 +302,7 @@ The second required argument <value> is a string, a valid app type name or none.
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
 			body := types.CreateUpdateAppMetadataRequest()
-			body.Type = types.StringValue(cCtx.Args().Get(1))
+			body.Spec = types.StringValue(cCtx.Args().Get(1))
 
 			var updateResponse types.AppUpdateMetadataResponse
 			if err := client.Post("/_clace/app_metadata", values, body, &updateResponse); err != nil {

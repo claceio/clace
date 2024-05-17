@@ -533,20 +533,21 @@ func (s *Server) updateParamHandler(ctx context.Context, tx types.Transaction, a
 func (s *Server) updateMetadataHandler(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error) {
 	updateMetadata := args["metadata"].(types.UpdateAppMetadataRequest)
 
-	if updateMetadata.Type != types.StringValueUndefined {
+	if updateMetadata.Spec != types.StringValueUndefined {
 		// The type is being updated
-		var appFiles types.TypeFiles
-		if updateMetadata.Type != "" {
-			appFiles = s.GetAppType(types.AppType(updateMetadata.Type))
+		var appFiles types.SpecFiles
+		if updateMetadata.Spec != "-" {
+			appFiles = s.GetAppSpec(types.AppSpec(updateMetadata.Spec))
 			if appFiles == nil {
-				return nil, appEntry.AppPathDomain(), fmt.Errorf("invalid app type %s", updateMetadata.Type)
+				return nil, appEntry.AppPathDomain(), fmt.Errorf("invalid app spec %s", updateMetadata.Spec)
 			}
+			appEntry.Metadata.Spec = types.AppSpec(updateMetadata.Spec)
 		} else {
-			appFiles = make(types.TypeFiles)
+			appFiles = make(types.SpecFiles)
+			appEntry.Metadata.Spec = types.AppSpec("")
 		}
 
-		appEntry.Metadata.Type = types.AppType(updateMetadata.Type)
-		appEntry.Metadata.TypeFiles = &appFiles
+		appEntry.Metadata.SpecFiles = &appFiles
 	}
 
 	appPathDomain := appEntry.AppPathDomain()

@@ -36,7 +36,7 @@ type CreateAppRequest struct {
 	GitBranch   string            `json:"git_branch"`
 	GitCommit   string            `json:"git_commit"`
 	GitAuthName string            `json:"git_auth_name"`
-	Type        AppType           `json:"type"`
+	Spec        AppSpec           `json:"spec"`
 	ParamValues map[string]string `json:"param_values"`
 }
 
@@ -46,7 +46,7 @@ type UpdateAppRequest struct {
 	GitAuthName        StringValue `json:"git_auth_name"`
 	StageWriteAccess   BoolValue   `json:"stage_write_access"`
 	PreviewWriteAccess BoolValue   `json:"preview_write_access"`
-	Type               StringValue `json:"type"`
+	Spec               StringValue `json:"spec"`
 }
 
 func CreateUpdateAppRequest() UpdateAppRequest {
@@ -55,18 +55,18 @@ func CreateUpdateAppRequest() UpdateAppRequest {
 		GitAuthName:        StringValueUndefined,
 		StageWriteAccess:   BoolValueUndefined,
 		PreviewWriteAccess: BoolValueUndefined,
-		Type:               StringValueUndefined,
+		Spec:               StringValueUndefined,
 	}
 }
 
-// UpdateAppMetdataRequest is the request body for updating an app metadata
+// UpdateAppMetadataRequest is the request body for updating an app metadata
 type UpdateAppMetadataRequest struct {
-	Type StringValue `json:"type"`
+	Spec StringValue `json:"spec"`
 }
 
 func CreateUpdateAppMetadataRequest() UpdateAppRequest {
 	return UpdateAppRequest{
-		Type: StringValueUndefined,
+		Spec: StringValueUndefined,
 	}
 }
 
