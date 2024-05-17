@@ -114,6 +114,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 			if err != nil {
 				return nil, err
 			}
+		} else if appEntry.IsDev {
+			return nil, fmt.Errorf("cannot create dev mode app with no source url")
 		}
 	}
 

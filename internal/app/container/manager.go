@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,12 +34,13 @@ type Manager struct {
 	lifetime      string
 	scheme        string
 	health        string
+	buildDir      string
 	sourceFS      appfs.ReadableFS
 	paramMap      map[string]string
 }
 
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
-	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health string, sourceFS appfs.ReadableFS,
+	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health, buildDir string, sourceFS appfs.ReadableFS,
 	paramMap map[string]string) (*Manager, error) {
 
 	image := ""
@@ -98,6 +100,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		lifetime:      lifetime,
 		scheme:        scheme,
 		health:        health,
+		buildDir:      buildDir,
 		sourceFS:      sourceFS,
 		command:       ContainerCommand{logger},
 		paramMap:      paramMap,
@@ -160,6 +163,32 @@ func (m *Manager) GetEnvMap() (map[string]string, string) {
 	return ret, hashBuilder.String()
 }
 
+func (m *Manager) createSpecFiles() ([]string, error) {
+	// Create the spec files if they are not already present
+	created := []string{}
+	for name, data := range *m.appEntry.Metadata.SpecFiles {
+		diskFile := path.Join(m.appEntry.SourceUrl, name)
+		_, err := os.Stat(diskFile)
+		if err != nil {
+			if err = os.WriteFile(diskFile, []byte(data), 0644); err != nil {
+				return nil, fmt.Errorf("error writing spec file %s: %w", diskFile, err)
+			}
+			created = append(created, diskFile)
+		}
+	}
+
+	return created, nil
+}
+
+func (m *Manager) clearSpecFiles(specFiles []string) error {
+	for _, file := range specFiles {
+		if err := os.Remove(file); err != nil {
+			return fmt.Errorf("error removing spec file %s: %w", file, err)
+		}
+	}
+	return nil
+}
+
 func (m *Manager) DevReload() error {
 	var imageName ImageName = ImageName(m.image)
 	if imageName == "" {
@@ -183,9 +212,20 @@ func (m *Manager) DevReload() error {
 		// Using a container file, rebuild the image
 		_ = m.command.RemoveImage(m.systemConfig, imageName)
 
-		err = m.command.BuildImage(m.systemConfig, imageName, m.appEntry.SourceUrl, m.containerFile)
+		createdFiles, err := m.createSpecFiles()
 		if err != nil {
-			return fmt.Errorf("error building image: %w", err)
+			return err
+		}
+		buildDir := path.Join(m.appEntry.SourceUrl, m.buildDir)
+		err = m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile)
+
+		cleanupErr := m.clearSpecFiles(createdFiles)
+		if err != nil {
+			return err
+		}
+
+		if cleanupErr != nil {
+			return cleanupErr
 		}
 	}
 
@@ -202,14 +242,16 @@ func (m *Manager) DevReload() error {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
 	if len(containers) == 0 {
-		return fmt.Errorf("container not running") // todo add logs
+		logs, _ := m.command.GetContainerLogs(m.systemConfig, containerName)
+		return fmt.Errorf("container %s not running. Logs\n %s", containerName, logs)
 	}
 	m.hostPort = containers[0].Port
 
 	if m.health != "" {
 		err = m.WaitForHealth(m.GetHealthUrl())
 		if err != nil {
-			return fmt.Errorf("error waiting for health: %w", err)
+			logs, _ := m.command.GetContainerLogs(m.systemConfig, containerName)
+			return fmt.Errorf("error waiting for health: %w. Logs\n %s", err, logs)
 		}
 	}
 
@@ -295,8 +337,8 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 			if err != nil {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
-
-			buildErr := m.command.BuildImage(m.systemConfig, imageName, tempDir, m.containerFile)
+			buildDir := path.Join(tempDir, m.buildDir)
+			buildErr := m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile)
 
 			// Cleanup temp dir after image has been built (even if build failed)
 			if err = os.RemoveAll(tempDir); err != nil {

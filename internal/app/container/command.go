@@ -188,6 +188,17 @@ func (c ContainerCommand) GetContainers(config *types.SystemConfig, name Contain
 	return resp, nil
 }
 
+func (c ContainerCommand) GetContainerLogs(config *types.SystemConfig, name ContainerName) (string, error) {
+	c.Debug().Msgf("Getting container logs %s", name)
+	cmd := exec.Command(config.ContainerCommand, "logs", string(name))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error getting container logs: %s : %s", output, err)
+	}
+
+	return string(output), nil
+}
+
 func (c ContainerCommand) StopContainer(config *types.SystemConfig, name ContainerName) error {
 	c.Debug().Msgf("Stopping container %s", name)
 	cmd := exec.Command(config.ContainerCommand, "stop", "-t", "1", string(name))

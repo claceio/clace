@@ -381,6 +381,11 @@ func (a *App) loadContainerManager() error {
 		return fmt.Errorf("error reading health: %w", err)
 	}
 
+	buildDir, err := apptype.GetStringAttr(configAttr, "BuildDir")
+	if err != nil {
+		return fmt.Errorf("error reading build_dir: %w", err)
+	}
+
 	// Parse the source file specification
 	var fileName string
 	switch src {
@@ -404,7 +409,7 @@ func (a *App) loadContainerManager() error {
 	}
 
 	a.containerManager, err = container.NewContainerManager(a.Logger, a.AppEntry,
-		fileName, a.systemConfig, port, lifetime, scheme, health, a.sourceFS, a.paramMap)
+		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}
