@@ -4,10 +4,13 @@
 package container
 
 import (
+	"bufio"
 	"bytes"
+	"container/ring"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -190,13 +193,12 @@ func (c ContainerCommand) GetContainers(config *types.SystemConfig, name Contain
 
 func (c ContainerCommand) GetContainerLogs(config *types.SystemConfig, name ContainerName) (string, error) {
 	c.Debug().Msgf("Getting container logs %s", name)
-	cmd := exec.Command(config.ContainerCommand, "logs", string(name))
-	output, err := cmd.CombinedOutput()
+	lines, err := c.ExecTailN(config.ContainerCommand, []string{"logs", string(name)}, 1000)
 	if err != nil {
-		return "", fmt.Errorf("error getting container logs: %s : %s", output, err)
+		return "", fmt.Errorf("error getting container %s logs: %s", name, err)
 	}
 
-	return string(output), nil
+	return strings.Join(lines, "\n"), nil
 }
 
 func (c ContainerCommand) StopContainer(config *types.SystemConfig, name ContainerName) error {
@@ -308,4 +310,51 @@ func (c ContainerCommand) GetImages(config *types.SystemConfig, name ImageName) 
 
 	c.Debug().Msgf("Found images: %+v", resp)
 	return resp, nil
+}
+
+// ExecTailN executes a command and returns the last n lines of output
+func (c ContainerCommand) ExecTailN(command string, args []string, n int) ([]string, error) {
+	cmd := exec.Command(command, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("error creating stdout pipe: %s", err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("error creating stderr pipe: %s", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("error starting command: %s", err)
+	}
+
+	multi := bufio.NewReader(io.MultiReader(stdout, stderr))
+
+	// Create a ring buffer to hold the last 1000 lines of output
+	ringBuffer := ring.New(n)
+
+	scanner := bufio.NewScanner(multi)
+	for scanner.Scan() {
+		// Push the latest line into the ring buffer, displacing the oldest line if necessary
+		ringBuffer.Value = scanner.Text()
+		ringBuffer = ringBuffer.Next()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning output: %s", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("error waiting for command: %s", err)
+	}
+
+	ret := make([]string, 0, n)
+	ringBuffer.Do(func(p any) {
+		if line, ok := p.(string); ok {
+			ret = append(ret, line)
+		}
+	})
+
+	return ret, nil
 }
