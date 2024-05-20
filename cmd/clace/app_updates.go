@@ -17,7 +17,7 @@ import (
 func appUpdateSettingsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "update-settings",
-		Usage: "Update Clace apps settings. Settings changes are not staged, then apply immediately to matched stage, prod and preview apps.",
+		Usage: "Update Clace apps settings. Settings changes are NOT staged, they apply immediately to matched stage, prod and preview apps.",
 		Subcommands: []*cli.Command{
 			appUpdateStageWrite(commonFlags, clientConfig),
 			appUpdatePreviewWrite(commonFlags, clientConfig),
@@ -261,7 +261,7 @@ Set to "-" to remove the git_auth entry.
 func appUpdateMetadataCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "update-metadata",
-		Usage: "Update Clace apps metadata. Metadata updates are staged and can be promoted to prod.",
+		Usage: "Update Clace apps metadata. Metadata updates are staged and have to be promoted to prod.",
 		Subcommands: []*cli.Command{
 			appUpdateAppSpec(commonFlags, clientConfig),
 		},
