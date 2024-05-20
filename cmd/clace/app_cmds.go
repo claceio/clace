@@ -220,23 +220,23 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s %-5s %-7s %-4s %-30s %-60s %-40s\n"
-		formatStrData := "%-35s %-5s %7d %-4s %-30s %-60s %-40s\n"
+		formatStrHead := "%-35s %-5s %-7s %-15s %-60s %-40s %-30s %-30s\n"
+		formatStrData := "%-35s %-5s %7d %-15s %-60s %-40s %-30s %-30s\n"
 		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version", "Auth",
-			"GitInfo", "Domain:Path", "SourceUrl")
+			"Domain:Path", "SourceUrl", "Spec", "GitInfo")
 		for _, app := range apps {
 			gitInfo := ""
 			if app.Metadata.VersionMetadata.GitBranch != "" || app.Metadata.VersionMetadata.GitCommit != "" {
 				gitInfo = fmt.Sprintf("%s:%.20s", app.Metadata.VersionMetadata.GitBranch, app.Metadata.VersionMetadata.GitCommit)
 			}
 			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
-				gitInfo, &app.AppEntry, app.SourceUrl)
+				app.AppEntry.AppPathDomain(), app.SourceUrl, app.Metadata.Spec, gitInfo)
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,%s,\"%s\",\"%s\"\n", app.Id, appType(app),
-				app.Metadata.VersionMetadata.Version, authType(app), app.Metadata.VersionMetadata.GitCommit, app.Metadata.VersionMetadata.GitBranch,
-				app.AppEntry.AppPathDomain(), app.SourceUrl)
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,\"%s\",\"%s\", %s, %s, \"%s\"\n", app.Id, appType(app),
+				app.Metadata.VersionMetadata.Version, authType(app), app.Metadata.VersionMetadata.GitBranch,
+				app.AppEntry.AppPathDomain(), app.SourceUrl, app.Metadata.Spec, app.Metadata.VersionMetadata.GitBranch, app.Metadata.VersionMetadata.GitCommit)
 		}
 	default:
 		panic(fmt.Errorf("unknown format %s", format))
@@ -267,9 +267,11 @@ func authType(app types.AppResponse) string {
 	if app.Settings.AuthnType == types.AppAuthnNone {
 		return "NONE"
 	} else if app.Settings.AuthnType == types.AppAuthnDefault {
-		return "SYST"
-	} else {
+		return "SYSTEM"
+	} else if app.Settings.AuthnType == "" {
 		return "----"
+	} else {
+		return string(app.Settings.AuthnType)
 	}
 }
 
