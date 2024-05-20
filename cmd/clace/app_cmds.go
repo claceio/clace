@@ -158,7 +158,7 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *c
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("internal", "i", "Include internal apps", false))
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
 
 	return &cli.Command{
 		Name:      "list",
@@ -219,11 +219,21 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			enc.Encode(app)
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
+	case FORMAT_BASIC:
+		formatStrHead := "%-5s %-7s %-15s %-60s\n"
+		formatStrData := "%-5s %7d %-15s %-60s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Version", "Auth", "AppPath")
+
+		for _, app := range apps {
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
+				app.AppEntry.AppPathDomain())
+		}
 	case FORMAT_TABLE:
 		formatStrHead := "%-35s %-5s %-7s %-15s %-60s %-40s %-30s %-30s\n"
 		formatStrData := "%-35s %-5s %7d %-15s %-60s %-40s %-30s %-30s\n"
 		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version", "Auth",
-			"Domain:Path", "SourceUrl", "Spec", "GitInfo")
+			"AppPath", "SourceUrl", "Spec", "GitInfo")
+
 		for _, app := range apps {
 			gitInfo := ""
 			if app.Metadata.VersionMetadata.GitBranch != "" || app.Metadata.VersionMetadata.GitCommit != "" {

@@ -13,6 +13,7 @@ import (
 
 const (
 	FORMAT_TABLE        = "table"
+	FORMAT_BASIC        = "basic"
 	FORMAT_JSON         = "json"
 	FORMAT_JSONL        = "jsonl"
 	FORMAT_JSONL_PRETTY = "jsonl_pretty"

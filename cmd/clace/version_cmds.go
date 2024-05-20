@@ -31,7 +31,7 @@ func initVersionCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 func versionListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
 
 	return &cli.Command{
 		Name:      "list",
@@ -84,6 +84,17 @@ func printVersionList(cCtx *cli.Context, versions []types.AppVersion, format str
 			enc.Encode(version)
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
+	case FORMAT_BASIC:
+		formatStrHead := "%6s %8s %8s %-20s\n"
+		formatStrData := "%6s %8d %8d %.20s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Active", "Version", "Previous", "GitCommit")
+		for _, version := range versions {
+			isLive := ""
+			if version.Active {
+				isLive = "=====>"
+			}
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, isLive, version.Version, version.PreviousVersion, version.Metadata.VersionMetadata.GitCommit)
+		}
 	case FORMAT_TABLE:
 		formatStrHead := "%6s %8s %8s %-30s %-20s %-40s\n"
 		formatStrData := "%6s %8d %8d %-30s %.20s %-40s\n"
@@ -107,7 +118,7 @@ func printVersionList(cCtx *cli.Context, versions []types.AppVersion, format str
 func versionFilesCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
 
 	return &cli.Command{
 		Name:      "files",
@@ -164,6 +175,8 @@ func printFileList(cCtx *cli.Context, files []types.AppFile, format string) {
 			enc.Encode(f)
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
+	case FORMAT_BASIC:
+		fallthrough
 	case FORMAT_TABLE:
 		formatStrHead := "%7s %-64s %-50s\n"
 		formatStrData := "%7d %-64s %-50s\n"
