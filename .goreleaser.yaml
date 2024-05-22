@@ -12,9 +12,9 @@ before:
   hooks:
     - go mod download
     - go mod tidy
-    - rm -rf internal/server/appspecs
-    - git clone -C ./internal/server --single-branch --depth 1 https://github.com/claceio/appspecs.git
-    - rm -rf internal/server/appspecs/.git
+    - rm -rf internal/server/appspecs && cd internal/server/
+    - git clone --single-branch --depth 1 https://github.com/claceio/appspecs.git
+    - rm -rf appspecs/.git && cd ../..
     - go test -race ./...
 
 builds:
