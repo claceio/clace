@@ -124,7 +124,7 @@ The service will be started on [https://localhost:25223](https://127.0.0.1:25223
 To create an app, run the Clace client
 
 ```shell
-$HOME/clace app create --approve /disk_usage $HOME/clace_source/clace/examples/disk_usage/
+$HOME/clace app create --approve $HOME/clace_source/clace/examples/disk_usage/ /disk_usage
 ```
 
 This will create an app at /disk_usage with the example disk_usage app. The disk_usage app provides a web interface for looking at file system disk usage, allowing the user to explore the sub-folders which are consuming most disk space.
@@ -173,7 +173,7 @@ and file `index.go.html` containing:
 
 <!-- prettier-ignore-end -->
 
-Run `clace app create --auth=none --approve /files ~/fileapp`. The app is available at `https://localhost:25223/files`.
+Run `clace app create --auth=none --approve ~/fileapp /files`. The app is available at `https://localhost:25223/files`.
 
 ## Documentation
 

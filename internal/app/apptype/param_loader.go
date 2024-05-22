@@ -89,7 +89,8 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 		var defaultValue starlark.Value = starlark.None
 		var required starlark.Bool = starlark.Bool(true)
 
-		if err := starlark.UnpackArgs(PARAM, args, kwargs, "name", &name, "type?", &dataType, "default?", &defaultValue, "description?", &description, "required?", &required); err != nil {
+		if err := starlark.UnpackArgs(PARAM, args, kwargs, "name", &name, "type?", &dataType, "default?", &defaultValue,
+			"description?", &description, "required?", &required); err != nil {
 			return nil, err
 		}
 

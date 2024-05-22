@@ -35,24 +35,24 @@ func previewCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 		Usage:     "Create a preview version of the app from specified git commit id",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<appPath> <gitCommitId>",
-		UsageText: `args: <appPath> <gitCommitId>
+		ArgsUsage: "<gitCommitId> <appPath>",
+		UsageText: `args: <gitCommitId> <appPath>
 
-    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which the preview app is to be created.
-    <gitCommitId> is a required second argument. This is the commit from which the preview app is to be created.
+<gitCommitId> is the required first argument. This is the commit from which the preview app is to be created.
+<app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which the preview app is to be created.
 
 	Examples:
-	  Preview and approve: clace preview create --approve /myapp 86c24c88ceda21589801895e9f871617a716ad47
-	  Preview app in dryrun mode: clace preview create --dry-run example.com:/myapp 86c24c88ceda21589801895e9f871617a716ad47`,
+	  Preview and approve: clace preview create --approve 86c24c88ceda21589801895e9f871617a716ad47 /myapp
+	  Preview app in dryrun mode: clace preview create --dry-run 86c24c88ceda21589801895e9f871617a716ad47 example.com:/myapp`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two arguments: <appPath> <gitCommitId>")
+				return fmt.Errorf("requires two arguments: <gitCommitId> <appPath>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("appPath", cCtx.Args().First())
-			values.Add("commitId", cCtx.Args().Get(1))
+			values.Add("appPath", cCtx.Args().Get(1))
+			values.Add("commitId", cCtx.Args().Get(0))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 

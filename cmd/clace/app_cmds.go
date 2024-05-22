@@ -74,31 +74,32 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		Usage:     "Create a new app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<app_path> <app_source_url>",
-		UsageText: `args: <app_path> <app_source_url>
+		ArgsUsage: "<app_source_url> <app_path>",
+		UsageText: `args: <app_source_url> <app_path>
 
-<app_path> is a required first argument. The optional domain and path are separated by a ":". If no domain is specified, the app is created for the default domain.
-<app_source_url> is a required second argument. The source url can be a git url or a local disk path on the Clace server. If no source is required, use "-" as the
+<app_source_url> is required first argument. The source url can be a git url or a local disk path on the Clace server. If no source is required, use "-" as the
  source url. For local path, the path can be absolute or relative to the Clace server home directory CL_HOME. If using a non public git repo, the git_auth flag must be
  specified, which points to the git key as configured in the Clace server config file.
 
+<app_path> is a required second argument. The optional domain and path are separated by a ":". If no domain is specified, the app is created for the default domain.
+
 Examples:
-  Create app from github source: clace app create --approve /disk_usage github.com/claceio/clace/examples/memory_usage/
-  Create app from local disk: clace app create --approve /disk_usage $HOME/clace_source/clace/examples/memory_usage/
-  Create app for development (source has to be disk): clace app create --approve --dev /disk_usage $HOME/clace_source/clace/examples/memory_usage/
-  Create app from a git commit: clace app create --approve --commit 1234567890 /disk_usage github.com/claceio/clace/examples/memory_usage/
-  Create app from a git branch: clace app create --approve --branch main /disk_usage github.com/claceio/clace/examples/memory_usage/
-  Create app using git url: clace app create --approve /disk_usage git@github.com:claceio/clace.git/examples/disk_usage
-  Create app using git url, with git private key auth: clace app create --approve --git-auth mykey /disk_usage git@github.com:claceio/privaterepo.git/examples/disk_usage
-  Create app for specified domain, no auth : clace app create --approve --auth=none clace.example.com:/ github.com/claceio/clace/examples/memory_usage/`,
+  Create app from github source: clace app create --approve github.com/claceio/clace/examples/memory_usage/ /memory_usage
+  Create app from local disk: clace app create --approve $HOME/clace_source/clace/examples/memory_usage/ /memory_usage
+  Create app for development (source has to be disk): clace app create --approve --dev $HOME/clace_source/clace/examples/memory_usage/ /memory_usage
+  Create app from a git commit: clace app create --approve --commit 1234567890  github.com/claceio/clace/examples/memory_usage/ /memory_usage
+  Create app from a git branch: clace app create --approve --branch main github.com/claceio/clace/examples/memory_usage/ /memory_usage
+  Create app using git url: clace app create --approve git@github.com:claceio/clace.git/examples/disk_usage /disk_usage
+  Create app using git url, with git private key auth: clace app create --approve --git-auth mykey git@github.com:claceio/privaterepo.git/examples/disk_usage /disk_usage
+  Create app for specified domain, no auth : clace app create --approve --auth=none github.com/claceio/clace/examples/memory_usage/ clace.example.com:/`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("require two arguments: <app_path> <app_source_url>")
+				return fmt.Errorf("require two arguments: <app_source_url> <app_path>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("appPath", cCtx.Args().Get(0))
+			values.Add("appPath", cCtx.Args().Get(1))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
@@ -113,7 +114,7 @@ Examples:
 			}
 
 			body := types.CreateAppRequest{
-				SourceUrl:   cCtx.Args().Get(1),
+				SourceUrl:   cCtx.Args().Get(0),
 				IsDev:       cCtx.Bool("dev"),
 				AppAuthn:    types.AppAuthnType(cCtx.String("auth")),
 				GitBranch:   cCtx.String("branch"),

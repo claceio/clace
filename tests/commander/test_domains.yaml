@@ -3,39 +3,39 @@ config:
     CL_CONFIG_FILE: clace.toml
 tests:
   domain010: ## create test1 domain app
-    command: ../clace app create test1.clace.io:/ ./testapp
+    command: ../clace app create ./testapp test1.clace.io:/
     stdout: "App audit results test1.clace.io:/ - app"
     exit-code: 0
   domain020: # create test2 app
-    command: ../clace app create test2.clace.io:/ ./testapp
+    command: ../clace app create ./testapp test2.clace.io:/
     stdout: "App audit results test2.clace.io:/ - app"
     exit-code: 0
   domain030: # create test3 app in /test
-    command: ../clace app create test3.clace.io:/test ./testapp
+    command: ../clace app create ./testapp test3.clace.io:/test
     stdout: "App audit results test3.clace.io:/test - app"
     exit-code: 0
   domain040: # create new app should fail since root path is already used
-    command: ../clace app create test1.clace.io:/test2 ./testapp
+    command: ../clace app create ./testapp test1.clace.io:/test2
     stderr: "error: App already exists at test1.clace.io:/"
     stdout:
       line-count: 0
     exit-code: 1
   domain041: # create new app should fail since root path is already used
-    command: ../clace app create test1.clace.io:/ ./testapp
+    command: ../clace app create ./testapp test1.clace.io:/
     stderr: "error: App already exists at test1.clace.io:/"
     stdout:
       line-count: 0
     exit-code: 1
   domain042: # create new app for test3 domain works
-    command: ../clace app create test3.clace.io:/test2 ./testapp
+    command: ../clace app create ./testapp test3.clace.io:/test2
     stdout: "App audit results test3.clace.io:/test2 - app"
     exit-code: 0
   domain050: # create new app for test3 domain works
-    command: ../clace app create test3.clace.io:/te ./testapp
+    command: ../clace app create ./testapp test3.clace.io:/te
     stdout: "App audit results test3.clace.io:/te - app"
     exit-code: 0
   domain060: # create new app should fail since /test is already used
-    command: ../clace app create test3.clace.io:/ ./testapp
+    command: ../clace app create ./testapp test3.clace.io:/
     stderr: "error: App already exists at test3.clace.io:/te"
     stdout:
       line-count: 0
@@ -44,6 +44,6 @@ tests:
     command: ../clace app delete test3.clace.io:/test
     exit-code: 0
   domain080: # create new app works after delete
-    command: ../clace app create test3.clace.io:/test/other ./testapp
+    command: ../clace app create ./testapp test3.clace.io:/test/other
     stdout: "App audit results test3.clace.io:/test/other - app"
     exit-code: 0

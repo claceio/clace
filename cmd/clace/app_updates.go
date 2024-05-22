@@ -37,31 +37,31 @@ func appUpdateStageWrite(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 		Usage:     "Update write access permission for staging app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:true|false>",
+		ArgsUsage: "<value:true|false> <pathSpec>",
 
-		UsageText: `args: <pathSpec> <value:true|false>
+		UsageText: `args: <value:true|false> <pathSpec>
 
-First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-	The second required argument <value> is a boolean value, true or false.
+The first required argument <value> is a boolean value, true or false.
+The second required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings stage-write-access all true
-	  Update apps in the example.com domain: clace app update-settings stage-write-access "example.com:**" false`,
+	  Update all apps, across domains: clace app update-settings stage-write-access true all
+	  Update apps in the example.com domain: clace app update-settings stage-write-access false "example.com:**"`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two argument: <value> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("pathSpec", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			body := types.CreateUpdateAppRequest()
-			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
+			boolValue, err := strconv.ParseBool(cCtx.Args().Get(0))
 			if err != nil {
-				return fmt.Errorf("invalid value %s for stage-write-access, expected true or false", cCtx.Args().Get(1))
+				return fmt.Errorf("invalid value %s for stage-write-access, expected true or false", cCtx.Args().Get(0))
 			}
 			if boolValue {
 				body.StageWriteAccess = types.BoolValueTrue
@@ -99,31 +99,31 @@ func appUpdatePreviewWrite(commonFlags []cli.Flag, clientConfig *types.ClientCon
 		Usage:     "Update write access permission for preview apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:true|false>",
+		ArgsUsage: "<value:true|false> <pathSpec>",
 
-		UsageText: `args: <pathSpec> <value:true|false>
+		UsageText: `args: <value:true|false> <pathSpec>
 
-First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-	The second required argument <value> is a boolean value, true or false.
+The first required argument <value> is a boolean value, true or false.
+The second required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings preview-write-access all true
-	  Update apps in the example.com domain: clace app update-settings preview-write-access "example.com:**" false`,
+	  Update all apps, across domains: clace app update-settings preview-write-access true all 
+	  Update apps in the example.com domain: clace app update-settings preview-write-access false "example.com:**"`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two argument: <value> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("pathSpec", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			body := types.CreateUpdateAppRequest()
-			boolValue, err := strconv.ParseBool(cCtx.Args().Get(1))
+			boolValue, err := strconv.ParseBool(cCtx.Args().Get(0))
 			if err != nil {
-				return fmt.Errorf("invalid value %s for preview-write-access, expected true or false", cCtx.Args().Get(1))
+				return fmt.Errorf("invalid value %s for preview-write-access, expected true or false", cCtx.Args().Get(0))
 			}
 			if boolValue {
 				body.PreviewWriteAccess = types.BoolValueTrue
@@ -161,29 +161,29 @@ func appUpdateAuthnType(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 		Usage:     "Update authentication mode for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:default|none>",
+		ArgsUsage: "<value:system|default|none|custom> <pathSpec>",
 
-		UsageText: `args: <pathSpec> <value:default|none>
+		UsageText: `args: <value:default|none> <pathSpec>
 
-First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-The second required argument <value> is a string, default or none.
+The first required argument <value> is a string, system, default, none or OAuth entry name.
+The second required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings auth all default
-	  Update apps in the example.com domain: clace app update-settings auth "example.com:**" none`,
+	  Update all apps, across domains: clace app update-settings auth default all
+	  Update apps in the example.com domain: clace app update-settings auth none "example.com:**"`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two argument: <value> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("pathSpec", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			body := types.CreateUpdateAppRequest()
-			body.AuthnType = types.StringValue(cCtx.Args().Get(1))
+			body.AuthnType = types.StringValue(cCtx.Args().Get(0))
 
 			var updateResponse types.AppUpdateSettingsResponse
 			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
@@ -214,30 +214,30 @@ func appUpdateGitAuth(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		Usage:     "Update git-auth entry for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value>",
+		ArgsUsage: "<entryName> <pathSpec>",
 
-		UsageText: `args: <pathSpec> <entryName>
+		UsageText: `args: <entryName> <pathSpec> 
 
-First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-The second required argument <entryName> is a string. Specify the git_auth entry key name as configured in the clace.toml config.
+The first required argument <entryName> is a string. Specify the git_auth entry key name as configured in the clace.toml config.
 Set to "-" to remove the git_auth entry.
+The second required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update all apps, across domains: clace app update-settings git-auth all mygit
-	  Update apps in the example.com domain: clace app git-auth "example.com:**" gitentrykey`,
+	  Update all apps, across domains: clace app update-settings git-auth mygit all
+	  Update apps in the example.com domain: clace app git-auth gitentrykey "example.com:**"`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <entryName>")
+				return fmt.Errorf("requires two argument: <entryName> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("pathSpec", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			body := types.CreateUpdateAppRequest()
-			body.GitAuthName = types.StringValue(cCtx.Args().Get(1))
+			body.GitAuthName = types.StringValue(cCtx.Args().Get(0))
 
 			var updateResponse types.AppUpdateSettingsResponse
 			if err := client.Post("/_clace/app_settings", values, body, &updateResponse); err != nil {
@@ -261,7 +261,7 @@ Set to "-" to remove the git_auth entry.
 func appUpdateMetadataCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	return &cli.Command{
 		Name:  "update-metadata",
-		Usage: "Update Clace apps metadata. Metadata updates are staged and have to be promoted to prod.",
+		Usage: `Update Clace app metadata. Metadata updates are staged and have to be promoted to prod. Use "clace param" to update app parameter metadata.`,
 		Subcommands: []*cli.Command{
 			appUpdateAppSpec(commonFlags, clientConfig),
 		},
@@ -279,30 +279,30 @@ func appUpdateAppSpec(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		Usage:     "Update app spec for apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <value:spec_name|none>",
+		ArgsUsage: "<value:spec_name|none> <pathSpec>",
 
-		UsageText: `args: <pathSpec> <value:spec_name|none>
+		UsageText: `args: <value:spec_name|none> <pathSpec>
 
-First required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
-The second required argument <value> is a string, a valid app spec name or - (to unset spec).
+The first required argument <value> is a string, a valid app spec name or - (to unset spec).
+The second required argument is <pathSpec>. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update all apps, across domains: clace app update-metadata spec all -
-	  Update apps in the example.com domain: clace app update-metadata spec "example.com:**" proxy`,
+	  Update all apps, across domains: clace app update-metadata spec - all
+	  Update apps in the example.com domain: clace app update-metadata spec proxy "example.com:**"`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires two argument: <pathSpec> <value>")
+				return fmt.Errorf("requires two argument: <value> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("pathSpec", cCtx.Args().Get(1))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
 			body := types.CreateUpdateAppMetadataRequest()
-			body.Spec = types.StringValue(cCtx.Args().Get(1))
+			body.Spec = types.StringValue(cCtx.Args().Get(0))
 
 			var updateResponse types.AppUpdateMetadataResponse
 			if err := client.Post("/_clace/app_metadata", values, body, &updateResponse); err != nil {

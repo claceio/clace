@@ -8,11 +8,11 @@ tests:
     command: cp -r ./testapp versionstest
 
   versions0020: # create dev app
-    command: ../clace app create --dev /versions_dev ./versionstest
+    command: ../clace app create --dev ./versionstest /versions_dev
   versions0030: # create local1 app
-    command: ../clace app create /versions_local1 ./versionstest
+    command: ../clace app create ./versionstest /versions_local1
   versions0040: # create local2 app
-    command: ../clace app create /versions_local2 ./versionstest
+    command: ../clace app create ./versionstest /versions_local2
   versions0050: # check curl
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
     stdout: "1"
@@ -78,13 +78,13 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
     stdout: "33"
   versions0170: # switch stage back
-    command: ../clace version switch /versions_local1_cl_stage previous
+    command: ../clace version switch previous /versions_local1_cl_stage
     stdout: "Switched /versions_local1_cl_stage from version 3 to version 2"
   versions0171: # local1 stage is updated to version 2
     command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
     stdout: "22"
   versions0173: # switch prod back
-    command: ../clace version switch /versions_local1 previous
+    command: ../clace version switch previous /versions_local1
     stdout: "Switched /versions_local1 from version 3 to version 1"
   versions0173a: # revert prod
     command: ../clace version revert /versions_local1
@@ -102,17 +102,17 @@ tests:
     command: ../clace version list /versions_local1
     stdout: "=====>        1" # first version is current for prod
   versions0177: # switch stage forward
-    command: ../clace version switch /versions_local1_cl_stage next
+    command: ../clace version switch next /versions_local1_cl_stage
   versions0178: # local1 stage is updated to version 3
     command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
     stdout: "33"
   versions0179: # switch prod forward
-    command: ../clace version switch /versions_local1 next
+    command: ../clace version switch next /versions_local1
   versions0180: # local1 prod is updated to version 3
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/rootfile.txt
     stdout: "33"
   versions0181: # switch stage to version 1
-    command: ../clace version switch /versions_local1_cl_stage 1
+    command: ../clace version switch 1 /versions_local1_cl_stage
   versions0182: # local1 stage is updated to version 1
     command: curl -su "admin:qwerty" localhost:25222/versions_local1_cl_stage/rootfile.txt
     stdout: "1"
@@ -134,21 +134,21 @@ tests:
 
   #error tests
   versions0200:
-    command: ../clace version switch  /versions_local1_cl_stage previous
+    command: ../clace version switch previous /versions_local1_cl_stage
     exit-code: 1
     stderr: "error: no previous version found"
   versions0201:
-    command: ../clace version switch  /versions_local1 next
+    command: ../clace version switch next /versions_local1
   versions0201a:
-    command: ../clace version switch  /versions_local1 next
+    command: ../clace version switch next /versions_local1
     exit-code: 1
     stderr: "error: no next version found"
   versions0202:
-    command: ../clace version switch  /versions_local1 232
+    command: ../clace version switch 232 /versions_local1
     exit-code: 1
     stderr: "error: error getting version 232"
   versions0203:
-    command: ../clace version switch  /versions_local1 abc
+    command: ../clace version switch abc /versions_local1
     exit-code: 1
     stderr: 'error: strconv.Atoi: parsing "abc"'
   versions0204:
@@ -156,7 +156,7 @@ tests:
     exit-code: 1
     stderr: "error: version commands not supported for dev app"
   versions0205:
-    command: ../clace version switch /versions_dev previous
+    command: ../clace version switch previous /versions_dev
     exit-code: 1
     stderr: "error: version commands not supported for dev app"
 

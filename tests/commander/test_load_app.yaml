@@ -5,13 +5,13 @@ tests:
   load0010: # copy sample app
     command: cp -r ../examples/disk_usage .
   load0020: # create dev app
-    command: ../clace app create --dev /disk_usage_dev ./disk_usage
+    command: ../clace app create --dev ./disk_usage /disk_usage_dev
     stderr:
       line-count: 0
     stdout: "App audit results /disk_usage_dev - app"
     exit-code: 0
   load0030: # create prod app
-    command: ../clace app create /disk_usage_prod ./disk_usage
+    command: ../clace app create ./disk_usage /disk_usage_prod
     stderr:
       line-count: 0
     stdout: "App audit results /disk_usage_prod - app"
@@ -81,7 +81,7 @@ tests:
     stdout: "Disallow: /"
     exit-code: 0
   load0070: # Update app code
-    command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 2
+    command: perl -pi -e 's/Disk Usage/DiskTest Usage/g' ./disk_usage/app.star && sleep 3
   load0080: # with --dev, changes are picked up immediately
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
     stderr:
@@ -93,27 +93,27 @@ tests:
       line-count: 0
     stdout: "Disk Usage"
   load0100: # Create app with duplicate path
-    command: ../clace app create /disk_usage_dev/ ./disk_usage
+    command: ../clace app create ./disk_usage /disk_usage_dev/
     stdout:
       line-count: 0
     stderr: "error: App already exists at /disk_usage_dev"
     exit-code: 1
   load0110: # Create app without granting approval
-    command: ../clace app create /load1 ./disk_usage
+    command: ../clace app create ./disk_usage /load1
     stdout: "App created. Permissions need to be approved"
     exit-code: 0
   load0120: # Create app, invalid path, app should not be created
-    command: ../clace app create /load2 ./invalid
+    command: ../clace app create ./invalid /load2
     stderr: "audit failed: error reading app.star file: file does not exist"
     exit-code: 1
   load0130: # Create app, granting approval
-    command: ../clace app create --approve /load2 ./disk_usage
+    command: ../clace app create --approve ./disk_usage /load2
     stdout: "App created. Permissions have been approved"
     exit-code: 0
 
   # Test github load
   load0210: # Create app granting approval
-    command: ../clace app create --approve /ghload1 github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve github.com/claceio/clace/examples/disk_usage /ghload1
     stdout: "App created. Permissions have been approved"
     exit-code: 0
   load0220: # test calling app
@@ -122,27 +122,27 @@ tests:
       line-count: 0
     stdout: "Disk Usage"
   load0230: # Create app granting approval
-    command: ../clace app create --approve /ghload2 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve https://github.com/claceio/clace/examples/disk_usage /ghload2
     stdout: "App created. Permissions have been approved"
     exit-code: 0
   load0240: # Create app, invalid path
-    command: ../clace app create --approve /ghload3 https://github.com/claceio/clace/examples/disk_usagebad
+    command: ../clace app create --approve https://github.com/claceio/clace/examples/disk_usagebad /ghload3
     stderr: "audit failed: error reading app.star file: file does not exist"
     exit-code: 1
   load0260: # Create app, invalid branch
-    command: ../clace app create --approve --branch invalid /ghload3 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve --branch invalid https://github.com/claceio/clace/examples/disk_usage /ghload3
     stderr: 'find remote ref "refs/heads/invalid"'
     exit-code: 1
   load0270: # Create app, valid branch
-    command: ../clace app create --approve --branch main /ghload3 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve --branch main https://github.com/claceio/clace/examples/disk_usage /ghload3
     stdout: "App created. Permissions have been approved"
     exit-code: 0
   load0280: # Create app, invalid commit id.
-    command: ../clace app create --approve --commit invalid /ghload4 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve --commit invalid https://github.com/claceio/clace/examples/disk_usage /ghload4
     stderr: "reference not found"
     exit-code: 1
   load0290: # Create app, valid commit id
-    command: ../clace app create --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 /ghload5 https://github.com/claceio/clace/examples/disk_usage
+    command: ../clace app create --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 https://github.com/claceio/clace/examples/disk_usage /ghload5
     stdout: "App created. Permissions have been approved"
     exit-code: 0
 

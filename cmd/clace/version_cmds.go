@@ -203,26 +203,26 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 		Usage:     "Switch the version for an app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<appPath> <version>",
-		UsageText: `args: <appPath> <version>
+		ArgsUsage: "<version> <appPath> ",
+		UsageText: `args: <version> <appPath>
 
-<app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which versions are listed.
-<version> is a required second argument. This is the version number to switch to. Use "previous" or "next" to switch to the previous or next version.
+<version> is a required first argument. This is the version number to switch to. Use "previous" or "next" to switch to the previous or next version.
+<app_path> is a required second argument. The optional domain and path are separated by a ":". This is the app for which versions are listed.
 
 	Examples:
-		clace version switch example.com:/myapp next
-		clace version switch /myapp_cl_stage 123
-		clace version switch /test previous`,
+		clace version switch next example.com:/myapp
+		clace version switch 123 /myapp_cl_stage
+		clace version switch previous /test`,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 2 {
-				return fmt.Errorf("requires argument: <appPath> <version>")
+				return fmt.Errorf("requires argument: <version> <appPath>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
 			values := url.Values{}
-			values.Add("appPath", cCtx.Args().First())
-			values.Add("version", cCtx.Args().Get(1))
+			values.Add("appPath", cCtx.Args().Get(1))
+			values.Add("version", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var response types.AppVersionSwitchResponse
@@ -231,7 +231,7 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 				return err
 			}
 
-			fmt.Fprintf(cCtx.App.Writer, "Switched %s from version %d to version %d\n", cCtx.Args().First(), response.FromVersion, response.ToVersion)
+			fmt.Fprintf(cCtx.App.Writer, "Switched %s from version %d to version %d\n", cCtx.Args().Get(1), response.FromVersion, response.ToVersion)
 
 			if response.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

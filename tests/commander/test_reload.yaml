@@ -5,13 +5,13 @@ tests:
   reload0010: # copy sample app
     command: cp -r ./testapp reloadtest
   reload0020: # create dev app
-    command: ../clace app create --dev /reload_dev ./reloadtest
+    command: ../clace app create --dev ./reloadtest /reload_dev
   reload0030: # create local1 app
-    command: ../clace app create /reload_local1 ./reloadtest
+    command: ../clace app create ./reloadtest /reload_local1
   reload0040: # create local2 app
-    command: ../clace app create /reload_local2 ./reloadtest
+    command: ../clace app create ./reloadtest /reload_local2
   reload0050: # create domain level app
-    command: ../clace app create reload.localhost:/ ./reloadtest
+    command: ../clace app create ./reloadtest reload.localhost:/
   reload0060: # check curl
     command: curl -su "admin:qwerty" reload.localhost:25222/test1
     stdout: "111"
@@ -100,9 +100,9 @@ tests:
 
   # Test git based apps. This requires a previous commit which has the test app returning 555 instead of 111
   reload0400: # create git app from commit
-    command: ../clace app create --commit 0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec /reload_git1 https://github.com/claceio/clace/tests/testapp
+    command: ../clace app create --commit 0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec https://github.com/claceio/clace/tests/testapp /reload_git1
   reload0410: # create git app from main
-    command: ../clace app create /reload_git2 https://github.com/claceio/clace/tests/testapp
+    command: ../clace app create https://github.com/claceio/clace/tests/testapp /reload_git2
   reload0420: # check curl for app1 stage
     command: curl -su "admin:qwerty" localhost:25222/reload_git1_cl_stage/test1
     stdout: "555"
@@ -210,16 +210,16 @@ tests:
     command: ../clace app delete --dry-run "/reload_local*"
     stdout: "dry-run mode"
   reload067: # Update stage-write-access dryrun
-    command: ../clace app update-settings stage-write-access --dry-run "/reload_local*" true
+    command: ../clace app update-settings stage-write-access --dry-run true "/reload_local*"
     stdout: "dry-run mode"
   reload068: # Update preview write access dryrun
-    command: ../clace app update-settings preview-write-access --dry-run "/reload_local*" true
+    command: ../clace app update-settings preview-write-access --dry-run true "/reload_local*"
     stdout: "dry-run mode"
   reload069: # Update git-auth dryrun
-    command: ../clace app update-settings git-auth --dry-run "/reload_local*" testgit
+    command: ../clace app update-settings git-auth --dry-run testgit "/reload_local*"
     stdout: "dry-run mode"
   reload070: # Delete auth dryrun
-    command: ../clace app update-settings auth --dry-run "/reload_local*" none
+    command: ../clace app update-settings auth --dry-run none "/reload_local*"
     stdout: "dry-run mode"
   reload071: # Save stdout
     command: "../clace app list -i -f jsonl all > dryrun_out2.log"

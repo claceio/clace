@@ -35,7 +35,7 @@ tests:
     exit-code: 1
 
   basic060: ## create test1 app with default of authentication enabled
-    command: ../clace app create /test1 ./testapp
+    command: ../clace app create ./testapp /test1
     exit-code: 0
 
   basic070: # check curl works with password
@@ -58,7 +58,7 @@ tests:
       exactly: "Authentication failed"
 
   basic160: ## create test2 app with authentication disabled
-    command: ../clace app create --auth=none /test2 ./testapp
+    command: ../clace app create --auth=none ./testapp /test2
     exit-code: 0
 
   basic161: ## Check static files are using optimized fetch path (no compression/decompression)
@@ -105,7 +105,7 @@ tests:
     exit-code: 0
 
   basic260: # create test3 app with auth specifically enabled. dev is used to check if files are created fine
-    command: ../clace app create --dev --auth=default /test3 ./testapp
+    command: ../clace app create --dev --auth=default ./testapp /test3
     exit-code: 0
 
   basic270: # check curl works with password
