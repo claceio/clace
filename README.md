@@ -22,11 +22,28 @@
 
 ## Overview
 
-Clace is an Apache-2.0 licensed project building a platform to develop and deploy web apps for internal tools. For running multiple web applications on a single machine, Clace provides functionality which usually requires stitching together multiple services: reverse proxy like nginx/caddy (for domain/path based routing, TLS certs, static file serving), application server like uwsgi/gunicorn with micro-framework like flask (for API handling) and deployment infrastructure like containers/VMs/k8s (for isolation across apps, versioning and staged deployments). For internal tool deployment, Clace provides similar functionality in a single lightweight binary, with gitops workflow out of the box.
+Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows easy and secure hosting of multiple web apps, in any language/framework, on a single machine. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-The project implements a server in Go and uses Starlark (a dialect of Python) for web server configuration. Application backends can be defined in a Dockerfile, Clace builds and deploys the containers to serve the application.
+Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. Start Clace server, ensure Docker or Podman is running. New apps can be installed from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
 
-This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo.
+Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server with authentication added automatically. Apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
+
+This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to build apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo.
+
+<style>
+  /* Apply width 60% for screens wider than 768px */
+  @media screen and (min-width: 768px) {
+    .responsive-picture {
+      width: 60%;
+    }
+  }
+</style>
+
+<picture  class="responsive-picture" style="display: block; margin-left: auto; margin-right: auto;">
+  <source media="(prefers-color-scheme: dark)" srcset="https://clace.io/intro_dark.gif">
+  <source media="(prefers-color-scheme: light)" srcset="https://clace.io/intro_light.gif">
+  <img alt="Gif with Clace intro commands" src="https://clace.io/intro_light.gif">
+</picture>
 
 ## Features
 
@@ -38,39 +55,34 @@ The development features supported currently by Clace are:
 - Automatic [error handling support](https://clace.io/docs/plugins/overview/#automatic-error-handling)
 - Dynamic reload using SSE (Server Sent Events) for all application changes, backend and frontend.
 - Automatic creation of ECMAScript modules using [esbuild](https://esbuild.github.io/).
-- Automatic download for JavaScript and CSS dependencies.
 - Support for [TailwindCSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/) watcher integration.
-- [Template caching](https://clace.io/docs/app/templates/#template-file-location) and automatic reload on changes.
 
 ### Deployment Features
 
 The deployment features supported currently by Clace are:
 
+- Support for containerized apps, automatically build and manage containers
+- [Staging mode](https://clace.io/docs/applications/lifecycle/#staging-apps) for app updates, to verify whether code and config changes work on prod before making them live.
+- [Preview app](https://clace.io/docs/applications/lifecycle/#preview-apps) creation support, for trying out code changes.
+- [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
 - Backend app code runs in a [security sandbox](https://clace.io/docs/applications/appsecurity/#security-model), with allowlist based permissions.
 - [No build step](https://clace.io/docs/app/overview/#app-lifecycle), the development artifacts are ready for production use.
 - Support for [github integration](https://clace.io/docs/configuration/security/#private-repository-access), apps being directly deployed from github code.
 - Database backed file system, for atomic version updates and rollbacks.
-- Zero downtime application updates.
 - Support for application data persistance using SQLite
 - OAuth and SSO based [authentication](https://clace.io/docs/configuration/authentication/#oauth-authentication)
 - Scalable backend, all performance critical code is in Go, only application handler code is in Starlark.
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
 - Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function) backed by SQLite database, enabling aggressive static content caching.
 - Brotli compression for static artifacts, HTTP early hints support for performance.
-- [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
-- [Staging mode](https://clace.io/docs/applications/lifecycle/#staging-apps) for app updates, to verify whether code and config changes work on prod before making them live.
-- [Preview app](https://clace.io/docs/applications/lifecycle/#preview-apps) creation support, for trying out code changes.
 
 ## Roadmap
 
-Clace is early in its development. The feature roadmap for Clace is:
+The feature roadmap for Clace is:
 
-- All plugins are internal (built into Clace binary) currently. The plan is to move to an external plugin model, plugins being loaded dynamically using [go-plugin](https://github.com/hashicorp/go-plugin).
-- SQLite is used for metadata storage currently. Support for postgres and other systems is planned.
-- Support for workflow jobs, which would have a form based interface with limited customizability, but with support for triggered and scheduled execution.
-- UI interface for Clace admin operations.
-- Record replay based automatic integration test creation. Record all responses at the plugin boundary and use that to replay integration test scenarios. This is speculative currently, depending on the how the external plugin model is implemented.
-- Distributed agent model, where the Clace server does the initial routing but the actual application execution happens on remote worker nodes.
+- SQLite is used for metadata storage currently. Support for postgres and other systems is planned. This will be used to allow for horizontal scaling.
+- Integration with secrets managers, to securely access secrets.
+- Container volume management is not supported currently.
 
 ## Setup
 
@@ -111,7 +123,6 @@ To start the service, the CL_HOME environment variable has to point to the work 
 
 ```shell
 export CL_HOME=$HOME/clhome
-export CL_CONFIG_FILE=$CL_HOME/clace.toml
 $HOME/clace server start
 ```
 
