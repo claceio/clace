@@ -251,6 +251,33 @@ def handler(req):
 	want := `Template contents <script src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script> .`
 	fmt.Println(response.Body.String())
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/gen/lib/htmx.min.js", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+}
+
+func TestAppHtmlNoGen(t *testing.T) {
+	// With no HTML route, the generated files should not be created in dev mode
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html": `Template contents {{template "clace_gen.go.html"}}.`,
+	}
+	a, _, err := CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/static/gen/lib/htmx.min.js", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 404, response.Code)
 }
 
 func TestAppHeaderDefault(t *testing.T) {

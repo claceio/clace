@@ -244,14 +244,16 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 			return false, err
 		}
 
-		// Setup the JS libraries
-		if err := a.appDev.SetupJsLibs(); err != nil {
-			return false, err
-		}
+		if a.usesHtmlTemplate {
+			// Setup the JS libraries
+			if err := a.appDev.SetupJsLibs(); err != nil {
+				return false, err
+			}
 
-		// Create the generated HTML
-		if err = a.appDev.GenerateHTML(); err != nil {
-			return false, err
+			// Create the generated HTML
+			if err = a.appDev.GenerateHTML(); err != nil {
+				return false, err
+			}
 		}
 	}
 
