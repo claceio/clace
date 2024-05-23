@@ -228,9 +228,9 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_BASIC:
-		formatStrHead := "%-5s %-7s %-15s %-60s\n"
-		formatStrData := "%-5s %7d %-15s %-60s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Version", "Auth", "AppPath")
+		formatStrHead := "%-5s %4s %-7s %-60s\n"
+		formatStrData := "%-5s %4d %-7s %-60s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Ver", "Auth", "AppPath")
 
 		for _, app := range apps {
 			fmt.Fprintf(cCtx.App.Writer, formatStrData, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
