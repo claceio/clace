@@ -141,7 +141,7 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	if appEntry.Metadata.Spec != "" {
 		specFiles := s.GetAppSpec(appEntry.Metadata.Spec)
 		if specFiles == nil {
-			return nil, fmt.Errorf("invalid app type %s", appEntry.Metadata.Spec)
+			return nil, fmt.Errorf("invalid app spec %s", appEntry.Metadata.Spec)
 		}
 
 		appEntry.Metadata.SpecFiles = &specFiles
