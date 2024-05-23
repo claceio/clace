@@ -30,7 +30,7 @@ Clace can be used to develop any containerized web app on a development machine 
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to build apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo.
 
-<img src="https://clace.io/intro_dark.gif"/>
+<img src="https://clace.io/intro_dark_small.gif"/>
 
 ## Features
 
