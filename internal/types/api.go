@@ -92,6 +92,8 @@ type AppListResponse struct {
 
 type AppCreateResponse struct {
 	DryRun         bool            `json:"dry_run"`
+	HttpUrl        string          `json:"http_url"`
+	HttpsUrl       string          `json:"https_url"`
 	ApproveResults []ApproveResult `json:"approve_results"`
 }
 
@@ -131,6 +133,8 @@ type AppUpdateSettingsResponse struct {
 
 type AppPreviewResponse struct {
 	DryRun        bool          `json:"dry_run"`
+	HttpUrl       string        `json:"http_url"`
+	HttpsUrl      string        `json:"https_url"`
 	Success       bool          `json:"success"`
 	ApproveResult ApproveResult `json:"approve_result"`
 }

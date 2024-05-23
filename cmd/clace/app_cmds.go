@@ -146,6 +146,13 @@ Examples:
 				fmt.Print("App created. No approval required\n")
 			}
 
+			if createResult.HttpUrl != "" {
+				fmt.Printf("\n HTTP Url: %s\n", createResult.HttpUrl)
+			}
+			if createResult.HttpsUrl != "" {
+				fmt.Printf("HTTPS Url: %s\n", createResult.HttpsUrl)
+			}
+
 			if createResult.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}

@@ -135,7 +135,7 @@ tests:
     exit-code: 1
   load0270: # Create app, valid branch
     command: ../clace app create --approve --branch main https://github.com/claceio/clace/examples/disk_usage /ghload3
-    stdout: "App created. Permissions have been approved"
+    stdout: "HTTPS Url: https://localhost:25223/ghload3"
     exit-code: 0
   load0280: # Create app, invalid commit id.
     command: ../clace app create --approve --commit invalid https://github.com/claceio/clace/examples/disk_usage /ghload4
@@ -143,7 +143,7 @@ tests:
     exit-code: 1
   load0290: # Create app, valid commit id
     command: ../clace app create --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 https://github.com/claceio/clace/examples/disk_usage /ghload5
-    stdout: "App created. Permissions have been approved"
+    stdout: "HTTP Url: http://localhost:25222/ghload5"
     exit-code: 0
 
   load0900: # cleanup

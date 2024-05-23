@@ -80,6 +80,13 @@ func previewCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 				fmt.Printf("App creation %s. No approval required\n", status)
 			}
 
+			if previewResponse.HttpUrl != "" {
+				fmt.Printf("\n HTTP Url: %s\n", previewResponse.HttpUrl)
+			}
+			if previewResponse.HttpsUrl != "" {
+				fmt.Printf("HTTPS Url: %s\n", previewResponse.HttpsUrl)
+			}
+
 			if previewResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}

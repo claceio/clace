@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -222,6 +223,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	}
 
 	ret := &types.AppCreateResponse{
+		HttpUrl:        s.getAppHttpUrl(appEntry),
+		HttpsUrl:       s.getAppHttpsUrl(appEntry),
 		DryRun:         dryRun,
 		ApproveResults: results,
 	}
@@ -236,6 +239,24 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 
 	// In memory app cache is not updated. The next GetApp call will load the new app
 	return ret, nil
+}
+
+// getAppHttpUrl returns the HTTP URL for accessing the app
+func (s *Server) getAppHttpUrl(appEntry *types.AppEntry) string {
+	if s.config.Http.Port <= 0 {
+		return ""
+	}
+	domain := cmp.Or(appEntry.Domain, "localhost")
+	return fmt.Sprintf("%s://%s:%d%s", "http", domain, s.config.Http.Port, appEntry.Path)
+}
+
+// getAppHttpsUrl returns the HTTPS URL for accessing the app
+func (s *Server) getAppHttpsUrl(appEntry *types.AppEntry) string {
+	if s.config.Https.Port <= 0 {
+		return ""
+	}
+	domain := cmp.Or(appEntry.Domain, "localhost")
+	return fmt.Sprintf("%s://%s:%d%s", "https", domain, s.config.Https.Port, appEntry.Path)
 }
 
 func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.App, error) {
@@ -907,6 +928,8 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 
 	ret := &types.AppPreviewResponse{
 		DryRun:        dryRun,
+		HttpUrl:       s.getAppHttpUrl(&previewAppEntry),
+		HttpsUrl:      s.getAppHttpsUrl(&previewAppEntry),
 		ApproveResult: *auditResult,
 		Success:       true,
 	}
