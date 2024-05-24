@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/claceio/clace/pkg/api"
 	"github.com/pkg/profile"
@@ -18,23 +17,7 @@ import (
 )
 
 func getServerCommands(serverConfig *types.ServerConfig) ([]*cli.Command, error) {
-	_, _, defaultServerConfig, err := system.GetDefaultConfigs()
-	if err != nil {
-		return nil, err
-	}
-
-	flags := []cli.Flag{
-		newAltStringFlag("server_uri", "s", "The server connection uri", defaultServerConfig.ServerUri, &serverConfig.ServerUri),
-		newAltStringFlag("admin_user", "u", "The admin user name", defaultServerConfig.AdminUser, &serverConfig.AdminUser),
-		newAltStringFlag("http.host", "i", "The interface to bind on for HTTP", defaultServerConfig.Http.Host, &serverConfig.Http.Host),
-		newAltIntFlag("http.port", "p", "The port to listen on for HTTP", defaultServerConfig.Http.Port, &serverConfig.Http.Port),
-		newAltStringFlag("https.host", "", "The interface to bind on for HTTPS", defaultServerConfig.Https.Host, &serverConfig.Https.Host),
-		newAltIntFlag("https.port", "", "The port to listen on for HTTPS", defaultServerConfig.Https.Port, &serverConfig.Https.Port),
-		newAltStringFlag("logging.level", "l", "The logging level to use", defaultServerConfig.Log.Level, &serverConfig.Log.Level),
-		newAltBoolFlag("logging.console", "c", "Enable console logging", defaultServerConfig.Log.Console, &serverConfig.Log.Console),
-		newAltStringFlag("profile_mode", "", "Enable profiling mode:cpu,memory,mutex,block,goroutine,clock", defaultServerConfig.ProfileMode, &serverConfig.ProfileMode),
-	}
-
+	flags := []cli.Flag{}
 	return []*cli.Command{
 		{
 			Name:  "server",

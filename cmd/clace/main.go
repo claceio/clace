@@ -82,6 +82,7 @@ func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConf
 	if err := system.LoadGlobalConfig(string(buf), globalConfig); err != nil {
 		return err
 	}
+
 	if err := system.LoadClientConfig(string(buf), clientConfig); err != nil {
 		return err
 	}

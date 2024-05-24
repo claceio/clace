@@ -39,18 +39,54 @@ rm -f run/clace.sock
 cat <<EOF > config_basic_test.toml
 [security]
 admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DUPUyvIK7C"
+
+[http]
+port = 9154
+[https]
+port = 9155
 EOF
-CL_CONFIG_FILE=config_basic_test.toml ../clace server start  --http.port=9154 --https.port=9155 &
+
+CL_CONFIG_FILE=config_basic_test.toml ../clace server start &
 sleep 2
+
+cat <<EOF > config_basic_client_np.toml
+server_uri = "http://localhost:9154"
+EOF
+
+cat <<EOF > config_basic_client.toml
+server_uri = "http://localhost:9154"
+[client]
+admin_password = "abcd"
+EOF
+
+cat <<EOF > config_basic_client_https.toml
+server_uri = "https://localhost:9155"
+[client]
+admin_password = "abcd"
+EOF
+
+cat <<EOF > config_basic_client_https_skip.toml
+server_uri = "https://localhost:9155"
+[client]
+admin_password = "abcd"
+skip_cert_check = true
+EOF
 
 commander test $CL_TEST_VERBOSE test_basics.yaml
-rm -rf clace.db* run/clace.sock config_basic_test.toml
+rm -rf clace.db* run/clace.sock config_basic_*.toml
+
+cat <<EOF > config_np.toml
+[http]
+port = 9156
+[https]
+port = 9157
+EOF
 
 # Test server prints a password when started without config
-../clace server start --http.port=9156 --https.port=9157 > server.stdout &
+CL_CONFIG_FILE=config_np.toml ../clace server start > server.stdout &
 sleep 2
 grep "Admin password" server.stdout
-rm -f run/clace.sock
+rm -f run/clace.sock config_np.toml
 
 # Run all other automated tests, use password hash for "qwerty"
 export CL_CONFIG_FILE=clace.toml
@@ -83,7 +119,7 @@ secret = "$CL_GITHUB_SECRET"
 EOF
 fi
 
-../clace server start  -l trace &
+../clace server start &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/
 

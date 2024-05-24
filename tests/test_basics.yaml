@@ -1,11 +1,16 @@
+config:
+  env:
+    CL_CONFIG_FILE: config_basic_test.toml
+
 tests:
   basic010:
     command: ../clace app list /invalid # Connects over UDS
     stdout:
       line-count: 1 # Only header is printed
     exit-code: 0
+
   basic020:
-    command: ../clace app list --server-uri=http://localhost:9154 /invalid # Wrong password
+    command: CL_CONFIG_FILE=config_basic_client_np.toml ../clace app list /invalid
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
     stdout:
@@ -13,7 +18,7 @@ tests:
     exit-code: 1
 
   basic030:
-    command: ../clace app list --server-uri=http://localhost:9154 --admin-password=abcd /invalid # No app
+    command: CL_CONFIG_FILE=config_basic_client.toml ../clace app list /invalid # No app
     stderr:
       exactly: "error: 404 page not found" # admin api's are disabled over http
     stdout:
@@ -21,14 +26,14 @@ tests:
     exit-code: 1
 
   basic040:
-    command: ../clace app list --server-uri=https://localhost:9155 --admin-password=abcd /invalid # Test TLS
+    command: CL_CONFIG_FILE=config_basic_client_https.toml ../clace app list /invalid # Test TLS
     stderr: "tls: failed to verify certificate"
     stdout:
       line-count: 0
     exit-code: 1
 
   basic050:
-    command: ../clace app list --server-uri=https://localhost:9155 --admin-password=abcd --skip-cert-check /invalid # TLS with skip_cert_check
+    command: CL_CONFIG_FILE=config_basic_client_https_skip.toml ../clace app list /invalid # TLS with skip_cert_check
     stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
