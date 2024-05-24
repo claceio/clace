@@ -30,6 +30,13 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+type DryRun bool
+
+const (
+	DryRunTrue  DryRun = true
+	DryRunFalse DryRun = false
+)
+
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger
@@ -115,10 +122,10 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	return newApp
 }
 
-func (a *App) Initialize() error {
+func (a *App) Initialize(dryRun DryRun) error {
 	var reloaded bool
 	var err error
-	if reloaded, err = a.Reload(false, true); err != nil {
+	if reloaded, err = a.Reload(false, true, dryRun); err != nil {
 		return err
 	}
 
@@ -151,7 +158,7 @@ func (a *App) ResetFS() {
 	a.sourceFS.Reset()
 }
 
-func (a *App) Reload(force, immediate bool) (bool, error) {
+func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 	requestTime := time.Now()
 
 	a.initMutex.Lock()
@@ -214,7 +221,7 @@ func (a *App) Reload(force, immediate bool) (bool, error) {
 	}
 
 	// Load Starlark config, AppConfig is updated with the settings contents
-	if err = a.loadStarlarkConfig(); err != nil {
+	if err = a.loadStarlarkConfig(dryRun); err != nil {
 		return false, err
 	}
 
@@ -310,7 +317,7 @@ const (
 	DOCKERFILE    = "Dockerfile"
 )
 
-func (a *App) loadContainerManager() error {
+func (a *App) loadContainerManager(dryRun DryRun) error {
 	containerConfig, err := a.appDef.Attr("container")
 	if err != nil || containerConfig == starlark.None {
 		// Plugin not authorized, skip any container files
@@ -558,7 +565,7 @@ func (a *App) startWatcher() error {
 
 					inReload.Store(true)
 					defer inReload.Store(false)
-					_, err := a.Reload(true, false)
+					_, err := a.Reload(true, false, DryRun(false))
 					if err != nil {
 						a.Error().Err(err).Msg("Error reloading app")
 					}

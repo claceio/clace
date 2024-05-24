@@ -189,7 +189,7 @@ func (m *Manager) clearSpecFiles(specFiles []string) error {
 	return nil
 }
 
-func (m *Manager) DevReload() error {
+func (m *Manager) DevReload(dryRun bool) error {
 	var imageName ImageName = ImageName(m.image)
 	if imageName == "" {
 		imageName = GenImageName(m.appEntry.Id, "")
@@ -199,6 +199,13 @@ func (m *Manager) DevReload() error {
 	containers, err := m.command.GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
+	}
+
+	if dryRun {
+		// The image could be rebuild in case of a dry run, without touch the container
+		// But the a temp image id will have to be used to avoid conflict with the existing image
+		// Dryrun is a no-op for now for containers
+		return nil
 	}
 
 	if len(containers) != 0 {
@@ -281,7 +288,7 @@ func (m *Manager) WaitForHealth(url string) error {
 	return err
 }
 
-func (m *Manager) ProdReload(excludeGlob []string) error {
+func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 	sourceHash, err := m.sourceFS.FileHash(excludeGlob)
 	if err != nil {
 		return fmt.Errorf("error getting file hash: %w", err)
@@ -307,6 +314,13 @@ func (m *Manager) ProdReload(excludeGlob []string) error {
 	containers, err := m.command.GetContainers(m.systemConfig, containerName, true)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
+	}
+
+	if dryRun {
+		// The image could be rebuild in case of a dry run, without touching the container
+		// But the a temp image id will have to be used to avoid conflict with the existing image
+		// Dryrun is a no-op for now for containers
+		return nil
 	}
 
 	if len(containers) != 0 {

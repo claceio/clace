@@ -342,7 +342,7 @@ func (s *Server) GetApp(pathDomain types.AppPathDomain, init bool) (*app.App, er
 	}
 
 	// Initialize the app
-	if err := application.Initialize(); err != nil {
+	if err := application.Initialize(app.DryRunFalse); err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
 

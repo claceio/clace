@@ -108,7 +108,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 	}
 
 	for _, stageApp := range stageApps {
-		if _, err := stageApp.Reload(true, true); err != nil {
+		if _, err := stageApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading stage app %s: %w", stageApp.AppEntry, err)
 		}
 	}
@@ -119,7 +119,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 			if err != nil {
 				return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 			}
-			if _, err := prodApp.Reload(true, true); err != nil {
+			if _, err := prodApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 				return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
 			}
 
@@ -152,7 +152,7 @@ func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRu
 			approveResults = append(approveResults, *devResult)
 		}
 
-		if _, err := devApp.Reload(true, true); err != nil {
+		if _, err := devApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading dev app %s: %w", devApp.AppEntry, err)
 		}
 	}
@@ -329,7 +329,7 @@ func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) 
 		if err != nil {
 			return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 		}
-		if _, err := prodApp.Reload(true, true); err != nil {
+		if _, err := prodApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
 		}
 		result = append(result, appInfo.AppPathDomain)

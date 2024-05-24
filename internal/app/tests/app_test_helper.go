@@ -93,7 +93,7 @@ func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]str
 	workFS := appfs.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a := app.NewApp(sourceFS, workFS, logger,
 		createTestAppEntry(id, path, isDev, metadata), &systemConfig, pluginConfig)
-	err = a.Initialize()
+	err = a.Initialize(app.DryRunFalse)
 	return a, workFS, err
 }
 

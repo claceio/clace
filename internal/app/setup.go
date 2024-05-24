@@ -32,7 +32,7 @@ func init() {
 	resolve.AllowRecursion = true
 }
 
-func (a *App) loadStarlarkConfig() error {
+func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
 	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
@@ -112,14 +112,14 @@ func (a *App) loadStarlarkConfig() error {
 	}
 
 	// Load container config. The proxy config in routes depends on this being loaded first
-	if err = a.loadContainerManager(); err != nil {
+	if err = a.loadContainerManager(dryRun); err != nil {
 		return err
 	}
 
 	if a.containerManager != nil {
 		// Container manager is present, reload the container
 		if a.IsDev {
-			if err = a.containerManager.DevReload(); err != nil {
+			if err = a.containerManager.DevReload(bool(dryRun)); err != nil {
 				return err
 			}
 		} else {
@@ -133,7 +133,7 @@ func (a *App) loadStarlarkConfig() error {
 			if len(templateFiles) != 0 { // a.UsesHtmlTemplate is set in initRouter, so it cannot be used here
 				excludeGlob = a.Config.Routing.ContainerExclude
 			}
-			if err := a.containerManager.ProdReload(excludeGlob); err != nil {
+			if err := a.containerManager.ProdReload(excludeGlob, bool(dryRun)); err != nil {
 				return err
 			}
 		}
