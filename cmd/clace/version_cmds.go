@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -31,7 +32,7 @@ func initVersionCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 func versionListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", ""))
 
 	return &cli.Command{
 		Name:      "list",
@@ -50,7 +51,7 @@ func versionListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 				return fmt.Errorf("requires one argument: <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 
@@ -60,7 +61,7 @@ func versionListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 				return err
 			}
 
-			printVersionList(cCtx, response.Versions, cCtx.String("format"))
+			printVersionList(cCtx, response.Versions, cmp.Or(cCtx.String("format"), clientConfig.Client.DefaultFormat))
 			return nil
 		},
 	}
@@ -118,7 +119,7 @@ func printVersionList(cCtx *cli.Context, versions []types.AppVersion, format str
 func versionFilesCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", ""))
 
 	return &cli.Command{
 		Name:      "files",
@@ -138,7 +139,7 @@ func versionFilesCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 				return fmt.Errorf("requires argument: <appPath> [<version>]")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			if cCtx.NArg() > 1 {
@@ -151,7 +152,7 @@ func versionFilesCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 				return err
 			}
 
-			printFileList(cCtx, response.Files, cCtx.String("format"))
+			printFileList(cCtx, response.Files, cmp.Or(cCtx.String("format"), clientConfig.Client.DefaultFormat))
 			return nil
 		},
 	}
@@ -219,7 +220,7 @@ func versionSwitchCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 				return fmt.Errorf("requires argument: <version> <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().Get(1))
 			values.Add("version", cCtx.Args().Get(0))
@@ -266,7 +267,7 @@ func versionRevertCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 				return fmt.Errorf("requires argument: <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 			values.Add("version", "revert") // Use revert as the switch API version

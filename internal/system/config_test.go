@@ -64,8 +64,9 @@ func TestClientConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load embedded config: %v", err)
 	}
-	testutil.AssertEqualsBool(t, "cert check", false, c.SkipCertCheck)
-	testutil.AssertEqualsString(t, "admin password", "", c.AdminPassword)
+	testutil.AssertEqualsBool(t, "cert check", false, c.Client.SkipCertCheck)
+	testutil.AssertEqualsString(t, "admin password", "", c.Client.AdminPassword)
 	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)
 	testutil.AssertEqualsString(t, "admin user", "admin", c.AdminUser)
+	testutil.AssertEqualsString(t, "default format", "table", c.Client.DefaultFormat)
 }

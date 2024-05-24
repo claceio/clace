@@ -5,8 +5,9 @@ admin_user = "admin"
 
 # Properties use by the Clace client to connect to the server
 [client]
-admin_password = ""     # the password for the admin user. Required only if admin over TCP is enabled
+admin_password = ""      # the password for the admin user. Required only if admin over TCP is enabled
 skip_cert_check = false
+default_format = "table" # default output format for the client commands
 
 # HTTP port binding related Config
 [http]

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -97,7 +98,7 @@ Examples:
 				return fmt.Errorf("require two arguments: <app_source_url> <app_path>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().Get(1))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
@@ -166,7 +167,7 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *c
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("internal", "i", "Include internal apps", false))
-	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", FORMAT_TABLE))
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", ""))
 
 	return &cli.Command{
 		Name:      "list",
@@ -197,13 +198,13 @@ Examples:
 				values.Add("pathSpec", cCtx.Args().Get(0))
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			var appListResponse types.AppListResponse
 			err := client.Get("/_clace/apps", values, &appListResponse)
 			if err != nil {
 				return err
 			}
-			printAppList(cCtx, appListResponse.Apps, cCtx.String("format"))
+			printAppList(cCtx, appListResponse.Apps, cmp.Or(cCtx.String("format"), clientConfig.Client.DefaultFormat))
 			return nil
 		},
 	}
@@ -228,8 +229,8 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_BASIC:
-		formatStrHead := "%-5s %4s %-7s %-60s\n"
-		formatStrData := "%-5s %4d %-7s %-60s\n"
+		formatStrHead := "%-5s %4s %-7s %s\n"
+		formatStrData := "%-5s %4d %-7s %s\n"
 		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Ver", "Auth", "AppPath")
 
 		for _, app := range apps {
@@ -237,8 +238,8 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 				app.AppEntry.AppPathDomain())
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s %-5s %-7s %-15s %-60s %-40s %-30s %-30s\n"
-		formatStrData := "%-35s %-5s %7d %-15s %-60s %-40s %-30s %-30s\n"
+		formatStrHead := "%-35s %-5s %-7s %-15s %-60s %-40s %-30s %30s\n"
+		formatStrData := "%-35s %-5s %7d %-15s %-60s %-40s %-30s %30s\n"
 		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version", "Auth",
 			"AppPath", "SourceUrl", "Spec", "GitInfo")
 
@@ -341,7 +342,7 @@ Examples:
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -392,7 +393,7 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -476,7 +477,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
@@ -563,7 +564,7 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 				return fmt.Errorf("requires one argument: <pathSpec>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))

@@ -50,7 +50,7 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 				return fmt.Errorf("requires three arguments: <pathSpec> <pluginName> <accountName>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add("plugin", cCtx.Args().Get(1))
@@ -113,7 +113,7 @@ func accountListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 				return fmt.Errorf("requires one argument: <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 
@@ -174,7 +174,7 @@ func updateParamsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 				return fmt.Errorf("requires three arguments: <pathSpec> <paramName> <paramValue>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("pathSpec", cCtx.Args().First())
 			values.Add("paramName", cCtx.Args().Get(1))
@@ -237,7 +237,7 @@ func paramListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 				return fmt.Errorf("requires one argument: <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().First())
 

@@ -24,7 +24,7 @@ func envString(name string) string {
 	return fmt.Sprintf("CL_%s", strings.ToUpper(strings.ReplaceAll(name, ".", "_")))
 }
 
-func newAltStringFlag(name, alias, usage, value string, destionation *string) *altsrc.StringFlag {
+func newAltStringFlag(name, alias, usage, value string, destination *string) *altsrc.StringFlag {
 	var aliases []string
 	if alias != "" {
 		aliases = []string{alias}
@@ -35,11 +35,11 @@ func newAltStringFlag(name, alias, usage, value string, destionation *string) *a
 		Usage:       usage,
 		Value:       value,
 		EnvVars:     []string{envString(name)},
-		Destination: destionation,
+		Destination: destination,
 	})
 }
 
-func newAltIntFlag(name, alias, usage string, value int, destionation *int) *altsrc.IntFlag {
+func newAltIntFlag(name, alias, usage string, value int, destination *int) *altsrc.IntFlag {
 	var aliases []string
 	if alias != "" {
 		aliases = []string{alias}
@@ -50,7 +50,7 @@ func newAltIntFlag(name, alias, usage string, value int, destionation *int) *alt
 		Usage:       usage,
 		Value:       value,
 		EnvVars:     []string{envString(name)},
-		Destination: destionation,
+		Destination: destination,
 	})
 }
 

@@ -49,7 +49,7 @@ func previewCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 				return fmt.Errorf("requires two arguments: <gitCommitId> <appPath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.AdminPassword, clientConfig.SkipCertCheck)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("appPath", cCtx.Args().Get(1))
 			values.Add("commitId", cCtx.Args().Get(0))

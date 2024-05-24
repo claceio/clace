@@ -142,8 +142,14 @@ type AuthConfig struct {
 // ClientConfig is the configuration for the Clace Client
 type ClientConfig struct {
 	GlobalConfig
+	Client ClientConfigStruct `toml:"client"`
+}
+
+// ClientConfigStruct is the configuration for the Clace Client
+type ClientConfigStruct struct {
 	SkipCertCheck bool   `toml:"skip_cert_check"`
 	AdminPassword string `toml:"admin_password"`
+	DefaultFormat string `toml:"default_format"` // the default format for the CLI output
 }
 
 // AppId is the identifier for an App
