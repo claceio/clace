@@ -172,12 +172,12 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	if isGit(workEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
 		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load source %s from git: %w", workEntry.SourceUrl, err)
 		}
 	} else if !workEntry.IsDev {
 		// App is loaded from disk (not git) and not in dev mode, load files into DB
 		if err := s.loadSourceFromDisk(ctx, tx, workEntry); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read source %s: %w", workEntry.SourceUrl, err)
 		}
 	}
 
