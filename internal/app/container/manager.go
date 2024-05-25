@@ -154,11 +154,15 @@ func (m *Manager) GetEnvMap() (map[string]string, string) {
 	}
 
 	// Add the app path to the return map and hash
+	pathValue := m.appEntry.Path
+	if pathValue == "/" {
+		pathValue = ""
+	}
 	hashBuilder.WriteString("CL_APP_PATH")
 	hashBuilder.WriteByte(0)
-	hashBuilder.WriteString(m.appEntry.Path)
+	hashBuilder.WriteString(pathValue)
 	hashBuilder.WriteByte(0)
-	ret["CL_APP_PATH"] = m.appEntry.Path
+	ret["CL_APP_PATH"] = pathValue
 
 	return ret, hashBuilder.String()
 }

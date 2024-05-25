@@ -29,9 +29,9 @@
 
 Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows easy and secure hosting of multiple web apps, in any language/framework, on a single machine. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. Start Clace server, ensure Docker or Podman is running. New apps can be installed from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
+Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. Start Clace server and ensure Docker or Podman is running. New apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
 
-Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server with authentication added automatically. Apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
+Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server with authentication added automatically. Apps are deployed directly from the git repo, no build step required. Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to build apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo.
 
