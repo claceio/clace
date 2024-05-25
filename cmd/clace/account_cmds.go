@@ -160,25 +160,26 @@ func updateParamsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 		Usage:     "Update parameter value for the app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <paramName> <paramValue>",
-		UsageText: `args: <pathSpec> <paramName> <paramValue> 
+		ArgsUsage: "<paramName> <paramValue> <pathSpec>",
+		UsageText: `args: <paramName> <paramValue> <pathSpec>
 
-<pathSpec> is the first required argument. ` + PATH_SPEC_HELP + `<paramName> is the required second argument. This is the name of the parameter.
-<paramValue> is the required third argument. This is the value to set the param to. Use "-" to unset the parameter.
+<paramName> is the first required argument. This is the parameter name.
+<paramValue> is the second required argument. This is the value to set the param to. Use "-" to unset the parameter.
+<pathSpec> is the third required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
-	  Update parameter value: clace param update /myapp port 8888
-	  Delete parameter value: clace param update /myapp port -`,
+	  Update parameter value: clace param update port 8888 /myapp
+	  Delete parameter value: clace param update port - /myapp`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 3 {
-				return fmt.Errorf("requires three arguments: <pathSpec> <paramName> <paramValue>")
+				return fmt.Errorf("requires three arguments: <paramName> <paramValue> <pathSpec>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().First())
-			values.Add("paramName", cCtx.Args().Get(1))
-			values.Add("paramValue", cCtx.Args().Get(2))
+			values.Add("paramName", cCtx.Args().Get(0))
+			values.Add("paramValue", cCtx.Args().Get(1))
+			values.Add("pathSpec", cCtx.Args().Get(2))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
