@@ -53,7 +53,7 @@ The development features supported currently by Clace are:
 
 The deployment features supported currently by Clace are:
 
-- Support for containerized apps, automatically build and manage containers
+- Support for containerized apps, automatically build and manage containers.
 - [Staging mode](https://clace.io/docs/applications/lifecycle/#staging-apps) for app updates, to verify whether code and config changes work on prod before making them live.
 - [Preview app](https://clace.io/docs/applications/lifecycle/#preview-apps) creation support, for trying out code changes.
 - [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
@@ -77,6 +77,34 @@ The feature roadmap for Clace is:
 - Container volume management is not supported currently.
 
 ## Setup
+
+### Install
+
+To install on OSX/Linux, run
+
+```shell
+curl -L https://clace.io/install.sh | sh
+source $HOME/clhome/bin/clace.env
+clace server start &
+```
+
+To install on Windows, run
+
+```
+pwsh -Command "iwr https://clace.io/install.ps1 -useb | iex"
+```
+
+Use powershell if pwsh is not available. Start a new command window (to get the updated ENV values) and run
+`clace server start`
+
+To install apps, run
+
+```
+clace app create --approve github.com/claceio/apps/system/disk_usage /disk_usage
+clace app create --approve github.com/claceio/apps/utils/bookmarks /book
+```
+
+The disk usage app is available at https://localhost:25223/disk_usage (use port 25222 for HTTP). admin is the username, use the password printed by the install script. The bookmark manager is available at https://localhost:25223/book. Add `--auth none` to the `app create` command to disable auth.
 
 ### Build from source
 
@@ -104,6 +132,9 @@ To use the clace service, you need an initial config file with the service passw
 
 ```shell
 export CL_HOME=$HOME/clhome && mkdir $CL_HOME
+cd $CL_HOME
+mkdir config
+git clone -C config https://github.com/claceio/appspecs
 $HOME/clace password > $CL_HOME/clace.toml
 ```
 
