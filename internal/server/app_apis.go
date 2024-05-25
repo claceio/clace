@@ -172,7 +172,8 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 	if isGit(workEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
 		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth); err != nil {
-			return nil, fmt.Errorf("failed to load source %s from git: %w", workEntry.SourceUrl, err)
+			return nil, fmt.Errorf("failed to load source %s from git: %w. Wrong org/repo name can show as auth error."+
+				" Use --git-auth for private repos, --branch to change branch", workEntry.SourceUrl, err)
 		}
 	} else if !workEntry.IsDev {
 		// App is loaded from disk (not git) and not in dev mode, load files into DB
@@ -688,7 +689,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, ap
 	// Configure the repo to Clone
 	gitRepo, err := git.PlainClone(tmpDir, false, &cloneOptions)
 	if err != nil {
-		return err
+		return fmt.Errorf("error checking out branch %s: %w", branch, err)
 	}
 
 	w, err := gitRepo.Worktree()
@@ -710,7 +711,7 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, ap
 	}
 	*/
 	if err := w.Checkout(&options); err != nil {
-		return err
+		return fmt.Errorf("error checking out branch %s commit %s: %w", branch, commit, err)
 	}
 
 	ref, err := gitRepo.Head()
@@ -901,7 +902,7 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 
 	// Checkout the git repo locally and load into database
 	if err := s.loadSourceFromGit(ctx, tx, &previewAppEntry, "", commitId, previewAppEntry.Settings.GitAuthName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load source %s from git: %w", previewAppEntry.SourceUrl, err)
 	}
 
 	// Create the in memory app object

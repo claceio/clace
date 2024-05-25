@@ -56,10 +56,10 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("dev", "d", "Is the application in development mode", false))
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
-	flags = append(flags, newStringFlag("auth", "", "The authentication mode for the app: can be default or none or system or a oauth account", "default"))
+	flags = append(flags, newStringFlag("auth", "", "The authentication mode for the app: can be default or none or system or an OAuth account config", "default"))
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
-	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
+	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry in server config to use", ""))
 	flags = append(flags, newStringFlag("spec", "", "The spec to use for the app", ""))
 	flags = append(flags,
 		&cli.StringSliceFlag{
