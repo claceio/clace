@@ -95,7 +95,7 @@ pwsh -Command "iwr https://clace.io/install.ps1 -useb | iex"
 ```
 
 Use powershell if pwsh is not available. Start a new command window (to get the updated ENV values) and run
-`clace server start`
+`clace server start` to start the service.
 
 To install apps, run
 
