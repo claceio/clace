@@ -142,14 +142,14 @@ This will print a random password on the screen, note that down as the password 
 
 ### Start Service
 
-To start the service, the CL_HOME environment variable has to point to the work directory location and the CL_CONFIG_FILE env variable should point to the config file.
+To start the service, the CL_HOME environment variable has to point to the work directory location.
 
 ```shell
 export CL_HOME=$HOME/clhome
 $HOME/clace server start
 ```
 
-Add the exports to your shell profile file. The service logs will be going to $CL_HOME/logs. To get the logs on the console also, you can add `-c -l DEBUG` to the server start command.
+Add the exports to your shell profile file. The service logs will be going to $CL_HOME/logs.
 
 The service will be started on [https://localhost:25223](https://127.0.0.1:25223) by default (HTTP port 25222).
 
