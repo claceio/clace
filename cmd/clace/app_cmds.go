@@ -285,10 +285,10 @@ func appType(app types.AppResponse) string {
 func authType(app types.AppResponse) string {
 	if app.Settings.AuthnType == types.AppAuthnNone {
 		return "NONE"
-	} else if app.Settings.AuthnType == types.AppAuthnDefault {
+	} else if app.Settings.AuthnType == types.AppAuthnSystem {
 		return "SYSTEM"
-	} else if app.Settings.AuthnType == "" {
-		return "----"
+	} else if app.Settings.AuthnType == types.AppAuthnDefault || app.Settings.AuthnType == "" {
+		return "DEFAULT"
 	} else {
 		return string(app.Settings.AuthnType)
 	}

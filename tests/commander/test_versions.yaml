@@ -20,10 +20,10 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/versions_local1/abc/def/test.txt
     stdout: "abc"
   versions0060: # check list, four apps on version 1
-    command: ../clace app list -i "/versions*" | grep "1 SYST" | wc -l
+    command: ../clace app list -i "/versions*" | grep "1 DEFAULT" | wc -l
     stdout: "4"
   versions0070: # check list, one dev app on version 0
-    command: ../clace app list -i "/versions*" | grep "0 SYST" | wc -l
+    command: ../clace app list -i "/versions*" | grep "0 DEFAULT" | wc -l
     stdout: "1"
   versions0080: # update static file
     command: echo "22" > ./versionstest/static_root/rootfile.txt

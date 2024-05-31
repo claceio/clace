@@ -113,6 +113,12 @@ tests:
     command: ../clace app create --dev --auth=default ./testapp /test3
     exit-code: 0
 
+  basic260a: # List shows auth as DEFAULT
+    command: "../clace app list --format csv /test3 | grep DEFAULT | wc -l"
+    stdout:
+      exactly: "1"
+    exit-code: 0
+
   basic270: # check curl works with password
     command: curl -sS -u "admin:abcd" localhost:9154/test3
     stdout: "Test app body"
@@ -147,7 +153,7 @@ tests:
       line-count: 4
       contains:
         - "Type  Version Auth"
-        - "PROD        1 SYST"
+        - "PROD        1 DEFAULT"
     exit-code: 0
   basic510: # Test app list command with internal
     command: ../clace app list --internal

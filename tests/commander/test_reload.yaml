@@ -170,7 +170,7 @@ tests:
     stdout:
       exactly: "0" # no apps at 0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec
   reload0506a: # check app list auth listing
-    command: '../clace app list --internal "/reload_git*" | grep SYST | wc -l'
+    command: '../clace app list --internal "/reload_git*" | grep DEFAULT | wc -l'
     stdout:
       exactly: "4"
 
