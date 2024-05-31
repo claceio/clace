@@ -37,6 +37,8 @@ type Manager struct {
 	buildDir      string
 	sourceFS      appfs.ReadableFS
 	paramMap      map[string]string
+	volumes       []string // Volumes to be mounted, read from the container file
+	extraVolumes  []string // Extra volumes, from the app config
 }
 
 func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, containerFile string,
@@ -44,6 +46,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 	paramMap map[string]string) (*Manager, error) {
 
 	image := ""
+	volumes := []string{}
 	if strings.HasPrefix(containerFile, types.CONTAINER_SOURCE_IMAGE_PREFIX) {
 		// Using an image
 		image = containerFile[len(types.CONTAINER_SOURCE_IMAGE_PREFIX):]
@@ -60,7 +63,6 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		}
 
 		var filePort int64
-		volumes := []string{}
 		// Loop through the parsed result to find the EXPOSE and VOLUME instructions
 		for _, child := range result.AST.Children {
 			switch strings.ToUpper(child.Value) {
@@ -104,6 +106,7 @@ func NewContainerManager(logger *types.Logger, appEntry *types.AppEntry, contain
 		sourceFS:      sourceFS,
 		command:       ContainerCommand{logger},
 		paramMap:      paramMap,
+		volumes:       volumes,
 	}, nil
 }
 
@@ -184,13 +187,34 @@ func (m *Manager) createSpecFiles() ([]string, error) {
 	return created, nil
 }
 
-func (m *Manager) clearSpecFiles(specFiles []string) error {
-	for _, file := range specFiles {
-		if err := os.Remove(file); err != nil {
-			return fmt.Errorf("error removing spec file %s: %w", file, err)
+func (m *Manager) getVolumes() []string {
+	allVolumes := append(m.volumes, m.extraVolumes...)
+	slices.Sort(allVolumes)
+	return slices.Compact(allVolumes)
+}
+
+func (m *Manager) createVolumes() error {
+	allVolumes := m.getVolumes()
+	for _, v := range allVolumes {
+		volumeName := GenVolumeName(m.appEntry.Id, v)
+		if !m.command.VolumeExists(m.systemConfig, volumeName) {
+			err := m.command.VolumeCreate(m.systemConfig, volumeName)
+			if err != nil {
+				return fmt.Errorf("error creating volume %s: %w", volumeName, err)
+			}
 		}
 	}
 	return nil
+}
+
+func (m *Manager) getMountArgs() []string {
+	allVolumes := m.getVolumes()
+	args := []string{}
+	for _, v := range allVolumes {
+		volumeName := GenVolumeName(m.appEntry.Id, v)
+		args = append(args, fmt.Sprintf("--mount=type=volume,source=%s,target=%s", volumeName, v))
+	}
+	return args
 }
 
 func (m *Manager) DevReload(dryRun bool) error {
@@ -223,27 +247,28 @@ func (m *Manager) DevReload(dryRun bool) error {
 		// Using a container file, rebuild the image
 		_ = m.command.RemoveImage(m.systemConfig, imageName)
 
-		createdFiles, err := m.createSpecFiles()
+		_, err := m.createSpecFiles()
 		if err != nil {
 			return err
 		}
 		buildDir := path.Join(m.appEntry.SourceUrl, m.buildDir)
 		err = m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile)
-
-		cleanupErr := m.clearSpecFiles(createdFiles)
 		if err != nil {
 			return err
 		}
-
-		if cleanupErr != nil {
-			return cleanupErr
-		}
+		// Don't remove the spec files, it is good if they are checked into the source repo
+		// Makes the app independent of changes in the spec files
 	}
 
 	_ = m.command.RemoveContainer(m.systemConfig, containerName)
 
+	if err = m.createVolumes(); err != nil {
+		// Create named volumes for the container
+		return err
+	}
+
 	envMap, _ := m.GetEnvMap()
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap)
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap, m.getMountArgs())
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
@@ -329,6 +354,7 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 
 	if len(containers) != 0 {
 		if containers[0].State != "running" {
+			// This does not handle the case where volume list has changed
 			m.Debug().Msgf("container state %s, starting", containers[0].State)
 			err = m.command.StartContainer(m.systemConfig, containerName)
 			if err != nil {
@@ -369,8 +395,13 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 		}
 	}
 
+	if err = m.createVolumes(); err != nil {
+		// Create named volumes for the container
+		return err
+	}
+
 	// Start the container with newly built image
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap)
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap, m.getMountArgs())
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}

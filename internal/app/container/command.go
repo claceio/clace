@@ -36,6 +36,8 @@ type ContainerName string
 
 type ImageName string
 
+type VolumeName string
+
 var base32encoder = base32.StdEncoding.WithPadding(base32.NoPadding)
 
 func genLowerCaseId(name string) string {
@@ -226,11 +228,15 @@ func (c ContainerCommand) StartContainer(config *types.SystemConfig, name Contai
 const LABEL_PREFIX = "io.clace."
 
 func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName,
-	imageName ImageName, port int64, envMap map[string]string) error {
-	c.Debug().Msgf("Running container %s from image %s with port %d env %+v", containerName, imageName, port, envMap)
+	imageName ImageName, port int64, envMap map[string]string, mountArgs []string) error {
+	c.Debug().Msgf("Running container %s from image %s with port %d env %+v mountArgs %+v",
+		containerName, imageName, port, envMap, mountArgs)
 	publish := fmt.Sprintf("127.0.0.1::%d", port)
 
 	args := []string{"run", "--name", string(containerName), "--detach", "--publish", publish}
+	if len(mountArgs) > 0 {
+		args = append(args, mountArgs...)
+	}
 
 	args = append(args, "--label", LABEL_PREFIX+"app.id="+string(appEntry.Id))
 	if appEntry.IsDev {
