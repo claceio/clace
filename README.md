@@ -29,9 +29,9 @@
 
 Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows easy and secure hosting of multiple web apps, in any language/framework, on a single machine. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. Start Clace server and ensure Docker or Podman is running. New apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
+Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. After starting the Clace server and ensuring Docker or Podman is running, new apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
 
-Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server with authentication added automatically. Apps are deployed directly from the git repo, no build step required. Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
+Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server. Apps are deployed directly from the git repo, no build step required. Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
 
 This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to build apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo.
 
@@ -39,32 +39,36 @@ This repo hosts the source code for Clace server and client. The source for the 
 
 ## Features
 
-### Development Features
+Clace can be used to:
 
-The development features supported currently by Clace are:
+- Deploy containerized applications, Clace will build and manage the container lifecycle
+- Build Hypermedia based applications using Starlark (no containers required)
+- Hybrid approach, where the backend APIs are implemented in a container and a Hypermedia based UI is implemented in Clace
 
-- Hypermedia driven backend [API design](https://clace.io/docs/app/routing/), simplifying UI development.
-- Automatic [error handling support](https://clace.io/docs/plugins/overview/#automatic-error-handling)
-- Dynamic reload using SSE (Server Sent Events) for all application changes, backend and frontend.
-- Automatic creation of ECMAScript modules using [esbuild](https://esbuild.github.io/).
-- Support for [TailwindCSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/) watcher integration.
+Clace supports the following for all apps:
 
-### Deployment Features
-
-The deployment features supported currently by Clace are:
-
-- Support for containerized apps, automatically build and manage containers.
+- Atomic updates (all or none) across [multiple apps](https://clace.io/docs/applications/overview/#glob-pattern)
 - [Staging mode](https://clace.io/docs/applications/lifecycle/#staging-apps) for app updates, to verify whether code and config changes work on prod before making them live.
 - [Preview app](https://clace.io/docs/applications/lifecycle/#preview-apps) creation support, for trying out code changes.
+- Support for [github integration](https://clace.io/docs/configuration/security/#private-repository-access), apps being directly deployed from github code.
+- OAuth and SSO based [authentication](https://clace.io/docs/configuration/authentication/#oauth-authentication)
+- Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
+
+For containerized apps, Clace supports:
+
+- Managing [image builds](https://clace.io/docs/quickstart/#containerized-applications), in dev and prod mode
+- Passing [parameters](https://clace.io/docs/app/overview/#app-parameters) for the container
+- Building apps from [spec](https://clace.io/docs/app/overview/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Containerfile)
+
+For building Hypermedia based apps, Clace supports:
+
+- Automatic [error handling support](https://clace.io/docs/plugins/overview/#automatic-error-handling)
+- Automatic creation of ECMAScript modules using [esbuild](https://esbuild.github.io/).
+- Support for [TailwindCSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/) watcher integration.
 - [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
 - Backend app code runs in a [security sandbox](https://clace.io/docs/applications/appsecurity/#security-model), with allowlist based permissions.
 - [No build step](https://clace.io/docs/app/overview/#app-lifecycle), the development artifacts are ready for production use.
-- Support for [github integration](https://clace.io/docs/configuration/security/#private-repository-access), apps being directly deployed from github code.
-- Database backed file system, for atomic version updates and rollbacks.
 - Support for application data persistance using SQLite
-- OAuth and SSO based [authentication](https://clace.io/docs/configuration/authentication/#oauth-authentication)
-- Scalable backend, all performance critical code is in Go, only application handler code is in Starlark.
-- Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
 - Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function) backed by SQLite database, enabling aggressive static content caching.
 - Brotli compression for static artifacts, HTTP early hints support for performance.
 
@@ -72,9 +76,9 @@ The deployment features supported currently by Clace are:
 
 The feature roadmap for Clace is:
 
-- SQLite is used for metadata storage currently. Support for postgres and other systems is planned. This will be used to allow for horizontal scaling.
+- SQLite is used for metadata storage currently. Support for postgres is planned. This will be used to allow for horizontal scaling.
 - Integration with secrets managers, to securely access secrets.
-- Container volume management is not supported currently.
+- Support for pausing app containers which are idle
 
 ## Setup
 
@@ -106,6 +110,13 @@ clace app create --approve github.com/claceio/apps/utils/bookmarks /book
 
 The disk usage app is available at https://localhost:25223/disk_usage (use port 25222 for HTTP). admin is the username, use the password printed by the install script. The bookmark manager is available at https://localhost:25223/book. Add `--auth none` to the `app create` command to disable auth.
 
+To install a containerized app, ensure either Docker or Podman is running and run
+
+```
+clace app create --spec python-streamlit --param app_file=hello --approve - /streamlit_hello
+clace app create --spec python-streamlit --branch master --approve github.com/streamlit/streamlit-example /streamlit
+```
+
 ### Build from source
 
 To install a release build, follow steps in the [installation docs](https://clace.io/docs/installation/#install-release-build).
@@ -123,7 +134,7 @@ git clone -b main https://github.com/claceio/clace && cd clace
 go build -o $HOME/clace ./cmd/clace/
 ```
 
-### Initial Configuration
+### Initial Configuration For Source Install
 
 To use the clace service, you need an initial config file with the service password and a work directory. The below instructions assume you are using $HOME/clhome/clace.toml as the config file and $HOME/clhome as the work directory location.
 
