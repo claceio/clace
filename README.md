@@ -117,6 +117,14 @@ clace app create --spec python-streamlit --param app_file=hello --approve - /str
 clace app create --spec python-streamlit --branch master --approve github.com/streamlit/streamlit-example /streamlit
 ```
 
+If the source repo has a `Dockerfile` or `Containerfile`, run
+
+```
+clace app create --spec container --approve <source_path> /myapp
+```
+
+to install the app.
+
 ### Build from source
 
 To install a release build, follow steps in the [installation docs](https://clace.io/docs/installation/#install-release-build).
