@@ -1,0 +1,36 @@
+config:
+  env:
+    CL_CONFIG_FILE: clace.toml
+    CL_CONTAINER_CMD: ${CL_CONTAINER_CMD}
+    HTTP_PORT: ${HTTP_PORT}
+tests:
+  container0010: # setup flask app
+    command: rm -rf ./flaskapp && mkdir flaskapp && cp flask.py flaskapp/app.py
+  container0020: # setup flask dev app
+    command: ../clace app create --dev --spec python-flask --approve ./flaskapp /cont_flaskdev
+  container0030: # setup flask prod app
+    command: ../clace app create --spec python-flask --approve ./flaskapp /cont_flaskprod
+  container0040: # check curl dev works
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev
+    stdout: "hello"
+  container0050: # update app code
+    command: perl -i -pe 's/"hello"/"updated"/g' flaskapp/app.py
+  container0060: # check dev picked up change
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev
+    stdout: "updated"
+  container0070: # stage is not yet updated
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod_cl_stage
+    stdout: "hello"
+  container0080: # do reload
+    command: ../clace app reload /cont_flaskprod
+  container0090: # stage is updated
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod_cl_stage
+    stdout: "updated"
+  container0100: # prod is not yet updated
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout: "hello"
+  container0110: # do promote
+    command: ../clace app promote /cont_flaskprod
+  container0120: # prod is updated
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout: "updated"

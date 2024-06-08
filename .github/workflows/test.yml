@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
-      - name: Test with Go
+      - name: Unit tests
         run: |
           export CL_HOME=`pwd`
           rm -rf internal/server/appspecs && cd internal/server
@@ -52,7 +52,9 @@ jobs:
           git clone --single-branch --depth 1 https://github.com/claceio/appspecs.git
           rm -rf appspecs/.git
           cd $CL_HOME
+
           go install github.com/commander-cli/commander/v2/cmd/commander@latest
+          export CL_CONTAINER_COMMANDS=disable # docker/podman does not run on github actions
           tests/run_cli_tests.sh
 
       - name: Upload Go test results

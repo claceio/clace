@@ -1,18 +1,27 @@
 #set -x
 set -e
+
+# Enabling verbose is useful for debugging but the commander command seems to
+# return exit code of 0 when verbose is enabled, even if tests fails. So verbose
+# is disabled by default.
+#export CL_TEST_VERBOSE="--verbose"
+
 cd $CL_HOME
+
+# Setup app specs
+rm -rf appspecs_bk
+if [[ -d internal/server/appspecs/dummy ]]; then
+  mv internal/server/appspecs appspecs_bk
+  cp -r config/appspecs internal/server/
+fi 
 go build ./cmd/clace
+
 cd tests
 rm -rf clace.db
 
 export CL_HOME=.
 unset CL_CONFIG_FILE
 unset SSH_AUTH_SOCK
-
-# Enabling verbose is useful for debugging but the commander command seems to
-# return exit code of 0 when verbose is enabled, even if tests fails. So verbose
-# is disabled by default.
-# export CL_TEST_VERBOSE="--verbose"
 
 trap "error_handler" ERR
 
@@ -25,7 +34,13 @@ error_handler () {
 
 cleanup() {
   rm -rf clace.db
-  rm -rf logs/ clace.toml  server.stdout
+  rm -rf logs/ clace.toml config_container.toml server.stdout flaskapp
+
+  if [[ -d ../appspecs_bk ]]; then
+    rm -rf ../internal/server/appspecs
+    mv ../appspecs_bk ../internal/server/appspecs
+  fi 
+
   set +e
   ps -ax | grep "clace server start" | grep -v grep | cut -c1-6 | xargs kill -9
 
@@ -135,6 +150,38 @@ if [[ -n "$CL_GITHUB_SECRET" ]]; then
   # test git oauth access are tested 
   commander test $CL_TEST_VERBOSE test_oauth.yaml
 fi
+
+if [[ $CL_CONTAINER_COMMANDS = "disable" ]]; then
+  CL_CONTAINER_COMMANDS=""
+elif [[ -z "$CL_CONTAINER_COMMANDS" ]]; then
+  CL_CONTAINER_COMMANDS="docker podman"
+fi
+
+port_base=9000
+
+for cmd in ${CL_CONTAINER_COMMANDS}; do
+    http_port=`expr $port_base + 1`
+    https_port=`expr $port_base + 2`
+    port_base=`expr $port_base + 2`
+
+    # Use password hash for "abcd"
+    cat <<EOF > config_container.toml
+[http]
+port = $http_port
+[https]
+port = $https_port
+[security]
+app_default_auth_type="none"
+EOF
+    rm -rf clace.db* run/clace.sock
+    CL_CONFIG_FILE=config_container.toml ../clace server start &
+    sleep 2
+
+    export CL_CONTAINER_CMD=$cmd
+    export HTTP_PORT=$http_port
+    echo "********Testing container apps for $cmd*********"
+    commander test $CL_TEST_VERBOSE test_containers.yaml
+done
 
 cleanup
 echo "All tests passed"
