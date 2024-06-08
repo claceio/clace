@@ -151,6 +151,8 @@ if [[ -n "$CL_GITHUB_SECRET" ]]; then
   commander test $CL_TEST_VERBOSE test_oauth.yaml
 fi
 
+
+# Test containerized apps
 if [[ $CL_CONTAINER_COMMANDS = "disable" ]]; then
   CL_CONTAINER_COMMANDS=""
 elif [[ -z "$CL_CONTAINER_COMMANDS" ]]; then
@@ -158,13 +160,11 @@ elif [[ -z "$CL_CONTAINER_COMMANDS" ]]; then
 fi
 
 port_base=9000
-
 for cmd in ${CL_CONTAINER_COMMANDS}; do
     http_port=`expr $port_base + 1`
     https_port=`expr $port_base + 2`
     port_base=`expr $port_base + 2`
 
-    # Use password hash for "abcd"
     cat <<EOF > config_container.toml
 [http]
 port = $http_port
@@ -172,16 +172,17 @@ port = $http_port
 port = $https_port
 [security]
 app_default_auth_type="none"
+[system]
+container_command="$cmd"
 EOF
     rm -rf clace.db* run/clace.sock
     CL_CONFIG_FILE=config_container.toml ../clace server start &
     sleep 2
 
-    export CL_CONTAINER_CMD=$cmd
     export HTTP_PORT=$http_port
-    echo "********Testing container apps for $cmd*********"
+    echo "********Testing containerized apps with $cmd*********"
     commander test $CL_TEST_VERBOSE test_containers.yaml
 done
 
 cleanup
-echo "All tests passed"
+echo "Test completed"

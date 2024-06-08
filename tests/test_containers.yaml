@@ -1,7 +1,6 @@
 config:
   env:
     CL_CONFIG_FILE: clace.toml
-    CL_CONTAINER_CMD: ${CL_CONTAINER_CMD}
     HTTP_PORT: ${HTTP_PORT}
 tests:
   container0010: # setup flask app
