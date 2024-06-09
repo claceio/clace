@@ -33,3 +33,34 @@ tests:
   container0120: # prod is updated
     command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
     stdout: "updated"
+
+  container0200: # setup streamlit app
+    command: ../clace app create --spec python-streamlit --branch master --approve github.com/streamlit/streamlit-example /cont_streamlit
+  container0210: # check stage
+    command: curl -sS localhost:${HTTP_PORT}/cont_streamlit_cl_stage/_stcore/health
+    stdout: ok
+  container0220: # check prod
+    command: curl -sS localhost:${HTTP_PORT}/cont_streamlit/_stcore/health
+    stdout: ok
+
+  container0300: # setup proxy
+    command: ../clace app create --spec proxy --approve -param url=https://clace.io - /cont_proxy
+  container0310: # check stage
+    command: curl -sS localhost:${HTTP_PORT}/cont_proxy_cl_stage
+    stdout: platform
+  container0320: # check prod
+    command: curl -sS localhost:${HTTP_PORT}/cont_proxy
+    stdout: platform
+
+  container0400: # setup nginx image
+    command: ../clace app create --spec image --approve --param image=nginx --param port=80 - /cont_image_nginx
+  container0410: # check stage
+    command: curl -sS localhost:${HTTP_PORT}/cont_image_nginx_cl_stage
+    stdout: Welcome to nginx
+  container0420: # check prod
+    command: curl -sS localhost:${HTTP_PORT}/cont_image_nginx
+    stdout: Welcome to nginx
+  container0430: # error check
+    command: ../clace app create --spec image --approve --param image=nginx - /cont_image_error
+    stderr: param port is a required param, a value has to be provided
+    exit-code: 1
