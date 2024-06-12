@@ -230,7 +230,7 @@ func (m *Manager) DevReload(dryRun bool) error {
 	}
 
 	if dryRun {
-		// The image could be rebuild in case of a dry run, without touch the container.
+		// The image could be rebuild in case of a dry run, without touching the container.
 		// But a temp image id will have to be used to avoid conflict with the existing image.
 		// Dryrun is a no-op for now for containers
 		return nil
