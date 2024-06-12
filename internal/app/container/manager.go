@@ -230,8 +230,8 @@ func (m *Manager) DevReload(dryRun bool) error {
 	}
 
 	if dryRun {
-		// The image could be rebuild in case of a dry run, without touch the container
-		// But the a temp image id will have to be used to avoid conflict with the existing image
+		// The image could be rebuild in case of a dry run, without touch the container.
+		// But a temp image id will have to be used to avoid conflict with the existing image.
 		// Dryrun is a no-op for now for containers
 		return nil
 	}
@@ -346,8 +346,8 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		// The image could be rebuild in case of a dry run, without touching the container
-		// But the a temp image id will have to be used to avoid conflict with the existing image
+		// The image could be rebuild in case of a dry run, without touching the container.
+		// But a temp image id will have to be used to avoid conflict with the existing image.
 		// Dryrun is a no-op for now for containers
 		return nil
 	}
