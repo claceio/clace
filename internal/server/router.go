@@ -4,6 +4,7 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -129,6 +130,8 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 		router.Mount(types.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
 	}
 
+	router.Mount(types.WEBHOOK_URL_PREFIX, handler.serveWebhooks())
+
 	server.ssoAuth.RegisterRoutes(router) // register SSO routes
 
 	router.HandleFunc("/*", handler.callApp)
@@ -201,6 +204,87 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	w.Header().Add("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		h.Error().Err(err).Msg("error encoding response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhookType types.WebhookType) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		http.Error(w, "appPath is required for webhook call", http.StatusBadRequest)
+		return
+	}
+	appPathDomain, err := parseAppPath(appPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	app, err := h.server.GetApp(appPathDomain, false)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, "Authorization header with bearer token is required", http.StatusUnauthorized)
+		return
+	}
+	authToken := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	if authToken == "" {
+		http.Error(w, "Bearer token is required", http.StatusUnauthorized)
+		return
+	}
+
+	appToken := ""
+	promote := false
+	switch webhookType {
+	case types.WebhookReload:
+		appToken = app.Settings.WebhookTokens.Reload
+	case types.WebhookReloadPromote:
+		appToken = app.Settings.WebhookTokens.ReloadPromote
+		promote = true
+	default:
+		http.Error(w, "Invalid webhook type", http.StatusInternalServerError)
+		return
+	}
+
+	if appToken == "" {
+		http.Error(w, "Webhook is not enabled for app", http.StatusBadRequest)
+		return
+	}
+
+	if subtle.ConstantTimeCompare([]byte(appToken), []byte(authToken)) != 1 {
+		http.Error(w, "Invalid bearer token", http.StatusUnauthorized)
+		return
+	}
+
+	payload := map[string]any{}
+	err = json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		http.Error(w, "Error parsing request, expected JSON", http.StatusBadRequest)
+		return
+	}
+
+	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Msg("API Received request")
+	resp, err := h.server.ReloadApps(r.Context(), appPath, false, promote, false, "", "", "")
+	if err != nil {
+		if reqError, ok := err.(types.RequestError); ok {
+			w.Header().Add("Content-Type", "application/json")
+			errStr, _ := json.Marshal(reqError)
+			http.Error(w, string(errStr), reqError.Code)
+			return
+		}
+		h.Error().Err(err).Msg("error in api func call")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Add("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
@@ -551,6 +635,7 @@ func (h *Handler) versionSwitch(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+// serveInternal returns a handler for the internal APIs for app admin and management
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
@@ -628,6 +713,26 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to switch version for an app
 	r.Post("/version", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.versionSwitch)
+	}))
+
+	return r
+}
+
+// serveWebhooks returns a handler for the app webhooks for reload and other events
+// webhooks are always mounted, even if admin over TCP is not enabled. At the app
+// level, webhooks are disabled by default and need to be enabled by the user
+func (h *Handler) serveWebhooks() http.Handler {
+	// These API's are mounted at /_clace_webhook
+	r := chi.NewRouter()
+
+	// Reload app
+	r.Post("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.webhookHandler(w, r, types.WebhookReload)
+	}))
+
+	// Reload and Promote app
+	r.Post("/reload_promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.webhookHandler(w, r, types.WebhookReloadPromote)
 	}))
 
 	return r

@@ -18,6 +18,7 @@ const (
 	ID_PREFIX_APP_STAGE     = "app_stg_"
 	ID_PREFIX_APP_PREVIEW   = "app_pre_"
 	INTERNAL_URL_PREFIX     = "/_clace"
+	WEBHOOK_URL_PREFIX      = "/_clace_webhook"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
 	INTERNAL_APP_DELIM      = "_cl_"
 	STAGE_SUFFIX            = INTERNAL_APP_DELIM + "stage"
@@ -269,11 +270,24 @@ type AppMetadata struct {
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
 type AppSettings struct {
-	AuthnType          AppAuthnType `json:"authn_type"`
-	GitAuthName        string       `json:"git_auth_name"`
-	StageWriteAccess   bool         `json:"stage_write_access"`
-	PreviewWriteAccess bool         `json:"preview_write_access"`
+	AuthnType          AppAuthnType  `json:"authn_type"`
+	GitAuthName        string        `json:"git_auth_name"`
+	StageWriteAccess   bool          `json:"stage_write_access"`
+	PreviewWriteAccess bool          `json:"preview_write_access"`
+	WebhookTokens      WebhookTokens `json:"webhook_tokens"`
 }
+
+type WebhookTokens struct {
+	Reload        string `json:"reload"`
+	ReloadPromote string `json:"reload_promote"`
+}
+
+type WebhookType string
+
+const (
+	WebhookReload        WebhookType = "reload"
+	WebhookReloadPromote WebhookType = "reload_promote"
+)
 
 // SpecFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text
 type SpecFiles map[string]string
