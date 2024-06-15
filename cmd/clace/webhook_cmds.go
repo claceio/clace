@@ -1,0 +1,191 @@
+// Copyright (c) ClaceIO, LLC
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"cmp"
+	"encoding/json"
+	"fmt"
+	"net/url"
+
+	"github.com/claceio/clace/internal/system"
+	"github.com/claceio/clace/internal/types"
+	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v2/altsrc"
+)
+
+func initWebhookCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	return &cli.Command{
+		Name:  "webhook",
+		Usage: "Manage app webhooks",
+		Subcommands: []*cli.Command{
+			webhookListCommand(commonFlags, clientConfig),
+			webhookCreateCommand(commonFlags, clientConfig),
+			webhookDeleteCommand(commonFlags, clientConfig),
+		},
+	}
+}
+
+func webhookListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, newStringFlag("format", "f", "The display format. Valid options are table, basic, csv, json, jsonl and jsonl_pretty", ""))
+
+	return &cli.Command{
+		Name:      "list",
+		Usage:     "List the webhooks for an app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<appPath>",
+		UsageText: `args: <appPath>
+
+    <app_path> is a required first argument. The optional domain and path are separated by a ":". This is the app for which webhooks are listed.
+
+	Examples:
+		clace webhook list example.com:/myapp`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 1 {
+				return fmt.Errorf("requires one argument: <appPath>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			values := url.Values{}
+			values.Add("appPath", cCtx.Args().First())
+
+			var response types.TokenListResponse
+			err := client.Get("/_clace/webhook_token", values, &response)
+			if err != nil {
+				return err
+			}
+
+			printWebhookList(cCtx, response.Tokens, cmp.Or(cCtx.String("format"), clientConfig.Client.DefaultFormat))
+			return nil
+		},
+	}
+}
+
+func printWebhookList(cCtx *cli.Context, tokens []types.AppToken, format string) {
+	switch format {
+	case FORMAT_JSON:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		enc.SetIndent("", "  ")
+		enc.Encode(tokens)
+	case FORMAT_JSONL:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		for _, version := range tokens {
+			enc.Encode(version)
+		}
+	case FORMAT_JSONL_PRETTY:
+		enc := json.NewEncoder(cCtx.App.Writer)
+		enc.SetIndent("", "  ")
+		for _, f := range tokens {
+			enc.Encode(f)
+			fmt.Fprintf(cCtx.App.Writer, "\n")
+		}
+	case FORMAT_BASIC:
+		fallthrough
+	case FORMAT_TABLE:
+		formatStrHead := "%-15s %-40s %s\n"
+		formatStrData := "%-15s %-40s %s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Token", "Url")
+		for _, f := range tokens {
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, f.Type, f.Token, f.Url)
+		}
+	case FORMAT_CSV:
+		for _, version := range tokens {
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%s\n", version.Type, version.Token, version.Url)
+		}
+	default:
+		panic(fmt.Errorf("unknown format %s", format))
+	}
+}
+
+func webhookCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+
+	return &cli.Command{
+		Name:      "create",
+		Usage:     "Create webhooks for an app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<webhookType> <appPath>",
+		UsageText: `args: <webhookType> appPath>
+
+    <webhookType> is the required first argument. Supported types are: reload, reload_promote and promote.
+    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are listed.
+
+	Examples:
+		clace webhook create reload example.com:/myapp`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 2 {
+				return fmt.Errorf("requires two arguments: <webhookType> <appPath>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			values := url.Values{}
+			values.Add("webhookType", cCtx.Args().Get(0))
+			values.Add("appPath", cCtx.Args().Get(1))
+
+			var response types.TokenCreateResponse
+			err := client.Post("/_clace/webhook_token", values, map[string]string{}, &response)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Token: %s\n", response.Token.Token)
+			fmt.Printf("Url  : %s\n", response.Token.Url)
+
+			if response.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}
+
+func webhookDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+
+	return &cli.Command{
+		Name:      "delete",
+		Usage:     "Delete webhooks for an app",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "<webhookType> <appPath>",
+		UsageText: `args: <webhookType> appPath>
+
+    <webhookType> is the required first argument. Supported types are: reload, reload_promote and promote.
+    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are listed.
+
+	Examples:
+		clace webhook delete reload example.com:/myapp`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 2 {
+				return fmt.Errorf("requires two arguments: <webhookType> <appPath>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			values := url.Values{}
+			values.Add("webhookType", cCtx.Args().Get(0))
+			values.Add("appPath", cCtx.Args().Get(1))
+
+			var response types.TokenDeleteResponse
+			err := client.Delete("/_clace/webhook_token", values, &response)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Token deleted.")
+
+			if response.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}

@@ -280,6 +280,7 @@ type AppSettings struct {
 type WebhookTokens struct {
 	Reload        string `json:"reload"`
 	ReloadPromote string `json:"reload_promote"`
+	Promote       string `json:"promote"`
 }
 
 type WebhookType string
@@ -287,6 +288,7 @@ type WebhookType string
 const (
 	WebhookReload        WebhookType = "reload"
 	WebhookReloadPromote WebhookType = "reload_promote"
+	WebhookPromote       WebhookType = "promote"
 )
 
 // SpecFiles is a map of file names to file data. JSON encoding uses base 64 encoding of file text

@@ -130,6 +130,7 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 		router.Mount(types.INTERNAL_URL_PREFIX, http.NotFoundHandler()) // reserve the path
 	}
 
+	// Webhooks are always mounted, they are disabled at the app level by default
 	router.Mount(types.WEBHOOK_URL_PREFIX, handler.serveWebhooks())
 
 	server.ssoAuth.RegisterRoutes(router) // register SSO routes
@@ -213,6 +214,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}
 }
 
+// webhookHandler does the bearer token auth check and calls the webhook api
 func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhookType types.WebhookType) {
 	appPath := r.URL.Query().Get("appPath")
 	if appPath == "" {
@@ -228,6 +230,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	app, err := h.server.GetApp(appPathDomain, false)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	authHeader := r.Header.Get("Authorization")
@@ -243,19 +246,25 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 
 	appToken := ""
 	promote := false
+	reload := false
 	switch webhookType {
 	case types.WebhookReload:
+		reload = true
 		appToken = app.Settings.WebhookTokens.Reload
 	case types.WebhookReloadPromote:
-		appToken = app.Settings.WebhookTokens.ReloadPromote
+		reload = true
 		promote = true
+		appToken = app.Settings.WebhookTokens.ReloadPromote
+	case types.WebhookPromote:
+		promote = true
+		appToken = app.Settings.WebhookTokens.Promote
 	default:
-		http.Error(w, "Invalid webhook type", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Invalid webhook type %s", webhookType), http.StatusInternalServerError)
 		return
 	}
 
 	if appToken == "" {
-		http.Error(w, "Webhook is not enabled for app", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("%s webhook is not enabled for app", webhookType), http.StatusBadRequest)
 		return
 	}
 
@@ -264,15 +273,47 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		return
 	}
 
-	payload := map[string]any{}
-	err = json.NewDecoder(r.Body).Decode(&payload)
-	if err != nil {
-		http.Error(w, "Error parsing request, expected JSON", http.StatusBadRequest)
-		return
+	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Msg("API Received request")
+
+	var resp any
+	if reload && isGit(app.SourceUrl) {
+		// validate branch name, it should match branch name in app metadata if app is using git
+		payload := map[string]any{}
+		err = json.NewDecoder(r.Body).Decode(&payload)
+		if err != nil {
+			http.Error(w, "Error parsing request, expected JSON", http.StatusBadRequest)
+			return
+		}
+
+		branch := payload["ref"]
+		branchStr, ok := branch.(string)
+
+		if !ok {
+			h.Info().Msgf("Webhook call for reload failed, could not find ref")
+			http.Error(w, "Could not find branch info in request payload, ref key should be present", http.StatusBadGateway)
+			return
+		}
+		if strings.HasPrefix(branchStr, "refs/heads/") {
+			branchStr = branchStr[len("refs/heads/"):]
+			if branchStr != app.Metadata.VersionMetadata.GitBranch {
+				h.Info().Msgf("Ignoring webhook call for reload, branch mismatch, found %s, expected %s", branchStr, app.Metadata.VersionMetadata.GitBranch)
+				http.Error(w, fmt.Sprintf("branch mismatch, found %s, expected %s", branchStr, app.Metadata.VersionMetadata.GitBranch), http.StatusBadGateway)
+				return
+			}
+		} else {
+			h.Info().Msgf("Webhook call for reload failed, could not find branch")
+			http.Error(w, "Could not find branch info in request payload, ref should start with \"refs/heads/\"", http.StatusBadGateway)
+			return
+		}
 	}
 
-	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Msg("API Received request")
-	resp, err := h.server.ReloadApps(r.Context(), appPath, false, promote, false, "", "", "")
+	if reload {
+		resp, err = h.server.ReloadApps(r.Context(), appPath, false, false, promote, "", "", "")
+	} else {
+		// promote operation
+		resp, err = h.server.PromoteApps(r.Context(), appPath, false)
+	}
+
 	if err != nil {
 		if reqError, ok := err.(types.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")
@@ -635,6 +676,68 @@ func (h *Handler) versionSwitch(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+func (h *Handler) tokenList(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.TokenList(r.Context(), appPath)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
+func (h *Handler) tokenCreate(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenType := r.URL.Query().Get("webhookType")
+	if appPath == "" {
+		return nil, types.CreateRequestError("webhookType is required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.TokenCreate(r.Context(), appPath, types.WebhookType(tokenType), dryRun)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
+func (h *Handler) tokenDelete(r *http.Request) (any, error) {
+	appPath := r.URL.Query().Get("appPath")
+	if appPath == "" {
+		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
+	}
+
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenType := r.URL.Query().Get("webhookType")
+	if appPath == "" {
+		return nil, types.CreateRequestError("webhookType is required", http.StatusBadRequest)
+	}
+
+	ret, err := h.server.TokenDelete(r.Context(), appPath, types.WebhookType(tokenType), dryRun)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return ret, nil
+}
+
 // serveInternal returns a handler for the internal APIs for app admin and management
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
@@ -715,10 +818,25 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 		h.apiHandler(w, r, enableBasicAuth, h.versionSwitch)
 	}))
 
+	// Token list
+	r.Get("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.tokenList)
+	}))
+
+	// Token create
+	r.Post("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.tokenCreate)
+	}))
+
+	// Token delete
+	r.Delete("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.tokenDelete)
+	}))
+
 	return r
 }
 
-// serveWebhooks returns a handler for the app webhooks for reload and other events
+// serveWebhooks returns a handler for the app webhooks for reload and other events.
 // webhooks are always mounted, even if admin over TCP is not enabled. At the app
 // level, webhooks are disabled by default and need to be enabled by the user
 func (h *Handler) serveWebhooks() http.Handler {
@@ -733,6 +851,11 @@ func (h *Handler) serveWebhooks() http.Handler {
 	// Reload and Promote app
 	r.Post("/reload_promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.webhookHandler(w, r, types.WebhookReloadPromote)
+	}))
+
+	// Promote app
+	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.webhookHandler(w, r, types.WebhookPromote)
 	}))
 
 	return r

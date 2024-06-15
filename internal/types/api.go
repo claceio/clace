@@ -168,3 +168,22 @@ type AppVersionSwitchResponse struct {
 	FromVersion int  `json:"from_version"`
 	ToVersion   int  `json:"to_version"`
 }
+
+type AppToken struct {
+	Type  WebhookType `json:"type"`
+	Url   string      `json:"url"`
+	Token string      `json:"token"`
+}
+
+type TokenListResponse struct {
+	Tokens []AppToken `json:"tokens"`
+}
+
+type TokenCreateResponse struct {
+	DryRun bool     `json:"dry_run"`
+	Token  AppToken `json:"token"`
+}
+
+type TokenDeleteResponse struct {
+	DryRun bool `json:"dry_run"`
+}
