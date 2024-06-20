@@ -262,7 +262,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("error reading request body: %w", err), http.StatusUnauthorized)
+		http.Error(w, fmt.Sprintf("error reading request body: %s", err), http.StatusUnauthorized)
 		return
 	}
 
