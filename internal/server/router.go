@@ -4,9 +4,12 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -233,17 +236,6 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		return
 	}
 
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		http.Error(w, "Authorization header with bearer token is required", http.StatusUnauthorized)
-		return
-	}
-	authToken := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-	if authToken == "" {
-		http.Error(w, "Bearer token is required", http.StatusUnauthorized)
-		return
-	}
-
 	appToken := ""
 	promote := false
 	reload := false
@@ -268,9 +260,44 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(appToken), []byte(authToken)) != 1 {
-		http.Error(w, "Invalid bearer token", http.StatusUnauthorized)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error reading request body: %w", err), http.StatusUnauthorized)
 		return
+	}
+
+	// Authenticate the request
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		// Using Authentication header, bearer token
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			http.Error(w, "Authorization header with bearer token is required", http.StatusUnauthorized)
+			return
+		}
+		authHeader = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		if authHeader == "" {
+			http.Error(w, "Bearer token is required", http.StatusUnauthorized)
+			return
+		}
+
+		if subtle.ConstantTimeCompare([]byte(appToken), []byte(authHeader)) != 1 {
+			http.Error(w, "Invalid bearer token", http.StatusUnauthorized)
+			return
+		}
+	} else {
+		// Using signature auth
+		// https://docs.github.com/en/webhooks/webhook-events-and-payloads#delivery-headers
+		signature := r.Header.Get("X-Hub-Signature-256")
+		if signature == "" {
+			http.Error(w, "No auth header and no signature found", http.StatusUnauthorized)
+			return
+		}
+
+		err = validateSignature(appToken, signature, body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 	}
 
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Msg("API Received request")
@@ -279,7 +306,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	if reload && isGit(app.SourceUrl) {
 		// validate branch name, it should match branch name in app metadata if app is using git
 		payload := map[string]any{}
-		err = json.NewDecoder(r.Body).Decode(&payload)
+		err = json.Unmarshal(body, &payload)
 		if err != nil {
 			http.Error(w, "Error parsing request, expected JSON", http.StatusBadRequest)
 			return
@@ -333,6 +360,45 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func validateSignature(secret, signatureHeader string, body []byte) error {
+	// Check header is valid
+	signature_parts := strings.SplitN(signatureHeader, "=", 2)
+	if len(signature_parts) != 2 {
+		return fmt.Errorf("invalid signature header: '%s' does not contain =", signatureHeader)
+	}
+
+	// Ensure secret is a sha1 hash
+	signature_type := signature_parts[0]
+	signature_hash := signature_parts[1]
+	if signature_type != "sha256" {
+		return fmt.Errorf("signature should be a 'sha256' hash not '%s'", signature_type)
+	}
+
+	// Check that payload came from github
+	// skip check if empty secret provided
+	if !validatePayload(secret, signature_hash, body) {
+		return fmt.Errorf("invalid payload, signature match failed")
+	}
+
+	return nil
+}
+
+func validatePayload(secret, headerHash string, payload []byte) bool {
+	hash := hashPayload(secret, payload)
+	return hmac.Equal(
+		[]byte(hash),
+		[]byte(headerHash),
+	)
+}
+
+// see https://developer.github.com/webhooks/securing/#validating-payloads-from-github
+func hashPayload(secret string, playloadBody []byte) string {
+	hm := hmac.New(sha256.New, []byte(secret))
+	hm.Write(playloadBody)
+	sum := hm.Sum(nil)
+	return fmt.Sprintf("%x", sum)
 }
 
 func parseBoolArg(arg string, defaultValue bool) (bool, error) {
