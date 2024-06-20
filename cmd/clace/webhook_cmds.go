@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
@@ -104,6 +105,7 @@ func printWebhookList(cCtx *cli.Context, tokens []types.AppToken, format string)
 func webhookCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "create",
@@ -127,6 +129,7 @@ func webhookCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 			values := url.Values{}
 			values.Add("webhookType", cCtx.Args().Get(0))
 			values.Add("appPath", cCtx.Args().Get(1))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var response types.TokenCreateResponse
 			err := client.Post("/_clace/webhook_token", values, map[string]string{}, &response)
@@ -149,6 +152,7 @@ func webhookCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 func webhookDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
 		Name:      "delete",
@@ -172,6 +176,7 @@ func webhookDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 			values := url.Values{}
 			values.Add("webhookType", cCtx.Args().Get(0))
 			values.Add("appPath", cCtx.Args().Get(1))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var response types.TokenDeleteResponse
 			err := client.Delete("/_clace/webhook_token", values, &response)

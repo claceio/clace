@@ -53,7 +53,7 @@ func (s *Server) TokenList(ctx context.Context, appPath string) (*types.TokenLis
 		tokens = append(tokens, types.AppToken{
 			Type:  types.WebhookReload,
 			Url:   fmt.Sprintf("%s%s/%s?appPath=%s", uri, types.WEBHOOK_URL_PREFIX, types.WebhookReload, url.QueryEscape(appPath)),
-			Token: fmt.Sprintf("Bearer %s", appEntry.Settings.WebhookTokens.Reload),
+			Token: appEntry.Settings.WebhookTokens.Reload,
 		})
 	}
 
@@ -61,7 +61,7 @@ func (s *Server) TokenList(ctx context.Context, appPath string) (*types.TokenLis
 		tokens = append(tokens, types.AppToken{
 			Type:  types.WebhookReloadPromote,
 			Url:   fmt.Sprintf("%s%s/%s?appPath=%s", uri, types.WEBHOOK_URL_PREFIX, types.WebhookReloadPromote, url.QueryEscape(appPath)),
-			Token: fmt.Sprintf("Bearer %s", appEntry.Settings.WebhookTokens.ReloadPromote),
+			Token: appEntry.Settings.WebhookTokens.ReloadPromote,
 		})
 	}
 
@@ -69,7 +69,7 @@ func (s *Server) TokenList(ctx context.Context, appPath string) (*types.TokenLis
 		tokens = append(tokens, types.AppToken{
 			Type:  types.WebhookPromote,
 			Url:   fmt.Sprintf("%s%s/%s?appPath=%s", uri, types.WEBHOOK_URL_PREFIX, types.WebhookPromote, url.QueryEscape(appPath)),
-			Token: fmt.Sprintf("Bearer %s", appEntry.Settings.WebhookTokens.Promote),
+			Token: appEntry.Settings.WebhookTokens.Promote,
 		})
 	}
 
@@ -131,7 +131,7 @@ func (s *Server) TokenCreate(ctx context.Context, appPath string, webhookType ty
 		Token: types.AppToken{
 			Type:  webhookType,
 			Url:   tokenUrl,
-			Token: fmt.Sprintf("Bearer %s", newToken),
+			Token: newToken,
 		},
 	}
 	return &ret, nil

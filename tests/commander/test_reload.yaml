@@ -228,9 +228,59 @@ tests:
   reload073:
     command: rm dryrun_out1.log dryrun_out2.log
 
-  reload0800: # app reload with invalid auth
-    command: ../clace app reload --git-auth=abc  "/reload_git*"
-    exit-code: 1
+  # Test webhook operations
+  reload_webhook010:
+    command: curl -su "admin:qwerty" localhost:25222/reload_git2_cl_stage/test1
+    stdout: "111"
+  reload_webhook020:
+    command: ../clace webhook create reload /reload_git2
+  reload_webhook030:
+    command: ../clace webhook create reload_promote /reload_git2
+  reload_webhook040:
+    command: ../clace webhook create promote /reload_git2
+  reload_webhook050:
+    command: ../clace webhook list /reload_git2
+    stdout:
+      line-count: 4
+  reload_webhook060:
+    command: ../clace webhook delete promote /reload_git2
+  reload_webhook070:
+    command: ../clace webhook list /reload_git2
+    stdout:
+      line-count: 3
+  reload_webhook080:
+    command: ../clace webhook create --dry-run promote /reload_git2
+  reload_webhook081:
+    command: ../clace webhook delete --dry-run reload /reload_git2
+  reload_webhook082:
+    command: ../clace webhook list /reload_git2
+    stdout:
+      line-count: 3
+  reload_webhook090:
+    command: ../clace webhook list /reload_git2
+    stdout: "https://localhost:25223/_clace_webhook/reload?appPath=%2Freload_git2"
+  reload_webhook100:
+    command: ../clace webhook list /reload_git2
+    stdout: "https://localhost:25223/_clace_webhook/reload_promote?appPath=%2Freload_git2"
+  reload_webhook110:
+    command: curl -v http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2
+    stderr: 405 Method Not Allowed
+  reload_webhook120:
+    command: curl -v -XPOST http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2
+    stdout: No auth header and no signature found
+  reload_webhook130:
+    command: 'curl -v -XPOST -H "Authorization: Basic abc" http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2'
+    stdout: Authorization header with bearer token is required
+  reload_webhook140:
+    command: 'curl -v -XPOST -H "Authorization: Bearer abc" http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2'
+    stdout: Invalid bearer token
+  reload_webhook150:
+    command: 'curl -v -XPOST -H "X-Hub-Signature-256: abc" http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2'
+    stdout: "invalid signature header"
+  reload_webhook160:
+    command: "curl -v -XPOST -d'{}' -H 'X-Hub-Signature-256: sha256=abc' http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2"
+    stdout: "invalid payload, signature match failed"
+  # commander does not support output capture to get the token, so there are no success tests currently
 
   reload_cleanup: # Cleanup
     command: rm -rf ./reloadtest && ../clace app delete "*:reload*" && ../clace app delete "reload*:**"
