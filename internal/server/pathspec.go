@@ -62,10 +62,6 @@ func ParseSpec(pathSpec string, apps []types.AppPathDomain) ([]types.AppPathDoma
 		app = split[0]
 	}
 
-	if app == "" {
-		return nil, fmt.Errorf("app path spec cannot be empty")
-	}
-
 	if app == "*" {
 		app = "/*"
 	}

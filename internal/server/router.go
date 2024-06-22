@@ -341,6 +341,9 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		resp, err = h.server.PromoteApps(r.Context(), appPath, false)
 	}
 
+	h.Info().Msgf("Webhook call for %s, appPath: %s, promote: %t, reload: %t, response %+v err %s",
+		webhookType, appPath, promote, reload, resp, err)
+
 	if err != nil {
 		if reqError, ok := err.(types.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")

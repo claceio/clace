@@ -116,14 +116,6 @@ func TestParsePathSpecErrors(t *testing.T) {
 		spec      string
 		wantError error
 	}{
-		"Match *:": {
-			spec:      "*:",
-			wantError: fmt.Errorf("app path spec cannot be empty"),
-		},
-		"Match :": {
-			spec:      ":",
-			wantError: fmt.Errorf("app path spec cannot be empty"),
-		},
 		"Match a:b:c": {
 			spec:      "a:b:c",
 			wantError: fmt.Errorf("path spec has to be in the format of domain:path"),
