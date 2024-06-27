@@ -416,13 +416,13 @@ func parseBoolArg(arg string, defaultValue bool) (bool, error) {
 }
 
 func (h *Handler) getApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	internal, err := parseBoolArg(r.URL.Query().Get("internal"), false)
 	if err != nil {
 		return nil, err
 	}
 
-	filteredApps, err := h.server.GetApps(r.Context(), pathSpec, internal)
+	filteredApps, err := h.server.GetApps(r.Context(), appPathGlob, internal)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -456,17 +456,17 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 }
 
 func (h *Handler) deleteApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
-	results, err := h.server.DeleteApps(r.Context(), pathSpec, dryRun)
+	results, err := h.server.DeleteApps(r.Context(), appPathGlob, dryRun)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -474,7 +474,7 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 }
 
 func (h *Handler) approveApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
@@ -484,16 +484,16 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
-	approveResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.auditHandler, map[string]any{})
+	approveResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.auditHandler, map[string]any{})
 	return approveResult, err
 }
 
 func (h *Handler) accountLink(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
@@ -503,8 +503,8 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
 	args := map[string]any{
@@ -512,12 +512,12 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 		"account": r.URL.Query().Get("account"),
 	}
 
-	linkResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.accountLinkHandler, args)
+	linkResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.accountLinkHandler, args)
 	return linkResult, err
 }
 
 func (h *Handler) updateParam(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
@@ -527,8 +527,8 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
 	args := map[string]any{
@@ -536,7 +536,7 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 		"paramValue": r.URL.Query().Get("paramValue"),
 	}
 
-	updateResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.updateParamHandler, args)
+	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateParamHandler, args)
 	return updateResult, err
 }
 
@@ -556,14 +556,14 @@ func AddVaryHeader(next http.Handler) http.Handler {
 }
 
 func (h *Handler) reloadApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
 	if err != nil {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
@@ -575,7 +575,7 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	ret, err := h.server.ReloadApps(r.Context(), pathSpec, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
+	ret, err := h.server.ReloadApps(r.Context(), appPathGlob, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -584,17 +584,17 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 }
 
 func (h *Handler) promoteApps(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
-	ret, err := h.server.PromoteApps(r.Context(), pathSpec, dryRun)
+	ret, err := h.server.PromoteApps(r.Context(), appPathGlob, dryRun)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -643,14 +643,14 @@ func (h *Handler) getApp(r *http.Request) (any, error) {
 }
 
 func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
 	var updateAppRequest types.UpdateAppRequest
@@ -659,7 +659,7 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	ret, err := h.server.UpdateAppSettings(r.Context(), pathSpec, dryRun, updateAppRequest)
+	ret, err := h.server.UpdateAppSettings(r.Context(), appPathGlob, dryRun, updateAppRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -668,7 +668,7 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 }
 
 func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
-	pathSpec := r.URL.Query().Get("pathSpec")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
 		return nil, err
@@ -678,8 +678,8 @@ func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
 		return nil, err
 	}
 
-	if pathSpec == "" {
-		return nil, types.CreateRequestError("pathSpec is required", http.StatusBadRequest)
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
 	var updateAppRequest types.UpdateAppMetadataRequest
@@ -692,7 +692,7 @@ func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
 		"metadata": updateAppRequest,
 	}
 
-	updateResult, err := h.server.StagedUpdate(r.Context(), pathSpec, dryRun, promote, h.server.updateMetadataHandler, args)
+	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateMetadataHandler, args)
 	return updateResult, err
 
 }

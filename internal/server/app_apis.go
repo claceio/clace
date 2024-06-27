@@ -350,8 +350,8 @@ func (s *Server) GetApp(pathDomain types.AppPathDomain, init bool) (*app.App, er
 	return application, nil
 }
 
-func (s *Server) DeleteApps(ctx context.Context, pathSpec string, dryRun bool) (*types.AppDeleteResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) DeleteApps(ctx context.Context, appPathGlob string, dryRun bool) (*types.AppDeleteResponse, error) {
+	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -785,7 +785,7 @@ func (s *Server) loadSourceFromDisk(ctx context.Context, tx types.Transaction, a
 	return nil
 }
 
-func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]types.AppInfo, error) {
+func (s *Server) FilterApps(appappPathGlob string, includeInternal bool) ([]types.AppInfo, error) {
 	apps, err := s.db.GetAllApps(includeInternal)
 	if err != nil {
 		return nil, err
@@ -807,7 +807,7 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]types.A
 		mainApps = apps
 	}
 	// Filter based on path spec. This is done on the main apps path only.
-	filteredApps, err := ParseSpecFromInfo(appPathSpec, mainApps)
+	filteredApps, err := ParseGlobFromInfo(appappPathGlob, mainApps)
 	if err != nil {
 		return nil, err
 	}
@@ -826,14 +826,14 @@ func (s *Server) FilterApps(appPathSpec string, includeInternal bool) ([]types.A
 	return result, nil
 }
 
-func (s *Server) GetApps(ctx context.Context, pathSpec string, internal bool) ([]types.AppResponse, error) {
+func (s *Server) GetApps(ctx context.Context, appPathGlob string, internal bool) ([]types.AppResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	filteredApps, err := s.FilterApps(pathSpec, internal)
+	filteredApps, err := s.FilterApps(appPathGlob, internal)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

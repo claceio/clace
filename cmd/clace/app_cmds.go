@@ -21,7 +21,7 @@ const (
 	DRY_RUN_FLAG    = "dry-run"
 	DRY_RUN_ARG     = "dryRun"
 	DRY_RUN_MESSAGE = "\n*** dry-run mode, changes have NOT been committed. ***\n"
-	PATH_SPEC_HELP  = `The domain and path are separated by a ":". pathSpec supports a glob pattern.
+	PATH_SPEC_HELP  = `The (optional) domain and path are separated by a ":". appPathGlob supports a glob pattern.
 In the glob, * matches any number of characters, ** matches any number of characters including /.
 all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
 To prevent shell expansion for *, placing the path in quotes is recommended.
@@ -174,10 +174,10 @@ func appListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *c
 		Usage:     "List apps",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "[<pathSpec>]",
-		UsageText: `args: [<pathSpec>]
+		ArgsUsage: "[<appPathGlob>]",
+		UsageText: `args: [<appPathGlob>]
 
-<pathSpec> defaults to "*:**" (same as "all") for the list command.
+<appPathGlob> defaults to "*:**" (same as "all") for the list command.
 ` + PATH_SPEC_HELP +
 			`
 Examples:
@@ -190,12 +190,12 @@ Examples:
   List apps at the lop level with no domain specified, with jsonl format: clace app list --format jsonl "*"`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() > 1 {
-				return fmt.Errorf("only one argument expected: <pathSpec>")
+				return fmt.Errorf("only one argument expected: <appPathGlob>")
 			}
 			values := url.Values{}
 			values.Add("internal", fmt.Sprintf("%t", cCtx.Bool("internal")))
 			if cCtx.NArg() == 1 {
-				values.Add("pathSpec", cCtx.Args().Get(0))
+				values.Add("appPathGlob", cCtx.Args().Get(0))
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
@@ -327,11 +327,11 @@ func appDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		Usage:     "Delete an app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec>",
+		ArgsUsage: "<appPathGlob>",
 
-		UsageText: `args: <pathSpec>
+		UsageText: `args: <appPathGlob>
 
-<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
+<appPathGlob> is a required argument. ` + PATH_SPEC_HELP + `
 
 Examples:
   Delete all apps, across domains, in dry-run mode: clace app delete --dry-run all
@@ -339,12 +339,12 @@ Examples:
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
-				return fmt.Errorf("requires one argument: <pathSpec>")
+				return fmt.Errorf("requires one argument: <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("appPathGlob", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var deleteResult types.AppDeleteResponse
@@ -377,11 +377,11 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 		Usage:     "Approve app permissions",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec>",
+		ArgsUsage: "<appPathGlob>",
 
-		UsageText: `args: <pathSpec>
+		UsageText: `args: <appPathGlob>
 
-	<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
+	<appPathGlob> is a required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Approve all apps, across domains: clace app approve all
@@ -390,12 +390,12 @@ func appApproveCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
-				return fmt.Errorf("requires one argument: <pathSpec>")
+				return fmt.Errorf("requires one argument: <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().Get(0))
+			values.Add("appPathGlob", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
@@ -454,11 +454,11 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		Usage:     "Reload the app source code",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec>",
+		ArgsUsage: "<appPathGlob>",
 
-		UsageText: `args: <pathSpec>
+		UsageText: `args: <appPathGlob>
 
-<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
+<appPathGlob> is a required argument. ` + PATH_SPEC_HELP + `
 	Dev apps are reloaded from disk. For prod apps, the stage app is reloaded from git (or from local disk if git is not used).
 	If --approve option is specified, the app permissions are audited and approved. If --approve is not specified and the app needs additional
 	permissions, the reload will fail. If --promote is specified, the stage app is promoted to prod after reload. If --promote is not specified,
@@ -474,12 +474,12 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
-				return fmt.Errorf("requires one argument: <pathSpec>")
+				return fmt.Errorf("requires one argument: <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().First())
+			values.Add("appPathGlob", cCtx.Args().First())
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
 			values.Add("branch", cCtx.String("branch"))
@@ -550,10 +550,10 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 		Usage:     "Promote the app from staging to production",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec>",
-		UsageText: `args: <pathSpec>
+		ArgsUsage: "<appPathGlob>",
+		UsageText: `args: <appPathGlob>
 
-<pathSpec> is a required argument. ` + PATH_SPEC_HELP + `
+<appPathGlob> is a required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Promote all apps, across domains: clace app promote all
@@ -561,12 +561,12 @@ func appPromoteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
-				return fmt.Errorf("requires one argument: <pathSpec>")
+				return fmt.Errorf("requires one argument: <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().First())
+			values.Add("appPathGlob", cCtx.Args().First())
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
 			var promoteResponse types.AppPromoteResponse

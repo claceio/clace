@@ -36,10 +36,10 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 		Usage:     "Link an app to to use specific account for a plugin",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<pathSpec> <pluginName> <accountName>",
-		UsageText: `args: <pathSpec> <pluginName> <accountName>
+		ArgsUsage: "<appPathGlob> <pluginName> <accountName>",
+		UsageText: `args: <appPathGlob> <pluginName> <accountName>
 
-<pathSpec> is the first required argument. ` + PATH_SPEC_HELP + `<pluginName> is the required second argument. This is the name of the plugin.
+<appPathGlob> is the first required argument. ` + PATH_SPEC_HELP + `<pluginName> is the required second argument. This is the name of the plugin.
 <accountName> is the required third argument. This is the name of the account to link to for the plugin. Use "-" to unlink the existing account.
 
 	Examples:
@@ -47,14 +47,14 @@ func accountLinkCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig
 	  Link in dryrun mode: clace account link --dry-run example.com:/ rest.in testaccount`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 3 {
-				return fmt.Errorf("requires three arguments: <pathSpec> <pluginName> <accountName>")
+				return fmt.Errorf("requires three arguments: <pluginName> <accountName> <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("pathSpec", cCtx.Args().First())
-			values.Add("plugin", cCtx.Args().Get(1))
-			values.Add("account", cCtx.Args().Get(2))
+			values.Add("plugin", cCtx.Args().Get(0))
+			values.Add("account", cCtx.Args().Get(1))
+			values.Add("appPathGlob", cCtx.Args().Get(2))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 
@@ -160,26 +160,26 @@ func updateParamsCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 		Usage:     "Update parameter value for the app",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
-		ArgsUsage: "<paramName> <paramValue> <pathSpec>",
-		UsageText: `args: <paramName> <paramValue> <pathSpec>
+		ArgsUsage: "<paramName> <paramValue> <appPathGlob>",
+		UsageText: `args: <paramName> <paramValue> <appPathGlob>
 
 <paramName> is the first required argument. This is the parameter name.
 <paramValue> is the second required argument. This is the value to set the param to. Use "-" to unset the parameter.
-<pathSpec> is the third required argument. ` + PATH_SPEC_HELP + `
+<appPathGlob> is the third required argument. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Update parameter value: clace param update port 8888 /myapp
 	  Delete parameter value: clace param update port - /myapp`,
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 3 {
-				return fmt.Errorf("requires three arguments: <paramName> <paramValue> <pathSpec>")
+				return fmt.Errorf("requires three arguments: <paramName> <paramValue> <appPathGlob>")
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("paramName", cCtx.Args().Get(0))
 			values.Add("paramValue", cCtx.Args().Get(1))
-			values.Add("pathSpec", cCtx.Args().Get(2))
+			values.Add("appPathGlob", cCtx.Args().Get(2))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
 

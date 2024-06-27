@@ -13,8 +13,8 @@ import (
 	"github.com/claceio/clace/internal/types"
 )
 
-func (s *Server) ReloadApps(ctx context.Context, pathSpec string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResponse, error) {
+	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -190,14 +190,14 @@ func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry
 	return nil
 }
 
-func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*types.AppStagedUpdateResponse, error) {
+func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*types.AppStagedUpdateResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	result, entries, promoteResults, err := s.StagedUpdateAppsTx(ctx, tx, pathSpec, promote, handler, args)
+	result, entries, promoteResults, err := s.StagedUpdateAppsTx(ctx, tx, appPathGlob, promote, handler, args)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +217,8 @@ func (s *Server) StagedUpdate(ctx context.Context, pathSpec string, dryRun, prom
 
 type stagedUpdateHandler func(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, args map[string]any) (any, types.AppPathDomain, error)
 
-func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx types.Transaction, pathSpec string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []types.AppPathDomain, []types.AppPathDomain, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) StagedUpdateAppsTx(ctx context.Context, tx types.Transaction, appPathGlob string, promote bool, handler stagedUpdateHandler, args map[string]any) ([]any, []types.AppPathDomain, []types.AppPathDomain, error) {
+	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -292,8 +292,8 @@ func (s *Server) auditHandler(ctx context.Context, tx types.Transaction, appEntr
 	return result, appPathDomain, nil
 }
 
-func (s *Server) PromoteApps(ctx context.Context, pathSpec string, dryRun bool) (*types.AppPromoteResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) PromoteApps(ctx context.Context, appPathGlob string, dryRun bool) (*types.AppPromoteResponse, error) {
+	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -372,8 +372,8 @@ func (s *Server) promoteApp(ctx context.Context, tx types.Transaction, stagingAp
 	return nil
 }
 
-func (s *Server) UpdateAppSettings(ctx context.Context, pathSpec string, dryRun bool, updateAppRequest types.UpdateAppRequest) (*types.AppUpdateSettingsResponse, error) {
-	filteredApps, err := s.FilterApps(pathSpec, false)
+func (s *Server) UpdateAppSettings(ctx context.Context, appPathGlob string, dryRun bool, updateAppRequest types.UpdateAppRequest) (*types.AppUpdateSettingsResponse, error) {
+	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
