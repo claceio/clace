@@ -12,4 +12,10 @@ and then run
 
 The CLI tests are run as part of the Github Actions [workflow](https://github.com/claceio/clace/blob/e1c2d85b5a8139fd16f7ccaf227d8521187f8974/.github/workflows/test.yml#L44)
 
+Container tests are run locally with both Docker and Podman by default (when `CL_CONTAINER_COMMANDS` is unset). To change to run with just docker for example, set
+`export CL_CONTAINER_COMMANDS=docker`
 
+To disable container tests, set
+`export CL_CONTAINER_COMMANDS=disable`
+
+Container tests are not run by default on GitHub actions since starting containers is not supported on the default workers.
