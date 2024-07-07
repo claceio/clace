@@ -233,34 +233,34 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/reload_git2_cl_stage/test1
     stdout: "111"
   reload_webhook020:
-    command: ../clace webhook create reload /reload_git2
+    command: ../clace app-webhook create reload /reload_git2
   reload_webhook030:
-    command: ../clace webhook create reload_promote /reload_git2
+    command: ../clace app-webhook create reload_promote /reload_git2
   reload_webhook040:
-    command: ../clace webhook create promote /reload_git2
+    command: ../clace app-webhook create promote /reload_git2
   reload_webhook050:
-    command: ../clace webhook list /reload_git2
+    command: ../clace app-webhook list /reload_git2
     stdout:
       line-count: 4
   reload_webhook060:
-    command: ../clace webhook delete promote /reload_git2
+    command: ../clace app-webhook delete promote /reload_git2
   reload_webhook070:
-    command: ../clace webhook list /reload_git2
+    command: ../clace app-webhook list /reload_git2
     stdout:
       line-count: 3
   reload_webhook080:
-    command: ../clace webhook create --dry-run promote /reload_git2
+    command: ../clace app-webhook create --dry-run promote /reload_git2
   reload_webhook081:
-    command: ../clace webhook delete --dry-run reload /reload_git2
+    command: ../clace app-webhook delete --dry-run reload /reload_git2
   reload_webhook082:
-    command: ../clace webhook list /reload_git2
+    command: ../clace app-webhook list /reload_git2
     stdout:
       line-count: 3
   reload_webhook090:
-    command: ../clace webhook list /reload_git2
+    command: ../clace app-webhook list /reload_git2
     stdout: "https://localhost:25223/_clace_webhook/reload?appPath=%2Freload_git2"
   reload_webhook100:
-    command: ../clace webhook list /reload_git2
+    command: ../clace app-webhook list /reload_git2
     stdout: "https://localhost:25223/_clace_webhook/reload_promote?appPath=%2Freload_git2"
   reload_webhook110:
     command: curl -v http://localhost:25222/_clace_webhook/reload?appPath=%2Freload_git2

@@ -888,17 +888,17 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	}))
 
 	// Token list
-	r.Get("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/app_webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.tokenList)
 	}))
 
 	// Token create
-	r.Post("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Post("/app_webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.tokenCreate)
 	}))
 
 	// Token delete
-	r.Delete("/webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Delete("/app_webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, h.tokenDelete)
 	}))
 
