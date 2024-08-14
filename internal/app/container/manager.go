@@ -29,8 +29,8 @@ type Manager struct {
 	systemConfig  *types.SystemConfig
 	containerFile string
 	image         string
-	port          int64
-	hostPort      int
+	port          int64 // Port number within the container
+	hostPort      int   // Port number on the host
 	lifetime      string
 	scheme        string
 	health        string
@@ -166,6 +166,15 @@ func (m *Manager) GetEnvMap() (map[string]string, string) {
 	hashBuilder.WriteString(pathValue)
 	hashBuilder.WriteByte(0)
 	ret["CL_APP_PATH"] = pathValue
+
+	// Add the port number to use into the env
+	// Using PORT instead of CL_PORT since that seems to be the most common convention across apps
+	hashBuilder.WriteString("PORT")
+	hashBuilder.WriteByte(0)
+	portStr := strconv.FormatInt(m.port, 10)
+	hashBuilder.WriteString(portStr)
+	hashBuilder.WriteByte(0)
+	ret["PORT"] = portStr
 
 	return ret, hashBuilder.String()
 }
