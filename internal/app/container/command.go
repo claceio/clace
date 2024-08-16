@@ -75,9 +75,18 @@ func (c ContainerCommand) RemoveImage(config *types.SystemConfig, name ImageName
 	return nil
 }
 
-func (c ContainerCommand) BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, containerFile string) error {
+func (c ContainerCommand) BuildImage(config *types.SystemConfig, name ImageName, sourceUrl, containerFile string, containerArgs map[string]string) error {
 	c.Debug().Msgf("Building image %s from %s with %s", name, containerFile, sourceUrl)
-	cmd := exec.Command(config.ContainerCommand, "build", "-t", string(name), "-f", containerFile, ".")
+	args := []string{config.ContainerCommand, "build", "-t", string(name), "-f", containerFile}
+
+	for k, v := range containerArgs {
+		args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	args = append(args, ".")
+	cmd := exec.Command(args[0], args[1:]...)
+
+	c.Debug().Msgf("Running command: %s", cmd.String())
 	cmd.Dir = sourceUrl
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -228,7 +237,8 @@ func (c ContainerCommand) StartContainer(config *types.SystemConfig, name Contai
 const LABEL_PREFIX = "io.clace."
 
 func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *types.AppEntry, containerName ContainerName,
-	imageName ImageName, port int64, envMap map[string]string, mountArgs []string) error {
+	imageName ImageName, port int64, envMap map[string]string, mountArgs []string,
+	containerOptions map[string]string) error {
 	c.Debug().Msgf("Running container %s from image %s with port %d env %+v mountArgs %+v",
 		containerName, imageName, port, envMap, mountArgs)
 	publish := fmt.Sprintf("127.0.0.1::%d", port)
@@ -248,8 +258,18 @@ func (c ContainerCommand) RunContainer(config *types.SystemConfig, appEntry *typ
 		args = append(args, "--label", LABEL_PREFIX+"git.message="+appEntry.Metadata.VersionMetadata.GitMessage)
 	}
 
+	// Add env args
 	for k, v := range envMap {
 		args = append(args, "--env", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	// Add container related args
+	for k, v := range containerOptions {
+		if v == "" {
+			args = append(args, fmt.Sprintf("--%s", k))
+		} else {
+			args = append(args, fmt.Sprintf("--%s=%s", k, v))
+		}
 	}
 
 	args = append(args, string(imageName))

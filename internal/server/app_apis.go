@@ -92,6 +92,8 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 
 	appEntry.Metadata.Spec = appRequest.Spec // validated in createApp
 	appEntry.Metadata.ParamValues = appRequest.ParamValues
+	appEntry.Metadata.ContainerOptions = appRequest.ContainerOptions
+	appEntry.Metadata.ContainerArgs = appRequest.ContainerArgs
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {

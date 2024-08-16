@@ -67,6 +67,18 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 			Aliases: []string{"p"},
 			Usage:   "Set a parameter value. Format is paramName=paramValue",
 		})
+	flags = append(flags,
+		&cli.StringSliceFlag{
+			Name:    "container-options",
+			Aliases: []string{"copt"},
+			Usage:   "Set a container option. Format is opt[=optValue]",
+		})
+	flags = append(flags,
+		&cli.StringSliceFlag{
+			Name:    "container-args",
+			Aliases: []string{"carg"},
+			Usage:   "Set an argument for building the container image. Format is argKey=argValue",
+		})
 
 	flags = append(flags, dryRunFlag())
 
@@ -114,15 +126,34 @@ Examples:
 				paramValues[key] = value
 			}
 
+			containerOptions := cCtx.StringSlice("container-options")
+			coptMap := make(map[string]string)
+			for _, param := range containerOptions {
+				key, value, _ := strings.Cut(param, "=")
+				coptMap[key] = value // value can be empty string
+			}
+
+			containerArgs := cCtx.StringSlice("container-args")
+			cargMap := make(map[string]string)
+			for _, param := range containerArgs {
+				key, value, ok := strings.Cut(param, "=")
+				if !ok {
+					return fmt.Errorf("invalid container arg format: %s", param)
+				}
+				cargMap[key] = value
+			}
+
 			body := types.CreateAppRequest{
-				SourceUrl:   cCtx.Args().Get(0),
-				IsDev:       cCtx.Bool("dev"),
-				AppAuthn:    types.AppAuthnType(cCtx.String("auth")),
-				GitBranch:   cCtx.String("branch"),
-				GitCommit:   cCtx.String("commit"),
-				GitAuthName: cCtx.String("git-auth"),
-				Spec:        types.AppSpec(cCtx.String("spec")),
-				ParamValues: paramValues,
+				SourceUrl:        cCtx.Args().Get(0),
+				IsDev:            cCtx.Bool("dev"),
+				AppAuthn:         types.AppAuthnType(cCtx.String("auth")),
+				GitBranch:        cCtx.String("branch"),
+				GitCommit:        cCtx.String("commit"),
+				GitAuthName:      cCtx.String("git-auth"),
+				Spec:             types.AppSpec(cCtx.String("spec")),
+				ParamValues:      paramValues,
+				ContainerOptions: coptMap,
+				ContainerArgs:    cargMap,
 			}
 			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)

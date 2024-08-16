@@ -259,13 +259,15 @@ func (ae *AppEntry) AppPathDomain() AppPathDomain {
 
 // AppMetadata contains the configuration for an app. App configurations are version controlled.
 type AppMetadata struct {
-	VersionMetadata VersionMetadata   `json:"version_metadata"`
-	Loads           []string          `json:"loads"`
-	Permissions     []Permission      `json:"permissions"`
-	Accounts        []AccountLink     `json:"accounts"`
-	ParamValues     map[string]string `json:"param_values"`
-	Spec            AppSpec           `json:"spec"`
-	SpecFiles       *SpecFiles        `json:"spec_files"`
+	VersionMetadata  VersionMetadata   `json:"version_metadata"`
+	Loads            []string          `json:"loads"`
+	Permissions      []Permission      `json:"permissions"`
+	Accounts         []AccountLink     `json:"accounts"`
+	ParamValues      map[string]string `json:"param_values"`
+	Spec             AppSpec           `json:"spec"`
+	SpecFiles        *SpecFiles        `json:"spec_files"`
+	ContainerOptions map[string]string `json:"container_options"`
+	ContainerArgs    map[string]string `json:"container_args"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.

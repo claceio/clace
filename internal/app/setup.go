@@ -309,6 +309,12 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 	}
 
 	newBuiltins[apptype.PARAM_MODULE] = &paramModule
+
+	for k, v := range a.Metadata.ParamValues {
+		if _, ok := paramDict[k]; !ok {
+			a.paramMap[k] = v // add additional param values to paramMap
+		}
+	}
 	return newBuiltins, nil
 }
 

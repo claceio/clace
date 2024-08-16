@@ -261,7 +261,7 @@ func (m *Manager) DevReload(dryRun bool) error {
 			return err
 		}
 		buildDir := path.Join(m.appEntry.SourceUrl, m.buildDir)
-		err = m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile)
+		err = m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile, m.appEntry.Metadata.ContainerArgs)
 		if err != nil {
 			return err
 		}
@@ -277,7 +277,8 @@ func (m *Manager) DevReload(dryRun bool) error {
 	}
 
 	envMap, _ := m.GetEnvMap()
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap, m.getMountArgs())
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName,
+		imageName, m.port, envMap, m.getMountArgs(), m.appEntry.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
@@ -391,7 +392,7 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
 			buildDir := path.Join(tempDir, m.buildDir)
-			buildErr := m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile)
+			buildErr := m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile, m.appEntry.Metadata.ContainerArgs)
 
 			// Cleanup temp dir after image has been built (even if build failed)
 			if err = os.RemoveAll(tempDir); err != nil {
@@ -410,7 +411,8 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 	}
 
 	// Start the container with newly built image
-	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName, imageName, m.port, envMap, m.getMountArgs())
+	err = m.command.RunContainer(m.systemConfig, m.appEntry, containerName,
+		imageName, m.port, envMap, m.getMountArgs(), m.appEntry.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error building image: %w", err)
 	}
