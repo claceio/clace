@@ -10,3 +10,4 @@ logs/
 .DS_Store
 run/
 config/
+internal/server/appspecs/

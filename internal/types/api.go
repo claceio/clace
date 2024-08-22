@@ -40,6 +40,7 @@ type CreateAppRequest struct {
 	ParamValues      map[string]string `json:"param_values"`
 	ContainerOptions map[string]string `json:"container_options"`
 	ContainerArgs    map[string]string `json:"container_args"`
+	AppDefaults      map[string]string `json:"appdefaults"`
 }
 
 // UpdateAppRequest is the request body for updating an app settings

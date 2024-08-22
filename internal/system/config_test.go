@@ -57,6 +57,9 @@ func TestServerConfig(t *testing.T) {
 
 	// Container Settings
 	testutil.AssertEqualsString(t, "command", "auto", c.System.ContainerCommand)
+
+	// App default Settings
+	testutil.AssertEqualsString(t, "cors setting", "strict", c.AppDefaults.CORS.Setting)
 }
 
 func TestClientConfig(t *testing.T) {

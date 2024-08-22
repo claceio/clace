@@ -13,10 +13,12 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
@@ -71,6 +73,7 @@ type App struct {
 	sseListeners  []chan SSEMessage
 	funcMap       template.FuncMap
 	starlarkCache map[string]*starlarkCacheEntry
+	appDefaults   types.AppDefaults
 }
 
 type starlarkCacheEntry struct {
@@ -85,7 +88,7 @@ type SSEMessage struct {
 
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
-	plugins map[string]types.PluginSettings) *App {
+	plugins map[string]types.PluginSettings, appDefaults types.AppDefaults) (*App, error) {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,
@@ -94,6 +97,10 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		starlarkCache: map[string]*starlarkCacheEntry{},
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
+	newApp.appDefaults = appDefaults
+	if err := newApp.updateAppDefaults(); err != nil {
+		return nil, err
+	}
 
 	if appEntry.IsDev {
 		newApp.appDev = dev.NewAppDev(logger, &appfs.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
@@ -119,7 +126,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	delete(funcMap, "expandenv")
 
 	newApp.funcMap = funcMap
-	return newApp
+	return newApp, nil
 }
 
 func (a *App) Initialize(dryRun DryRun) error {
@@ -693,4 +700,20 @@ func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[str
 		cache[module] = cacheEntry
 	}
 	return cacheEntry.globals, cacheEntry.err
+}
+
+// updateAppDefaults updates the app defaults from the metadata
+// It creates a TOML intermediate string so that the TOML parsing can be used
+func (a *App) updateAppDefaults() error {
+	if len(a.Metadata.AppDefaults) == 0 {
+		return nil
+	}
+
+	buf := strings.Builder{}
+	for key, value := range a.Metadata.AppDefaults {
+		buf.WriteString(fmt.Sprintf("%s=\"%s\"\n", key, value))
+	}
+
+	_, err := toml.Decode(buf.String(), &a.appDefaults)
+	return err
 }

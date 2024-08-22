@@ -80,6 +80,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 			Usage:   "Set an argument for building the container image. Format is argKey=argValue",
 		})
 
+	flags = append(flags,
+		&cli.StringSliceFlag{
+			Name:    "app-config",
+			Aliases: []string{"config"},
+			Usage:   "Set an default config option for the app. Format is configKey=configValue",
+		})
+
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -143,6 +150,16 @@ Examples:
 				cargMap[key] = value
 			}
 
+			appDefaults := cCtx.StringSlice("app-config")
+			defMap := make(map[string]string)
+			for _, def := range appDefaults {
+				key, value, ok := strings.Cut(def, "=")
+				if !ok {
+					return fmt.Errorf("invalid app default format: %s", def)
+				}
+				defMap[key] = value
+			}
+
 			body := types.CreateAppRequest{
 				SourceUrl:        cCtx.Args().Get(0),
 				IsDev:            cCtx.Bool("dev"),
@@ -154,6 +171,7 @@ Examples:
 				ParamValues:      paramValues,
 				ContainerOptions: coptMap,
 				ContainerArgs:    cargMap,
+				AppDefaults:      defMap,
 			}
 			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)

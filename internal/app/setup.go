@@ -5,6 +5,7 @@ package app
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -600,11 +601,35 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			// disabled in proxy config
 			req.Host = url.Host
 		}
+
 	}
 
 	permsHandler := func(p *httputil.ReverseProxy) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// If write APi, check if preview/stage app is allowed access
+
+			if a.appDefaults.CORS.Setting == "strict" || a.appDefaults.CORS.Setting == "lax" {
+				origin := "*"
+				if a.appDefaults.CORS.Setting == "strict" {
+					origin = getRequestUrl(r)
+				}
+				if r.Method == http.MethodOptions {
+					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appDefaults.CORS.AllowOrigin, origin))
+					w.Header().Set("Access-Control-Allow-Methods", a.appDefaults.CORS.AllowMethods)
+					w.Header().Set("Access-Control-Allow-Headers", a.appDefaults.CORS.AllowHeaders)
+					w.Header().Set("Access-Control-Allow-Credentials", a.appDefaults.CORS.AllowCredentials)
+					w.Header().Set("Access-Control-Max-Age", a.appDefaults.CORS.MaxAge)
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					w.Header().Set("Content-Length", "0")
+					w.WriteHeader(http.StatusNoContent)
+					return
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appDefaults.CORS.AllowOrigin, origin))
+					w.Header().Set("Access-Control-Allow-Methods", a.appDefaults.CORS.AllowMethods)
+					w.Header().Set("Access-Control-Allow-Headers", a.appDefaults.CORS.AllowHeaders)
+				}
+			}
+
+			// If write API, check if preview/stage app is allowed access
 			isWriteReques := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete
 			if isWriteReques {
 				if strings.HasPrefix(string(a.Id), types.ID_PREFIX_APP_PREVIEW) && !a.Settings.PreviewWriteAccess {

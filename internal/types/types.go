@@ -59,9 +59,23 @@ type ServerConfig struct {
 	Plugins     map[string]PluginSettings `toml:"plugin"`
 	Auth        map[string]AuthConfig     `toml:"auth"`
 	ProfileMode string                    `toml:"profile_mode"`
+	AppDefaults AppDefaults               `toml:"appdefaults"`
 }
 
 type PluginSettings map[string]any
+
+type AppDefaults struct {
+	CORS CORS `toml:"cors"`
+}
+
+type CORS struct {
+	Setting          string `toml:"setting"`
+	AllowOrigin      string `toml:"allow_origin"`
+	AllowMethods     string `toml:"allow_methods"`
+	AllowHeaders     string `toml:"allow_headers"`
+	AllowCredentials string `toml:"allow_credentials"`
+	MaxAge           string `toml:"max_age"`
+}
 
 type PluginContext struct {
 	Logger    *Logger
@@ -268,6 +282,7 @@ type AppMetadata struct {
 	SpecFiles        *SpecFiles        `json:"spec_files"`
 	ContainerOptions map[string]string `json:"container_options"`
 	ContainerArgs    map[string]string `json:"container_args"`
+	AppDefaults      map[string]string `json:"appdefaults"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
