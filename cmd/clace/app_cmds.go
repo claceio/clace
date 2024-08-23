@@ -69,13 +69,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		})
 	flags = append(flags,
 		&cli.StringSliceFlag{
-			Name:    "container-options",
+			Name:    "container-option",
 			Aliases: []string{"copt"},
 			Usage:   "Set a container option. Format is opt[=optValue]",
 		})
 	flags = append(flags,
 		&cli.StringSliceFlag{
-			Name:    "container-args",
+			Name:    "container-arg",
 			Aliases: []string{"carg"},
 			Usage:   "Set an argument for building the container image. Format is argKey=argValue",
 		})
@@ -83,7 +83,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags,
 		&cli.StringSliceFlag{
 			Name:    "app-config",
-			Aliases: []string{"config"},
+			Aliases: []string{"conf"},
 			Usage:   "Set an default config option for the app. Format is configKey=configValue",
 		})
 
@@ -133,14 +133,14 @@ Examples:
 				paramValues[key] = value
 			}
 
-			containerOptions := cCtx.StringSlice("container-options")
+			containerOptions := cCtx.StringSlice("container-option")
 			coptMap := make(map[string]string)
 			for _, param := range containerOptions {
 				key, value, _ := strings.Cut(param, "=")
 				coptMap[key] = value // value can be empty string
 			}
 
-			containerArgs := cCtx.StringSlice("container-args")
+			containerArgs := cCtx.StringSlice("container-arg")
 			cargMap := make(map[string]string)
 			for _, param := range containerArgs {
 				key, value, ok := strings.Cut(param, "=")
@@ -150,14 +150,14 @@ Examples:
 				cargMap[key] = value
 			}
 
-			appDefaults := cCtx.StringSlice("app-config")
-			defMap := make(map[string]string)
-			for _, def := range appDefaults {
+			appConfig := cCtx.StringSlice("app-config")
+			confMap := make(map[string]string)
+			for _, def := range appConfig {
 				key, value, ok := strings.Cut(def, "=")
 				if !ok {
-					return fmt.Errorf("invalid app default format: %s", def)
+					return fmt.Errorf("invalid app config format: %s", def)
 				}
-				defMap[key] = value
+				confMap[key] = value
 			}
 
 			body := types.CreateAppRequest{
@@ -171,7 +171,7 @@ Examples:
 				ParamValues:      paramValues,
 				ContainerOptions: coptMap,
 				ContainerArgs:    cargMap,
-				AppDefaults:      defMap,
+				AppConfig:        confMap,
 			}
 			var createResult types.AppCreateResponse
 			err := client.Post("/_clace/app", values, body, &createResult)

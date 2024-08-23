@@ -55,11 +55,16 @@ container_command = "auto"          # "auto" or "docker" or "podman"
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/clace_app.db"
 
-[appdefaults]
+[app_config]
+# app config can be set at the app level using a metadata config update. For example:
+#  clace app update-metadata conf --promote cors.allow_methods="GET, POST" /myapp
+
+# CORS related Config
+# default setting is strict, which means allow_origin is set to host url. "lax" allows all origins, "*".
+# "disabled" means no CORS headers are set. if allow_origin is set, it will be used as the origin value.
 cors.setting = "strict"
-cors.allow_origin = "" # if empty, set to * for lax and origin host for strict
-cors.allow_methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-cors.allow_headers = """DNT,User-Agent,X-Requested-With,If-Modified-Since,
-Cache-Control,Content-Type,Range,Authorization,X-Requested-With"""
+cors.allow_origin = ""
+cors.allow_methods = "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+cors.allow_headers = "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Requested-With"
 cors.allow_credentials = "true"
-cors.max_age = "2678400" # 31 days
+cors.max_age = "2678400"                                                                                                                 # 31 days

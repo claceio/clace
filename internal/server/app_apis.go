@@ -94,7 +94,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	appEntry.Metadata.ParamValues = appRequest.ParamValues
 	appEntry.Metadata.ContainerOptions = appRequest.ContainerOptions
 	appEntry.Metadata.ContainerArgs = appRequest.ContainerArgs
-	appEntry.Metadata.AppDefaults = appRequest.AppDefaults
+	appEntry.Metadata.AppConfig = appRequest.AppConfig
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
@@ -294,7 +294,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 		&appfs.DiskWriteFS{
 			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.SpecFiles),
 		})
-	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins, s.config.AppDefaults)
+	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins, s.config.AppConfig)
 }
 
 func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetResponse, error) {

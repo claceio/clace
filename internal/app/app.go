@@ -46,7 +46,7 @@ type App struct {
 	Name         string
 	CustomLayout bool
 
-	Config           *apptype.AppConfig
+	codeConfig       *apptype.CodeConfig
 	sourceFS         *appfs.SourceFs
 	initMutex        sync.Mutex
 	initialized      bool
@@ -73,7 +73,7 @@ type App struct {
 	sseListeners  []chan SSEMessage
 	funcMap       template.FuncMap
 	starlarkCache map[string]*starlarkCacheEntry
-	appDefaults   types.AppDefaults
+	appConfig     types.AppConfig
 }
 
 type starlarkCacheEntry struct {
@@ -88,7 +88,7 @@ type SSEMessage struct {
 
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
-	plugins map[string]types.PluginSettings, appDefaults types.AppDefaults) (*App, error) {
+	plugins map[string]types.PluginSettings, appConfig types.AppConfig) (*App, error) {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,
@@ -97,8 +97,8 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		starlarkCache: map[string]*starlarkCacheEntry{},
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
-	newApp.appDefaults = appDefaults
-	if err := newApp.updateAppDefaults(); err != nil {
+	newApp.appConfig = appConfig
+	if err := newApp.updateAppConfig(); err != nil {
 		return nil, err
 	}
 
@@ -213,16 +213,16 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 
 		// Config lock is not present, use default config
 		a.Debug().Msg("No config lock file found, using default config")
-		a.Config = apptype.NewAppConfig()
+		a.codeConfig = apptype.NewCodeConfig()
 		if a.IsDev {
-			a.appDev.Config = a.Config
+			a.appDev.Config = a.codeConfig
 			a.appDev.SaveConfigLockFile()
 		}
 	} else {
 		// Config lock file is present, read defaults from that
 		a.Debug().Msg("Config lock file found, using config from lock file")
-		a.Config = apptype.NewCompatibleAppConfig()
-		if err := json.Unmarshal(configData, a.Config); err != nil {
+		a.codeConfig = apptype.NewCompatibleCodeConfig()
+		if err := json.Unmarshal(configData, a.codeConfig); err != nil {
 			return false, err
 		}
 	}
@@ -234,7 +234,7 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 
 	if a.IsDev {
 		// Copy settings into appdev
-		a.appDev.Config = a.Config
+		a.appDev.Config = a.codeConfig
 		a.appDev.CustomLayout = a.CustomLayout
 
 		// Initialize style configuration
@@ -273,14 +273,14 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 
 	// Parse HTML templates if there are HTML routes
 	if a.usesHtmlTemplate {
-		baseFiles, err := a.sourceFS.Glob(path.Join(a.Config.Routing.BaseTemplates, "*.go.html"))
+		baseFiles, err := a.sourceFS.Glob(path.Join(a.codeConfig.Routing.BaseTemplates, "*.go.html"))
 		if err != nil {
 			return false, err
 		}
 
 		if len(baseFiles) == 0 {
 			// No base templates found, use the default unstructured templates
-			if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.Config.Routing.TemplateLocations...); err != nil {
+			if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.codeConfig.Routing.TemplateLocations...); err != nil {
 				return false, err
 			}
 		} else {
@@ -291,7 +291,7 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 			}
 
 			a.templateMap = make(map[string]*template.Template)
-			for _, paths := range a.Config.Routing.TemplateLocations {
+			for _, paths := range a.codeConfig.Routing.TemplateLocations {
 				files, err := a.sourceFS.Glob(paths)
 				if err != nil {
 					return false, err
@@ -702,18 +702,18 @@ func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[str
 	return cacheEntry.globals, cacheEntry.err
 }
 
-// updateAppDefaults updates the app defaults from the metadata
+// updateAppConfig updates the app defaults from the metadata
 // It creates a TOML intermediate string so that the TOML parsing can be used
-func (a *App) updateAppDefaults() error {
-	if len(a.Metadata.AppDefaults) == 0 {
+func (a *App) updateAppConfig() error {
+	if len(a.Metadata.AppConfig) == 0 {
 		return nil
 	}
 
 	buf := strings.Builder{}
-	for key, value := range a.Metadata.AppDefaults {
+	for key, value := range a.Metadata.AppConfig {
 		buf.WriteString(fmt.Sprintf("%s=\"%s\"\n", key, value))
 	}
 
-	_, err := toml.Decode(buf.String(), &a.appDefaults)
+	_, err := toml.Decode(buf.String(), &a.appConfig)
 	return err
 }

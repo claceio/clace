@@ -108,7 +108,7 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 	if err = json.NewEncoder(&jsonBuf).Encode(settingsMap); err != nil {
 		return err
 	}
-	if err = json.Unmarshal(jsonBuf.Bytes(), a.Config); err != nil {
+	if err = json.Unmarshal(jsonBuf.Bytes(), a.codeConfig); err != nil {
 		return err
 	}
 
@@ -132,7 +132,7 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 			}
 
 			if len(templateFiles) != 0 { // a.UsesHtmlTemplate is set in initRouter, so it cannot be used here
-				excludeGlob = a.Config.Routing.ContainerExclude
+				excludeGlob = a.codeConfig.Routing.ContainerExclude
 			}
 			if err := a.containerManager.ProdReload(excludeGlob, bool(dryRun)); err != nil {
 				return err
@@ -607,25 +607,25 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 	permsHandler := func(p *httputil.ReverseProxy) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			if a.appDefaults.CORS.Setting == "strict" || a.appDefaults.CORS.Setting == "lax" {
+			if a.appConfig.CORS.Setting == "strict" || a.appConfig.CORS.Setting == "lax" {
 				origin := "*"
-				if a.appDefaults.CORS.Setting == "strict" {
+				if a.appConfig.CORS.Setting == "strict" {
 					origin = getRequestUrl(r)
 				}
 				if r.Method == http.MethodOptions {
-					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appDefaults.CORS.AllowOrigin, origin))
-					w.Header().Set("Access-Control-Allow-Methods", a.appDefaults.CORS.AllowMethods)
-					w.Header().Set("Access-Control-Allow-Headers", a.appDefaults.CORS.AllowHeaders)
-					w.Header().Set("Access-Control-Allow-Credentials", a.appDefaults.CORS.AllowCredentials)
-					w.Header().Set("Access-Control-Max-Age", a.appDefaults.CORS.MaxAge)
+					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appConfig.CORS.AllowOrigin, origin))
+					w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
+					w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
+					w.Header().Set("Access-Control-Allow-Credentials", a.appConfig.CORS.AllowCredentials)
+					w.Header().Set("Access-Control-Max-Age", a.appConfig.CORS.MaxAge)
 					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 					w.Header().Set("Content-Length", "0")
 					w.WriteHeader(http.StatusNoContent)
 					return
 				} else {
-					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appDefaults.CORS.AllowOrigin, origin))
-					w.Header().Set("Access-Control-Allow-Methods", a.appDefaults.CORS.AllowMethods)
-					w.Header().Set("Access-Control-Allow-Headers", a.appDefaults.CORS.AllowHeaders)
+					w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appConfig.CORS.AllowOrigin, origin))
+					w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
+					w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
 				}
 			}
 
@@ -755,7 +755,7 @@ func (a *App) handleFragments(router *chi.Mux, pagePath string, pageCount int, h
 }
 
 func (a *App) createInternalRoutes(router *chi.Mux) error {
-	if a.IsDev || a.Config.Routing.PushEvents {
+	if a.IsDev || a.codeConfig.Routing.PushEvents {
 		router.Get(types.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
 	}
 

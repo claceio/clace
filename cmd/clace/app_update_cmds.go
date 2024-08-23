@@ -264,6 +264,9 @@ func appUpdateMetadataCommand(commonFlags []cli.Flag, clientConfig *types.Client
 		Usage: `Update Clace app metadata. Metadata updates are staged and have to be promoted to prod. Use "clace param" to update app parameter metadata.`,
 		Subcommands: []*cli.Command{
 			appUpdateAppSpec(commonFlags, clientConfig),
+			appUpdateConfig(commonFlags, clientConfig, "container-option", "copt", types.AppMetadataContainerOptions),
+			appUpdateConfig(commonFlags, clientConfig, "container-arg", "carg", types.AppMetadataContainerArgs),
+			appUpdateConfig(commonFlags, clientConfig, "app-config", "conf", types.AppMetadataAppConfig),
 		},
 	}
 }
@@ -284,7 +287,7 @@ func appUpdateAppSpec(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		UsageText: `args: <value:spec_name|none> <appPathGlob>
 
 The first required argument <value> is a string, a valid app spec name or - (to unset spec).
-The second required argument is <appPathGlob>. ` + PATH_SPEC_HELP + `
+The last required argument is <appPathGlob>. ` + PATH_SPEC_HELP + `
 
 	Examples:
 	  Update all apps, across domains: clace app update-metadata spec - all
@@ -310,9 +313,78 @@ The second required argument is <appPathGlob>. ` + PATH_SPEC_HELP + `
 			}
 
 			for _, updateResult := range updateResponse.StagedUpdateResults {
-				fmt.Printf("Updating %s\n", updateResult)
+				fmt.Printf("Updated %s\n", updateResult)
 			}
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated.\n", len(updateResponse.StagedUpdateResults))
+
+			if len(updateResponse.PromoteResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")
+				for i, promoteResult := range updateResponse.PromoteResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", promoteResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated, %d app(s) promoted.\n", len(updateResponse.StagedUpdateResults), len(updateResponse.PromoteResults))
+
+			if updateResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
+			return nil
+		},
+	}
+}
+
+// appUpdateConfig creates a command to update app metadata config
+func appUpdateConfig(commonFlags []cli.Flag, clientConfig *types.ClientConfig, arg string, shortFlag string, configType types.AppMetadataConfigType) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+	flags = append(flags, newBoolFlag(PROMOTE_FLAG, "p", "Promote the change from stage to prod", false))
+
+	return &cli.Command{
+		Name:      arg,
+		Aliases:   []string{shortFlag},
+		Usage:     fmt.Sprintf("Update %s metadata for apps", arg),
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "key=value <appPathGlob>",
+
+		UsageText: fmt.Sprintf(`args: key=value [key=value ...] <appPathGlob>
+The initial arguments key=value are strings, the key to set and the value to use delimited by =. The value is optional for
+container options. The last argument is <appPathGlob>. `+PATH_SPEC_HELP+`
+
+	Examples:
+	  Update all apps, across domains: clace app update-metadata %s key=value all
+	  Update apps in the example.com domain: clace app update-metadata %s key=value "example.com:**"`, arg, arg),
+
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() < 2 {
+				return fmt.Errorf("requires at least two arguments: key=value [key=value ...] <appPathGlob>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			values := url.Values{}
+
+			values.Add("appPathGlob", cCtx.Args().Get(cCtx.NArg()-1))
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+			values.Add(PROMOTE_ARG, strconv.FormatBool(cCtx.Bool(PROMOTE_FLAG)))
+
+			body := types.CreateUpdateAppMetadataRequest()
+			body.ConfigType = configType
+			body.ConfigEntries = cCtx.Args().Slice()[:cCtx.NArg()-1]
+
+			var updateResponse types.AppUpdateMetadataResponse
+			if err := client.Post("/_clace/app_metadata", values, body, &updateResponse); err != nil {
+				return err
+			}
+
+			for _, updateResult := range updateResponse.StagedUpdateResults {
+				fmt.Printf("Updated %s\n", updateResult)
+			}
 
 			if len(updateResponse.PromoteResults) > 0 {
 				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")

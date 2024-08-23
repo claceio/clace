@@ -60,7 +60,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 
 		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
 
-		if a.Config.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
+		if a.codeConfig.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
 			r.Header.Get("sec-fetch-mode") == "navigate" &&
 			rtype == apptype.HTML_TYPE && !(isHtmxRequest && fragment != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
@@ -85,8 +85,8 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			Method:      r.Method,
 			IsDev:       a.IsDev,
 			IsPartial:   isHtmxRequest,
-			PushEvents:  a.Config.Routing.PushEvents,
-			HtmxVersion: a.Config.Htmx.Version,
+			PushEvents:  a.codeConfig.Routing.PushEvents,
+			HtmxVersion: a.codeConfig.Htmx.Version,
 			Headers:     r.Header,
 			RemoteIP:    getRemoteIP(r),
 		}

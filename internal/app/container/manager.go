@@ -114,19 +114,9 @@ func extractVolumes(node *parser.Node) []string {
 	ret := []string{}
 	for node.Next != nil {
 		node = node.Next
-		ret = append(ret, stripQuotes(node.Value))
+		ret = append(ret, types.StripQuotes(node.Value))
 	}
 	return ret
-}
-
-func stripQuotes(s string) string {
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
-		return s[1 : len(s)-1]
-	}
-	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-		return s[1 : len(s)-1]
-	}
-	return s
 }
 
 func (m *Manager) GetProxyUrl() string {

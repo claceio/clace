@@ -38,7 +38,7 @@ type AppDev struct {
 	*types.Logger
 
 	CustomLayout bool
-	Config       *apptype.AppConfig
+	Config       *apptype.CodeConfig
 	systemConfig *types.SystemConfig
 	sourceFS     *appfs.WritableSourceFs
 	workFS       *appfs.WorkFs

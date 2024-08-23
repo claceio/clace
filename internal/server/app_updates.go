@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
@@ -518,6 +519,7 @@ func (s *Server) updateParamHandler(ctx context.Context, tx types.Transaction, a
 		appEntry.Metadata.ParamValues = make(map[string]string)
 	}
 
+	paramValue = types.StripQuotes(strings.TrimSpace(paramValue))
 	if paramValue == "-" {
 		// Delete the entry
 		delete(appEntry.Metadata.ParamValues, paramName)
@@ -550,6 +552,62 @@ func (s *Server) updateMetadataHandler(ctx context.Context, tx types.Transaction
 		appEntry.Metadata.SpecFiles = &appFiles
 	}
 
+	if updateMetadata.ConfigType != "" && updateMetadata.ConfigType != types.AppMetadataConfigType(types.StringValueUndefined) {
+		s.updateAppMetadataConfig(appEntry, updateMetadata.ConfigType, updateMetadata.ConfigEntries)
+	}
+
 	appPathDomain := appEntry.AppPathDomain()
 	return appPathDomain, appPathDomain, nil
+}
+
+// updateAppMetadataConfig updates the app metadata config
+func (s *Server) updateAppMetadataConfig(appEntry *types.AppEntry, configType types.AppMetadataConfigType, configEntries []string) error {
+	if len(configEntries) == 0 {
+		return nil
+	}
+
+	for _, entry := range configEntries {
+		key, value, ok := strings.Cut(entry, "=")
+
+		if !ok && configType != types.AppMetadataContainerOptions {
+			return fmt.Errorf("invalid %s %s, need key=value", configType, entry)
+		}
+
+		key = strings.TrimSpace(key)
+		value = types.StripQuotes(strings.TrimSpace(value))
+
+		switch configType {
+		case types.AppMetadataContainerOptions:
+			if appEntry.Metadata.ContainerOptions == nil {
+				appEntry.Metadata.ContainerOptions = make(map[string]string)
+			}
+			if value != "-" {
+				appEntry.Metadata.ContainerOptions[key] = value
+			} else {
+				delete(appEntry.Metadata.ContainerOptions, key)
+			}
+		case types.AppMetadataContainerArgs:
+			if appEntry.Metadata.ContainerArgs == nil {
+				appEntry.Metadata.ContainerArgs = make(map[string]string)
+			}
+			if value != "-" {
+				appEntry.Metadata.ContainerArgs[key] = value
+			} else {
+				delete(appEntry.Metadata.ContainerArgs, key)
+			}
+		case types.AppMetadataAppConfig:
+			if appEntry.Metadata.AppConfig == nil {
+				appEntry.Metadata.AppConfig = make(map[string]string)
+			}
+			if value != "-" {
+				appEntry.Metadata.AppConfig[key] = value
+			} else {
+				delete(appEntry.Metadata.AppConfig, key)
+			}
+		default:
+			return fmt.Errorf("invalid config type %s", configType)
+		}
+	}
+
+	return nil
 }

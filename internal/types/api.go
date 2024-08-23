@@ -40,7 +40,7 @@ type CreateAppRequest struct {
 	ParamValues      map[string]string `json:"param_values"`
 	ContainerOptions map[string]string `json:"container_options"`
 	ContainerArgs    map[string]string `json:"container_args"`
-	AppDefaults      map[string]string `json:"appdefaults"`
+	AppConfig        map[string]string `json:"appconfig"`
 }
 
 // UpdateAppRequest is the request body for updating an app settings
@@ -64,12 +64,16 @@ func CreateUpdateAppRequest() UpdateAppRequest {
 
 // UpdateAppMetadataRequest is the request body for updating an app metadata
 type UpdateAppMetadataRequest struct {
-	Spec StringValue `json:"spec"`
+	Spec          StringValue           `json:"spec"`
+	ConfigType    AppMetadataConfigType `json:"config_type"`
+	ConfigEntries []string              `json:"config_entries"`
 }
 
-func CreateUpdateAppMetadataRequest() UpdateAppRequest {
-	return UpdateAppRequest{
-		Spec: StringValueUndefined,
+func CreateUpdateAppMetadataRequest() UpdateAppMetadataRequest {
+	return UpdateAppMetadataRequest{
+		Spec:          StringValueUndefined,
+		ConfigType:    AppMetadataConfigType(StringValueUndefined),
+		ConfigEntries: []string{},
 	}
 }
 

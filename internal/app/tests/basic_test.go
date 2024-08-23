@@ -88,7 +88,7 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config apptype.AppConfig
+	var config apptype.CodeConfig
 
 	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
@@ -191,7 +191,7 @@ def handler(req):
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", `Template got myvalue.`, response.Body.String())
-	var config apptype.AppConfig
+	var config apptype.CodeConfig
 
 	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)
@@ -222,7 +222,7 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body",
 		`html/template: "t12.tmpl" is undefined`,
 		strings.TrimSpace(response.Body.String()))
-	var config apptype.AppConfig
+	var config apptype.CodeConfig
 
 	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
 	testutil.AssertEqualsString(t, "config", "1.8", config.Htmx.Version)

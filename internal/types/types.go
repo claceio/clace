@@ -59,12 +59,12 @@ type ServerConfig struct {
 	Plugins     map[string]PluginSettings `toml:"plugin"`
 	Auth        map[string]AuthConfig     `toml:"auth"`
 	ProfileMode string                    `toml:"profile_mode"`
-	AppDefaults AppDefaults               `toml:"appdefaults"`
+	AppConfig   AppConfig                 `toml:"app_config"`
 }
 
 type PluginSettings map[string]any
 
-type AppDefaults struct {
+type AppConfig struct {
 	CORS CORS `toml:"cors"`
 }
 
@@ -282,7 +282,7 @@ type AppMetadata struct {
 	SpecFiles        *SpecFiles        `json:"spec_files"`
 	ContainerOptions map[string]string `json:"container_options"`
 	ContainerArgs    map[string]string `json:"container_args"`
-	AppDefaults      map[string]string `json:"appdefaults"`
+	AppConfig        map[string]string `json:"appconfig"`
 }
 
 // AppSettings contains the settings for an app. Settings are not version controlled.
@@ -359,6 +359,14 @@ const (
 	StringValueUndefined StringValue = "<CL_UNDEFINED>"
 )
 
+type AppMetadataConfigType string
+
+const (
+	AppMetadataAppConfig        AppMetadataConfigType = "app_config"
+	AppMetadataContainerOptions AppMetadataConfigType = "container_options"
+	AppMetadataContainerArgs    AppMetadataConfigType = "container_args"
+)
+
 type AppVersion struct {
 	Active          bool
 	AppId           AppId
@@ -382,4 +390,14 @@ type Transaction struct {
 
 func (t *Transaction) IsInitialized() bool {
 	return t.Tx != nil
+}
+
+func StripQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
+		return s[1 : len(s)-1]
+	}
+	return s
 }
