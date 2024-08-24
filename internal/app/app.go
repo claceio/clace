@@ -4,6 +4,7 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -510,6 +511,29 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, a.reloadError.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if a.appConfig.CORS.Setting == "strict" || a.appConfig.CORS.Setting == "lax" {
+		origin := "*"
+		if a.appConfig.CORS.Setting == "strict" {
+			origin = getRequestUrl(r)
+		}
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appConfig.CORS.AllowOrigin, origin))
+			w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
+			w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
+			w.Header().Set("Access-Control-Allow-Credentials", a.appConfig.CORS.AllowCredentials)
+			w.Header().Set("Access-Control-Max-Age", a.appConfig.CORS.MaxAge)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("Content-Length", "0")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", cmp.Or(a.appConfig.CORS.AllowOrigin, origin))
+			w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
+			w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
+		}
+	}
+
 	a.appRouter.ServeHTTP(w, r)
 }
 
