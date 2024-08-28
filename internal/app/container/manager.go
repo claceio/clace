@@ -360,12 +360,27 @@ func (m *Manager) ProdReload(excludeGlob []string, dryRun bool) error {
 			if err != nil {
 				return fmt.Errorf("error starting container: %w", err)
 			}
+
+			// Fetch port number after starting the container
+			containers, err = m.command.GetContainers(m.systemConfig, containerName, true)
+			if err != nil {
+				return fmt.Errorf("error getting running containers: %w", err)
+			}
+			m.hostPort = containers[0].Port
+
+			if m.health != "" {
+				err = m.WaitForHealth(m.GetHealthUrl())
+				if err != nil {
+					return fmt.Errorf("error waiting for health: %w", err)
+				}
+			}
 		} else {
 			// TODO handle case where image name is specified and param values change, need to restart container in that case
+			m.hostPort = containers[0].Port
 			m.Debug().Msg("container already running")
 		}
 
-		m.hostPort = containers[0].Port
+		m.Debug().Msgf("updating port to %d", m.hostPort)
 		return nil
 	}
 
