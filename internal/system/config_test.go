@@ -59,10 +59,9 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "command", "auto", c.System.ContainerCommand)
 
 	// App CORS default Settings
-	testutil.AssertEqualsString(t, "cors setting", "strict", c.AppConfig.CORS.Setting)
-	testutil.AssertEqualsString(t, "cors origin", "", c.AppConfig.CORS.AllowOrigin)
+	testutil.AssertEqualsString(t, "cors origin", "*", c.AppConfig.CORS.AllowOrigin)
 	testutil.AssertEqualsString(t, "cors headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Requested-With", c.AppConfig.CORS.AllowHeaders)
-	testutil.AssertEqualsString(t, "cors methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS", c.AppConfig.CORS.AllowMethods)
+	testutil.AssertEqualsString(t, "cors methods", "*", c.AppConfig.CORS.AllowMethods)
 	testutil.AssertEqualsString(t, "cors methods", "true", c.AppConfig.CORS.AllowCredentials)
 	testutil.AssertEqualsString(t, "cors methods", "2678400", c.AppConfig.CORS.MaxAge)
 }

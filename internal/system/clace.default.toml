@@ -60,11 +60,11 @@ db_connection = "sqlite:$CL_HOME/clace_app.db"
 #  clace app update-metadata conf --promote cors.allow_methods="GET, POST" /myapp
 
 # CORS related Config
-# default setting is strict, which means allow_origin is set to host url. "lax" allows all origins, "*".
-# "disabled" means no CORS headers are set. if allow_origin is set, it will be used as the origin value.
-cors.setting = "strict"
-cors.allow_origin = ""
-cors.allow_methods = "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+# Default setting is to add CORS headers with * as allow_origin header. If cors.allow_origin is set to empty string,
+# no CORS headers are set. If allow_origin is set to "origin", the origin host is used as the allow_origin header. 
+# For any other value for cors.allow_origin, the specified value is used as the allow_origin header.
+cors.allow_origin = "*"
+cors.allow_methods = "*"
 cors.allow_headers = "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Requested-With"
 cors.allow_credentials = "true"
 cors.max_age = "2678400"                                                                                                                 # 31 days
