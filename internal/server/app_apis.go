@@ -294,7 +294,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 		&appfs.DiskWriteFS{
 			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.SpecFiles),
 		})
-	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins, s.config.AppConfig)
+	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System, s.config.Plugins, s.config.AppConfig, s.notifyClose)
 }
 
 func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetResponse, error) {

@@ -22,7 +22,6 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
-	"github.com/claceio/clace/internal/app/container"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/types"
@@ -45,6 +44,7 @@ type App struct {
 	*types.AppEntry
 	Name         string
 	CustomLayout bool
+	notifyClose  chan<- types.AppPathDomain // Channel to notify server to close the app
 
 	codeConfig       *apptype.CodeConfig
 	sourceFS         *appfs.SourceFs
@@ -58,7 +58,7 @@ type App struct {
 	paramInfo        map[string]apptype.AppParam
 	paramMap         map[string]string // the param values for the app, from metadata and defaults
 	plugins          *AppPlugins
-	containerManager *container.Manager
+	containerManager *ContainerManager
 
 	globals      starlark.StringDict
 	appDef       *starlarkstruct.Struct
@@ -73,7 +73,13 @@ type App struct {
 	sseListeners  []chan SSEMessage
 	funcMap       template.FuncMap
 	starlarkCache map[string]*starlarkCacheEntry
-	appConfig     types.AppConfig
+
+	// App config that takes default values from toml config, overridden with app level metadata.
+	// It is important that this property is used instead of reading from app metadata config, so that toml
+	// config defaults are applied.
+	appConfig types.AppConfig
+
+	lastRequestTime atomic.Int64
 }
 
 type starlarkCacheEntry struct {
@@ -88,13 +94,14 @@ type SSEMessage struct {
 
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
-	plugins map[string]types.PluginSettings, appConfig types.AppConfig) (*App, error) {
+	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain) (*App, error) {
 	newApp := &App{
 		sourceFS:      sourceFS,
 		Logger:        logger,
 		AppEntry:      appEntry,
 		systemConfig:  systemConfig,
 		starlarkCache: map[string]*starlarkCacheEntry{},
+		notifyClose:   notifyClose,
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.appConfig = appConfig
@@ -156,6 +163,12 @@ func (a *App) Close() error {
 
 	if a.appDev != nil {
 		_ = a.appDev.Close()
+	}
+
+	if a.containerManager != nil {
+		if err := a.containerManager.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -424,11 +437,18 @@ func (a *App) loadContainerManager(dryRun DryRun) error {
 		return fmt.Errorf("no container file found, source is set to %s", src)
 	}
 
-	a.containerManager, err = container.NewContainerManager(a.Logger, a.AppEntry,
-		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap)
+	if a.containerManager != nil {
+		if err := a.containerManager.Close(); err != nil {
+			return fmt.Errorf("error shutting down previous container manager: %w", err)
+		}
+	}
+
+	a.containerManager, err = NewContainerManager(a.Logger, a,
+		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap, a.appConfig.Container)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}
+
 	return nil
 }
 
@@ -534,6 +554,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	a.lastRequestTime.Store(time.Now().Unix()) // new api call, update last request time
 	a.appRouter.ServeHTTP(w, r)
 }
 

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -123,17 +122,7 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 				return err
 			}
 		} else {
-			excludeGlob := []string{}
-
-			templateFiles, err := fs.Glob(a.sourceFS, "*.go.html")
-			if err != nil {
-				return err
-			}
-
-			if len(templateFiles) != 0 { // a.UsesHtmlTemplate is set in initRouter, so it cannot be used here
-				excludeGlob = a.codeConfig.Routing.ContainerExclude
-			}
-			if err := a.containerManager.ProdReload(excludeGlob, bool(dryRun)); err != nil {
+			if err := a.containerManager.ProdReload(bool(dryRun)); err != nil {
 				return err
 			}
 		}

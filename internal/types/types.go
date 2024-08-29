@@ -65,16 +65,23 @@ type ServerConfig struct {
 type PluginSettings map[string]any
 
 type AppConfig struct {
-	CORS CORS `toml:"cors"`
+	CORS      CORS      `toml:"cors"`
+	Container Container `toml:"container"`
 }
 
 type CORS struct {
-	Setting          string `toml:"setting"`
 	AllowOrigin      string `toml:"allow_origin"`
 	AllowMethods     string `toml:"allow_methods"`
 	AllowHeaders     string `toml:"allow_headers"`
 	AllowCredentials string `toml:"allow_credentials"`
 	MaxAge           string `toml:"max_age"`
+}
+
+type Container struct {
+	IdleShutdownSecs        int    `toml:"idle_shutdown_secs"`
+	IdleShutdownDevApps     bool   `toml:"idle_shutdown_dev_apps"`
+	StatusCheckIntervalSecs int    `toml:"status_check_interval_secs"`
+	StatusHealthUrl         string `toml:"status_health_url"`
 }
 
 type PluginContext struct {

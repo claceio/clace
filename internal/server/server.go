@@ -123,6 +123,7 @@ type Server struct {
 	apps        *AppStore
 	authHandler *AdminBasicAuth
 	ssoAuth     *SSOAuth
+	notifyClose chan types.AppPathDomain
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -140,6 +141,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	}
 	server.apps = NewAppStore(l, server)
 	server.authHandler = NewAdminBasicAuth(l, config)
+	server.notifyClose = make(chan types.AppPathDomain)
 
 	// Setup SSO auth
 	server.ssoAuth = NewSSOAuth(l, config)
@@ -163,6 +165,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		// if command is empty string, that means either containers are disabled in config or no container command found
 	}
 	server.Trace().Str("cmd", config.System.ContainerCommand).Msg("Container management command")
+	go server.handleAppClose()
 	return server, nil
 }
 
@@ -170,6 +173,15 @@ const (
 	DOCKER_COMMAND = "docker"
 	PODMAN_COMMAND = "podman"
 )
+
+// handleAppClose listens for app close notifications and removes the app from the store
+func (s *Server) handleAppClose() {
+	for appPathDomain := range s.notifyClose {
+		s.apps.DeleteApps([]types.AppPathDomain{appPathDomain})
+		s.Debug().Str("app", appPathDomain.String()).Msg("App closed")
+	}
+	s.Debug().Msg("App close handler stopped")
+}
 
 func (s *Server) lookupContainerCommand() string {
 	if _, err := exec.LookPath(PODMAN_COMMAND); err == nil {

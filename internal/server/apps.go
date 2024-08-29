@@ -81,13 +81,21 @@ func (a *AppStore) DeleteLinkedApps(pathDomain types.AppPathDomain) error {
 	linkedAppPrefix := pathDomain.Path + types.INTERNAL_APP_DELIM
 	for key, app := range a.appMap {
 		if app.Domain == pathDomain.Domain && strings.HasPrefix(app.Path, linkedAppPrefix) {
-			delete(a.appMap, key)
+			a.clearApp(key)
 		}
 	}
 
-	delete(a.appMap, pathDomain)
+	a.clearApp(pathDomain)
 	a.allApps = nil
 	return nil
+}
+
+func (a *AppStore) clearApp(pathDomain types.AppPathDomain) {
+	app, ok := a.appMap[pathDomain]
+	if ok {
+		app.Close()
+		delete(a.appMap, pathDomain)
+	}
 }
 
 func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
@@ -95,7 +103,7 @@ func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
 	defer a.mu.Unlock()
 
 	for _, pd := range pathDomain {
-		delete(a.appMap, pd)
+		a.clearApp(pd)
 	}
 	a.allApps = nil
 }
@@ -106,6 +114,7 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 
 	for _, app := range apps {
 		app.ResetFS() // clear the transaction for DbFS
+		// close required??
 		a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
 	}
 	a.allApps = nil

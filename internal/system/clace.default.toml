@@ -68,3 +68,9 @@ cors.allow_methods = "*"
 cors.allow_headers = "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Requested-With"
 cors.allow_credentials = "true"
 cors.max_age = "2678400"                                                                                                                 # 31 days
+
+# Container related Config
+container.idle_shutdown_secs = 180
+container.idle_shutdown_dev_apps = false
+container.status_check_interval_secs = 5
+container.status_health_url = "/"
