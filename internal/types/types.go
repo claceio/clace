@@ -78,10 +78,18 @@ type CORS struct {
 }
 
 type Container struct {
-	IdleShutdownSecs        int    `toml:"idle_shutdown_secs"`
-	IdleShutdownDevApps     bool   `toml:"idle_shutdown_dev_apps"`
-	StatusCheckIntervalSecs int    `toml:"status_check_interval_secs"`
-	StatusHealthUrl         string `toml:"status_health_url"`
+	// Health check related config
+	HealthUrl                  string `toml:"health_url"`
+	HealthAttemptsAfterStartup int    `toml:"health_attempts_after_startup"`
+	HealthTimeoutSecs          int    `toml:"health_timeout_secs"`
+
+	// Idle shutdown related config
+	IdleShutdownSecs    int  `toml:"idle_shutdown_secs"`
+	IdleShutdownDevApps bool `toml:"idle_shutdown_dev_apps"`
+
+	// Status check related config
+	StatusCheckIntervalSecs int `toml:"status_check_interval_secs"`
+	StatusHealthAttempts    int `toml:"status_health_attempts"`
 }
 
 type PluginContext struct {

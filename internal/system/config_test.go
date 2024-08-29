@@ -64,6 +64,14 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "cors methods", "*", c.AppConfig.CORS.AllowMethods)
 	testutil.AssertEqualsString(t, "cors methods", "true", c.AppConfig.CORS.AllowCredentials)
 	testutil.AssertEqualsString(t, "cors methods", "2678400", c.AppConfig.CORS.MaxAge)
+
+	// Container Settings
+	testutil.AssertEqualsString(t, "health", "/", c.AppConfig.Container.HealthUrl)
+	testutil.AssertEqualsInt(t, "attempts", 30, c.AppConfig.Container.HealthAttemptsAfterStartup)
+	testutil.AssertEqualsInt(t, "timeout", 5, c.AppConfig.Container.HealthTimeoutSecs)
+	testutil.AssertEqualsInt(t, "idle", 180, c.AppConfig.Container.IdleShutdownSecs)
+	testutil.AssertEqualsInt(t, "status interval", 5, c.AppConfig.Container.StatusCheckIntervalSecs)
+	testutil.AssertEqualsInt(t, "status attempts", 3, c.AppConfig.Container.StatusHealthAttempts)
 }
 
 func TestClientConfig(t *testing.T) {

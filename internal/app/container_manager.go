@@ -197,7 +197,7 @@ func (m *ContainerManager) idleAppShutdown() {
 
 func (m *ContainerManager) healthChecker() {
 	for range m.healthCheckTicker.C {
-		err := m.WaitForHealth(3)
+		err := m.WaitForHealth(m.app.appConfig.Container.StatusHealthAttempts)
 		if err == nil {
 			continue
 		}
@@ -241,7 +241,7 @@ func (m *ContainerManager) GetProxyUrl() string {
 }
 
 func (m *ContainerManager) GetHealthUrl(appHealthUrl string) string {
-	healthUrl := m.app.appConfig.Container.StatusHealthUrl
+	healthUrl := m.app.appConfig.Container.HealthUrl
 	if appHealthUrl != "" && appHealthUrl != "/" {
 		// Health check URL is specified in the app code, use that
 		healthUrl = appHealthUrl
@@ -416,7 +416,7 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 	m.hostPort = containers[0].Port
 
 	if m.health != "" {
-		err = m.WaitForHealth(30)
+		err = m.WaitForHealth(m.app.appConfig.Container.HealthAttemptsAfterStartup)
 		if err != nil {
 			logs, _ := m.command.GetContainerLogs(m.systemConfig, containerName)
 			return fmt.Errorf("error waiting for health: %w. Logs\n %s", err, logs)
@@ -428,7 +428,7 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 
 func (m *ContainerManager) WaitForHealth(attempts int) error {
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: time.Duration(m.app.appConfig.Container.HealthTimeoutSecs) * time.Second,
 	}
 
 	var err error
@@ -515,7 +515,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 			m.hostPort = containers[0].Port
 
 			if m.health != "" {
-				err = m.WaitForHealth(30)
+				err = m.WaitForHealth(m.app.appConfig.Container.HealthAttemptsAfterStartup)
 				if err != nil {
 					return fmt.Errorf("error waiting for health: %w", err)
 				}
@@ -584,7 +584,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	m.hostPort = containers[0].Port
 
 	if m.health != "" {
-		err = m.WaitForHealth(30)
+		err = m.WaitForHealth(m.app.appConfig.Container.HealthAttemptsAfterStartup)
 		if err != nil {
 			return fmt.Errorf("error waiting for health: %w", err)
 		}
