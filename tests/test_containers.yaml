@@ -8,7 +8,17 @@ tests:
   container0020: # setup flask dev app
     command: ../clace app create --dev --spec python-flask --approve ./flaskapp /cont_flaskdev
   container0030: # setup flask prod app
-    command: ../clace app create --spec python-flask --approve ./flaskapp /cont_flaskprod
+    command: ../clace app create --spec python-flask --carg PYTHON_VERSION=3.12.4-slim --copt cpu-shares=1000 --approve ./flaskapp /cont_flaskprod
+  container0031: # invalid python version carg fails
+    command: ../clace app create --spec python-flask --container-arg PYTHON_VERSION=4invalid-slim --approve ./flaskapp /cont_flaskdev2
+  container0032: # check curl
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev2
+    stdout: 4invalid
+  container0033: # invalid container run option fails
+    command: ../clace app create --spec python-flask --container-option invalid=abc --approve ./flaskapp /cont_flaskdev3
+  container0034: # check curl
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev3
+    stdout: invalid
   container0040: # check curl dev works
     command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev
     stdout: "hello"
