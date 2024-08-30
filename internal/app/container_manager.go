@@ -177,6 +177,11 @@ func (m *ContainerManager) idleAppShutdown() {
 			break
 		}
 
+		if m.app.notifyClose != nil {
+			// Notify the server to close the app so that it gets reinitialized on next API call
+			m.app.notifyClose <- m.app.AppPathDomain()
+		}
+
 		m.stateLock.Lock()
 		m.currentState = ContainerStateIdleShutdown
 
@@ -185,10 +190,6 @@ func (m *ContainerManager) idleAppShutdown() {
 			m.Error().Err(err).Msgf("Error stopping idle app %s", m.app.Id)
 		}
 		m.stateLock.Unlock()
-		if m.app.notifyClose != nil {
-			// Notify the server to close the app so that it gets reinitialized on next API call
-			m.app.notifyClose <- m.app.AppPathDomain()
-		}
 		break
 	}
 
@@ -209,6 +210,11 @@ func (m *ContainerManager) healthChecker() {
 			break
 		}
 
+		if m.app.notifyClose != nil {
+			// Notify the server to close the app so that it gets reinitialized on next API call
+			m.app.notifyClose <- m.app.AppPathDomain()
+		}
+
 		m.stateLock.Lock()
 		m.currentState = ContainerStateHealthFailure
 
@@ -217,10 +223,6 @@ func (m *ContainerManager) healthChecker() {
 			m.Error().Err(err).Msgf("Error stopping app %s after health failure", m.app.Id)
 		}
 		m.stateLock.Unlock()
-		if m.app.notifyClose != nil {
-			// Notify the server to close the app so that it gets reinitialized on next API call
-			m.app.notifyClose <- m.app.AppPathDomain()
-		}
 		break
 	}
 
