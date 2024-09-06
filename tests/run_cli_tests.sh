@@ -134,6 +134,12 @@ secret = "$CL_GITHUB_SECRET"
 EOF
 fi
 
+cat <<EOF >> $CL_CONFIG_FILE
+
+[secret.env]
+EOF
+
+export TESTENV=abc
 ../clace server start &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/
