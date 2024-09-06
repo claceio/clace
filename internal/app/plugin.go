@@ -416,6 +416,17 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						return nil, err
 					}
 					args[i] = starlark.String(evalString)
+				case *starlark.List:
+					for i := 0; i < v.Len(); i++ {
+						switch sv := v.Index(i).(type) {
+						case starlark.String:
+							evalString, err := a.secretEvalFunc(sv.GoString())
+							if err != nil {
+								return nil, err
+							}
+							v.SetIndex(i, starlark.String(evalString))
+						}
+					}
 				}
 			}
 
@@ -429,6 +440,17 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 
 					}
 					kwargs[i][1] = starlark.String(evalString)
+				case *starlark.List:
+					for i := 0; i < v.Len(); i++ {
+						switch sv := v.Index(i).(type) {
+						case starlark.String:
+							evalString, err := a.secretEvalFunc(sv.GoString())
+							if err != nil {
+								return nil, err
+							}
+							v.SetIndex(i, starlark.String(evalString))
+						}
+					}
 				}
 			}
 		}

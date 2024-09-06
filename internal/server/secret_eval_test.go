@@ -30,7 +30,7 @@ func TestUpdateAuth(t *testing.T) {
 			},
 			"auth2": {
 				Key:    "myclientID2",
-				Secret: `{{ secret("asm", "mysecret")}}`,
+				Secret: `{{ secret "env" "TEST"} }}`,
 			},
 		},
 	}

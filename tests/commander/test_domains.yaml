@@ -47,3 +47,15 @@ tests:
     command: ../clace app create ./testapp test3.clace.io:/test/other
     stdout: "App audit results test3.clace.io:/test/other - app"
     exit-code: 0
+
+  # Test secret loading
+  secret0300: # Create app, with secret param
+    command: ../clace app create --approve --param secret_provider=env --param secret_key=TESTENV ./env_app  /secret1
+  secret0310:
+    command: curl -su "admin:qwerty" localhost:25222/secret1
+    stdout: abc
+  secret0320: # Create app, with invalid provider
+    command: ../clace app create --approve --param secret_provider=vault --param secret_key=TESTENV ./env_app  /secret2
+  secret0330:
+    command: curl -su "admin:qwerty" localhost:25222/secret2
+    stdout: unknown secret provider vault

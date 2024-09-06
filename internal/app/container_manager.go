@@ -114,6 +114,15 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 			"add a EXPOSE directive in %s or add port number in app config", containerFile, containerFile)
 	}
 
+	// Evaluate secrets in the paramMap
+	for k, v := range paramMap {
+		val, err := app.secretEvalFunc(v)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating secret for %s: %w", k, err)
+		}
+		paramMap[k] = val
+	}
+
 	m := &ContainerManager{
 		Logger:          logger,
 		app:             app,

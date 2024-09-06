@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"text/template"
 
@@ -22,7 +23,7 @@ import (
 type SecretManager struct {
 	// Secrets is a map of secret providers
 	providers map[string]secretProvider
-	template  *template.Template
+	funcMap   template.FuncMap
 }
 
 func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretConfig) (*SecretManager, error) {
@@ -33,6 +34,8 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 			provider = &awsSecretProvider{}
 		} else if name == "vault" || strings.HasPrefix(name, "vault_") {
 			provider = &vaultSecretProvider{}
+		} else if name == "env" {
+			provider = &envSecretProvider{}
 		} else {
 			return nil, fmt.Errorf("unknown secret provider %s", name)
 		}
@@ -44,29 +47,29 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 		providers[name] = provider
 	}
 
-	s := &SecretManager{
-		providers: providers,
-	}
-
 	funcMap := sprig.FuncMap()
-	funcMap["secret"] = s.templateSecretFunc
 	delete(funcMap, "env")
 	delete(funcMap, "expandenv")
 
-	s.template = template.New("secret").Funcs(funcMap)
+	s := &SecretManager{
+		providers: providers,
+		funcMap:   funcMap,
+	}
+	s.funcMap["secret"] = s.templateSecretFunc
 	return s, nil
 }
 
-// templateSecretFunc is a template function that retrieves a secret from the secret manager
+// templateSecretFunc is a template function that retrieves a secret from the secret manager.
+// Since the template function does not support errors, it panics if there is an error
 func (s *SecretManager) templateSecretFunc(providerName, secretName string) string {
 	provider, ok := s.providers[providerName]
 	if !ok {
-		return fmt.Errorf("unknown secret provider %s", providerName).Error()
+		panic(fmt.Errorf("unknown secret provider %s", providerName))
 	}
 
 	ret, err := provider.GetSecret(context.Background(), secretName)
 	if err != nil {
-		return fmt.Errorf("error getting secret %s from %s: %w", secretName, providerName, err).Error()
+		panic(fmt.Errorf("error getting secret %s from %s: %w", secretName, providerName, err))
 	}
 	return ret
 }
@@ -80,14 +83,19 @@ func (s *SecretManager) EvalTemplate(input string) (string, error) {
 		return input, nil
 	}
 
+	tmpl, err := template.New("secret template").Funcs(s.funcMap).Parse(input)
+	if err != nil {
+		return "", err
+	}
 	var doc bytes.Buffer
-	err := s.template.Execute(&doc, input)
+	err = tmpl.Execute(&doc, nil)
 	if err != nil {
 		return "", err
 	}
 	return doc.String(), nil
 }
 
+// secretProvider is an interface for secret providers
 type secretProvider interface {
 	// Configure is called to configure the secret provider
 	Configure(ctx context.Context, conf map[string]any) error
@@ -96,6 +104,7 @@ type secretProvider interface {
 	GetSecret(ctx context.Context, secretName string) (string, error)
 }
 
+// awsSecretProvider is a secret provider that reads secrets from AWS Secrets Manager
 type awsSecretProvider struct {
 	client *secretsmanager.Client
 }
@@ -124,6 +133,7 @@ func (a *awsSecretProvider) GetSecret(ctx context.Context, secretName string) (s
 
 var _ secretProvider = &awsSecretProvider{}
 
+// vaultSecretProvider is a secret provider that reads secrets from HashiCorp Vault
 type vaultSecretProvider struct {
 	client *api.Client
 }
@@ -186,3 +196,17 @@ func (v *vaultSecretProvider) GetSecret(ctx context.Context, secretName string) 
 }
 
 var _ secretProvider = &vaultSecretProvider{}
+
+// envSecretProvider is a secret provider that reads secrets from environment variables
+type envSecretProvider struct {
+}
+
+func (e *envSecretProvider) Configure(ctx context.Context, conf map[string]any) error {
+	return nil
+}
+
+func (e *envSecretProvider) GetSecret(ctx context.Context, secretName string) (string, error) {
+	return os.Getenv(secretName), nil
+}
+
+var _ secretProvider = &envSecretProvider{}
