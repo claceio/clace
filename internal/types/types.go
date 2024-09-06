@@ -58,11 +58,13 @@ type ServerConfig struct {
 	GitAuth     map[string]GitAuthEntry   `toml:"git_auth"`
 	Plugins     map[string]PluginSettings `toml:"plugin"`
 	Auth        map[string]AuthConfig     `toml:"auth"`
+	Secret      map[string]SecretConfig   `toml:"secret"`
 	ProfileMode string                    `toml:"profile_mode"`
 	AppConfig   AppConfig                 `toml:"app_config"`
 }
 
 type PluginSettings map[string]any
+type SecretConfig map[string]any
 
 type AppConfig struct {
 	CORS      CORS      `toml:"cors"`

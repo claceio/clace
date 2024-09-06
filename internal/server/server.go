@@ -21,6 +21,7 @@ import (
 	"github.com/caddyserver/certmagic"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/passwd"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
@@ -114,16 +115,17 @@ func (s *Server) GetAppSpec(name types.AppSpec) types.SpecFiles {
 // Server is the instance of the Clace Server
 type Server struct {
 	*types.Logger
-	config      *types.ServerConfig
-	db          *metadata.Metadata
-	httpServer  *http.Server
-	httpsServer *http.Server
-	udsServer   *http.Server
-	handler     *Handler
-	apps        *AppStore
-	authHandler *AdminBasicAuth
-	ssoAuth     *SSOAuth
-	notifyClose chan types.AppPathDomain
+	config         *types.ServerConfig
+	db             *metadata.Metadata
+	httpServer     *http.Server
+	httpsServer    *http.Server
+	udsServer      *http.Server
+	handler        *Handler
+	apps           *AppStore
+	authHandler    *AdminBasicAuth
+	ssoAuth        *SSOAuth
+	notifyClose    chan types.AppPathDomain
+	secretsManager *system.SecretManager
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -142,6 +144,18 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.apps = NewAppStore(l, server)
 	server.authHandler = NewAdminBasicAuth(l, config)
 	server.notifyClose = make(chan types.AppPathDomain)
+
+	// Setup secrets manager
+	server.secretsManager, err = system.NewSecretManager(context.Background(), config.Secret)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update secrets in the config
+	err = updateConfigSecrets(server.config, server.secretsManager.EvalTemplate)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup SSO auth
 	server.ssoAuth = NewSSOAuth(l, config)
@@ -167,6 +181,43 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.Trace().Str("cmd", config.System.ContainerCommand).Msg("Container management command")
 	go server.handleAppClose()
 	return server, nil
+}
+
+// updateConfigSecrets updates the secrets in the server config using the evalSecret function
+func updateConfigSecrets(config *types.ServerConfig, evalSecret func(string) (string, error)) error {
+	var err error
+	for name, auth := range config.Auth {
+		if auth.Key, err = evalSecret(auth.Key); err != nil {
+			return err
+		}
+
+		if auth.Secret, err = evalSecret(auth.Secret); err != nil {
+			return err
+		}
+		config.Auth[name] = auth
+	}
+
+	for name, gitAuth := range config.GitAuth {
+		if gitAuth.Password, err = evalSecret(gitAuth.Password); err != nil {
+			return err
+		}
+		config.GitAuth[name] = gitAuth
+	}
+
+	for name, pluginConfig := range config.Plugins {
+		for key, value := range pluginConfig {
+			valString, ok := value.(string)
+			if ok {
+				if valString, err = evalSecret(valString); err != nil {
+					return err
+				}
+				pluginConfig[key] = valString
+			}
+		}
+		config.Plugins[name] = pluginConfig
+	}
+
+	return nil
 }
 
 const (

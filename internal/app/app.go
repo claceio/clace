@@ -80,6 +80,7 @@ type App struct {
 	appConfig types.AppConfig
 
 	lastRequestTime atomic.Int64
+	secretEvalFunc  func(string) (string, error)
 }
 
 type starlarkCacheEntry struct {
@@ -94,14 +95,16 @@ type SSEMessage struct {
 
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
-	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain) (*App, error) {
+	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
+	secretEvalFunc func(string) (string, error)) (*App, error) {
 	newApp := &App{
-		sourceFS:      sourceFS,
-		Logger:        logger,
-		AppEntry:      appEntry,
-		systemConfig:  systemConfig,
-		starlarkCache: map[string]*starlarkCacheEntry{},
-		notifyClose:   notifyClose,
+		sourceFS:       sourceFS,
+		Logger:         logger,
+		AppEntry:       appEntry,
+		systemConfig:   systemConfig,
+		starlarkCache:  map[string]*starlarkCacheEntry{},
+		notifyClose:    notifyClose,
+		secretEvalFunc: secretEvalFunc,
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.appConfig = appConfig

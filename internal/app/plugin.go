@@ -406,6 +406,33 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 		// Pass the module full path as a thread local
 		thread.SetLocal(types.TL_CURRENT_MODULE_FULL_PATH, modulePath)
 
+		// Evaluate secrets passed as arguments
+		if a.secretEvalFunc != nil {
+			for i, arg := range args {
+				switch v := arg.(type) {
+				case starlark.String:
+					evalString, err := a.secretEvalFunc(v.GoString())
+					if err != nil {
+						return nil, err
+					}
+					args[i] = starlark.String(evalString)
+				}
+			}
+
+			// Evaluate secrets passed as keyword arguments
+			for i, kwarg := range kwargs {
+				switch v := kwarg[1].(type) {
+				case starlark.String:
+					evalString, err := a.secretEvalFunc(v.GoString())
+					if err != nil {
+						return nil, err
+
+					}
+					kwargs[i][1] = starlark.String(evalString)
+				}
+			}
+		}
+
 		// Call the builtin function
 		newBuiltin := starlark.NewBuiltin(functionName, errorHandlingWrapper)
 		val, err := newBuiltin.CallInternal(thread, args, kwargs)
