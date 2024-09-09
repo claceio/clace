@@ -262,8 +262,8 @@ type VersionMetadata struct {
 type AppEntry struct {
 	Id         AppId       `json:"id"`
 	Path       string      `json:"path"`
-	MainApp    AppId       `json:"main_app"` // the id of the app that this app is linked to
 	Domain     string      `json:"domain"`
+	MainApp    AppId       `json:"main_app"` // the id of the app that this app is linked to
 	SourceUrl  string      `json:"source_url"`
 	IsDev      bool        `json:"is_dev"`
 	UserID     string      `json:"user_id"`

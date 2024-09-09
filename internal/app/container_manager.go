@@ -61,11 +61,12 @@ type ContainerManager struct {
 
 	// Health check related fields
 	healthCheckTicker *time.Ticker
+	stripAppPath      bool
 }
 
 func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health, buildDir string, sourceFS appfs.ReadableFS,
-	paramMap map[string]string, containerConfig types.Container) (*ContainerManager, error) {
+	paramMap map[string]string, containerConfig types.Container, stripAppPath bool) (*ContainerManager, error) {
 
 	image := ""
 	volumes := []string{}
@@ -140,6 +141,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		containerConfig: containerConfig,
 		stateLock:       sync.RWMutex{},
 		currentState:    ContainerStateUnknown,
+		stripAppPath:    stripAppPath,
 	}
 
 	if containerConfig.IdleShutdownSecs > 0 && (!app.IsDev || containerConfig.IdleShutdownDevApps) {
@@ -444,17 +446,29 @@ func (m *ContainerManager) WaitForHealth(attempts int) error {
 
 	var err error
 	var resp *http.Response
+	url := m.GetProxyUrl()
+	if !m.stripAppPath {
+		// Apps like Streamlit require the app path to be present
+		url = url + m.app.Path
+	}
+
+	url += m.health
+
 	for attempt := 1; attempt <= attempts; attempt++ {
-		resp, err = client.Get(m.GetProxyUrl() + m.health)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			return nil
+		resp, err = client.Get(url)
+		statusCode := "N/A"
+		if err == nil {
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+			statusCode = strconv.Itoa(resp.StatusCode)
 		}
 
 		if resp != nil {
 			resp.Body.Close()
 		}
 
-		m.Debug().Msgf("Attempt %d failed: %s", attempt, err)
+		m.Debug().Msgf("Attempt %d failed on %s : status %s err %s", attempt, url, statusCode, err)
 		time.Sleep(1 * time.Second)
 	}
 	return err

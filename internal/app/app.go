@@ -340,7 +340,7 @@ const (
 	DOCKERFILE    = "Dockerfile"
 )
 
-func (a *App) loadContainerManager(dryRun DryRun) error {
+func (a *App) loadContainerManager(stripAppPath bool) error {
 	containerConfig, err := a.appDef.Attr("container")
 	if err != nil || containerConfig == starlark.None {
 		// Plugin not authorized, skip any container files
@@ -447,7 +447,7 @@ func (a *App) loadContainerManager(dryRun DryRun) error {
 	}
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
-		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap, a.appConfig.Container)
+		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap, a.appConfig.Container, stripAppPath)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}

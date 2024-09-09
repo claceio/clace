@@ -110,8 +110,13 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 		return err
 	}
 
+	var stripAppPath bool
+	if stripAppPath, err = a.checkAppPathStripping(); err != nil {
+		return err
+	}
+
 	// Load container config. The proxy config in routes depends on this being loaded first
-	if err = a.loadContainerManager(dryRun); err != nil {
+	if err = a.loadContainerManager(stripAppPath); err != nil {
 		return err
 	}
 
@@ -318,6 +323,63 @@ func verifyConfig(globals starlark.StringDict) (*starlarkstruct.Struct, error) {
 	return appDef, nil
 }
 
+// checkAppPathStripping checks if the app path should be stripped from the request path for container proxying
+// This is required for container health checks.
+func (a *App) checkAppPathStripping() (bool, error) {
+	appPathStripping := true
+	// Iterate through all the routes
+	routes, err := a.appDef.Attr("routes")
+	if err != nil {
+		return false, err
+	}
+
+	var ok bool
+	var routeList *starlark.List
+	if routeList, ok = routes.(*starlark.List); !ok {
+		return false, fmt.Errorf("routes is not a list")
+	}
+
+	iter := routeList.Iterate()
+	var val starlark.Value
+	var count int
+
+	for iter.Next(&val) {
+		count += 1
+		var pageDef *starlarkstruct.Struct
+		if pageDef, ok = val.(*starlarkstruct.Struct); !ok {
+			return false, fmt.Errorf("routes entry %d is not a struct", count)
+		}
+
+		_, err := pageDef.Attr("config")
+		if err == nil {
+			// "config" is defined, this must be a proxy config instead of a page definition
+			var configAttr starlark.HasAttrs
+			if configAttr, err = getProxyConfig(count, pageDef); err != nil {
+				return false, err
+			}
+
+			var urlValue starlark.Value
+			if urlValue, err = configAttr.Attr("Url"); err != nil {
+				return false, err
+			}
+
+			if urlValue.(starlark.String).GoString() != apptype.CONTAINER_URL {
+				// Not proxying to container url, ignore
+				continue
+			}
+
+			var stripAppValue starlark.Value
+			if stripAppValue, err = configAttr.Attr("StripApp"); err != nil {
+				return false, err
+			}
+
+			return bool(stripAppValue.(starlark.Bool)), nil
+		}
+	}
+
+	return appPathStripping, nil
+}
+
 func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
 	if a.globals.Has(apptype.DEFAULT_HANDLER) {
@@ -488,6 +550,58 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 	return rootWildcard, nil
 }
 
+// getProxyConfig extracts the proxy config from the proxy definition
+func getProxyConfig(count int, proxyDef *starlarkstruct.Struct) (starlark.HasAttrs, error) {
+	var err error
+	var pathStr string
+
+	if pathStr, err = apptype.GetStringAttr(proxyDef, "path"); err != nil {
+		return nil, err
+	}
+
+	var ok bool
+	var responseAttr starlark.HasAttrs
+	pluginResponse, err := proxyDef.Attr("config")
+	if err != nil {
+		return nil, err
+	}
+	if responseAttr, ok = pluginResponse.(starlark.HasAttrs); !ok {
+		return nil, fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
+	}
+
+	errorValue, err := responseAttr.Attr("error")
+	if err != nil {
+		return nil, fmt.Errorf("error in proxy config: %w", err)
+	}
+
+	if errorValue != nil && errorValue != starlark.None {
+		var errorString starlark.String
+		if errorString, ok = errorValue.(starlark.String); !ok {
+			return nil, fmt.Errorf("error in proxy config: %w", err)
+		}
+
+		if errorString.GoString() != "" {
+			return nil, fmt.Errorf("error in proxy config: %s", errorString.GoString())
+		}
+	}
+
+	config, err := responseAttr.Attr("value")
+	if err != nil {
+		return nil, err
+	}
+
+	if config.Type() != "ProxyConfig" {
+		return nil, fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
+	}
+
+	var configAttr starlark.HasAttrs
+	if configAttr, ok = config.(starlark.HasAttrs); !ok {
+		return nil, fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
+	}
+
+	return configAttr, nil
+}
+
 func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruct.Struct) (bool, error) {
 	var err error
 	var pathStr string
@@ -501,44 +615,9 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		rootWildcard = true // Root wildcard path, static files are not served
 	}
 
-	var ok bool
-	var responseAttr starlark.HasAttrs
-	pluginResponse, err := proxyDef.Attr("config")
-	if err != nil {
-		return rootWildcard, err
-	}
-	if responseAttr, ok = pluginResponse.(starlark.HasAttrs); !ok {
-		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy response", count, pathStr)
-	}
-
-	errorValue, err := responseAttr.Attr("error")
-	if err != nil {
-		return rootWildcard, fmt.Errorf("error in proxy config: %w", err)
-	}
-
-	if errorValue != nil && errorValue != starlark.None {
-		var errorString starlark.String
-		if errorString, ok = errorValue.(starlark.String); !ok {
-			return rootWildcard, fmt.Errorf("error in proxy config: %w", err)
-		}
-
-		if errorString.GoString() != "" {
-			return rootWildcard, fmt.Errorf("error in proxy config: %s", errorString.GoString())
-		}
-	}
-
-	config, err := responseAttr.Attr("value")
-	if err != nil {
-		return rootWildcard, err
-	}
-
-	if config.Type() != "ProxyConfig" {
-		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
-	}
-
 	var configAttr starlark.HasAttrs
-	if configAttr, ok = config.(starlark.HasAttrs); !ok {
-		return rootWildcard, fmt.Errorf("proxy entry %d:%s is not a proxy config attr", count, pathStr)
+	if configAttr, err = getProxyConfig(count, proxyDef); err != nil {
+		return rootWildcard, err
 	}
 
 	var urlValue, stripPathValue starlark.Value
