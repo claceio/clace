@@ -110,8 +110,24 @@ type awsSecretProvider struct {
 }
 
 func (a *awsSecretProvider) Configure(ctx context.Context, conf map[string]any) error {
-	cfg, err := config.LoadDefaultConfig(ctx)
-	// IAM is automatically supported by default config
+	profileStr := ""
+	profile, ok := conf["profile"]
+	if ok {
+		profileStr, ok = profile.(string)
+		if !ok {
+			return fmt.Errorf("profile must be a string")
+		}
+	}
+
+	var cfg aws.Config
+	var err error
+	// IAM is automatically supported by config load
+	if profileStr != "" {
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profileStr))
+	} else {
+		cfg, err = config.LoadDefaultConfig(ctx)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -141,12 +157,12 @@ type vaultSecretProvider struct {
 func getConfigString(conf map[string]any, key string) (string, error) {
 	value, ok := conf[key]
 	if !ok {
-		return "", fmt.Errorf("missing %s in config", key)
+		return "", fmt.Errorf("missing '%s' in config", key)
 	}
 
 	valueStr, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("%s must be a string", key)
+		return "", fmt.Errorf("'%s' must be a string", key)
 	}
 
 	return valueStr, nil
@@ -155,11 +171,11 @@ func getConfigString(conf map[string]any, key string) (string, error) {
 func (v *vaultSecretProvider) Configure(ctx context.Context, conf map[string]any) error {
 	address, err := getConfigString(conf, "address")
 	if err != nil {
-		return err
+		return fmt.Errorf("vault invalid config: %w", err)
 	}
 	token, err := getConfigString(conf, "token")
 	if err != nil {
-		return err
+		return fmt.Errorf("vault invalid config: %w", err)
 	}
 
 	vaultConfig := &api.Config{
