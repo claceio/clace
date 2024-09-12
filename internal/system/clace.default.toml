@@ -83,3 +83,8 @@ container.idle_shutdown_dev_apps = false
 # Status check Config
 container.status_check_interval_secs = 5
 container.status_health_attempts = 3
+
+# Proxy related settings
+proxy.max_idle_conns = 250
+proxy.idle_conn_timeout_secs = 15
+proxy.disable_compression = true

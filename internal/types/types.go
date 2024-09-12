@@ -69,6 +69,7 @@ type SecretConfig map[string]any
 type AppConfig struct {
 	CORS      CORS      `toml:"cors"`
 	Container Container `toml:"container"`
+	Proxy     Proxy     `toml:"proxy"`
 }
 
 type CORS struct {
@@ -92,6 +93,13 @@ type Container struct {
 	// Status check related config
 	StatusCheckIntervalSecs int `toml:"status_check_interval_secs"`
 	StatusHealthAttempts    int `toml:"status_health_attempts"`
+}
+
+type Proxy struct {
+	// Proxy related config
+	MaxIdleConns        int  `toml:"max_idle_conns"`
+	IdleConnTimeoutSecs int  `toml:"idle_conn_timeout_secs"`
+	DisableCompression  bool `toml:"disable_compression"`
 }
 
 type PluginContext struct {

@@ -61,6 +61,8 @@ func NewHttpClient(serverUri, user, password string, skipCertCheck bool) *HttpCl
 	} else {
 		customTransport := http.DefaultTransport.(*http.Transport).Clone()
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: skipCertCheck}
+		customTransport.MaxIdleConns = 500
+		customTransport.MaxIdleConnsPerHost = 500
 		client = &http.Client{
 			Transport: customTransport,
 			Timeout:   time.Duration(180) * time.Second,
