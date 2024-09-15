@@ -6,6 +6,7 @@ package server
 import (
 	"cmp"
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -410,6 +411,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 		appAuth = types.AppAuthnSystem
 	}
 
+	appAuthString := string(appAuth)
 	if appAuth == types.AppAuthnNone {
 		// No authentication required
 	} else if appAuth == types.AppAuthnSystem {
@@ -420,15 +422,26 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 			http.Error(w, "Authentication failed", http.StatusUnauthorized)
 			return
 		}
+	} else if appAuthString == "cert" || strings.HasPrefix(appAuthString, "cert_") {
+		// Use client certificate authentication
+		if s.config.Https.DisableClientCerts {
+			http.Error(w, "Client certificates are disabled in clace.config, update https.disable_client_certs", http.StatusInternalServerError)
+			return
+		}
+		err = s.verifyClientCerts(r, appAuthString)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 	} else {
-		authString := string(appAuth)
-		if !s.ssoAuth.ValidateProviderName(authString) {
-			http.Error(w, "Unsupported authentication provider: "+authString, http.StatusInternalServerError)
+		// Use SSO auth
+		if !s.ssoAuth.ValidateProviderName(appAuthString) {
+			http.Error(w, "Unsupported authentication provider: "+appAuthString, http.StatusInternalServerError)
 			return
 		}
 
 		// Redirect to the auth provider if not logged in
-		loggedIn, err := s.ssoAuth.CheckAuth(w, r, authString, true)
+		loggedIn, err := s.ssoAuth.CheckAuth(w, r, appAuthString, true)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -439,6 +452,35 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 
 	// Authentication successful, serve the app
 	app.ServeHTTP(w, r)
+}
+
+// verifyClientCerts verifies the client certificate, whether it is signed by one
+// of the root CAs in the authName config
+func (s *Server) verifyClientCerts(r *http.Request, authName string) error {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return fmt.Errorf("client certificate required")
+	}
+
+	requestCert := r.TLS.PeerCertificates[0]
+	clientConfig, ok := s.config.ClientAuth[authName]
+	if !ok {
+		return fmt.Errorf("client auth config not found for %s", authName)
+	}
+
+	opts := x509.VerifyOptions{
+		Roots:         clientConfig.RootCAs,
+		Intermediates: x509.NewCertPool(),
+	}
+
+	for _, cert := range r.TLS.PeerCertificates[1:] {
+		opts.Intermediates.AddCert(cert)
+	}
+
+	if _, err := requestCert.Verify(opts); err != nil {
+		return fmt.Errorf("client certificate verification failed: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {

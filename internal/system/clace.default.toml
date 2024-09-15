@@ -23,6 +23,7 @@ service_email = ""                             # email address for registering w
 use_staging = true                             # use Let's Encrypt staging server
 cert_location = "$CL_HOME/config/certificates" # where to look for existing certificate files
 storage_location = "$CL_HOME/run/certmagic"    # where to cache dynamically created certificates
+disable_client_certs = false                   # disable client certs for HTTPS
 
 [security]
 admin_over_tcp = false           # enable admin API's over TCP (HTTP/HTTPS). Admin is over UDS only by default

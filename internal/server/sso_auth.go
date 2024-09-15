@@ -266,6 +266,10 @@ func (s *SSOAuth) ValidateAuthType(authType string) bool {
 	case string(types.AppAuthnDefault), string(types.AppAuthnSystem), string(types.AppAuthnNone):
 		return true
 	default:
+		if authType == "cert" || strings.HasPrefix(authType, "cert_") {
+			_, ok := s.config.ClientAuth[authType]
+			return ok
+		}
 		return s.ValidateProviderName(authType)
 	}
 }

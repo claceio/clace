@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"errors"
 	"fmt"
@@ -354,7 +355,12 @@ func (s *Server) Start() error {
 	}
 
 	if s.config.Https.Port >= 0 {
-		s.httpsServer = s.setupHTTPSServer()
+		var err error
+		s.httpsServer, err = s.setupHTTPSServer()
+		if err != nil {
+			return err
+		}
+
 	}
 
 	generatedPass, err := s.setupAdminAccount()
@@ -415,8 +421,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) setupHTTPSServer() *http.Server {
-
+func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	var tlsConfig *tls.Config
 	if s.config.Https.ServiceEmail != "" {
 		// Certmagic is enabled
@@ -489,6 +494,21 @@ func (s *Server) setupHTTPSServer() *http.Server {
 		}
 	}
 
+	if !s.config.Https.DisableClientCerts {
+		// Request client certificates, verification is done in the handler
+		tlsConfig.ClientAuth = tls.RequestClientCert
+		for name, clientCertConfig := range s.config.ClientAuth {
+			rootCAs, err := loadRootCAs(clientCertConfig.CACertFile)
+			if err != nil {
+				return nil, fmt.Errorf("error loading root CAs pem file %s for %s: %w", clientCertConfig.CACertFile, name, err)
+			}
+			s.config.ClientAuth[name] = types.ClientCertConfig{
+				CACertFile: clientCertConfig.CACertFile,
+				RootCAs:    rootCAs,
+			}
+		}
+	}
+
 	server := &http.Server{
 		WriteTimeout: 180 * time.Second,
 		ReadTimeout:  180 * time.Second,
@@ -496,7 +516,22 @@ func (s *Server) setupHTTPSServer() *http.Server {
 		Handler:      s.handler.router,
 		TLSConfig:    tlsConfig,
 	}
-	return server
+	return server, nil
+}
+
+func loadRootCAs(rootCertFile string) (*x509.CertPool, error) {
+	rootPEM, err := os.ReadFile(rootCertFile)
+	if err != nil {
+		return nil, err
+	}
+
+	roots := x509.NewCertPool()
+	ok := roots.AppendCertsFromPEM(rootPEM)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse root certificate %s", rootCertFile)
+	}
+
+	return roots, nil
 }
 
 // Stop stops the Clace Server

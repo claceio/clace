@@ -4,6 +4,7 @@
 package types
 
 import (
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -49,18 +50,19 @@ type GlobalConfig struct {
 // ServerConfig is the configuration for the Clace Server
 type ServerConfig struct {
 	GlobalConfig
-	Http        HttpConfig                `toml:"http"`
-	Https       HttpsConfig               `toml:"https"`
-	Security    SecurityConfig            `toml:"security"`
-	Metadata    MetadataConfig            `toml:"metadata"`
-	Log         LogConfig                 `toml:"logging"`
-	System      SystemConfig              `toml:"system"`
-	GitAuth     map[string]GitAuthEntry   `toml:"git_auth"`
-	Plugins     map[string]PluginSettings `toml:"plugin"`
-	Auth        map[string]AuthConfig     `toml:"auth"`
-	Secret      map[string]SecretConfig   `toml:"secret"`
-	ProfileMode string                    `toml:"profile_mode"`
-	AppConfig   AppConfig                 `toml:"app_config"`
+	Http        HttpConfig                  `toml:"http"`
+	Https       HttpsConfig                 `toml:"https"`
+	Security    SecurityConfig              `toml:"security"`
+	Metadata    MetadataConfig              `toml:"metadata"`
+	Log         LogConfig                   `toml:"logging"`
+	System      SystemConfig                `toml:"system"`
+	GitAuth     map[string]GitAuthEntry     `toml:"git_auth"`
+	Plugins     map[string]PluginSettings   `toml:"plugin"`
+	Auth        map[string]AuthConfig       `toml:"auth"`
+	ClientAuth  map[string]ClientCertConfig `toml:"client_auth"`
+	Secret      map[string]SecretConfig     `toml:"secret"`
+	ProfileMode string                      `toml:"profile_mode"`
+	AppConfig   AppConfig                   `toml:"app_config"`
 }
 
 type PluginSettings map[string]any
@@ -117,13 +119,14 @@ type HttpConfig struct {
 
 // HttpsConfig is the configuration for the HTTPs server
 type HttpsConfig struct {
-	Host             string `toml:"host"`
-	Port             int    `toml:"port"`
-	EnableCertLookup bool   `toml:"enable_cert_lookup"`
-	ServiceEmail     string `toml:"service_email"`
-	UseStaging       bool   `toml:"use_staging"`
-	StorageLocation  string `toml:"storage_location"`
-	CertLocation     string `toml:"cert_location"`
+	Host               string `toml:"host"`
+	Port               int    `toml:"port"`
+	EnableCertLookup   bool   `toml:"enable_cert_lookup"`
+	ServiceEmail       string `toml:"service_email"`
+	UseStaging         bool   `toml:"use_staging"`
+	StorageLocation    string `toml:"storage_location"`
+	CertLocation       string `toml:"cert_location"`
+	DisableClientCerts bool   `toml:"disable_client_certs"`
 }
 
 // SecurityConfig is the configuration for Inter process communication
@@ -177,6 +180,11 @@ type AuthConfig struct {
 	DiscoveryUrl string   `toml:"discovery_url"` // the discovery url, used for OIDC
 	HostedDomain string   `toml:"hosted_domain"` // the hosted domain, used for Google
 	Scopes       []string `toml:"scopes"`        // oauth scopes
+}
+
+type ClientCertConfig struct {
+	CACertFile string         `toml:"ca_cert_file"`
+	RootCAs    *x509.CertPool `toml:"-"`
 }
 
 // ClientConfig is the configuration for the Clace Client

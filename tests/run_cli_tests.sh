@@ -137,6 +137,13 @@ fi
 cat <<EOF >> $CL_CONFIG_FILE
 
 [secret.env]
+
+
+[client_auth.cert_test1]
+ca_cert_file="certs/testcerts1/ca.crt"
+
+[client_auth.cert_test2]
+ca_cert_file="certs/testcerts2/ca.crt"
 EOF
 
 export TESTENV=abc
