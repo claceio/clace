@@ -8,12 +8,16 @@ tests:
     command: ../clace app create --auth cert_test2 ./testapp /certs_test2
   certs030: ## test auth1 with key a
     command: curl -k --cert certs/testcerts1/client.a.crt --key certs/testcerts1/client.a.key https://localhost:25223/certs_test1
+    stdout: Test app body
   certs040: ## test auth1 with key b
     command: curl -k --cert certs/testcerts1/client.b.crt --key certs/testcerts1/client.b.key https://localhost:25223/certs_test1
+    stdout: Test app body
   certs050: ## test auth2 with key a
     command: curl -k --cert certs/testcerts2/client.a.crt --key certs/testcerts2/client.a.key https://localhost:25223/certs_test2
+    stdout: Test app body
   certs060: ## test auth2 with key b
     command: curl -k --cert certs/testcerts2/client.b.crt --key certs/testcerts2/client.b.key https://localhost:25223/certs_test2
+    stdout: Test app body
   certs070: ## test auth1 with test2 key a, fails
     command: curl -k --cert certs/testcerts2/client.a.crt --key certs/testcerts2/client.a.key https://localhost:25223/certs_test1
     stdout: client certificate verification failed
@@ -30,14 +34,18 @@ tests:
     command: ../clace app update-settings auth cert_test2 /certs_test1
   certs120: ## test auth1 with auth1 key a, fails now
     command: curl -k --cert certs/testcerts1/client.a.crt --key certs/testcerts1/client.a.key https://localhost:25223/certs_test1
+    stdout: client certificate verification failed
   certs130: ## test auth1 with auth2 key a, works
     command: curl -k --cert certs/testcerts2/client.a.crt --key certs/testcerts2/client.a.key https://localhost:25223/certs_test1
+    stdout: Test app body
   certs140: ## update app1 to no auth
     command: ../clace app update-settings auth none /certs_test1
   certs150: ## no key works
-    command: curl -k https://localhost:25223/certs_test2
+    command: curl -k https://localhost:25223/certs_test1
+    stdout: Test app body
   certs160: ## http works
-    command: curl http://localhost:25222/certs_test2
+    command: curl http://localhost:25222/certs_test1
+    stdout: Test app body
   certs170: ## invalid conf fails
     command: ../clace app update-settings auth cert_invalid /certs_test1
     exit-code: 1
