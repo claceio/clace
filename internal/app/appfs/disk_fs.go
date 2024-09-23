@@ -121,6 +121,11 @@ func (d *DiskReadFS) Stat(name string) (fs.FileInfo, error) {
 	return fi, err
 }
 
+func (d *DiskReadFS) StatNoSpec(name string) (fs.FileInfo, error) {
+	absName := d.makeAbsolute(name)
+	return os.Stat(absName)
+}
+
 func (d *DiskReadFS) Glob(pattern string) (matches []string, err error) {
 	// TODO glob does not look at spec files
 	return fs.Glob(d.fs, pattern)

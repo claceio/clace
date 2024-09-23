@@ -217,6 +217,10 @@ func (f *TestReadFS) Stat(name string) (fs.FileInfo, error) {
 	return &TestFileInfo{file}, nil
 }
 
+func (f *TestReadFS) StatNoSpec(name string) (fs.FileInfo, error) {
+	return f.Stat(name)
+}
+
 func (d *TestReadFS) StaticFiles() []string {
 	staticFiles := []string{}
 	for name := range d.fileData {

@@ -239,6 +239,14 @@ func (d *DbFs) Stat(name string) (fs.FileInfo, error) {
 	return &fi, nil
 }
 
+func (d *DbFs) StatNoSpec(name string) (fs.FileInfo, error) {
+	fi, ok := d.fileInfo[name]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	return &fi, nil
+}
+
 func (d *DbFs) Glob(pattern string) (matches []string, err error) {
 	matchedFiles := []string{}
 	for name := range d.fileInfo {

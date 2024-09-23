@@ -422,11 +422,24 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 	var fileName string
 	switch src {
 	case types.CONTAINER_SOURCE_AUTO:
-		if _, cfErr := a.sourceFS.Stat(CONTAINERFILE); cfErr == nil {
+		// Look for a file in the source fs (ignoring spec). If not found,
+		// look in spec files also.
+		if _, err := a.sourceFS.StatNoSpec(CONTAINERFILE); err == nil {
 			fileName = CONTAINERFILE
 		} else {
-			if _, dErr := a.sourceFS.Stat(DOCKERFILE); dErr == nil {
+			if _, err := a.sourceFS.StatNoSpec(DOCKERFILE); err == nil {
 				fileName = DOCKERFILE
+			}
+		}
+
+		if fileName == "" {
+			// Containerfile/Dockerfile not found in source, check in spec files also
+			if _, err := a.sourceFS.Stat(CONTAINERFILE); err == nil {
+				fileName = CONTAINERFILE
+			} else {
+				if _, err := a.sourceFS.Stat(DOCKERFILE); err == nil {
+					fileName = DOCKERFILE
+				}
 			}
 		}
 	case types.CONTAINER_SOURCE_NIXPACKS:

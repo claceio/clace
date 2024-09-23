@@ -28,6 +28,7 @@ type ReadableFS interface {
 	fs.GlobFS
 	// Stat returns the stats for the named file.
 	Stat(name string) (fs.FileInfo, error)
+	StatNoSpec(name string) (fs.FileInfo, error)   // Stat the FS without looking at spec files
 	Reset()                                        // Used to reset the file system transaction for the DbFs, no-op for others
 	StaticFiles() []string                         // Return list of static files
 	FileHash(excludeGlob []string) (string, error) // Return a hash of the source file contents
