@@ -10,7 +10,7 @@ tests:
   container0030: # setup flask prod app
     command: ../clace app create --spec python-flask --carg PYTHON_VERSION=3.12.4-slim --copt cpu-shares=1000 --approve ./flaskapp /cont_flaskprod
   container0031: # invalid python version carg fails
-    command: ../clace app create --spec python-flask --container-arg PYTHON_VERSION=4invalid-slim --approve ./flaskapp /cont_flaskdev2
+    command: ../clace app create --spec python-flask --cvol /tmp:/atmp --cvol /testvol --container-arg PYTHON_VERSION=4invalid-slim --approve ./flaskapp /cont_flaskdev2
   container0032: # check curl
     command: curl -sS localhost:${HTTP_PORT}/cont_flaskdev2
     stdout: 4invalid

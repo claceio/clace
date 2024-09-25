@@ -21,7 +21,7 @@ func GenVolumeName(appId types.AppId, dirName string) VolumeName {
 
 func (c ContainerCommand) VolumeExists(config *types.SystemConfig, name VolumeName) bool {
 	c.Debug().Msgf("Checking volume exists %s", name)
-	cmd := exec.Command(config.ContainerCommand, "volume", "exists", string(name))
+	cmd := exec.Command(config.ContainerCommand, "volume", "inspect", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		c.Debug().Msgf("volume exists check failed %s %s %s", name, err, output)

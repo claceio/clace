@@ -266,6 +266,7 @@ func appUpdateMetadataCommand(commonFlags []cli.Flag, clientConfig *types.Client
 			appUpdateAppSpec(commonFlags, clientConfig),
 			appUpdateConfig(commonFlags, clientConfig, "container-option", "copt", types.AppMetadataContainerOptions),
 			appUpdateConfig(commonFlags, clientConfig, "container-arg", "carg", types.AppMetadataContainerArgs),
+			appUpdateConfig(commonFlags, clientConfig, "container-volumes", "cvol", types.AppMetadataContainerVolumes),
 			appUpdateConfig(commonFlags, clientConfig, "app-config", "conf", types.AppMetadataAppConfig),
 		},
 	}

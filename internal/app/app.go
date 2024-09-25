@@ -460,7 +460,8 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 	}
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
-		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir, a.sourceFS, a.paramMap, a.appConfig.Container, stripAppPath)
+		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
+		a.sourceFS, a.paramMap, a.appConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}

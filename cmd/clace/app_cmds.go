@@ -82,6 +82,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 
 	flags = append(flags,
 		&cli.StringSliceFlag{
+			Name:    "container-volume",
+			Aliases: []string{"cvol"},
+			Usage:   "Set an container volume entry",
+		})
+
+	flags = append(flags,
+		&cli.StringSliceFlag{
 			Name:    "app-config",
 			Aliases: []string{"conf"},
 			Usage:   "Set an default config option for the app. Format is configKey=configValue",
@@ -150,6 +157,8 @@ Examples:
 				cargMap[key] = value
 			}
 
+			containerVolumes := cCtx.StringSlice("container-volume")
+
 			appConfig := cCtx.StringSlice("app-config")
 			confMap := make(map[string]string)
 			for _, def := range appConfig {
@@ -171,6 +180,7 @@ Examples:
 				ParamValues:      paramValues,
 				ContainerOptions: coptMap,
 				ContainerArgs:    cargMap,
+				ContainerVolumes: containerVolumes,
 				AppConfig:        confMap,
 			}
 			var createResult types.AppCreateResponse

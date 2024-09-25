@@ -566,6 +566,11 @@ func (s *Server) updateAppMetadataConfig(appEntry *types.AppEntry, configType ty
 		return nil
 	}
 
+	if configType == types.AppMetadataContainerVolumes {
+		appEntry.Metadata.ContainerVolumes = configEntries
+		return nil
+	}
+
 	for _, entry := range configEntries {
 		key, value, ok := strings.Cut(entry, "=")
 
@@ -604,6 +609,7 @@ func (s *Server) updateAppMetadataConfig(appEntry *types.AppEntry, configType ty
 			} else {
 				delete(appEntry.Metadata.AppConfig, key)
 			}
+		// case AppMetadataContainerVolumes not expected here, already handled
 		default:
 			return fmt.Errorf("invalid config type %s", configType)
 		}

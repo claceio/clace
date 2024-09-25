@@ -66,7 +66,8 @@ type ContainerManager struct {
 
 func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health, buildDir string, sourceFS appfs.ReadableFS,
-	paramMap map[string]string, containerConfig types.Container, stripAppPath bool) (*ContainerManager, error) {
+	paramMap map[string]string, containerConfig types.Container, stripAppPath bool,
+	containerVolumes []string) (*ContainerManager, error) {
 
 	image := ""
 	volumes := []string{}
@@ -138,6 +139,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		command:         container.ContainerCommand{Logger: logger},
 		paramMap:        paramMap,
 		volumes:         volumes,
+		extraVolumes:    containerVolumes,
 		containerConfig: containerConfig,
 		stateLock:       sync.RWMutex{},
 		currentState:    ContainerStateUnknown,
@@ -268,6 +270,46 @@ func (m *ContainerManager) GetHealthUrl(appHealthUrl string) string {
 	return healthUrl
 }
 
+func getMapHash(input map[string]string) (string, error) {
+	keys := []string{}
+	for k := range input {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys) // Sort the keys to ensure consistent hash
+
+	hashBuilder := strings.Builder{}
+	for _, paramName := range keys {
+		paramVal := input[paramName]
+		// Default to string
+		hashBuilder.WriteString(paramName)
+		hashBuilder.WriteByte(0)
+		hashBuilder.WriteString(paramVal)
+		hashBuilder.WriteByte(0)
+	}
+
+	sha := sha256.New()
+	if _, err := sha.Write([]byte(hashBuilder.String())); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(sha.Sum(nil)), nil
+}
+
+func getSliceHash(input []string) (string, error) {
+	slices.Sort(input) // Sort the keys to ensure consistent hash
+
+	hashBuilder := strings.Builder{}
+	for _, v := range input {
+		hashBuilder.WriteString(v)
+		hashBuilder.WriteByte(0)
+	}
+
+	sha := sha256.New()
+	if _, err := sha.Write([]byte(hashBuilder.String())); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(sha.Sum(nil)), nil
+}
+
 func (m *ContainerManager) GetEnvMap() (map[string]string, string) {
 	paramKeys := []string{}
 	for k := range m.paramMap {
@@ -327,15 +369,8 @@ func (m *ContainerManager) createSpecFiles() ([]string, error) {
 	return created, nil
 }
 
-func (m *ContainerManager) getVolumes() []string {
-	allVolumes := append(m.volumes, m.extraVolumes...)
-	slices.Sort(allVolumes)
-	return slices.Compact(allVolumes)
-}
-
 func (m *ContainerManager) createVolumes() error {
-	allVolumes := m.getVolumes()
-	for _, v := range allVolumes {
+	for _, v := range m.volumes {
 		volumeName := container.GenVolumeName(m.app.Id, v)
 		if !m.command.VolumeExists(m.systemConfig, volumeName) {
 			err := m.command.VolumeCreate(m.systemConfig, volumeName)
@@ -344,17 +379,60 @@ func (m *ContainerManager) createVolumes() error {
 			}
 		}
 	}
+
+	for _, volArg := range m.extraVolumes {
+		parsedName := m.parseVolumeName(volArg)
+		if parsedName == "" {
+			continue
+		}
+		genVolumeName := container.GenVolumeName(m.app.Id, parsedName)
+		if !m.command.VolumeExists(m.systemConfig, genVolumeName) {
+			err := m.command.VolumeCreate(m.systemConfig, genVolumeName)
+			if err != nil {
+				return fmt.Errorf("error creating volume %s: %w", genVolumeName, err)
+			}
+		}
+	}
 	return nil
 }
 
 func (m *ContainerManager) getMountArgs() []string {
-	allVolumes := m.getVolumes()
 	args := []string{}
-	for _, v := range allVolumes {
+	for _, v := range m.volumes {
 		volumeName := container.GenVolumeName(m.app.Id, v)
 		args = append(args, fmt.Sprintf("--mount=type=volume,source=%s,target=%s", volumeName, v))
 	}
+
+	for _, volArg := range m.extraVolumes {
+		parsedName := m.parseVolumeName(volArg)
+		if parsedName == "" {
+			args = append(args, fmt.Sprintf("--volume=%s", volArg))
+		} else {
+			genVolumeName := container.GenVolumeName(m.app.Id, parsedName)
+			split := strings.Split(volArg, ":")
+			var volString string
+			if len(split) > 1 {
+				split[0] = string(genVolumeName)
+				volString = strings.Join(split, ":")
+			} else {
+				volString = string(genVolumeName) + ":" + volArg
+			}
+			args = append(args, fmt.Sprintf("--volume=%s", volString))
+		}
+	}
 	return args
+}
+
+// parseVolumeName gets the first part of the volume definition. It returns "" for a bind
+// mount. Otherwise it returns the volume name
+func (m *ContainerManager) parseVolumeName(arg string) string {
+	split := strings.Split(arg, ":")
+	firstPart := split[0]
+	if len(split) > 1 && len(firstPart) > 0 && firstPart[:1] == "/" {
+		return ""
+	}
+
+	return firstPart
 }
 
 func (m *ContainerManager) DevReload(dryRun bool) error {
@@ -485,13 +563,27 @@ func (m *ContainerManager) getAppHash() (string, error) {
 	}
 
 	_, envHash := m.GetEnvMap()
-	fullHashVal := fmt.Sprintf("%s-%s", sourceHash, envHash)
+
+	coptHash, err := getMapHash(m.app.Metadata.ContainerOptions)
+	if err != nil {
+		return "", fmt.Errorf("error getting copt hash: %w", err)
+	}
+	cargHash, err := getMapHash(m.app.Metadata.ContainerArgs)
+	if err != nil {
+		return "", fmt.Errorf("error getting carg hash: %w", err)
+	}
+	cvolHash, err := getSliceHash(m.app.Metadata.ContainerVolumes)
+	if err != nil {
+		return "", fmt.Errorf("error getting cvol hash: %w", err)
+	}
+	fullHashVal := fmt.Sprintf("%s-%s-%s-%s-%s", sourceHash, envHash, coptHash, cargHash, cvolHash)
 	sha := sha256.New()
 	if _, err := sha.Write([]byte(fullHashVal)); err != nil {
 		return "", err
 	}
 	fullHash := hex.EncodeToString(sha.Sum(nil))
-	m.Debug().Msgf("Source hash %s Env hash %s Full hash %s", sourceHash, envHash, fullHash)
+	m.Debug().Msgf("Source hash %s Env hash %s copt hash %s args hash %s cvol hash %s Full hash %s",
+		sourceHash, envHash, coptHash, cargHash, cvolHash, fullHash)
 	return fullHash, nil
 }
 

@@ -315,6 +315,7 @@ type AppMetadata struct {
 	SpecFiles        *SpecFiles        `json:"spec_files"`
 	ContainerOptions map[string]string `json:"container_options"`
 	ContainerArgs    map[string]string `json:"container_args"`
+	ContainerVolumes []string          `json:"container_volumes"`
 	AppConfig        map[string]string `json:"appconfig"`
 }
 
@@ -398,6 +399,7 @@ const (
 	AppMetadataAppConfig        AppMetadataConfigType = "app_config"
 	AppMetadataContainerOptions AppMetadataConfigType = "container_options"
 	AppMetadataContainerArgs    AppMetadataConfigType = "container_args"
+	AppMetadataContainerVolumes AppMetadataConfigType = "container_volumes"
 )
 
 type AppVersion struct {
