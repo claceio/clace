@@ -485,7 +485,7 @@ func (s *Server) verifyClientCerts(r *http.Request, authName string) error {
 }
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
-	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
+	//s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
 	apps, err := s.apps.GetAllApps()
 	if err != nil {
 		return types.AppInfo{}, err
@@ -504,7 +504,6 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 	// Check if host header matches a known domain
 	checkDomain := false
 	if hostHeader != "" && domainMap[hostHeader] {
-		s.Trace().Msgf("Matched domain %s", hostHeader)
 		checkDomain = true
 	}
 

@@ -687,7 +687,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
 		imageName, m.port, envMap, m.getMountArgs(), m.app.Metadata.ContainerOptions)
 	if err != nil {
-		return fmt.Errorf("error building image: %w", err)
+		return fmt.Errorf("error starting container: %w", err)
 	}
 
 	containers, err = m.command.GetContainers(m.systemConfig, containerName, false)

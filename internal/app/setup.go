@@ -679,12 +679,10 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			// disabled in proxy config
 			req.Host = url.Host
 		}
-
 	}
 
 	permsHandler := func(p *httputil.ReverseProxy) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			// If write API, check if preview/stage app is allowed access
 			isWriteReques := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete
 			if isWriteReques {
@@ -695,6 +693,13 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 					http.Error(w, "Stage app does not have access to proxy write APIs", http.StatusInternalServerError)
 					return
 				}
+			}
+
+			r.Header.Set("X-Forwarded-Host", strings.SplitN(r.Host, ":", 1)[0])
+			if r.TLS != nil {
+				r.Header.Set("X-Forwarded-Proto", "https")
+			} else {
+				r.Header.Set("X-Forwarded-Proto", "http")
 			}
 			// use the reverse proxy to handle the request
 			p.ServeHTTP(w, r)
