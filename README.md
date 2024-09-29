@@ -113,8 +113,8 @@ The disk usage app is available at https://localhost:25223/disk_usage (use port 
 To install a containerized app, ensure either Docker or Podman is running and run
 
 ```
-clace app create --spec python-streamlit --param app_file=hello --approve - /streamlit_hello
-clace app create --spec python-streamlit --branch master --approve github.com/streamlit/streamlit-example /streamlit
+clace app create --spec image --approve --param image=nginx --param port=80 - nginxapp.localhost:/
+clace app create --spec python-streamlit --param app_file=hello --branch master --approve github.com/streamlit/streamlit-example /streamlit_hello
 ```
 
 If the source repo has a `Dockerfile` or `Containerfile`, run
