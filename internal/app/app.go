@@ -60,10 +60,11 @@ type App struct {
 	plugins          *AppPlugins
 	containerManager *ContainerManager
 
-	globals      starlark.StringDict
-	appDef       *starlarkstruct.Struct
-	errorHandler starlark.Callable
-	appRouter    *chi.Mux
+	globals      starlark.StringDict    // global variables defined in starlark code
+	appDef       *starlarkstruct.Struct // app starlark definition
+	errorHandler starlark.Callable      // error handler function
+	appRouter    *chi.Mux               // router for the app
+	actions      []*Action              // actions defined for the app
 
 	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
 	template         *template.Template            // unstructured templates, no base_templates defined

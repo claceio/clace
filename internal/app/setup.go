@@ -139,6 +139,12 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 	if err != nil {
 		return err
 	}
+
+	err = a.initActions()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -447,6 +453,76 @@ func (a *App) initRouter() error {
 	a.Trace().Msgf("Mounting app %s at %s", a.Name, a.Path)
 	a.appRouter.Mount(a.Path, router)
 
+	return nil
+}
+
+func (a *App) initActions() error {
+	actions, err := a.appDef.Attr("actions")
+	if err != nil {
+		return err
+	}
+
+	a.actions = make([]*Action, 0)
+	if actions == nil {
+		return nil
+	}
+
+	var ok bool
+	var actionList *starlark.List
+	if actionList, ok = actions.(*starlark.List); !ok {
+		return fmt.Errorf("actions is not a list")
+	}
+
+	iter := actionList.Iterate()
+	var val starlark.Value
+	count := 0
+	for iter.Next(&val) {
+		count++
+
+		if err = a.addAction(count, val); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *App) addAction(count int, val starlark.Value) error {
+	var ok bool
+	var actionDef *starlarkstruct.Struct
+
+	if actionDef, ok = val.(*starlarkstruct.Struct); !ok {
+		return fmt.Errorf("actions entry %d is not a struct", count)
+	}
+
+	var name, path, description string
+	var run, validate starlark.Callable
+	var err error
+	if name, err = apptype.GetStringAttr(actionDef, "name"); err != nil {
+		return err
+	}
+	if path, err = apptype.GetStringAttr(actionDef, "path"); err != nil {
+		return err
+	}
+	if description, err = apptype.GetStringAttr(actionDef, "description"); err != nil {
+		return err
+	}
+	if run, err = apptype.GetCallableAttr(actionDef, "run"); err != nil {
+		return err
+	}
+	if validate, err = apptype.GetCallableAttr(actionDef, "validate"); err != nil {
+		return err
+	}
+
+	action := &Action{
+		name:        name,
+		path:        path,
+		description: description,
+		run:         run,
+		validate:    validate,
+	}
+
+	a.actions = append(a.actions, action)
 	return nil
 }
 

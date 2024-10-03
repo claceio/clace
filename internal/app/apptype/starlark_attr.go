@@ -87,3 +87,16 @@ func GetStringList(list *starlark.List) ([]string, error) {
 
 	return ret, nil
 }
+
+func GetCallableAttr(s starlark.HasAttrs, key string) (starlark.Callable, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return nil, fmt.Errorf("error getting %s: %s", key, err)
+	}
+	var vc starlark.Callable
+	var ok bool
+	if vc, ok = v.(starlark.Callable); !ok {
+		return nil, fmt.Errorf("%s is not a callable", key)
+	}
+	return vc, nil
+}

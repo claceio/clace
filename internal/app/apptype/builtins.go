@@ -28,6 +28,7 @@ const (
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
 	LIBRARY               = "library"
+	ACTION                = "action"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
@@ -53,19 +54,22 @@ var (
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var customLayout starlark.Bool
 	var name starlark.String
-	var routes *starlark.List
+	var routes, actions *starlark.List
 	var settings *starlark.Dict
 	var permissions, libraries *starlark.List
 	var style *starlarkstruct.Struct
 	var containerConfig starlark.Value
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
 		"routes?", &routes, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
-		&settings, "custom_layout?", &customLayout, "container?", &containerConfig); err != nil {
+		&settings, "custom_layout?", &customLayout, "container?", &containerConfig, "actions?", actions); err != nil {
 		return nil, err
 	}
 
 	if routes == nil {
 		routes = starlark.NewList([]starlark.Value{})
+	}
+	if actions == nil {
+		actions = starlark.NewList([]starlark.Value{})
 	}
 	if libraries == nil {
 		libraries = starlark.NewList([]starlark.Value{})
@@ -85,6 +89,7 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		"settings":      settings,
 		"permissions":   permissions,
 		"libraries":     libraries,
+		"actions":       actions,
 	}
 
 	if style != nil {
@@ -98,7 +103,7 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	return starlarkstruct.FromStringDict(starlark.String(APP), fields), nil
 }
 
-func createPageBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func createHtmlBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, html, block starlark.String
 	var handler starlark.Callable
 	var fragments *starlark.List
@@ -273,6 +278,24 @@ func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark
 	return starlarkstruct.FromStringDict(starlark.String(LIBRARY), fields), nil
 }
 
+func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name, desc, path starlark.String
+	var validator, executor starlark.Callable
+	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "path", &path,
+		"run", &executor, "validate?", validator, "description?", desc); err != nil {
+		return nil, err
+	}
+
+	fields := starlark.StringDict{
+		"name":        name,
+		"description": desc,
+		"path":        path,
+		"run":         executor,
+		"validate":    validator,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(ACTION), fields), nil
+}
+
 func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	var config starlark.Value
@@ -325,7 +348,7 @@ func CreateBuiltin() starlark.StringDict {
 				Name: DEFAULT_MODULE,
 				Members: starlark.StringDict{
 					APP:        starlark.NewBuiltin(APP, createAppBuiltin),
-					HTML:       starlark.NewBuiltin(HTML, createPageBuiltin),
+					HTML:       starlark.NewBuiltin(HTML, createHtmlBuiltin),
 					PROXY:      starlark.NewBuiltin(PROXY, createProxyBuiltin),
 					API:        starlark.NewBuiltin(API, createAPIBuiltin),
 					FRAGMENT:   starlark.NewBuiltin(FRAGMENT, createFragmentBuiltin),
@@ -334,6 +357,7 @@ func CreateBuiltin() starlark.StringDict {
 					STYLE:      starlark.NewBuiltin(STYLE, createStyleBuiltin),
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
+					ACTION:     starlark.NewBuiltin(ACTION, createActionBuiltin),
 
 					GET:    starlark.String(GET),
 					POST:   starlark.String(POST),
