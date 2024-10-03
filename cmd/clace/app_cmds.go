@@ -84,7 +84,7 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		&cli.StringSliceFlag{
 			Name:    "container-volume",
 			Aliases: []string{"cvol"},
-			Usage:   "Set an container volume entry",
+			Usage:   "Set container volume entries",
 		})
 
 	flags = append(flags,
