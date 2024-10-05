@@ -18,6 +18,7 @@ const (
 
 // AppParam represents a parameter in an app.
 type AppParam struct {
+	Index        int
 	Name         string
 	Description  string
 	Required     bool
@@ -83,6 +84,7 @@ func validateParamInfo(paramInfo map[string]AppParam) error {
 
 func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 	definedParams := make(map[string]AppParam)
+	index := 0
 
 	paramBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var name, description, dataType starlark.String
@@ -122,7 +124,9 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			}
 		}
 
+		index += 1
 		definedParams[string(name)] = AppParam{
+			Index:        index,
 			Name:         string(name),
 			Type:         typeVal,
 			DefaultValue: defaultValue,
@@ -131,6 +135,7 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 		}
 
 		paramDict := starlark.StringDict{
+			"index":       starlark.MakeInt(index),
 			"name":        name,
 			"type":        dataType,
 			"default":     defaultValue,

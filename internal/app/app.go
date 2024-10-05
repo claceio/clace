@@ -20,6 +20,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/Masterminds/sprig/v3"
+	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
@@ -64,7 +65,7 @@ type App struct {
 	appDef       *starlarkstruct.Struct // app starlark definition
 	errorHandler starlark.Callable      // error handler function
 	appRouter    *chi.Mux               // router for the app
-	actions      []*Action              // actions defined for the app
+	actions      []*action.Action       // actions defined for the app
 
 	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
 	template         *template.Template            // unstructured templates, no base_templates defined
@@ -246,7 +247,7 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 
 	// Load Starlark config, AppConfig is updated with the settings contents
 	if err = a.loadStarlarkConfig(dryRun); err != nil {
-		return false, err
+		return false, fmt.Errorf("error loading starlark config: %w", err)
 	}
 
 	if a.IsDev {

@@ -61,8 +61,8 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var containerConfig starlark.Value
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
 		"routes?", &routes, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
-		&settings, "custom_layout?", &customLayout, "container?", &containerConfig, "actions?", actions); err != nil {
-		return nil, err
+		&settings, "custom_layout?", &customLayout, "container?", &containerConfig, "actions?", &actions); err != nil {
+		return nil, fmt.Errorf("error unpacking app args: %w", err)
 	}
 
 	if routes == nil {
@@ -110,7 +110,7 @@ func createHtmlBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tu
 	var method starlark.String
 	if err := starlark.UnpackArgs(HTML, args, kwargs, "path", &path, "full?", &html,
 		"partial?", &block, "handler?", &handler, "fragments?", &fragments, "method?", &method); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking html args: %w", err)
 	}
 
 	if method == "" {
@@ -139,7 +139,7 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	var method starlark.String
 	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "path", &path, "partial?", &block,
 		"handler?", &handler, "method?", &method); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking fragment args: %w", err)
 	}
 
 	if method == "" {
@@ -162,7 +162,7 @@ func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.T
 	var themes *starlark.List
 	var disableWatcher starlark.Bool
 	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "themes?", &themes, "disable_watcher?", &disableWatcher); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking style args: %w", err)
 	}
 
 	if themes == nil {
@@ -182,7 +182,7 @@ func createRedirectBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	var code starlark.Int
 	var refresh starlark.Bool
 	if err := starlark.UnpackArgs(REDIRECT, args, kwargs, "url", &url, "code?", &code, "refresh?", &refresh); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking redirect args: %w", err)
 	}
 
 	codeValue, _ := code.Int64()
@@ -203,7 +203,7 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 	var data starlark.Value
 	var code starlark.Int
 	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "data", &data, "block?", &block, "type?", &rtype, "code?", &code, "retarget?", &retarget, "reswap?", &reswap, "redirect?", &redirect); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking response args: %w", err)
 	}
 
 	codeValue, _ := code.Int64()
@@ -234,7 +234,7 @@ func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starl
 	var rtype starlark.String
 	if err := starlark.UnpackArgs(PERMISSION, args, kwargs, "plugin", &plugin, "method", &method,
 		"arguments?", &arguments, "type?", &rtype); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking permission args: %w", err)
 	}
 
 	if arguments == nil {
@@ -263,7 +263,7 @@ func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark
 	var esbuildArgs *starlark.List
 	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "version", &version,
 		"args?", &esbuildArgs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking library args: %w", err)
 	}
 
 	if esbuildArgs == nil {
@@ -282,8 +282,8 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 	var name, desc, path starlark.String
 	var validator, executor starlark.Callable
 	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "path", &path,
-		"run", &executor, "validate?", validator, "description?", desc); err != nil {
-		return nil, err
+		"run", &executor, "validate?", &validator, "description?", &desc); err != nil {
+		return nil, fmt.Errorf("error unpacking action args: %w", err)
 	}
 
 	fields := starlark.StringDict{
@@ -291,7 +291,10 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 		"description": desc,
 		"path":        path,
 		"run":         executor,
-		"validate":    validator,
+	}
+
+	if validator != nil {
+		fields["validate"] = validator
 	}
 	return starlarkstruct.FromStringDict(starlark.String(ACTION), fields), nil
 }
@@ -300,7 +303,7 @@ func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.T
 	var path starlark.String
 	var config starlark.Value
 	if err := starlark.UnpackArgs(PROXY, args, kwargs, "path", &path, "config", &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking proxy args: %w", err)
 	}
 
 	fields := starlark.StringDict{
@@ -315,7 +318,7 @@ func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var handler starlark.Callable
 	var method starlark.String
 	if err := starlark.UnpackArgs(API, args, kwargs, "path", &path, "handler?", &handler, "method?", &method, "type?", &rtype); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unpacking api args: %w", err)
 	}
 
 	if method == "" {

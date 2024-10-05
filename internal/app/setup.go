@@ -9,14 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
@@ -462,7 +465,7 @@ func (a *App) initActions() error {
 		return err
 	}
 
-	a.actions = make([]*Action, 0)
+	a.actions = make([]*action.Action, 0)
 	if actions == nil {
 		return nil
 	}
@@ -510,18 +513,25 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if run, err = apptype.GetCallableAttr(actionDef, "run"); err != nil {
 		return err
 	}
-	if validate, err = apptype.GetCallableAttr(actionDef, "validate"); err != nil {
-		return err
+	v, _ := actionDef.Attr("validate")
+	if v != nil {
+		if validate, err = apptype.GetCallableAttr(actionDef, "validate"); err != nil {
+			return err
+		}
 	}
 
-	action := &Action{
-		name:        name,
-		path:        path,
-		description: description,
-		run:         run,
-		validate:    validate,
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
 	}
-
+	action, err := action.NewAction(name, description, path, run, validate, slices.Collect(maps.Values(a.paramInfo)), a.Path)
+	if err != nil {
+		return fmt.Errorf("error creating action %s: %w", name, err)
+	}
+	r, err := action.BuildRouter()
+	if err != nil {
+		return fmt.Errorf("error building router for action %s: %w", name, err)
+	}
+	a.appRouter.Mount(path, r)
 	a.actions = append(a.actions, action)
 	return nil
 }
