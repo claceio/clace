@@ -523,7 +523,7 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(name, description, path, run, validate, slices.Collect(maps.Values(a.paramInfo)), a.Path)
+	action, err := action.NewAction(name, description, path, run, validate, slices.Collect(maps.Values(a.paramInfo)), a.paramMap, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}
