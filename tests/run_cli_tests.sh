@@ -39,8 +39,8 @@ error_handler () {
 }
 
 cleanup() {
-  #rm -rf clace.db
-  #rm -rf logs/ clace.toml config_container.toml server.stdout flaskapp
+  rm -rf clace.db
+  rm -rf logs/ clace.toml config_container.toml server.stdout flaskapp
 
   if [[ -d ../appspecs_bk ]]; then
     rm -rf ../internal/server/appspecs
