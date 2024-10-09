@@ -33,7 +33,7 @@ unit: ## Run unit tests
 
 covunit: ## Run unit tests with coverage
 > rm -rf $(CL_HOME)/coverage/unit && mkdir -p $(CL_HOME)/coverage/unit
-> go test -cover ./... -args -test.gocoverdir="$(CL_HOME)/coverage/unit"
+> go test -coverpkg ./... ./... -args -test.gocoverdir="$(CL_HOME)/coverage/unit"
 > go tool covdata percent -i=$(CL_HOME)/coverage/unit
 > go tool covdata textfmt -i=$(CL_HOME)/coverage/unit -o $(CL_HOME)/coverage/profile
 > go tool cover -func coverage/profile
