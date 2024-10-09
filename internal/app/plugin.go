@@ -285,7 +285,7 @@ func (a *App) loader(thread *starlark.Thread, moduleFullPath string) (starlark.S
 }
 
 func parseModulePath(moduleFullPath string) (string, string, string) {
-	parts := strings.Split(moduleFullPath, apptype.ACCOUNT_SEPERATOR)
+	parts := strings.Split(moduleFullPath, apptype.ACCOUNT_SEPARATOR)
 	modulePath := parts[0]
 	moduleName := strings.TrimSuffix(modulePath, "."+apptype.BUILTIN_PLUGIN_SUFFIX)
 	accountName := ""
