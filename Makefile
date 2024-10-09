@@ -25,7 +25,7 @@ test: unit int ## Run all tests
 
 covtest: covunit covint ## Run all tests with coverage
 > go tool covdata percent -i=$(CL_HOME)/coverage/client,$(CL_HOME)/coverage/unit,$(CL_HOME)/coverage/int
-> go tool covdata textfmt -i=$(CL_HOME)/coverage/client,$(CL_HOME)/coverage/unit,$(CL_HOME)/coverage/int -o $(CL_HOME)/coverage/profile
+> go tool covdata textfmt -i=$(CL_HOME)/coverage/client,$(CL_HOME)/coverage/unit,$(CL_HOME)/coverage/int -o $(CL_HOME)/coverage.txt
 > go tool cover -func coverage/profile
 
 unit: ## Run unit tests
