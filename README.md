@@ -8,6 +8,7 @@
   <a href="https://github.com/claceio/clace/releases"><img src="https://img.shields.io/github/release/claceio/clace.svg" alt="Latest Release"></a>
   <a href="https://github.com/claceio/clace/actions"><img src="https://github.com/claceio/clace/workflows/CI/badge.svg" alt="Build Status"></a>
   <a href="https://app.codecov.io/github/claceio/clace"><img src="https://codecov.io/gh/claceio/clace/branch/main/graph/badge.svg" alt="Code Coverage"></a>
+  <a href="https://goreportcard.com/report/github.com/claceio/clace"><img src="https://goreportcard.com/badge/github.com/claceio/clace" alt="Go Report Card"></a>
 </p>
 
 ### Menu
