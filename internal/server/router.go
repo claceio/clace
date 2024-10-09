@@ -430,6 +430,13 @@ func (h *Handler) getApps(r *http.Request) (any, error) {
 	return &types.AppListResponse{Apps: filteredApps}, nil
 }
 
+func (h *Handler) stopServer(r *http.Request) (any, error) {
+	h.Warn().Msgf("Server stop called")
+	h.server.Stop(r.Context())
+
+	return map[string]any{}, nil
+}
+
 func (h *Handler) createApp(r *http.Request) (any, error) {
 	appPath := r.URL.Query().Get("appPath")
 	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
@@ -811,6 +818,11 @@ func (h *Handler) tokenDelete(r *http.Request) (any, error) {
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
 	r := chi.NewRouter()
+
+	// Get apps
+	r.Post("/stop", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, h.stopServer)
+	}))
 
 	// Get apps
 	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

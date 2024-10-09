@@ -1,6 +1,7 @@
 config:
   env:
     CL_CONFIG_FILE: clace.toml
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   domain010: ## create test1 domain app
     command: ../clace app create ./testapp test1.clace.io:/

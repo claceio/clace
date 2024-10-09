@@ -11,3 +11,4 @@ logs/
 run/
 config/
 internal/server/appspecs/
+coverage/

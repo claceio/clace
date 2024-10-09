@@ -1,6 +1,7 @@
 config:
   env:
     CL_CONFIG_FILE: clace.toml
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   versions0001: # clearn test app
     command: rm -rf ./versionstest

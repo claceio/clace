@@ -1,6 +1,7 @@
 config:
   env:
     CL_CONFIG_FILE: clace.toml
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   perms0100: # copy disk usage app
     command: cp -r ../examples/disk_usage ./perms_disk_usage

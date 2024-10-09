@@ -5,10 +5,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/claceio/clace/pkg/api"
 	"github.com/pkg/profile"
@@ -16,7 +19,7 @@ import (
 	"github.com/urfave/cli/v2/altsrc"
 )
 
-func getServerCommands(serverConfig *types.ServerConfig) ([]*cli.Command, error) {
+func getServerCommands(serverConfig *types.ServerConfig, clientConfig *types.ClientConfig) ([]*cli.Command, error) {
 	flags := []cli.Flag{}
 	return []*cli.Command{
 		{
@@ -30,6 +33,15 @@ func getServerCommands(serverConfig *types.ServerConfig) ([]*cli.Command, error)
 					Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 					Action: func(cCtx *cli.Context) error {
 						return startServer(cCtx, serverConfig)
+					},
+				},
+				{
+					Name:   "stop",
+					Usage:  "Stop the clace server",
+					Flags:  flags,
+					Before: altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+					Action: func(cCtx *cli.Context) error {
+						return stopServer(cCtx, clientConfig)
 					},
 				},
 			},
@@ -95,5 +107,19 @@ func startServer(cCtx *cli.Context, serverConfig *types.ServerConfig) error {
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), 30)
 	defer cancel()
 	_ = server.Stop(ctxTimeout)
+	return nil
+}
+
+func stopServer(_ *cli.Context, clientConfig *types.ClientConfig) error {
+	client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+
+	var response types.AppVersionListResponse
+	err := client.Post("/_clace/stop", nil, nil, &response)
+	if err == nil {
+		return fmt.Errorf("expected error response when stopping server")
+	}
+	if !errors.Is(err, io.EOF) {
+		return err
+	}
 	return nil
 }

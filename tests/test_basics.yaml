@@ -1,6 +1,7 @@
 config:
   env:
     CL_CONFIG_FILE: config_basic_test.toml
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 
 tests:
   basic010:

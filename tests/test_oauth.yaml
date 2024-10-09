@@ -2,6 +2,7 @@ config:
   env:
     CL_CONFIG_FILE: clace.toml
     CL_GITHUB_SECRET: ${CL_GITHUB_SECRET}
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   oauth0010: # copy sample app
     command: cp -r ../examples/disk_usage .

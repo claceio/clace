@@ -2,6 +2,7 @@ config:
   env:
     CL_CONFIG_FILE: clace.toml
     CL_INFOCLACE_SSH: ${CL_INFOCLACE_SSH}
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   github0010: # copy sample app
     command: cp -r ../examples/disk_usage .

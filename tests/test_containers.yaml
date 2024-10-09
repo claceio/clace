@@ -2,6 +2,7 @@ config:
   env:
     CL_CONFIG_FILE: clace.toml
     HTTP_PORT: ${HTTP_PORT}
+    GOCOVERDIR: ${GOCOVERDIR}/../client
 tests:
   container0010: # setup flask app
     command: rm -rf ./flaskapp && mkdir flaskapp && cp flask.py flaskapp/app.py

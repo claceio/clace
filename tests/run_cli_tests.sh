@@ -1,4 +1,4 @@
-#set -x
+set -x
 set -e
 
 # Enabling verbose is useful for debugging but the commander command seems to
@@ -7,6 +7,7 @@ set -e
 #export CL_TEST_VERBOSE="--verbose"
 
 cd $CL_HOME
+export GOCOVERDIR=$GOCOVERDIR
 
 # Setup app specs
 rm -rf appspecs_bk
@@ -14,7 +15,12 @@ if [[ -d internal/server/appspecs/dummy ]]; then
   mv internal/server/appspecs appspecs_bk
   cp -r config/appspecs internal/server/
 fi 
-go build ./cmd/clace
+
+if [[ -n "$GOCOVERDIR" ]]; then
+    go build -cover ./cmd/clace
+else 
+    go build ./cmd/clace
+fi
 
 cd tests
 rm -rf clace.db
@@ -61,7 +67,7 @@ port = 9154
 port = 9155
 EOF
 
-CL_CONFIG_FILE=config_basic_test.toml ../clace server start &
+CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
 sleep 2
 
 cat <<EOF > config_basic_client_np.toml
@@ -88,6 +94,7 @@ skip_cert_check = true
 EOF
 
 commander test $CL_TEST_VERBOSE test_basics.yaml
+CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
 rm -rf clace.db* run/clace.sock config_basic_*.toml
 
 cat <<EOF > config_np.toml
@@ -98,9 +105,10 @@ port = 9157
 EOF
 
 # Test server prints a password when started without config
-CL_CONFIG_FILE=config_np.toml ../clace server start > server.stdout &
+CL_CONFIG_FILE=config_np.toml GOCOVERDIR=$GOCOVERDIR ../clace server start > server.stdout &
 sleep 2
 grep "Admin password" server.stdout
+CL_CONFIG_FILE=config_np.toml GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
 rm -f run/clace.sock config_np.toml
 
 # Run all other automated tests, use password hash for "qwerty"
@@ -147,7 +155,7 @@ ca_cert_file="certs/testcerts2/ca.crt"
 EOF
 
 export TESTENV=abc
-../clace server start &
+GOCOVERDIR=$GOCOVERDIR ../clace server start &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/
 
@@ -163,6 +171,8 @@ if [[ -n "$CL_GITHUB_SECRET" ]]; then
   # test git oauth access are tested 
   commander test $CL_TEST_VERBOSE test_oauth.yaml
 fi
+
+GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
 
 
 # Test containerized apps
@@ -189,12 +199,13 @@ app_default_auth_type="none"
 container_command="$cmd"
 EOF
     rm -rf clace.db* run/clace.sock
-    CL_CONFIG_FILE=config_container.toml ../clace server start &
+    CL_CONFIG_FILE=config_container.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
     sleep 2
 
     export HTTP_PORT=$http_port
     echo "********Testing containerized apps with $cmd*********"
     commander test $CL_TEST_VERBOSE test_containers.yaml
+    CL_CONFIG_FILE=config_container.toml GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
 done
 
 cleanup

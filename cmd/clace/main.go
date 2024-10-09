@@ -25,7 +25,7 @@ const configFileFlagName = "config-file"
 
 func getAllCommands(globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command
-	serverCommands, err := getServerCommands(serverConfig)
+	serverCommands, err := getServerCommands(serverConfig, clientConfig)
 	if err != nil {
 		return nil, err
 	}
