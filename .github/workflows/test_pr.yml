@@ -1,12 +1,8 @@
 name: CI
 on:
-  push:
+  pull_request:
     branches:
-      - "main"
-      - "release-branch/*"
-  merge_group:
-    branches:
-      - "main"
+      - "*"
 
 concurrency:
   # For PRs, later CI runs preempt previous ones. e.g. a force push on a PR
@@ -20,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         go-version: ["1.23.1"]
@@ -45,7 +41,7 @@ jobs:
           cd $CL_HOME
 
           go install github.com/commander-cli/commander/v2/cmd/commander@latest
-          export CL_CONTAINER_COMMANDS=docker # using self-hosted runner, use Docker for container tests
+          export CL_CONTAINER_COMMANDS=disable # pull requests uses github runner, docker/podman does not run
           gmake covtest
 
       - name: Upload Go test results
