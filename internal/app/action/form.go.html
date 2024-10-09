@@ -1,0 +1,40 @@
+{{ template "header" . }}
+
+
+<p>
+  {{ .description }}
+</p>
+
+<div class="card w-full shadow-2xl p-6 rounded-lg">
+  <form id="userForm">
+    <!-- Name Field -->
+    {{ range .params }}
+      <div class="grid grid-cols-2 gap-4 mb-4 items-center">
+        <label class="label" for="{{ .Name }}">
+          <span class="label-text">{{ .Name }}</span>
+          <span
+            class="tooltip tooltip-right tooltip-info ml-2"
+            data-tip="{{ .Description }}"
+            >ℹ️</span
+          >
+        </label>
+        <div>
+          <input
+            id="{{ .Name }}"
+            type="text"
+            class="input input-bordered w-full"
+            value="{{ index $.paramValues .Name }}" />
+          <div id="nameError" class="text-error mt-1 hidden"></div>
+        </div>
+      </div>
+    {{ end }}
+
+
+    <!-- Submit Button -->
+    <div class="form-control mt-6">
+      <button type="submit" class="btn btn-primary w-full">Submit</button>
+    </div>
+  </form>
+</div>
+
+{{ template "footer" . }}
