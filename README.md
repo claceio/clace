@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Web App Deployment Platform</p>
+  <p align="center">AppServer for WebApp Dev and Hosting</p>
 </p>
 
 <p>
