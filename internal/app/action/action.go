@@ -83,10 +83,11 @@ func (a *Action) runHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ParamDef struct {
-	Name        string
-	Description string
-	Value       any
-	InputType   string
+	Name          string
+	Description   string
+	Value         any
+	InputType     string
+	AllowedValues []string
 }
 
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
