@@ -79,13 +79,27 @@ func (a *Action) runHandler(w http.ResponseWriter, r *http.Request) {
 	// Run the action
 }
 
+type ParamDef struct {
+	Name        string
+	Description string
+	Value       string
+}
+
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
+	params := make([]ParamDef, 0, len(a.params))
+	for _, p := range a.params {
+		params = append(params, ParamDef{
+			Name:        p.Name,
+			Description: p.Description,
+			Value:       a.paramValues[p.Name],
+		})
+	}
+
 	input := map[string]any{
 		"name":        a.name,
 		"description": a.description,
 		"path":        a.pagePath,
-		"params":      a.params,
-		"paramValues": a.paramValues,
+		"params":      params,
 	}
 	err := a.template.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
