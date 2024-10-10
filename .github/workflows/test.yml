@@ -47,6 +47,8 @@ jobs:
           go install github.com/commander-cli/commander/v2/cmd/commander@latest
           export CL_CONTAINER_COMMANDS=docker # using self-hosted runner, use Docker for container tests
           gmake covtest
+          docker stop -t 1 $(docker ps -a -q)
+          docker system prune -f
 
       - name: Upload Go test results
         uses: actions/upload-artifact@v3
