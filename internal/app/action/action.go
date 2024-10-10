@@ -29,14 +29,14 @@ type Action struct {
 	run         starlark.Callable
 	validate    starlark.Callable
 	params      []apptype.AppParam
-	paramMap    map[string]string
+	paramValues map[string]string
 	template    *template.Template
 	pagePath    string
 }
 
 // NewAction creates a new action
 func NewAction(name, description, apath string, run, validate starlark.Callable,
-	params []apptype.AppParam, paramMap map[string]string, appPath string) (*Action, error) {
+	params []apptype.AppParam, paramValues map[string]string, appPath string) (*Action, error) {
 	tmpl, err := template.New("form").ParseFS(embedHtml, "*.go.html")
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func NewAction(name, description, apath string, run, validate starlark.Callable,
 		run:         run,
 		validate:    validate,
 		params:      params,
-		paramMap:    paramMap,
+		paramValues: paramValues,
 		template:    tmpl,
 		pagePath:    path.Join(appPath, apath),
 	}, nil
@@ -85,7 +85,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"description": a.description,
 		"path":        a.pagePath,
 		"params":      a.params,
-		"paramValues": a.paramMap,
+		"paramValues": a.paramValues,
 	}
 	err := a.template.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
