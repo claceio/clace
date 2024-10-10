@@ -86,6 +86,7 @@ type ParamDef struct {
 	Name        string
 	Description string
 	Value       any
+	InputType   string
 }
 
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +104,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		}
 
 		param.Value = value // Default to string format
+		param.InputType = "text"
 		if p.Type == starlark_type.BOOLEAN {
 			boolValue, err := strconv.ParseBool(value)
 			if err != nil {
@@ -110,6 +112,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			param.Value = boolValue
+			param.InputType = "checkbox"
 		}
 
 		params = append(params, param)
