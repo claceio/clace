@@ -5,13 +5,16 @@ package action
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"path"
 	"slices"
+	"strconv"
 
 	"github.com/claceio/clace/internal/app/apptype"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
 )
@@ -82,17 +85,34 @@ func (a *Action) runHandler(w http.ResponseWriter, r *http.Request) {
 type ParamDef struct {
 	Name        string
 	Description string
-	Value       string
+	Value       any
 }
 
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	params := make([]ParamDef, 0, len(a.params))
 	for _, p := range a.params {
-		params = append(params, ParamDef{
+		param := ParamDef{
 			Name:        p.Name,
 			Description: p.Description,
-			Value:       a.paramValues[p.Name],
-		})
+		}
+
+		value, ok := a.paramValues[p.Name]
+		if !ok {
+			http.Error(w, fmt.Sprintf("missing param value for %s", p.Name), http.StatusInternalServerError)
+			return
+		}
+
+		param.Value = value // Default to string format
+		if p.Type == starlark_type.BOOLEAN {
+			boolValue, err := strconv.ParseBool(value)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, value), http.StatusInternalServerError)
+				return
+			}
+			param.Value = boolValue
+		}
+
+		params = append(params, param)
 	}
 
 	input := map[string]any{
