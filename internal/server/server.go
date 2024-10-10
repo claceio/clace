@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -548,13 +549,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		err3 = s.udsServer.Shutdown(ctx)
 	}
 
-	if err1 != nil {
-		return err1
-	}
-	if err2 != nil {
-		return err2
-	}
-	return err3
+	return cmp.Or(err1, err2, err3)
 }
 
 // isGit returns true if the sourceURL is a git URL
