@@ -60,3 +60,47 @@ tests:
   secret0330:
     command: curl -su "admin:qwerty" localhost:25222/secret2
     stdout: unknown secret provider vault
+
+  # Test errors
+  createerror0100:
+    command: ../clace app create --approve ./env_app  /test/../test1
+    stderr: path cannot contain
+    exit-code: 1
+  createerror0200:
+    command: ../clace app create --approve ./env_app  ../test1
+    stderr: path cannot contain
+    exit-code: 1
+  createerror0300:
+    command: ../clace app create --approve ./env_app  /test/./test1
+    stderr: path cannot contain
+    exit-code: 1
+  createerror0400:
+    command: ../clace app create --approve ./env_app  /test/.
+    stderr: path cannot end with
+    exit-code: 1
+  createerror0500:
+    command: ../clace app create --approve ./env_app  /test_cl_abc
+    stderr: clace reserved path
+    exit-code: 1
+
+  # Test params
+  param0100:
+    command: ../clace app create --approve ./testapp  /test_param1
+  param0110:
+    command: ../clace param list /test_param1
+    stdout: No param values
+  param0130:
+    command: ../clace param update --promote abc xyz /test_param1
+  param0140:
+    command: ../clace param list /test_param1
+    stdout: xyz
+  param0150:
+    command: ../clace param update --promote abc aaa /test_param1
+  param0160:
+    command: ../clace param list /test_param1
+    stdout: aaa
+  param0170:
+    command: ../clace param update --promote abc - /test_param1
+  param0180:
+    command: ../clace param list /test_param1
+    stdout: No param values

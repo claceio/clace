@@ -1,4 +1,4 @@
-set -x
+#set -x
 set -e
 
 # Enabling verbose is useful for debugging but the commander command seems to
