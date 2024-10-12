@@ -5,6 +5,7 @@ package action
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -30,7 +32,7 @@ type Action struct {
 	description string
 	path        string
 	run         starlark.Callable
-	validate    starlark.Callable
+	suggest     starlark.Callable
 	params      []apptype.AppParam
 	paramValues map[string]string
 	template    *template.Template
@@ -38,7 +40,7 @@ type Action struct {
 }
 
 // NewAction creates a new action
-func NewAction(name, description, apath string, run, validate starlark.Callable,
+func NewAction(name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValues map[string]string, appPath string) (*Action, error) {
 	tmpl, err := template.New("form").ParseFS(embedHtml, "*.go.html")
 	if err != nil {
@@ -54,7 +56,7 @@ func NewAction(name, description, apath string, run, validate starlark.Callable,
 		description: description,
 		path:        apath,
 		run:         run,
-		validate:    validate,
+		suggest:     suggest,
 		params:      params,
 		paramValues: paramValues,
 		template:    tmpl,
@@ -83,16 +85,40 @@ func (a *Action) runHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ParamDef struct {
-	Name          string
-	Description   string
-	Value         any
-	InputType     string
-	AllowedValues []string
+	Name        string
+	Description string
+	Value       any
+	InputType   string
+	Options     []string
 }
+
+const (
+	OPTIONS_PREFIX = "options-"
+)
 
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	params := make([]ParamDef, 0, len(a.params))
+
+	options := make(map[string][]string)
 	for _, p := range a.params {
+		// params with options-x prefix are treated as select options for x
+		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) {
+			name := p.Name[len(OPTIONS_PREFIX):]
+			var vals []string
+			err := json.Unmarshal([]byte(a.paramValues[p.Name]), &vals)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, a.paramValues[p.Name]), http.StatusBadRequest)
+				return
+			}
+			options[name] = vals
+		}
+	}
+
+	for _, p := range a.params {
+		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) {
+			continue
+		}
+
 		param := ParamDef{
 			Name:        p.Name,
 			Description: p.Description,
@@ -112,8 +138,14 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, value), http.StatusInternalServerError)
 				return
 			}
-			param.Value = boolValue
+			if boolValue {
+				param.Value = "checked"
+			}
 			param.InputType = "checkbox"
+		} else if options[p.Name] != nil {
+			param.InputType = "select"
+			param.Options = options[p.Name]
+			param.Value = param.Options[0]
 		}
 
 		params = append(params, param)

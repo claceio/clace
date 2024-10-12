@@ -499,7 +499,7 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	}
 
 	var name, path, description string
-	var run, validate starlark.Callable
+	var run, suggest starlark.Callable
 	var err error
 	if name, err = apptype.GetStringAttr(actionDef, "name"); err != nil {
 		return err
@@ -513,9 +513,9 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if run, err = apptype.GetCallableAttr(actionDef, "run"); err != nil {
 		return err
 	}
-	v, _ := actionDef.Attr("validate")
-	if v != nil {
-		if validate, err = apptype.GetCallableAttr(actionDef, "validate"); err != nil {
+	sa, _ := actionDef.Attr("suggest")
+	if sa != nil {
+		if suggest, err = apptype.GetCallableAttr(actionDef, "suggest"); err != nil {
 			return err
 		}
 	}
@@ -523,7 +523,7 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(name, description, path, run, validate, slices.Collect(maps.Values(a.paramInfo)), a.paramMap, a.Path)
+	action, err := action.NewAction(name, description, path, run, suggest, slices.Collect(maps.Values(a.paramInfo)), a.paramMap, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}

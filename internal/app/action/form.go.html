@@ -6,33 +6,60 @@
 </p>
 
 <div class="card w-full shadow-2xl p-6 rounded-lg">
-  <form id="userForm">
+  <form method="post">
     <!-- Name Field -->
     {{ range .params }}
       <div class="grid grid-cols-2 gap-4 mb-4 items-center">
-        <label class="label" for="{{ .Name }}">
-          <span class="label-text">{{ .Name }}</span>
-          <span
-            class="tooltip tooltip-right tooltip-info ml-2"
-            data-tip="{{ .Description }}"
-            >ℹ️</span
-          >
+        <label class="label flex-col items-start" for="param_{{ .Name }}">
+          <span class="label-text font-bold">{{ .Name }}</span>
+          <span class="label-text text-sm text-gray-500"
+            >{{ .Description }}
+          </span>
         </label>
-        <div>
-          <input
-            id="{{ .Name }}"
-            type="text"
-            class="input input-bordered w-full"
-            value="{{ .Value }}" />
-          <div id="nameError" class="text-error mt-1 hidden"></div>
-        </div>
+
+        {{ if eq .InputType "checkbox" }}
+          <div class="flex justify-center">
+            <input
+              id="param_{{ .Name }}"
+              name="{{ .Name }}"
+              type="checkbox"
+              class="checkbox checkbox-primary justify-self-center"
+              {{ .Value }} />
+            <div id="param_{{ .Name }}_Error" class="text-error mt-1"></div>
+          </div>
+        {{ else if eq .InputType "select" }}
+          <div>
+            <select
+              id="param_{{ .Name }}"
+              class="select select-bordered w-full"
+              name="{{ .Name }}"
+              {{ if .Value }}
+                value="{{ .Value }}"
+              {{ end }}>
+              {{ range .Options }}
+                <option value="{{ . }}">{{ . }}</option>
+              {{ end }}
+            </select>
+            <div id="{{ .Name }}_Error" class="text-error mt-1"></div>
+          </div>
+        {{ else }}
+          <div>
+            <input
+              id="param_{{ .Name }}"
+              name="{{ .Name }}"
+              type="text"
+              class="input input-bordered w-full"
+              value="{{ .Value }}" />
+            <div id="{{ .Name }}_Error" class="text-error mt-1"></div>
+          </div>
+        {{ end }}
       </div>
     {{ end }}
 
 
     <!-- Submit Button -->
     <div class="form-control mt-6">
-      <button type="submit" class="btn btn-primary w-full">Submit</button>
+      <button type="submit" class="btn btn-primary w-full">Run</button>
     </div>
   </form>
 </div>
