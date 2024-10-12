@@ -209,10 +209,7 @@ func (a *App) addSchemaTypes(builtin starlark.StringDict) (starlark.StringDict, 
 }
 
 func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error) {
-	if a.paramInfo == nil || len(a.paramInfo) == 0 {
-		return builtin, nil
-	}
-	a.paramMap = make(map[string]string)
+	a.paramValuesStr = make(map[string]string)
 
 	// Create a copy of the builtins, don't modify the original
 	newBuiltins := starlark.StringDict{}
@@ -221,23 +218,23 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 	}
 
 	// Add param module for referencing param values
-	paramDict := starlark.StringDict{}
+	a.paramDict = starlark.StringDict{}
 	for _, p := range a.paramInfo {
-		paramDict[p.Name] = p.DefaultValue
+		a.paramDict[p.Name] = p.DefaultValue
 
 		if p.DefaultValue != starlark.None {
 			switch p.Type {
 			// Set the default value in the paramMap (in the string format)
 			case starlark_type.STRING:
-				a.paramMap[p.Name] = string(p.DefaultValue.(starlark.String))
+				a.paramValuesStr[p.Name] = string(p.DefaultValue.(starlark.String))
 			case starlark_type.INT:
 				intVal, ok := p.DefaultValue.(starlark.Int).Int64()
 				if !ok {
 					return nil, fmt.Errorf("param %s is not an int", p.Name)
 				}
-				a.paramMap[p.Name] = fmt.Sprintf("%d", intVal)
+				a.paramValuesStr[p.Name] = fmt.Sprintf("%d", intVal)
 			case starlark_type.BOOLEAN:
-				a.paramMap[p.Name] = strconv.FormatBool(bool(p.DefaultValue.(starlark.Bool)))
+				a.paramValuesStr[p.Name] = strconv.FormatBool(bool(p.DefaultValue.(starlark.Bool)))
 			case starlark_type.DICT:
 			case starlark_type.LIST:
 				val, err := starlark_type.UnmarshalStarlark(p.DefaultValue)
@@ -248,7 +245,7 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 				if err != nil {
 					return nil, err
 				}
-				a.paramMap[p.Name] = string(jsonVal)
+				a.paramValuesStr[p.Name] = string(jsonVal)
 			}
 		}
 
@@ -260,63 +257,29 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 			}
 			continue
 		}
-		a.paramMap[p.Name] = valueStr // Update the paramMap with the custom value
 
-		switch p.Type {
-		case starlark_type.STRING:
-			paramDict[p.Name] = starlark.String(valueStr)
-			if p.Required && valueStr == "" {
-				return nil, fmt.Errorf("param %s is a required param, value cannot be empty", p.Name)
-			}
-		case starlark_type.INT:
-			intValue, err := strconv.Atoi(valueStr)
-			if err != nil {
-				return nil, fmt.Errorf("param %s is not an int", p.Name)
-			}
+		a.paramValuesStr[p.Name] = valueStr
+		value, err := apptype.ParamStringToType(p.Name, p.Type, valueStr)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing param %s: %w", p.Name, err)
+		}
+		a.paramDict[p.Name] = value
 
-			paramDict[p.Name] = starlark.MakeInt(intValue)
-		case starlark_type.BOOLEAN:
-			boolValue, err := strconv.ParseBool(valueStr)
-			if err != nil {
-				return nil, fmt.Errorf("param %s is not a boolean", p.Name)
-			}
-			paramDict[p.Name] = starlark.Bool(boolValue)
-		case starlark_type.DICT:
-			var dictValue map[string]any
-			if err := json.Unmarshal([]byte(valueStr), &dictValue); err != nil {
-				return nil, fmt.Errorf("param %s is not a json dict", p.Name)
-			}
-
-			dictVal, err := starlark_type.MarshalStarlark(dictValue)
-			if err != nil {
-				return nil, fmt.Errorf("param %s is not a starlark dict", p.Name)
-			}
-			paramDict[p.Name] = dictVal
-		case starlark_type.LIST:
-			var listValue []any
-			if err := json.Unmarshal([]byte(valueStr), &listValue); err != nil {
-				return nil, fmt.Errorf("param %s is not a json list", p.Name)
-			}
-			listVal, err := starlark_type.MarshalStarlark(listValue)
-			if err != nil {
-				return nil, fmt.Errorf("param %s is not a starlark list", p.Name)
-			}
-			paramDict[p.Name] = listVal
-		default:
-			return nil, fmt.Errorf("unknown type %s for param %s", p.Type, p.Name)
+		if p.Type == starlark_type.STRING && p.Required && valueStr == "" {
+			return nil, fmt.Errorf("param %s is a required param, value cannot be empty", p.Name)
 		}
 	}
 
 	paramModule := starlarkstruct.Module{
 		Name:    apptype.PARAM_MODULE,
-		Members: paramDict,
+		Members: a.paramDict,
 	}
 
 	newBuiltins[apptype.PARAM_MODULE] = &paramModule
 
 	for k, v := range a.Metadata.ParamValues {
-		if _, ok := paramDict[k]; !ok {
-			a.paramMap[k] = v // add additional param values to paramMap
+		if _, ok := a.paramDict[k]; !ok {
+			a.paramValuesStr[k] = v // add additional param values to paramMap
 		}
 	}
 	return newBuiltins, nil
@@ -523,7 +486,8 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(name, description, path, run, suggest, slices.Collect(maps.Values(a.paramInfo)), a.paramMap, a.Path)
+	action, err := action.NewAction(name, description, path, run, suggest,
+		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}

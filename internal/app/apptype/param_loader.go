@@ -4,8 +4,10 @@
 package apptype
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"go.starlark.net/starlark"
@@ -168,4 +170,47 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 	}
 
 	return definedParams, nil
+}
+
+func ParamStringToType(name string, typeName starlark_type.TypeName, valueStr string) (starlark.Value, error) {
+	switch typeName {
+	case starlark_type.STRING:
+		return starlark.String(valueStr), nil
+	case starlark_type.INT:
+		intValue, err := strconv.Atoi(valueStr)
+		if err != nil {
+			return nil, fmt.Errorf("param %s is not an int", name)
+		}
+
+		return starlark.MakeInt(intValue), nil
+	case starlark_type.BOOLEAN:
+		boolValue, err := strconv.ParseBool(valueStr)
+		if err != nil {
+			return nil, fmt.Errorf("param %s is not a boolean", name)
+		}
+		return starlark.Bool(boolValue), nil
+	case starlark_type.DICT:
+		var dictValue map[string]any
+		if err := json.Unmarshal([]byte(valueStr), &dictValue); err != nil {
+			return nil, fmt.Errorf("param %s is not a json dict", name)
+		}
+
+		dictVal, err := starlark_type.MarshalStarlark(dictValue)
+		if err != nil {
+			return nil, fmt.Errorf("param %s is not a starlark dict", name)
+		}
+		return dictVal, nil
+	case starlark_type.LIST:
+		var listValue []any
+		if err := json.Unmarshal([]byte(valueStr), &listValue); err != nil {
+			return nil, fmt.Errorf("param %s is not a json list", name)
+		}
+		listVal, err := starlark_type.MarshalStarlark(listValue)
+		if err != nil {
+			return nil, fmt.Errorf("param %s is not a starlark list", name)
+		}
+		return listVal, nil
+	default:
+		return nil, fmt.Errorf("unknown type %s for param %s", typeName, name)
+	}
 }

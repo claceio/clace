@@ -57,7 +57,8 @@ type App struct {
 	systemConfig     *types.SystemConfig
 	storeInfo        *starlark_type.StoreInfo
 	paramInfo        map[string]apptype.AppParam
-	paramMap         map[string]string // the param values for the app, from metadata and defaults
+	paramValuesStr   map[string]string   // the param values for the app, from metadata and defaults
+	paramDict        starlark.StringDict // the Starlark param values for the app
 	plugins          *AppPlugins
 	containerManager *ContainerManager
 
@@ -463,7 +464,7 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
 		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
-		a.sourceFS, a.paramMap, a.appConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
+		a.sourceFS, a.paramValuesStr, a.appConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}

@@ -28,20 +28,21 @@ var embedHtml embed.FS
 // provide a way to trigger app operations, with an auto-generated form UI
 // and an API interface
 type Action struct {
-	name        string
-	description string
-	path        string
-	run         starlark.Callable
-	suggest     starlark.Callable
-	params      []apptype.AppParam
-	paramValues map[string]string
-	template    *template.Template
-	pagePath    string
+	name           string
+	description    string
+	path           string
+	run            starlark.Callable
+	suggest        starlark.Callable
+	params         []apptype.AppParam
+	paramValuesStr map[string]string
+	paramDict      starlark.StringDict
+	template       *template.Template
+	pagePath       string
 }
 
 // NewAction creates a new action
 func NewAction(name, description, apath string, run, suggest starlark.Callable,
-	params []apptype.AppParam, paramValues map[string]string, appPath string) (*Action, error) {
+	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict, appPath string) (*Action, error) {
 	tmpl, err := template.New("form").ParseFS(embedHtml, "*.go.html")
 	if err != nil {
 		return nil, err
@@ -52,15 +53,16 @@ func NewAction(name, description, apath string, run, suggest starlark.Callable,
 	})
 
 	return &Action{
-		name:        name,
-		description: description,
-		path:        apath,
-		run:         run,
-		suggest:     suggest,
-		params:      params,
-		paramValues: paramValues,
-		template:    tmpl,
-		pagePath:    path.Join(appPath, apath),
+		name:           name,
+		description:    description,
+		path:           apath,
+		run:            run,
+		suggest:        suggest,
+		params:         params,
+		paramValuesStr: paramValuesStr,
+		paramDict:      paramDict,
+		template:       tmpl,
+		pagePath:       path.Join(appPath, apath),
 	}, nil
 }
 
@@ -105,9 +107,9 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) {
 			name := p.Name[len(OPTIONS_PREFIX):]
 			var vals []string
-			err := json.Unmarshal([]byte(a.paramValues[p.Name]), &vals)
+			err := json.Unmarshal([]byte(a.paramValuesStr[p.Name]), &vals)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, a.paramValues[p.Name]), http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, a.paramValuesStr[p.Name]), http.StatusBadRequest)
 				return
 			}
 			options[name] = vals
@@ -124,7 +126,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 			Description: p.Description,
 		}
 
-		value, ok := a.paramValues[p.Name]
+		value, ok := a.paramValuesStr[p.Name]
 		if !ok {
 			http.Error(w, fmt.Sprintf("missing param value for %s", p.Name), http.StatusInternalServerError)
 			return
