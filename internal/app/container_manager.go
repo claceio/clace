@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"slices"
@@ -524,16 +525,22 @@ func (m *ContainerManager) WaitForHealth(attempts int) error {
 
 	var err error
 	var resp *http.Response
-	url := m.GetProxyUrl()
+	proxyUrl, err := url.Parse(m.GetProxyUrl())
+	if err != nil {
+		return err
+	}
 	if !m.stripAppPath {
 		// Apps like Streamlit require the app path to be present
-		url = url + m.app.Path
+		proxyUrl = proxyUrl.JoinPath(m.app.Path)
 	}
 
-	url += m.health
+	proxyUrl = proxyUrl.JoinPath(m.health)
+	if err != nil {
+		return err
+	}
 
 	for attempt := 1; attempt <= attempts; attempt++ {
-		resp, err = client.Get(url)
+		resp, err = client.Get(proxyUrl.String())
 		statusCode := "N/A"
 		if err == nil {
 			if resp.StatusCode == http.StatusOK {
@@ -546,7 +553,7 @@ func (m *ContainerManager) WaitForHealth(attempts int) error {
 			resp.Body.Close()
 		}
 
-		m.Debug().Msgf("Attempt %d failed on %s : status %s err %s", attempt, url, statusCode, err)
+		m.Debug().Msgf("Attempt %d failed on %s : status %s err %s", attempt, proxyUrl, statusCode, err)
 		time.Sleep(1 * time.Second)
 	}
 	return err
