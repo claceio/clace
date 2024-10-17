@@ -125,7 +125,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			// Call the handler function
 			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
 
-			if err == nil && a.errorHandler != nil {
+			if err == nil {
 				pluginErrLocal := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
 				if pluginErrLocal != nil {
 					pluginErr := pluginErrLocal.(error)

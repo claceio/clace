@@ -157,6 +157,16 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	// Call the handler function
 	var ret starlark.Value
 	ret, err = starlark.Call(thread, a.run, starlark.Tuple{starlark.Bool(dryRun), &argsValue}, nil)
+
+	if err == nil {
+		pluginErrLocal := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
+		if pluginErrLocal != nil {
+			pluginErr := pluginErrLocal.(error)
+			a.Error().Err(pluginErr).Msg("handler had plugin API failure")
+			err = pluginErr // handle as if the handler had returned an error
+		}
+	}
+
 	if err != nil {
 		a.Error().Err(err).Msg("error calling action run handler")
 
@@ -183,14 +193,14 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	var valuesMap []map[string]any
 	var valuesStr []string
-	var message string
+	var status string
 	var paramErrors map[string]any
 
 	resultStruct, ok := ret.(*starlarkstruct.Struct)
 	if ok {
-		message, err = apptype.GetOptionalStringAttr(resultStruct, "message")
+		status, err = apptype.GetOptionalStringAttr(resultStruct, "status")
 		if err != nil {
-			http.Error(w, fmt.Sprintf("error getting result attr message: %s", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("error getting result status: %s", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -210,10 +220,10 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Not a result struct
-		message = ret.String()
+		status = ret.String()
 	}
 
-	a.Info().Msgf("action result message: %s valuesStr %s valuesMap %s paramErrors %s", message, valuesStr, valuesMap, paramErrors)
+	a.Info().Msgf("action result status: %s valuesStr %s valuesMap %s paramErrors %s", status, valuesStr, valuesMap, paramErrors)
 
 	if deferredCleanup() != nil {
 		return
@@ -225,7 +235,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render the result message
-	err = a.template.ExecuteTemplate(w, "message", message)
+	err = a.template.ExecuteTemplate(w, "status", status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

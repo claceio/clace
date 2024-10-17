@@ -301,10 +301,10 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 }
 
 func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message starlark.String
+	var status starlark.String
 	var values *starlark.List
 	var paramErrors *starlark.Dict
-	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "values?", &values, "param_errors?", &paramErrors, "message?", &message); err != nil {
+	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "status?", &status, "values?", &values, "param_errors?", &paramErrors); err != nil {
 		return nil, fmt.Errorf("error unpacking result args: %w", err)
 	}
 
@@ -317,9 +317,9 @@ func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 	}
 
 	fields := starlark.StringDict{
+		"status":       status,
 		"values":       values,
 		"param_errors": paramErrors,
-		"message":      message,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(RESULT), fields), nil
 }

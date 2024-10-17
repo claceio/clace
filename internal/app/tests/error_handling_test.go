@@ -45,11 +45,10 @@ app = ace.app("testApp", custom_layout=True,
 	request := httptest.NewRequest("GET", "/test/test1", nil)
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
-	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
 
 	ret := make(map[string]any)
 	json.NewDecoder(response.Body).Decode(&ret)
-	fmt.Print(ret)
 
 	if _, ok := ret["error"]; ok {
 		t.Fatal(ret["error"])
@@ -97,7 +96,7 @@ app = ace.app("testApp", custom_layout=True,
 	json.NewDecoder(response.Body).Decode(&ret)
 	fmt.Printf("%#v", ret)
 
-	testutil.AssertEqualsString(t, "error", "Previous plugin call failed: open /tmp/invalid: no such file or directory : Function test1, Position app.star:6:15", ret["error"].(string))
+	testutil.AssertEqualsString(t, "error", "previous plugin call failed: open /tmp/invalid: no such file or directory : Function test1, Position app.star:6:15", ret["error"].(string))
 }
 
 func TestErrorHandlerProd(t *testing.T) {
@@ -142,7 +141,7 @@ app = ace.app("testApp", custom_layout=True,
 	fmt.Printf("%#v", ret)
 
 	// No source code path for prod app
-	testutil.AssertEqualsString(t, "error", "Previous plugin call failed: open /tmp/invalid: no such file or directory", ret["error"].(string))
+	testutil.AssertEqualsString(t, "error", "previous plugin call failed: open /tmp/invalid: no such file or directory", ret["error"].(string))
 }
 
 func TestErrorHandlerBasics(t *testing.T) {

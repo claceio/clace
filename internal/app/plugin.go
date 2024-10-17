@@ -359,11 +359,9 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			return nil, fmt.Errorf("plugin %s.%s is not a starlark function", modulePath, functionName)
 		}
 
-		if a.errorHandler != nil {
-			prevPluginError := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
-			if prevPluginError != nil {
-				return nil, fmt.Errorf("Previous plugin call failed: %s", prevPluginError)
-			}
+		prevPluginError := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
+		if prevPluginError != nil {
+			return nil, fmt.Errorf("previous plugin call failed: %s", prevPluginError)
 		}
 		thread.SetLocal(types.TL_PLUGIN_API_FAILED_ERROR, nil)
 

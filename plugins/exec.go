@@ -91,6 +91,9 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 
 	runErr := cmd.Wait()
 	if !processPartialBool && runErr != nil {
+		if stderr.Len() > 0 {
+			return nil, fmt.Errorf("%s: %s", runErr, stderr.String())
+		}
 		return nil, runErr
 	}
 
