@@ -6,6 +6,7 @@ package apptype
 import (
 	"fmt"
 
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"go.starlark.net/starlark"
 )
 
@@ -13,6 +14,19 @@ func GetStringAttr(s starlark.HasAttrs, key string) (string, error) {
 	v, err := s.Attr(key)
 	if err != nil {
 		return "", fmt.Errorf("error getting %s: %s", key, err)
+	}
+	var vs starlark.String
+	var ok bool
+	if vs, ok = v.(starlark.String); !ok {
+		return "", fmt.Errorf("%s is not a string", key)
+	}
+	return vs.GoString(), nil
+}
+
+func GetOptionalStringAttr(s starlark.HasAttrs, key string) (string, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return "", nil
 	}
 	var vs starlark.String
 	var ok bool
@@ -99,4 +113,63 @@ func GetCallableAttr(s starlark.HasAttrs, key string) (starlark.Callable, error)
 		return nil, fmt.Errorf("%s is not a callable", key)
 	}
 	return vc, nil
+}
+
+func GetListMapAttr(s starlark.HasAttrs, key string, optional bool) ([]map[string]any, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		if optional {
+			return []map[string]any{}, nil
+		} else {
+			return nil, fmt.Errorf("error getting %s: %s", key, err)
+		}
+	}
+	var list *starlark.List
+	var ok bool
+	if list, ok = v.(*starlark.List); !ok {
+		return nil, fmt.Errorf("%s is not a list", key)
+	}
+
+	ret := []map[string]any{}
+	iter := list.Iterate()
+	var val starlark.Value
+	var vm map[string]any
+	count := -1
+	for iter.Next(&val) {
+		count++
+
+		v, err := starlark_type.UnmarshalStarlark(val)
+		if err != nil {
+			return nil, err
+		}
+		if vm, ok = v.(map[string]any); !ok {
+			return nil, fmt.Errorf("entry %d in list is not a map", count)
+		}
+		ret = append(ret, vm)
+	}
+
+	return ret, nil
+}
+
+func GetDictAttr(s starlark.HasAttrs, key string, optional bool) (map[string]any, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		if optional {
+			return map[string]any{}, nil
+		} else {
+			return nil, fmt.Errorf("error getting %s: %s", key, err)
+		}
+	}
+
+	ret, err := starlark_type.UnmarshalStarlark(v)
+	if err != nil {
+		return nil, err
+	}
+
+	retDict, ok := ret.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a dict", key)
+	}
+
+	return retDict, nil
 }

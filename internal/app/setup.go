@@ -143,11 +143,6 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 		return err
 	}
 
-	err = a.initActions()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -415,6 +410,11 @@ func (a *App) initRouter() error {
 		return fmt.Errorf("error adding static root : %w ", err)
 	}
 
+	err = a.initActions(router)
+	if err != nil {
+		return err
+	}
+
 	a.appRouter = chi.NewRouter()
 	a.Trace().Msgf("Mounting app %s at %s", a.Name, a.Path)
 	a.appRouter.Mount(a.Path, router)
@@ -422,7 +422,7 @@ func (a *App) initRouter() error {
 	return nil
 }
 
-func (a *App) initActions() error {
+func (a *App) initActions(router *chi.Mux) error {
 	actions, err := a.appDef.Attr("actions")
 	if err != nil {
 		return err
@@ -445,7 +445,7 @@ func (a *App) initActions() error {
 	for iter.Next(&val) {
 		count++
 
-		if err = a.addAction(count, val); err != nil {
+		if err = a.addAction(count, val, router); err != nil {
 			return err
 		}
 	}
@@ -453,7 +453,7 @@ func (a *App) initActions() error {
 	return nil
 }
 
-func (a *App) addAction(count int, val starlark.Value) error {
+func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	var ok bool
 	var actionDef *starlarkstruct.Struct
 
@@ -486,7 +486,7 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(name, description, path, run, suggest,
+	action, err := action.NewAction(a.Logger, a.IsDev, name, description, path, run, suggest,
 		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
@@ -495,7 +495,7 @@ func (a *App) addAction(count int, val starlark.Value) error {
 	if err != nil {
 		return fmt.Errorf("error building router for action %s: %w", name, err)
 	}
-	a.appRouter.Mount(path, r)
+	router.Mount(path, r)
 	a.actions = append(a.actions, action)
 	return nil
 }

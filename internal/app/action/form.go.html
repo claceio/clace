@@ -1,6 +1,16 @@
 {{ template "header" . }}
 
 
+<script>
+  document.body.addEventListener("htmx:sendError", function (event) {
+    ActionMessage.innerText = "API call failed: Server is not reachable";
+  });
+  document.body.addEventListener("htmx:responseError", function (event) {
+    ActionMessage.innerText =
+      "API call failed: " + event.detail.xhr.responseText;
+  });
+</script>
+
 <p class="text-center">
   {{ .description }}
 </p>
@@ -23,9 +33,12 @@
               id="param_{{ .Name }}"
               name="{{ .Name }}"
               type="checkbox"
+              value="true"
               class="checkbox checkbox-primary justify-self-center"
               {{ .Value }} />
-            <div id="param_{{ .Name }}_Error" class="text-error mt-1"></div>
+            <div class="pl-4">
+              <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
+            </div>
           </div>
         {{ else if eq .InputType "select" }}
           <div>
@@ -40,7 +53,7 @@
                 <option value="{{ . }}">{{ . }}</option>
               {{ end }}
             </select>
-            <div id="{{ .Name }}_Error" class="text-error mt-1"></div>
+            <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
           </div>
         {{ else }}
           <div>
@@ -50,7 +63,7 @@
               type="text"
               class="input input-bordered w-full"
               value="{{ .Value }}" />
-            <div id="{{ .Name }}_Error" class="text-error mt-1"></div>
+            <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
           </div>
         {{ end }}
       </div>
@@ -59,9 +72,22 @@
 
     <!-- Submit Button -->
     <div class="form-control mt-6">
-      <button type="submit" class="btn btn-primary w-full">Run</button>
+      <button
+        type="submit"
+        hx-post="{{ .path }}"
+        hx-target="#ActionMessage"
+        hx-swap="innerHTML"
+        class="btn btn-primary w-full">
+        Run
+      </button>
     </div>
   </form>
+</div>
+
+<p id="ActionMessage" class="pt-6 text-center"></p>
+
+<div class="pt-6 card w-full shadow-2xl p-6 rounded-lg">
+  <div id="action_result"></div>
 </div>
 
 {{ template "footer" . }}

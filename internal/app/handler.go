@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/types"
@@ -110,7 +111,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 		if handler != nil {
 			deferredCleanup = func() error {
 				// Check for any deferred cleanups
-				err := runDeferredCleanup(thread)
+				err := action.RunDeferredCleanup(thread)
 				if err != nil {
 					a.Error().Err(err).Msg("error cleaning up plugins")
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -140,7 +141,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 				if evalErr, ok := err.(*starlark.EvalError); ok {
 					// Iterate through the CallFrame stack for debugging information
 					for i, frame := range evalErr.CallStack {
-						fmt.Printf("Function: %s, Position: %s\n", frame.Name, frame.Pos)
+						a.Warn().Msgf("Function: %s, Position: %s\n", frame.Name, frame.Pos)
 						if i == 0 {
 							firstFrame = fmt.Sprintf("Function %s, Position %s", frame.Name, frame.Pos)
 						}
@@ -168,7 +169,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 					if evalErr, ok := err.(*starlark.EvalError); ok {
 						// Iterate through the CallFrame stack for debugging information
 						for i, frame := range evalErr.CallStack {
-							fmt.Printf("Function: %s, Position: %s\n", frame.Name, frame.Pos)
+							a.Warn().Msgf("Function: %s, Position: %s\n", frame.Name, frame.Pos)
 							if i == 0 {
 								firstFrame = fmt.Sprintf("Function %s, Position %s", frame.Name, frame.Pos)
 							}

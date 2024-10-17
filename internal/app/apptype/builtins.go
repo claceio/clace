@@ -29,6 +29,7 @@ const (
 	RESPONSE              = "response"
 	LIBRARY               = "library"
 	ACTION                = "action"
+	RESULT                = "result"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
@@ -299,6 +300,30 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 	return starlarkstruct.FromStringDict(starlark.String(ACTION), fields), nil
 }
 
+func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var message starlark.String
+	var values *starlark.List
+	var paramErrors *starlark.Dict
+	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "values?", &values, "param_errors?", &paramErrors, "message?", &message); err != nil {
+		return nil, fmt.Errorf("error unpacking result args: %w", err)
+	}
+
+	if values == nil {
+		values = starlark.NewList([]starlark.Value{})
+	}
+
+	if paramErrors == nil {
+		paramErrors = starlark.NewDict(0)
+	}
+
+	fields := starlark.StringDict{
+		"values":       values,
+		"param_errors": paramErrors,
+		"message":      message,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(RESULT), fields), nil
+}
+
 func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	var config starlark.Value
@@ -361,6 +386,7 @@ func CreateBuiltin() starlark.StringDict {
 					RESPONSE:   starlark.NewBuiltin(RESPONSE, createResponseBuiltin),
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
 					ACTION:     starlark.NewBuiltin(ACTION, createActionBuiltin),
+					RESULT:     starlark.NewBuiltin(RESULT, createResultBuiltin),
 
 					GET:    starlark.String(GET),
 					POST:   starlark.String(POST),

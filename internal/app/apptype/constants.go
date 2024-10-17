@@ -19,3 +19,9 @@ const (
 	CLACE_GEN_FILE        = "clace_gen.go.html"
 	ACCOUNT_SEPARATOR     = "#"
 )
+
+type DeferFunc func() error
+type DeferEntry struct {
+	Func   DeferFunc
+	Strict bool
+}

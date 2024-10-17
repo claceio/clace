@@ -1,0 +1,33 @@
+{{ block "message" . }}
+  <div class="text-lg text-bold">
+    {{ . }}
+  </div>
+{{ end }}
+
+{{ block "paramError" . }}
+  <div
+    id="param_{{ .Name }}_error"
+    hx-swap-oob="true"
+    hx-swap="outerHTML"
+    class="text-error mt-1">
+    {{ .Message }}
+  </div>
+{{ end }}
+
+{{ block "result-textarea" . }}
+  <div class="divider text-lg text-secondary">Result</div>
+  <textarea
+    label="Result"
+    id="action_result"
+    hx-swap-oob="true"
+    hx-swap="outerHTML"
+    rows="20"
+    class="textarea textarea-success w-full font-mono"
+    readonly>
+   {{- range . -}}
+      {{- . -}}
+      {{- printf "\n" -}}
+    {{- end -}}
+  </textarea
+  >
+{{ end }}

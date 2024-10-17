@@ -32,7 +32,7 @@ func NewLogger(config *LogConfig) *Logger {
 	mw := io.MultiWriter(writers...)
 
 	level := strings.ToUpper(config.Level)
-	logLevel := zerolog.InfoLevel
+	var logLevel zerolog.Level
 	switch level {
 	case "WARN":
 		logLevel = zerolog.WarnLevel
