@@ -11,7 +11,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Masterminds/sprig/v3"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
@@ -47,9 +46,7 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 		providers[name] = provider
 	}
 
-	funcMap := sprig.FuncMap()
-	delete(funcMap, "env")
-	delete(funcMap, "expandenv")
+	funcMap := GetFuncMap()
 
 	s := &SecretManager{
 		providers: providers,

@@ -17,6 +17,7 @@ import (
 
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -35,6 +36,7 @@ type Action struct {
 	name           string
 	description    string
 	path           string
+	report         string
 	run            starlark.Callable
 	suggest        starlark.Callable
 	params         []apptype.AppParam
@@ -45,9 +47,11 @@ type Action struct {
 }
 
 // NewAction creates a new action
-func NewAction(logger *types.Logger, isDev bool, name, description, apath string, run, suggest starlark.Callable,
+func NewAction(logger *types.Logger, isDev bool, name, description, apath, report string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict, appPath string) (*Action, error) {
-	tmpl, err := template.New("form").ParseFS(embedHtml, "*.go.html")
+
+	funcMap := system.GetFuncMap()
+	tmpl, err := template.New("form").Funcs(funcMap).ParseFS(embedHtml, "*.go.html")
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +73,7 @@ func NewAction(logger *types.Logger, isDev bool, name, description, apath string
 		name:           name,
 		description:    description,
 		path:           apath,
+		report:         report,
 		run:            run,
 		suggest:        suggest,
 		params:         params,
@@ -223,8 +228,6 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		status = ret.String()
 	}
 
-	a.Info().Msgf("action result status: %s valuesStr %s valuesMap %s paramErrors %s", status, valuesStr, valuesMap, paramErrors)
-
 	if deferredCleanup() != nil {
 		return
 	}
@@ -238,6 +241,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	err = a.template.ExecuteTemplate(w, "status", status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Render the param error messages if any, using HTMX OOB
@@ -252,17 +256,110 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		err = a.template.ExecuteTemplate(w, "paramError", tv)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 
+	err = a.renderResults(w, valuesMap, valuesStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *Action) renderResults(w http.ResponseWriter, valuesMap []map[string]any, valuesStr []string) error {
+	if a.report == apptype.AUTO {
+		return a.renderResultsAuto(w, valuesMap, valuesStr)
+	}
+
+	if a.report == apptype.TABLE {
+		return a.renderResultsTable(w, valuesMap)
+	} else if a.report == apptype.TEXT {
+		return a.renderResultsText(w, valuesStr)
+	} else if a.report == apptype.JSON {
+		return a.renderResultsJson(w, valuesMap)
+	}
+	return nil
+}
+
+func (a *Action) renderResultsAuto(w http.ResponseWriter, valuesMap []map[string]any, valuesStr []string) error {
 	if len(valuesStr) > 0 {
-		// Render the result values, using HTMX OOB
-		err = a.template.ExecuteTemplate(w, "result-textarea", valuesStr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		return a.renderResultsText(w, valuesStr)
 	}
 
+	if len(valuesMap) > 0 {
+		firstRow := valuesMap[0]
+		hasComplex := false
+		for _, v := range firstRow {
+			if v == nil {
+				continue
+			}
+			switch v.(type) {
+			case int:
+			case string:
+			case bool:
+			default:
+				hasComplex = true
+			}
+			if hasComplex {
+				break
+			}
+		}
+
+		if hasComplex {
+			return a.renderResultsJson(w, valuesMap)
+		}
+		return a.renderResultsTable(w, valuesMap)
+	}
+
+	return nil
+}
+
+func (a *Action) renderResultsText(w http.ResponseWriter, valuesStr []string) error {
+	// Render the result values, using HTMX OOB
+	err := a.template.ExecuteTemplate(w, "result-textarea", valuesStr)
+	return err
+}
+
+func (a *Action) renderResultsTable(w http.ResponseWriter, valuesMap []map[string]any) error {
+	firstRow := valuesMap[0]
+	keys := make([]string, 0, len(firstRow))
+	for k := range firstRow {
+		keys = append(keys, k)
+	}
+
+	values := make([][]string, 0, len(valuesMap))
+	for _, row := range valuesMap {
+		rowValues := make([]string, 0, len(keys))
+		for _, k := range keys {
+			v, ok := row[k]
+			if !ok {
+				// Missing value
+				rowValues = append(rowValues, "")
+			} else {
+				pv := fmt.Sprintf("%v", v)
+				DISPLAY_LIMIT := 100
+				if len(pv) > DISPLAY_LIMIT {
+					pv = pv[:DISPLAY_LIMIT] + "..."
+				}
+				rowValues = append(rowValues, pv)
+			}
+		}
+		values = append(values, rowValues)
+	}
+
+	input := map[string]any{
+		"Keys":   keys,
+		"Values": values,
+	}
+
+	err := a.template.ExecuteTemplate(w, "result-table", input)
+	return err
+}
+
+func (a *Action) renderResultsJson(w http.ResponseWriter, valuesMap []map[string]any) error {
+	err := a.template.ExecuteTemplate(w, "result-json", valuesMap)
+	return err
 }
 
 func RunDeferredCleanup(thread *starlark.Thread) error {

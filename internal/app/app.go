@@ -19,12 +19,12 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/Masterminds/sprig/v3"
 	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/dev"
 	"github.com/claceio/clace/internal/app/starlark_type"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi"
@@ -119,7 +119,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		newApp.appDev = dev.NewAppDev(logger, &appfs.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
 	}
 
-	funcMap := sprig.FuncMap()
+	funcMap := system.GetFuncMap()
 	funcMap["static"] = func(name string) string {
 		staticPath := path.Join("static", name)
 		fullPath := path.Join(newApp.Path, sourceFS.HashName(staticPath))
@@ -133,10 +133,6 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		}
 		return fi.Size() > 0
 	}
-
-	// Remove the env functions from sprig, since they can leak system information
-	delete(funcMap, "env")
-	delete(funcMap, "expandenv")
 
 	newApp.funcMap = funcMap
 	return newApp, nil

@@ -45,6 +45,9 @@ const (
 	TEXT      = "TEXT"
 	READ      = "READ"
 	WRITE     = "WRITE"
+
+	AUTO  = "AUTO"
+	TABLE = "TABLE"
 )
 
 var (
@@ -280,11 +283,15 @@ func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark
 }
 
 func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var name, desc, path starlark.String
+	var name, desc, path, report starlark.String
 	var suggest, executor starlark.Callable
 	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "path", &path,
-		"run", &executor, "suggest?", &suggest, "description?", &desc); err != nil {
+		"run", &executor, "suggest?", &suggest, "report?", &report, "description?", &desc); err != nil {
 		return nil, fmt.Errorf("error unpacking action args: %w", err)
+	}
+
+	if report == "" {
+		report = AUTO
 	}
 
 	fields := starlark.StringDict{
@@ -292,6 +299,7 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 		"description": desc,
 		"path":        path,
 		"run":         executor,
+		"report":      report,
 	}
 
 	if suggest != nil {
@@ -396,6 +404,8 @@ func CreateBuiltin() starlark.StringDict {
 					TEXT:   starlark.String(TEXT),
 					READ:   starlark.String(READ),
 					WRITE:  starlark.String(WRITE),
+					AUTO:   starlark.String(AUTO),
+					TABLE:  starlark.String(TABLE),
 				},
 			},
 		}

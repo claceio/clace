@@ -15,19 +15,60 @@
 {{ end }}
 
 {{ block "result-textarea" . }}
-  <div class="divider text-lg text-secondary">Result</div>
-  <textarea
-    label="Result"
-    id="action_result"
-    hx-swap-oob="true"
-    hx-swap="outerHTML"
-    rows="20"
-    class="textarea textarea-success w-full font-mono"
-    readonly>
-   {{- range . -}}
-      {{- . -}}
-      {{- printf "\n" -}}
-    {{- end -}}
-  </textarea
-  >
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">Output</div>
+    <textarea
+      rows="20"
+      class="textarea textarea-success w-full font-mono"
+      readonly>
+     {{- range . -}}
+        {{- . -}}
+        {{- printf "\n" -}}
+      {{- end -}}
+    </textarea
+    >
+  </div>
+{{ end }}
+
+{{ block "result-table" . }}
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">Report</div>
+
+    <table class="table table-zebra text-xl font-mono">
+      <thead>
+        <tr>
+          {{ range $k := .Keys }}
+            <th>{{ $k }}</th>
+          {{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $v := .Values }}
+          <tr>
+            {{ range $e := $v }}
+              <td>{{ $e }}</td>
+            {{ end }}
+          </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+{{ end }}
+
+{{ block "result-json" . }}
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">Result</div>
+
+    {{ range . }}
+      <div class="json-container" data-json="{{ . | toJson }}"></div>
+    {{ end }}
+
+
+    <script>
+      document.querySelectorAll(".json-container").forEach(function (div) {
+        const jsonData = JSON.parse(div.getAttribute("data-json"));
+        renderJSONWithRoot(jsonData, div);
+      });
+    </script>
+  </div>
 {{ end }}

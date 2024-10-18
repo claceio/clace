@@ -461,7 +461,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 		return fmt.Errorf("actions entry %d is not a struct", count)
 	}
 
-	var name, path, description string
+	var name, path, description, report string
 	var run, suggest starlark.Callable
 	var err error
 	if name, err = apptype.GetStringAttr(actionDef, "name"); err != nil {
@@ -476,6 +476,9 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	if run, err = apptype.GetCallableAttr(actionDef, "run"); err != nil {
 		return err
 	}
+	if report, err = apptype.GetStringAttr(actionDef, "report"); err != nil {
+		return err
+	}
 	sa, _ := actionDef.Attr("suggest")
 	if sa != nil {
 		if suggest, err = apptype.GetCallableAttr(actionDef, "suggest"); err != nil {
@@ -486,7 +489,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(a.Logger, a.IsDev, name, description, path, run, suggest,
+	action, err := action.NewAction(a.Logger, a.IsDev, name, description, path, report, run, suggest,
 		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
