@@ -479,6 +479,12 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	if report, err = apptype.GetStringAttr(actionDef, "report"); err != nil {
 		return err
 	}
+
+	if report != apptype.AUTO && report != apptype.TEXT && report != apptype.TABLE && report != apptype.JSON {
+		// action is using a custom report, HTML templates are to be parsed
+		a.actionUsesHtmlTemplate = true
+	}
+
 	sa, _ := actionDef.Attr("suggest")
 	if sa != nil {
 		if suggest, err = apptype.GetCallableAttr(actionDef, "suggest"); err != nil {

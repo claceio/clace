@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"path"
@@ -42,13 +43,15 @@ type Action struct {
 	params         []apptype.AppParam
 	paramValuesStr map[string]string
 	paramDict      starlark.StringDict
-	template       *template.Template
+	actionTemplate *template.Template
 	pagePath       string
+	AppTemplate    *template.Template
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, isDev bool, name, description, apath, report string, run, suggest starlark.Callable,
-	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict, appPath string) (*Action, error) {
+	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
+	appPath string) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 	tmpl, err := template.New("form").Funcs(funcMap).ParseFS(embedHtml, "*.go.html")
@@ -79,8 +82,9 @@ func NewAction(logger *types.Logger, isDev bool, name, description, apath, repor
 		params:         params,
 		paramValuesStr: paramValuesStr,
 		paramDict:      paramDict,
-		template:       tmpl,
+		actionTemplate: tmpl,
 		pagePath:       pagePath,
+		// AppTemplate is initialized later
 	}, nil
 }
 
@@ -238,7 +242,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render the result message
-	err = a.template.ExecuteTemplate(w, "status", status)
+	err = a.actionTemplate.ExecuteTemplate(w, "status", status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -253,7 +257,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 			Name:    paramName,
 			Message: fmt.Sprintf("%s", paramError),
 		}
-		err = a.template.ExecuteTemplate(w, "paramError", tv)
+		err = a.actionTemplate.ExecuteTemplate(w, "paramError", tv)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -272,14 +276,33 @@ func (a *Action) renderResults(w http.ResponseWriter, valuesMap []map[string]any
 		return a.renderResultsAuto(w, valuesMap, valuesStr)
 	}
 
-	if a.report == apptype.TABLE {
+	switch a.report {
+	case apptype.TABLE:
 		return a.renderResultsTable(w, valuesMap)
-	} else if a.report == apptype.TEXT {
+	case apptype.TEXT:
 		return a.renderResultsText(w, valuesStr)
-	} else if a.report == apptype.JSON {
+	case apptype.JSON:
 		return a.renderResultsJson(w, valuesMap)
+	default:
+		// Custom template being used for the results
+		// Wrap the template output in a div with hx-swap-oob
+		_, err := io.WriteString(w, `<div id="action_result" hx-swap-oob="true" hx-swap="outerHTML"> `)
+		if err != nil {
+			return err
+		}
+		var tmplErr error
+		if len(valuesStr) > 0 {
+			tmplErr = a.AppTemplate.ExecuteTemplate(w, a.report, valuesStr)
+		} else {
+			tmplErr = a.AppTemplate.ExecuteTemplate(w, a.report, valuesMap)
+		}
+		_, err = io.WriteString(w, ` </div>`)
+		if err != nil {
+			return err
+		}
+
+		return tmplErr
 	}
-	return nil
 }
 
 func (a *Action) renderResultsAuto(w http.ResponseWriter, valuesMap []map[string]any, valuesStr []string) error {
@@ -317,7 +340,7 @@ func (a *Action) renderResultsAuto(w http.ResponseWriter, valuesMap []map[string
 
 func (a *Action) renderResultsText(w http.ResponseWriter, valuesStr []string) error {
 	// Render the result values, using HTMX OOB
-	err := a.template.ExecuteTemplate(w, "result-textarea", valuesStr)
+	err := a.actionTemplate.ExecuteTemplate(w, "result-textarea", valuesStr)
 	return err
 }
 
@@ -327,6 +350,7 @@ func (a *Action) renderResultsTable(w http.ResponseWriter, valuesMap []map[strin
 	for k := range firstRow {
 		keys = append(keys, k)
 	}
+	slices.Sort(keys)
 
 	values := make([][]string, 0, len(valuesMap))
 	for _, row := range valuesMap {
@@ -353,12 +377,12 @@ func (a *Action) renderResultsTable(w http.ResponseWriter, valuesMap []map[strin
 		"Values": values,
 	}
 
-	err := a.template.ExecuteTemplate(w, "result-table", input)
+	err := a.actionTemplate.ExecuteTemplate(w, "result-table", input)
 	return err
 }
 
 func (a *Action) renderResultsJson(w http.ResponseWriter, valuesMap []map[string]any) error {
-	err := a.template.ExecuteTemplate(w, "result-json", valuesMap)
+	err := a.actionTemplate.ExecuteTemplate(w, "result-json", valuesMap)
 	return err
 }
 
@@ -463,7 +487,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"path":        a.pagePath,
 		"params":      params,
 	}
-	err := a.template.ExecuteTemplate(w, "form.go.html", input)
+	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

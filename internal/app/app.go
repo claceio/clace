@@ -68,9 +68,10 @@ type App struct {
 	appRouter    *chi.Mux               // router for the app
 	actions      []*action.Action       // actions defined for the app
 
-	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
-	template         *template.Template            // unstructured templates, no base_templates defined
-	templateMap      map[string]*template.Template // structured templates, base_templates defined
+	usesHtmlTemplate       bool                          // Whether the app uses HTML templates, false if only JSON APIs
+	actionUsesHtmlTemplate bool                          // Whether the app action uses HTML templates
+	template               *template.Template            // unstructured templates, no base_templates defined
+	templateMap            map[string]*template.Template // structured templates, base_templates defined
 
 	watcher       *fsnotify.Watcher
 	sseListeners  []chan SSEMessage
@@ -286,8 +287,8 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 		}
 	}
 
-	// Parse HTML templates if there are HTML routes
-	if a.usesHtmlTemplate {
+	// Parse HTML templates if there are HTML routes or action uses HTML templates
+	if a.usesHtmlTemplate || a.actionUsesHtmlTemplate {
 		baseFiles, err := a.sourceFS.Glob(path.Join(a.codeConfig.Routing.BaseTemplates, "*.go.html"))
 		if err != nil {
 			return false, err
@@ -325,6 +326,10 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 				}
 			}
 		}
+	}
+	for _, action := range a.actions {
+		// structured templates are not supported for actions currently
+		action.AppTemplate = a.template
 	}
 	a.initialized = true
 

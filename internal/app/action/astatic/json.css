@@ -113,3 +113,10 @@
       color: #569cd6;
     }
   }
+
+
+/* Loading Indicator used by HTMX */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
