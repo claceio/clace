@@ -345,6 +345,9 @@ func (a *Action) renderResultsText(w http.ResponseWriter, valuesStr []string) er
 }
 
 func (a *Action) renderResultsTable(w http.ResponseWriter, valuesMap []map[string]any) error {
+	if len(valuesMap) == 0 {
+		return nil
+	}
 	firstRow := valuesMap[0]
 	keys := make([]string, 0, len(firstRow))
 	for k := range firstRow {

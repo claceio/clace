@@ -2,7 +2,9 @@ package app_test
 
 import (
 	"net/http/httptest"
+	"net/url"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/claceio/clace/internal/app"
@@ -95,7 +97,7 @@ func TestParamErrors(t *testing.T) {
 def handler(dry_run, args):
 	return ace.result(status="done", values=["a", "b"], param_errors={"param1": "param1error", "param3": "param3error"})
 
-app = ace.app("testApp",
+app = ace.app("testApp", 
 	actions=[ace.action("testAction", "/", handler)])
 
 		`,
@@ -361,6 +363,240 @@ app = ace.app("testApp",
                       <td></td>
                       <td>abc2</td>
                   </tr>
+              </tbody>
+            </table>
+          </div>`, response.Body.String())
+}
+
+func TestParamPost(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}])
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("param2", description="param2 description", type=BOOLEAN, default=False)
+param("param3", description="param3 description", type=INT, default=10)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
+
+	values := url.Values{
+		"param1": {"abc"},
+		"param2": {"true"},
+		"param3": {"20"},
+	}
+
+	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "match response", `
+	<div class="text-lg text-bold">
+            done
+          </div>
+        
+          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+            <div class="divider text-lg text-secondary">Report</div>
+        
+            <table class="table table-zebra text-xl font-mono">
+              <thead>
+                <tr>
+                    <th>c1</th>
+                    <th>c2</th>
+                    <th>c3</th>
+                </tr>
+              </thead>
+              <tbody>
+                  <tr>
+                      <td>abc</td>
+                      <td>true</td>
+                      <td>20</td>
+                  </tr>
+              </tbody>
+            </table>
+          </div>`, response.Body.String())
+}
+
+func TestCustomReport(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, report="custom")])
+
+		`,
+		"params.star":    `param("param1", description="param1 description", type=STRING, default="myvalue")`,
+		"myfile.go.html": `{{block "custom" .}} customdata {{end}}`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
+
+	request = httptest.NewRequest("POST", "/test", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
+            done
+          </div>
+        <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  customdata  </div>`, response.Body.String())
+
+	// Unset the template
+	fileData["myfile.go.html"] = ``
+	a, _, err = CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+	request = httptest.NewRequest("GET", "/test/", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
+
+	request = httptest.NewRequest("POST", "/test", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold"> done </div>
+        <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  </div>html/template: "custom" is undefined`, response.Body.String())
+}
+
+func TestActionError(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	if args.param1 == "error":
+		return "errormessage"
+	10/args.param3 
+	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}])
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("param2", description="param2 description", type=BOOLEAN, default=False)
+param("param3", description="param3 description", type=INT, default=10)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
+
+	values := url.Values{
+		"param1": {"error"},
+		"param2": {"true"},
+		"param3": {"20"},
+	}
+
+	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
+            &#34;errormessage&#34;
+          </div>`, response.Body.String())
+
+	values = url.Values{
+		"param1": {"p1val"},
+		"param2": {"true"},
+		"param3": {"0"},
+	}
+
+	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringMatch(t, "response", `floating-point division by zero`, response.Body.String())
+
+	values = url.Values{
+		"param1": {"p1val"},
+		"param2": {"true"},
+		"param3": {"50"},
+	}
+
+	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "response", `<div class="text-lg text-bold">
+            done
+          </div>
+        
+          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+            <div class="divider text-lg text-secondary">Report</div>
+        
+            <table class="table table-zebra text-xl font-mono">
+              <thead>
+                <tr>
+                  
+                    <th>c1</th>
+                  
+                    <th>c2</th>
+                  
+                    <th>c3</th>
+                  
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    
+                      <td>p1val</td>
+                    
+                      <td>true</td>
+                    
+                      <td>50</td>
+                    
+                  </tr>
+                
               </tbody>
             </table>
           </div>`, response.Body.String())
