@@ -493,6 +493,38 @@ app = ace.app("testApp",
         <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  </div>html/template: "custom" is undefined`, response.Body.String())
 }
 
+func TestParamOptions(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=["a", "b"], param_errors={"param1": "param1error", "param3": "param3error"})
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("options-param1", description="param1 options", type=LIST, default=["a", "b", "c"])`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	bodyStripped := strings.Join(strings.Fields(response.Body.String()), " ")
+	testutil.AssertStringContains(t, bodyStripped, `select id="param_param1`)
+	if strings.Contains(bodyStripped, `options-param1`) {
+		t.Errorf("options-param1 should not be in the body")
+	}
+}
+
 func TestActionError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
