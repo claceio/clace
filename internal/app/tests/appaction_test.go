@@ -59,6 +59,13 @@ app = ace.app("testApp",
           <div class="text-lg text-bold">
             done
           </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Output</div>
@@ -134,7 +141,14 @@ param("param3", description="param3 description", type=INT, default=10)`,
             class="text-error mt-1">
             param1error
           </div>
-        
+
+		  <div
+			id="param_param2_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		  </div>
+
           <div
             id="param_param3_error"
             hx-swap-oob="true"
@@ -187,6 +201,13 @@ app = ace.app("testApp",
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
 	<div class="text-lg text-bold"> done </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
         
             <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
@@ -240,6 +261,13 @@ app = ace.app("testApp",
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
 		  <div class="text-lg text-bold"> done </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Result</div>
@@ -288,6 +316,13 @@ app = ace.app("testApp",
 	<div class="text-lg text-bold">
             done
           </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
@@ -343,6 +378,13 @@ app = ace.app("testApp",
 	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
             done
           </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
@@ -412,6 +454,27 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	<div class="text-lg text-bold">
             done
           </div>
+
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
+
+		 <div
+			id="param_param2_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
+
+		 <div
+			id="param_param3_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
@@ -469,6 +532,14 @@ app = ace.app("testApp",
 	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
             done
           </div>
+
+		<div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
+
         <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  customdata  </div>`, response.Body.String())
 
 	// Unset the template
@@ -490,6 +561,12 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold"> done </div>
+		<div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
         <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  </div>html/template: "custom" is undefined`, response.Body.String())
 }
 
@@ -570,7 +647,27 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
             &#34;errormessage&#34;
-          </div>`, response.Body.String())
+          </div>
+		<div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
+
+		<div
+			id="param_param2_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
+
+		<div
+			id="param_param3_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>`, response.Body.String())
 
 	values = url.Values{
 		"param1": {"p1val"},
@@ -601,6 +698,27 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	testutil.AssertStringMatch(t, "response", `<div class="text-lg text-bold">
             done
           </div>
+
+		<div
+			id="param_param1_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
+
+		<div
+			id="param_param2_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
+
+		<div
+			id="param_param3_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+  		</div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>

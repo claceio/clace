@@ -248,14 +248,26 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Render the param error messages if any, using HTMX OOB
-	for paramName, paramError := range paramErrors {
+	// Render the param error messages, using HTMX OOB
+	errorMsgs := map[string]string{}
+	for _, param := range a.params {
+		// "" error messages have to be sent to overwrite previous values in form UI
+		if !strings.HasPrefix(param.Name, OPTIONS_PREFIX) {
+			if paramErrors[param.Name] == nil {
+				errorMsgs[param.Name] = ""
+			} else {
+				errorMsgs[param.Name] = fmt.Sprintf("%s", paramErrors[param.Name])
+			}
+		}
+	}
+
+	for paramName, paramError := range errorMsgs {
 		tv := struct {
 			Name    string
 			Message string
 		}{
 			Name:    paramName,
-			Message: fmt.Sprintf("%s", paramError),
+			Message: paramError,
 		}
 		err = a.actionTemplate.ExecuteTemplate(w, "paramError", tv)
 		if err != nil {
