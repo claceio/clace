@@ -17,7 +17,7 @@ func actionTester(t *testing.T, rootPath bool, actionPath string) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=["a", "b"])
+	return ace.result(status="done", values=["a", "b"], report=ace.TEXT)
 
 app = ace.app("testApp",
 	actions=[ace.action("testAction", "` + actionPath + `", handler)])
@@ -177,7 +177,7 @@ def handler(dry_run, args):
 	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.AUTO)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")`,
@@ -234,10 +234,10 @@ func TestAutoReportJSON(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}])
+	return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}], report=ace.AUTO)
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.AUTO)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")`,
@@ -287,10 +287,10 @@ func TestReportTable(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}])
+	return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}], report=ace.TABLE)
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")`,
@@ -350,10 +350,10 @@ func TestReportTableMissingData(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=[{"a": 1, "b": "abc"}, {"c": 1, "b": "abc2"}])
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}, {"c": 1, "b": "abc2"}], report=ace.TABLE)
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")`,
@@ -415,10 +415,10 @@ func TestParamPost(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}])
+	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}], report=ace.TABLE)
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
@@ -503,10 +503,10 @@ func TestCustomReport(t *testing.T) {
 	fileData := map[string]string{
 		"app.star": `
 def handler(dry_run, args):
-	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}], report="custom")
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report="custom")])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star":    `param("param1", description="param1 description", type=STRING, default="myvalue")`,
@@ -610,10 +610,10 @@ def handler(dry_run, args):
 	if args.param1 == "error":
 		return "errormessage"
 	10/args.param3 
-	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}])
+	return ace.result(status="done", values=[{"c1": args.param1, "c2": args.param2, "c3": args.param3}], report=ace.TABLE)
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler, report=ace.TABLE)])
+	actions=[ace.action("testAction", "/", handler)])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")

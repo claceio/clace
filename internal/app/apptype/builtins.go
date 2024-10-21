@@ -283,15 +283,11 @@ func createLibraryBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark
 }
 
 func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var name, desc, path, report starlark.String
+	var name, desc, path starlark.String
 	var suggest, executor starlark.Callable
-	if err := starlark.UnpackArgs(LIBRARY, args, kwargs, "name", &name, "path", &path,
-		"run", &executor, "suggest?", &suggest, "report?", &report, "description?", &desc); err != nil {
+	if err := starlark.UnpackArgs(ACTION, args, kwargs, "name", &name, "path", &path,
+		"run", &executor, "suggest?", &suggest, "description?", &desc); err != nil {
 		return nil, fmt.Errorf("error unpacking action args: %w", err)
-	}
-
-	if report == "" {
-		report = AUTO
 	}
 
 	fields := starlark.StringDict{
@@ -299,7 +295,6 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 		"description": desc,
 		"path":        path,
 		"run":         executor,
-		"report":      report,
 	}
 
 	if suggest != nil {
@@ -309,11 +304,16 @@ func createActionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 }
 
 func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var status starlark.String
+	var status, report starlark.String
 	var values *starlark.List
 	var paramErrors *starlark.Dict
-	if err := starlark.UnpackArgs(RESPONSE, args, kwargs, "status?", &status, "values?", &values, "param_errors?", &paramErrors); err != nil {
+	if err := starlark.UnpackArgs(RESULT, args, kwargs, "status?", &status, "values?", &values,
+		"report?", &report, "param_errors?", &paramErrors); err != nil {
 		return nil, fmt.Errorf("error unpacking result args: %w", err)
+	}
+
+	if report == "" {
+		report = AUTO
 	}
 
 	if values == nil {
@@ -327,6 +327,7 @@ func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 	fields := starlark.StringDict{
 		"status":       status,
 		"values":       values,
+		"report":       report,
 		"param_errors": paramErrors,
 	}
 	return starlarkstruct.FromStringDict(starlark.String(RESULT), fields), nil

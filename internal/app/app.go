@@ -68,10 +68,9 @@ type App struct {
 	appRouter    *chi.Mux               // router for the app
 	actions      []*action.Action       // actions defined for the app
 
-	usesHtmlTemplate       bool                          // Whether the app uses HTML templates, false if only JSON APIs
-	actionUsesHtmlTemplate bool                          // Whether the app action uses HTML templates
-	template               *template.Template            // unstructured templates, no base_templates defined
-	templateMap            map[string]*template.Template // structured templates, base_templates defined
+	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
+	template         *template.Template            // unstructured templates, no base_templates defined
+	templateMap      map[string]*template.Template // structured templates, base_templates defined
 
 	watcher       *fsnotify.Watcher
 	sseListeners  []chan SSEMessage
@@ -288,41 +287,48 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 	}
 
 	// Parse HTML templates if there are HTML routes or action uses HTML templates
-	if a.usesHtmlTemplate || a.actionUsesHtmlTemplate {
-		baseFiles, err := a.sourceFS.Glob(path.Join(a.codeConfig.Routing.BaseTemplates, "*.go.html"))
+	baseFiles, err := a.sourceFS.Glob(path.Join(a.codeConfig.Routing.BaseTemplates, "*.go.html"))
+	if err != nil {
+		return false, err
+	}
+
+	if len(baseFiles) == 0 {
+		// No base templates found, use the default unstructured templates
+		if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.codeConfig.Routing.TemplateLocations...); err != nil {
+			if strings.Contains(err.Error(), "pattern matches no files") {
+				if a.usesHtmlTemplate {
+					// No html templates found, but app has html routes
+					return false, err
+				}
+				// no html templates, ignore error
+			} else {
+				// Some other error parsing templates, report
+				return false, err
+			}
+		}
+	} else {
+		// Base templates found, using structured templates
+		base, err := a.sourceFS.ParseFS(a.funcMap, baseFiles...)
 		if err != nil {
 			return false, err
 		}
 
-		if len(baseFiles) == 0 {
-			// No base templates found, use the default unstructured templates
-			if a.template, err = a.sourceFS.ParseFS(a.funcMap, a.codeConfig.Routing.TemplateLocations...); err != nil {
-				return false, err
-			}
-		} else {
-			// Base templates found, using structured templates
-			base, err := a.sourceFS.ParseFS(a.funcMap, baseFiles...)
+		a.templateMap = make(map[string]*template.Template)
+		for _, paths := range a.codeConfig.Routing.TemplateLocations {
+			files, err := a.sourceFS.Glob(paths)
 			if err != nil {
 				return false, err
 			}
 
-			a.templateMap = make(map[string]*template.Template)
-			for _, paths := range a.codeConfig.Routing.TemplateLocations {
-				files, err := a.sourceFS.Glob(paths)
+			for _, file := range files {
+				tmpl, err := base.Clone()
 				if err != nil {
 					return false, err
 				}
 
-				for _, file := range files {
-					tmpl, err := base.Clone()
-					if err != nil {
-						return false, err
-					}
-
-					a.templateMap[file], err = tmpl.ParseFS(a.sourceFS.ReadableFS, file)
-					if err != nil {
-						return false, err
-					}
+				a.templateMap[file], err = tmpl.ParseFS(a.sourceFS.ReadableFS, file)
+				if err != nil {
+					return false, err
 				}
 			}
 		}

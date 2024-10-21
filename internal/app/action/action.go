@@ -37,7 +37,6 @@ type Action struct {
 	name           string
 	description    string
 	path           string
-	report         string
 	run            starlark.Callable
 	suggest        starlark.Callable
 	params         []apptype.AppParam
@@ -49,7 +48,7 @@ type Action struct {
 }
 
 // NewAction creates a new action
-func NewAction(logger *types.Logger, isDev bool, name, description, apath, report string, run, suggest starlark.Callable,
+func NewAction(logger *types.Logger, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
 	appPath string) (*Action, error) {
 
@@ -76,7 +75,6 @@ func NewAction(logger *types.Logger, isDev bool, name, description, apath, repor
 		name:           name,
 		description:    description,
 		path:           apath,
-		report:         report,
 		run:            run,
 		suggest:        suggest,
 		params:         params,
@@ -204,6 +202,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	var valuesStr []string
 	var status string
 	var paramErrors map[string]any
+	report := apptype.AUTO
 
 	resultStruct, ok := ret.(*starlarkstruct.Struct)
 	if ok {
@@ -225,6 +224,12 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		paramErrors, err = apptype.GetDictAttr(resultStruct, "param_errors", true)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("error getting result attr paramErrors: %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		report, err = apptype.GetOptionalStringAttr(resultStruct, "report")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error getting result report: %s", err), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -279,19 +284,19 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = a.renderResults(w, valuesMap, valuesStr)
+	err = a.renderResults(w, report, valuesMap, valuesStr)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (a *Action) renderResults(w http.ResponseWriter, valuesMap []map[string]any, valuesStr []string) error {
-	if a.report == apptype.AUTO {
+func (a *Action) renderResults(w http.ResponseWriter, report string, valuesMap []map[string]any, valuesStr []string) error {
+	if report == apptype.AUTO {
 		return a.renderResultsAuto(w, valuesMap, valuesStr)
 	}
 
-	switch a.report {
+	switch report {
 	case apptype.TABLE:
 		return a.renderResultsTable(w, valuesMap)
 	case apptype.TEXT:
@@ -307,9 +312,9 @@ func (a *Action) renderResults(w http.ResponseWriter, valuesMap []map[string]any
 		}
 		var tmplErr error
 		if len(valuesStr) > 0 {
-			tmplErr = a.AppTemplate.ExecuteTemplate(w, a.report, valuesStr)
+			tmplErr = a.AppTemplate.ExecuteTemplate(w, report, valuesStr)
 		} else {
-			tmplErr = a.AppTemplate.ExecuteTemplate(w, a.report, valuesMap)
+			tmplErr = a.AppTemplate.ExecuteTemplate(w, report, valuesMap)
 		}
 		_, err = io.WriteString(w, ` </div>`)
 		if err != nil {
