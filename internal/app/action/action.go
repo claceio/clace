@@ -140,7 +140,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	// Save the request context in the starlark thread local
 	thread.SetLocal(types.TL_CONTEXT, r.Context())
-	//isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
+	isHtmxRequest := r.Header.Get("HX-Request") == "true"
 
 	r.ParseForm()
 	var err error
@@ -278,6 +278,22 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pageInput := map[string]any{
+		"name":        a.name,
+		"description": a.description,
+		"path":        a.pagePath,
+		"lightTheme":  a.LightTheme,
+		"darkTheme":   a.DarkTheme,
+	}
+
+	if !isHtmxRequest {
+		err = a.actionTemplate.ExecuteTemplate(w, "header", pageInput)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// Render the result message
 	err = a.actionTemplate.ExecuteTemplate(w, "status", status)
 	if err != nil {
@@ -320,6 +336,14 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if !isHtmxRequest {
+		err = a.actionTemplate.ExecuteTemplate(w, "footer", pageInput)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 

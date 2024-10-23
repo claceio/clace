@@ -52,6 +52,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", reqPath, nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -126,6 +127,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -196,6 +198,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -256,6 +259,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -309,6 +313,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -372,6 +377,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -445,6 +451,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	}
 
 	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Set("HX-Request", "true")
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	response = httptest.NewRecorder()
@@ -526,6 +533,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -557,6 +565,7 @@ app = ace.app("testApp",
 	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
 
 	request = httptest.NewRequest("POST", "/test", nil)
+	request.Header.Set("HX-Request", "true")
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
@@ -640,6 +649,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	}
 
 	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Set("HX-Request", "true")
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	response = httptest.NewRecorder()
@@ -676,6 +686,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	}
 
 	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Set("HX-Request", "true")
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	response = httptest.NewRecorder()
@@ -690,6 +701,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	}
 
 	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+	request.Header.Set("HX-Request", "true")
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	response = httptest.NewRecorder()
@@ -750,4 +762,45 @@ param("param3", description="param3 description", type=INT, default=10)`,
               </tbody>
             </table>
           </div>`, response.Body.String())
+}
+
+func TestNonHtmxRequest(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}], report="custom")
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler)])
+
+		`,
+		"params.star":    `param("param1", description="param1 description", type=STRING, default="myvalue")`,
+		"myfile.go.html": `{{block "custom" .}} customdata {{end}}`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
+	testutil.AssertStringContains(t, response.Body.String(), `id="param_param1"`)
+
+	request = httptest.NewRequest("POST", "/test", nil)
+	// no header request.Header.Set("HX-Request", "true")
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	body := response.Body.String()
+	if !strings.Contains(body, "<!DOCTYPE html>") {
+		t.Errorf("Expected full html response, got: %s", body)
+	}
+	if !strings.Contains(body, "</html>") {
+		t.Errorf("Expected full html response, got: %s", body)
+	}
 }
