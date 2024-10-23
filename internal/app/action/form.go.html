@@ -76,7 +76,7 @@
         type="submit"
         hx-post="{{ .path }}"
         hx-target="#ActionMessage"
-        hx-swap="innerHTML"
+        hx-swap="innerHTML swap:80ms transform:out 30ms, transform:in 50ms"
         hx-indicator="#ActionIndicator"
         class="btn btn-primary w-full">
         Run

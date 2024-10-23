@@ -120,3 +120,11 @@
     opacity: 0;
     transition: opacity 200ms ease-in;
 }
+
+#ActionMessage {
+    transition: filter 80ms ease-in-out;
+}
+
+#ActionMessage.htmx-swapping {
+    filter: blur(5px); /* Apply blur effect */
+}
