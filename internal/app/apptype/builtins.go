@@ -4,6 +4,7 @@
 package apptype
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"strings"
@@ -32,6 +33,11 @@ const (
 	RESULT                = "result"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
+)
+
+const (
+	DEFAULT_DAISYUI_LIGHT_THEME = "bumblebee"
+	DEFAULT_DAISYUI_DARK_THEME  = "dim"
 )
 
 const (
@@ -162,10 +168,10 @@ func createFragmentBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 }
 
 func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var library starlark.String
+	var library, light, dark starlark.String
 	var themes *starlark.List
 	var disableWatcher starlark.Bool
-	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "themes?", &themes, "disable_watcher?", &disableWatcher); err != nil {
+	if err := starlark.UnpackArgs(FRAGMENT, args, kwargs, "library", &library, "themes?", &themes, "disable_watcher?", &disableWatcher, "light?", &light, "dark?", &dark); err != nil {
 		return nil, fmt.Errorf("error unpacking style args: %w", err)
 	}
 
@@ -177,6 +183,8 @@ func createStyleBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.T
 		"library":         library,
 		"themes":          themes,
 		"disable_watcher": disableWatcher,
+		"light":           cmp.Or(light, DEFAULT_DAISYUI_LIGHT_THEME),
+		"dark":            cmp.Or(dark, DEFAULT_DAISYUI_DARK_THEME),
 	}
 	return starlarkstruct.FromStringDict(starlark.String(STYLE), fields), nil
 }

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/system"
@@ -45,14 +46,26 @@ type Action struct {
 	actionTemplate *template.Template
 	pagePath       string
 	AppTemplate    *template.Template
+	LightTheme     string
+	DarkTheme      string
 }
 
 // NewAction creates a new action
-func NewAction(logger *types.Logger, isDev bool, name, description, apath string, run, suggest starlark.Callable,
+func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
 	appPath string) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
+
+	funcMap["fileNonEmpty"] = func(name string) bool {
+		staticPath := path.Join("static", name)
+		fi, err := sourceFS.Stat(staticPath)
+		if err != nil {
+			return false
+		}
+		return fi.Size() > 0
+	}
+
 	tmpl, err := template.New("form").Funcs(funcMap).ParseFS(embedHtml, "*.go.html")
 	if err != nil {
 		return nil, err
@@ -82,8 +95,27 @@ func NewAction(logger *types.Logger, isDev bool, name, description, apath string
 		paramDict:      paramDict,
 		actionTemplate: tmpl,
 		pagePath:       pagePath,
-		// AppTemplate is initialized later
+		// AppTemplate and Theme names are initialized later
 	}, nil
+}
+
+// GetEmbeddedTemplates returns the embedded templates files
+func GetEmbeddedTemplates() (map[string][]byte, error) {
+	files, err := fs.Glob(embedHtml, "*.go.html")
+	if err != nil {
+		return nil, err
+	}
+
+	templates := make(map[string][]byte)
+	for _, file := range files {
+		data, err := embedHtml.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		templates[file] = data
+	}
+
+	return templates, nil
 }
 
 func (a *Action) BuildRouter() (*chi.Mux, error) {
@@ -509,6 +541,8 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"description": a.description,
 		"path":        a.pagePath,
 		"params":      params,
+		"lightTheme":  a.LightTheme,
+		"darkTheme":   a.DarkTheme,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {

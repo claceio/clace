@@ -487,11 +487,12 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	action, err := action.NewAction(a.Logger, a.IsDev, name, description, path, run, suggest,
+	action, err := action.NewAction(a.Logger, a.sourceFS, a.IsDev, name, description, path, run, suggest,
 		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}
+
 	r, err := action.BuildRouter()
 	if err != nil {
 		return fmt.Errorf("error building router for action %s: %w", name, err)

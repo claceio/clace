@@ -9,10 +9,12 @@
       <script>
             const theme = localStorage.getItem('theme');
             const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches 
+            localStorage.setItem('theme-dark', {{ .darkTheme }});
+            localStorage.setItem('theme-light', {{ .lightTheme }});
             if (theme == 'theme-dark' || (theme == null && systemDark)) {
-                document.documentElement.setAttribute("data-theme", "dim")
+                document.documentElement.setAttribute("data-theme", {{ .darkTheme }})
             } else {
-                document.documentElement.setAttribute("data-theme", "lemonade")
+                document.documentElement.setAttribute("data-theme", {{ .lightTheme }})
             }
       </script> 
 
@@ -64,11 +66,13 @@
 
 
 {{ block "imports" . }}
-  <link rel="stylesheet" href="{{.path}}/astatic/style.css" />
+  {{ if fileNonEmpty "gen/css/style.css" }}
+    <link rel="stylesheet" href="{{.path}}/static/gen/css/style.css" />
+  {{ else }}
+    <link rel="stylesheet" href="{{.path}}/astatic/style.css" />
+  {{ end }}
   <link rel="stylesheet" href="{{.path}}/astatic/json.css" />
+  <script src="{{.path}}/astatic/json.js"></script>
   <script src="{{.path}}/astatic/toggle.js"></script>
   <script src="{{.path}}/astatic/htmx.min.js"></script>
-  <script src="{{.path}}/astatic/json.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@3.0.0/dist/full.css" rel="stylesheet" />
 {{ end -}}

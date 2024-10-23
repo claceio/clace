@@ -336,6 +336,13 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 	for _, action := range a.actions {
 		// structured templates are not supported for actions currently
 		action.AppTemplate = a.template
+		if a.appDev != nil {
+			action.LightTheme = a.appDev.AppStyle.Light
+			action.DarkTheme = a.appDev.AppStyle.Dark
+		} else {
+			action.LightTheme = apptype.DEFAULT_DAISYUI_LIGHT_THEME
+			action.DarkTheme = apptype.DEFAULT_DAISYUI_DARK_THEME
+		}
 	}
 	a.initialized = true
 

@@ -13,11 +13,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // Update theme switch logic to save preference
     toggle.addEventListener('change', function(event){
         if(event.target.checked){
-            document.documentElement.setAttribute("data-theme", "dim")
-            localStorage.setItem('theme', 'theme-dark');
+            document.documentElement.setAttribute("data-theme", localStorage.getItem('theme-dark'))
+            localStorage.setItem('theme', 'dark');
         } else {
-            document.documentElement.setAttribute("data-theme", "lemonade")
-            localStorage.setItem('theme', 'theme-light');
+            document.documentElement.setAttribute("data-theme", localStorage.getItem('theme-light'))
+            localStorage.setItem('theme', 'light');
         }
     });
 

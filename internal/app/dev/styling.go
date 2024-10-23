@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/system"
@@ -46,6 +47,8 @@ type AppStyle struct {
 	watcher        *exec.Cmd
 	watcherState   *WatcherState
 	watcherStdout  *os.File
+	Light          string
+	Dark           string
 }
 
 // WatcherState is the state of the watcher process as of when it was last started.
@@ -81,12 +84,21 @@ func (s *AppStyle) Init(appId types.AppId, appDef *starlarkstruct.Struct) error 
 	if library, err = apptype.GetStringAttr(styleDef, "library"); err != nil {
 		return err
 	}
+	if s.Light, err = apptype.GetStringAttr(styleDef, "light"); err != nil {
+		return err
+	}
+	if s.Dark, err = apptype.GetStringAttr(styleDef, "dark"); err != nil {
+		return err
+	}
 	if themes, err = apptype.GetListStringAttr(styleDef, "themes", true); err != nil {
 		return err
 	}
 	if disableWatcher, err = apptype.GetBoolAttr(styleDef, "disable_watcher"); err != nil {
 		return err
 	}
+	themes = append(themes, s.Light, s.Dark)
+	slices.Sort(themes)
+	themes = slices.Compact(themes)
 	s.DisableWatcher = disableWatcher
 
 	libType := strings.ToLower(library)
@@ -163,7 +175,7 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS *app
 	daisyThemes := ""
 	if s.library == DaisyUI {
 		daisyPlugin = `require("daisyui")`
-		if s.themes != nil && len(s.themes) > 0 {
+		if len(s.themes) > 0 {
 			quotedThemes := strings.Builder{}
 			for i, theme := range s.themes {
 				if i > 0 {
@@ -176,11 +188,28 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS *app
 		}
 	}
 
+	// Add the action templates to the input list
 	var buf strings.Builder
-	for i, loc := range templateLocations {
-		if i > 0 {
-			buf.WriteString(", ")
+	embededFiles, err := action.GetEmbeddedTemplates()
+	if err != nil {
+		return fmt.Errorf("error getting embedded templates : %s", err)
+	}
+	for name, data := range embededFiles {
+		filePath := fmt.Sprintf("action/%s", name)
+		_, err := workFS.Stat(filePath)
+		if err == nil {
+			// File already exists, skip
+			continue
 		}
+		if err := workFS.Write(filePath, data); err != nil {
+			return fmt.Errorf("error writing embedded template file : %s", err)
+		}
+	}
+	buf.WriteString(fmt.Sprintf("'%s'", path.Join(workFS.Root, "action", "*.go.html")))
+
+	// Add the template locations to the input list
+	for _, loc := range templateLocations {
+		buf.WriteString(", ")
 		buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.Root, loc)))
 	}
 
