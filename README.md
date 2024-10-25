@@ -57,12 +57,14 @@ Clace supports the following for all apps:
 - Support for [github integration](https://clace.io/docs/configuration/security/#private-repository-access), apps being directly deployed from github code.
 - OAuth and SSO based [authentication](https://clace.io/docs/configuration/authentication/#oauth-authentication)
 - Support for domain based and path based [routing](https://clace.io/docs/applications/routing/#request-routing) at the app level.
+- Integration with secrets managers, to securely access secrets.
 
 For containerized apps, Clace supports:
 
 - Managing [image builds](https://clace.io/docs/quickstart/#containerized-applications), in dev and prod mode
 - Passing [parameters](https://clace.io/docs/develop/#app-parameters) for the container
 - Building apps from [spec](https://clace.io/docs/develop/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Containerfile)
+- Support for pausing app containers which are idle
 
 For building Hypermedia based apps, Clace supports:
 
@@ -81,8 +83,6 @@ For building Hypermedia based apps, Clace supports:
 The feature roadmap for Clace is:
 
 - SQLite is used for metadata storage currently. Support for postgres is planned. This will be used to allow for horizontal scaling.
-- Integration with secrets managers, to securely access secrets.
-- Support for pausing app containers which are idle
 
 ## Setup
 
