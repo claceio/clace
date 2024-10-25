@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">AppServer for WebApp Dev and Hosting</p>
+  <p align="center">Webapp management for internal tools, app server for containerized apps</p>
 </p>
 
 <p>
@@ -32,7 +32,7 @@
 
 Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows easy and secure hosting of multiple web apps, in any language/framework, on a single machine. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. After starting the Clace server and ensuring Docker or Podman is running, new apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call.
+Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. After starting the Clace server and ensuring Docker or Podman is running, new apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call. Clace can also automatically build simple form based UI for backend APIs.
 
 Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server. Apps are deployed directly from the git repo, no build step required. Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
 
@@ -44,6 +44,7 @@ This repo hosts the source code for Clace server and client. The source for the 
 
 Clace can be used to:
 
+- Develop a form based UI for backend CLI scripts and REST APIs
 - Deploy containerized applications, Clace will build and manage the container lifecycle
 - Build Hypermedia based applications using Starlark (no containers required)
 - Hybrid approach, where the backend APIs are implemented in a container and a Hypermedia based UI is implemented in Clace
@@ -60,8 +61,8 @@ Clace supports the following for all apps:
 For containerized apps, Clace supports:
 
 - Managing [image builds](https://clace.io/docs/quickstart/#containerized-applications), in dev and prod mode
-- Passing [parameters](https://clace.io/docs/app/overview/#app-parameters) for the container
-- Building apps from [spec](https://clace.io/docs/app/overview/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Containerfile)
+- Passing [parameters](https://clace.io/docs/develop/#app-parameters) for the container
+- Building apps from [spec](https://clace.io/docs/develop/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Containerfile)
 
 For building Hypermedia based apps, Clace supports:
 
@@ -70,9 +71,9 @@ For building Hypermedia based apps, Clace supports:
 - Support for [TailwindCSS](https://tailwindcss.com/) and [DaisyUI](https://daisyui.com/) watcher integration.
 - [Automatic SSL](https://clace.io/docs/configuration/networking/#enable-automatic-signed-certificate) certificate creation based on [certmagic](https://github.com/caddyserver/certmagic).
 - Backend app code runs in a [security sandbox](https://clace.io/docs/applications/appsecurity/#security-model), with allowlist based permissions.
-- [No build step](https://clace.io/docs/app/overview/#app-lifecycle), the development artifacts are ready for production use.
+- [No build step](https://clace.io/docs/develop/#app-lifecycle), the development artifacts are ready for production use.
 - Support for application data persistance using SQLite
-- Virtual filesystem with [content hash based file names](https://clace.io/docs/app/templates/#static-function) backed by SQLite database, enabling aggressive static content caching.
+- Virtual filesystem with [content hash based file names](https://clace.io/docs/develop/templates/#static-function) backed by SQLite database, enabling aggressive static content caching.
 - Brotli compression for static artifacts, HTTP early hints support for performance.
 
 ## Roadmap
