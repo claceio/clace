@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/plugin"
 	"github.com/claceio/clace/internal/types"
@@ -115,6 +116,17 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		rawurl, err := AsString(urlv)
 		if err != nil {
 			return nil, err
+		}
+
+		if strings.HasPrefix(rawurl, apptype.CONTAINER_URL) {
+			// If the url starts with the container url, we need to replace it with the container proxy url
+			rawurl = strings.TrimPrefix(rawurl, apptype.CONTAINER_URL)
+			containerProxyUrl := thread.Local(types.TL_CONTAINER_URL)
+			containerProxyUrlStr, ok := containerProxyUrl.(string)
+			if !ok || containerProxyUrlStr == "" {
+				return nil, fmt.Errorf("container proxy url not set")
+			}
+			rawurl = containerProxyUrlStr + rawurl
 		}
 
 		if err = setQueryParams(&rawurl, params); err != nil {

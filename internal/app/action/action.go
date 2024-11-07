@@ -36,27 +36,28 @@ var embedFS = hashfs.NewFS(embedHtml)
 // and an API interface
 type Action struct {
 	*types.Logger
-	isDev          bool
-	name           string
-	description    string
-	appPath        string
-	run            starlark.Callable
-	suggest        starlark.Callable
-	params         []apptype.AppParam
-	paramValuesStr map[string]string
-	paramDict      starlark.StringDict
-	actionTemplate *template.Template
-	pagePath       string
-	AppTemplate    *template.Template
-	StyleType      types.StyleType
-	LightTheme     string
-	DarkTheme      string
+	isDev             bool
+	name              string
+	description       string
+	appPath           string
+	run               starlark.Callable
+	suggest           starlark.Callable
+	params            []apptype.AppParam
+	paramValuesStr    map[string]string
+	paramDict         starlark.StringDict
+	actionTemplate    *template.Template
+	pagePath          string
+	AppTemplate       *template.Template
+	StyleType         types.StyleType
+	LightTheme        string
+	DarkTheme         string
+	containerProxyUrl string
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
-	appPath string, styleType types.StyleType) (*Action, error) {
+	appPath string, styleType types.StyleType, containerProxyUrl string) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
@@ -96,19 +97,20 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 	}
 
 	return &Action{
-		Logger:         &appLogger,
-		isDev:          isDev,
-		name:           name,
-		description:    description,
-		appPath:        appPath,
-		pagePath:       pagePath,
-		run:            run,
-		suggest:        suggest,
-		params:         params,
-		paramValuesStr: paramValuesStr,
-		paramDict:      paramDict,
-		actionTemplate: tmpl,
-		StyleType:      styleType,
+		Logger:            &appLogger,
+		isDev:             isDev,
+		name:              name,
+		description:       description,
+		appPath:           appPath,
+		pagePath:          pagePath,
+		run:               run,
+		suggest:           suggest,
+		params:            params,
+		paramValuesStr:    paramValuesStr,
+		paramDict:         paramDict,
+		actionTemplate:    tmpl,
+		StyleType:         styleType,
+		containerProxyUrl: containerProxyUrl,
 		// AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -149,6 +151,9 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	// Save the request context in the starlark thread local
 	thread.SetLocal(types.TL_CONTEXT, r.Context())
+	if a.containerProxyUrl != "" {
+		thread.SetLocal(types.TL_CONTAINER_URL, a.containerProxyUrl)
+	}
 	isHtmxRequest := r.Header.Get("HX-Request") == "true"
 
 	r.ParseForm()

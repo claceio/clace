@@ -75,3 +75,13 @@ tests:
     command: ../clace app create --spec image --approve --param image=nginx - /cont_image_error
     stderr: param port is a required param, a value has to be provided
     exit-code: 1
+
+  # Test http plugin call without proxy
+  container0500: # setup app
+    command: ../clace app create --spec python-flask --approve ./flaskhttp /cont_fh
+  container0510: # check curl
+    command: curl -sS localhost:${HTTP_PORT}/cont_fh
+    stdout: '"v1":"hello"'
+  container0520: # check curl
+    command: curl -sS localhost:${HTTP_PORT}/cont_fh
+    stdout: '"v2":"testworld"'
