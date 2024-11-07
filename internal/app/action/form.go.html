@@ -8,7 +8,7 @@
   <div
     id="cl_reload_listener"
     hx-ext="sse"
-    sse-connect="{{ .path }}/_clace_app/sse"
+    sse-connect="{{ .appPath }}/_clace_app/sse"
     sse-swap="clace_reload"
     hx-trigger="sse:clace_reload"></div>
   <script>
@@ -94,7 +94,7 @@
     <div class="form-control mt-6">
       <button
         type="submit"
-        hx-post="{{ .path }}"
+        hx-post="{{ .pagePath }}"
         hx-target="#ActionMessage"
         hx-swap="innerHTML swap:80ms"
         hx-indicator="#ActionIndicator"

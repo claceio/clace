@@ -39,7 +39,7 @@ type Action struct {
 	isDev          bool
 	name           string
 	description    string
-	path           string
+	appPath        string
 	run            starlark.Callable
 	suggest        starlark.Callable
 	params         []apptype.AppParam
@@ -100,14 +100,14 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		isDev:          isDev,
 		name:           name,
 		description:    description,
-		path:           apath,
+		appPath:        appPath,
+		pagePath:       pagePath,
 		run:            run,
 		suggest:        suggest,
 		params:         params,
 		paramValuesStr: paramValuesStr,
 		paramDict:      paramDict,
 		actionTemplate: tmpl,
-		pagePath:       pagePath,
 		StyleType:      styleType,
 		// AppTemplate and Theme names are initialized later
 	}, nil
@@ -573,7 +573,8 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"dev":         a.isDev,
 		"name":        a.name,
 		"description": a.description,
-		"path":        a.pagePath,
+		"appPath":     a.appPath,
+		"pagePath":    a.pagePath,
 		"params":      params,
 		"styleType":   string(a.StyleType),
 		"lightTheme":  a.LightTheme,
