@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/benbjohnson/hashfs"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -28,6 +29,7 @@ import (
 
 //go:embed *.go.html astatic/*
 var embedHtml embed.FS
+var embedFS = hashfs.NewFS(embedHtml)
 
 // Action represents a single action that is exposed by the App. Actions
 // provide a way to trigger app operations, with an auto-generated form UI
@@ -46,6 +48,7 @@ type Action struct {
 	actionTemplate *template.Template
 	pagePath       string
 	AppTemplate    *template.Template
+	StyleType      types.StyleType
 	LightTheme     string
 	DarkTheme      string
 }
@@ -53,20 +56,29 @@ type Action struct {
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
-	appPath string) (*Action, error) {
+	appPath string, styleType types.StyleType) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
+	funcMap["static"] = func(name string) string {
+		fullPath := path.Join(appPath, sourceFS.HashName(name))
+		return fullPath
+	}
+
+	funcMap["astatic"] = func(name string) string {
+		fullPath := path.Join(appPath, embedFS.HashName(name))
+		return fullPath
+	}
+
 	funcMap["fileNonEmpty"] = func(name string) bool {
-		staticPath := path.Join("static", name)
-		fi, err := sourceFS.Stat(staticPath)
+		fi, err := sourceFS.Stat(name)
 		if err != nil {
 			return false
 		}
 		return fi.Size() > 0
 	}
 
-	tmpl, err := template.New("form").Funcs(funcMap).ParseFS(embedHtml, "*.go.html")
+	tmpl, err := template.New("form").Funcs(funcMap).ParseFS(embedFS, "*.go.html")
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +97,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 
 	return &Action{
 		Logger:         &appLogger,
+		isDev:          isDev,
 		name:           name,
 		description:    description,
 		path:           apath,
@@ -95,13 +108,14 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		paramDict:      paramDict,
 		actionTemplate: tmpl,
 		pagePath:       pagePath,
+		StyleType:      styleType,
 		// AppTemplate and Theme names are initialized later
 	}, nil
 }
 
 // GetEmbeddedTemplates returns the embedded templates files
 func GetEmbeddedTemplates() (map[string][]byte, error) {
-	files, err := fs.Glob(embedHtml, "*.go.html")
+	files, err := fs.Glob(embedFS, "*.go.html")
 	if err != nil {
 		return nil, err
 	}
@@ -119,16 +133,11 @@ func GetEmbeddedTemplates() (map[string][]byte, error) {
 }
 
 func (a *Action) BuildRouter() (*chi.Mux, error) {
-	fSys, err := fs.Sub(embedHtml, "astatic")
-	if err != nil {
-		return nil, err
-	}
-	staticServer := http.FileServer(http.FS(fSys))
-
 	r := chi.NewRouter()
 	r.Post("/", a.runAction)
 	r.Get("/", a.getForm)
-	r.Handle("/astatic/*", http.StripPrefix(path.Join(a.pagePath, "/astatic/"), staticServer))
+
+	r.Handle("/astatic/*", http.StripPrefix(path.Join(a.pagePath), hashfs.FileServer(embedFS)))
 	return r, nil
 }
 
@@ -561,10 +570,12 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := map[string]any{
+		"dev":         a.isDev,
 		"name":        a.name,
 		"description": a.description,
 		"path":        a.pagePath,
 		"params":      params,
+		"styleType":   string(a.StyleType),
 		"lightTheme":  a.LightTheme,
 		"darkTheme":   a.DarkTheme,
 	}

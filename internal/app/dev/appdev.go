@@ -49,13 +49,13 @@ type AppDev struct {
 	jsCache         map[JSLibrary]string
 }
 
-func NewAppDev(logger *types.Logger, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, systemConfig *types.SystemConfig) *AppDev {
+func NewAppDev(logger *types.Logger, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, appStyle *AppStyle, systemConfig *types.SystemConfig) *AppDev {
 	dev := &AppDev{
 		Logger:          logger,
 		sourceFS:        sourceFS,
 		workFS:          workFS,
+		AppStyle:        appStyle,
 		systemConfig:    systemConfig,
-		AppStyle:        &AppStyle{},
 		filesDownloaded: make(map[string][]string),
 		jsCache:         make(map[JSLibrary]string),
 		JsLibs:          []JSLibrary{},
@@ -201,10 +201,8 @@ func (a *AppDev) SaveConfigLockFile() error {
 
 // Close the app dev session
 func (a *AppDev) Close() error {
-	if a.AppStyle != nil {
-		if err := a.AppStyle.StopWatcher(); err != nil {
-			a.Warn().Err(err).Msg("Error stopping watcher")
-		}
+	if err := a.AppStyle.StopWatcher(); err != nil {
+		a.Warn().Err(err).Msg("Error stopping watcher")
 	}
 	return nil
 }

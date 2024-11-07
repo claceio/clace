@@ -488,7 +488,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 		path = "/" + path
 	}
 	action, err := action.NewAction(a.Logger, a.sourceFS, a.IsDev, name, description, path, run, suggest,
-		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path)
+		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path, a.appStyle.GetStyleType())
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}

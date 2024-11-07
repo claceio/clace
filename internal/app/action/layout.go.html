@@ -66,13 +66,13 @@
 
 
 {{ block "imports" . }}
-  {{ if fileNonEmpty "gen/css/style.css" }}
-    <link rel="stylesheet" href="{{.path}}/static/gen/css/style.css" />
+  {{ if and (eq .styleType "daisyui") (fileNonEmpty "static/gen/css/style.css") }}
+    <link rel="stylesheet" href="{{ static "static/gen/css/style.css" }}" />
   {{ else }}
-    <link rel="stylesheet" href="{{.path}}/astatic/style.css" />
+    <link rel="stylesheet" href="{{ astatic "astatic/style.css" }}" />
   {{ end }}
-  <link rel="stylesheet" href="{{.path}}/astatic/json.css" />
-  <script src="{{.path}}/astatic/json.js"></script>
-  <script src="{{.path}}/astatic/toggle.js"></script>
-  <script src="{{.path}}/astatic/htmx.min.js"></script>
+  <link rel="stylesheet" href="{{ astatic "astatic/json.css" }}" />
+  <script src="{{ astatic "astatic/json.js" }}"></script>
+  <script src="{{ astatic "astatic/toggle.js" }}"></script>
+  <script src="{{ astatic "astatic/htmx.min.js" }}"></script>
 {{ end -}}

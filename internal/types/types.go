@@ -436,3 +436,6 @@ func StripQuotes(s string) string {
 	}
 	return s
 }
+
+// StyleType is the type of style library used by the app
+type StyleType string

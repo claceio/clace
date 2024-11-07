@@ -4,6 +4,7 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,6 +55,7 @@ type App struct {
 	reloadError      error
 	reloadStartTime  time.Time
 	appDev           *dev.AppDev
+	appStyle         *dev.AppStyle
 	systemConfig     *types.SystemConfig
 	storeInfo        *starlark_type.StoreInfo
 	paramInfo        map[string]apptype.AppParam
@@ -108,6 +110,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		starlarkCache:  map[string]*starlarkCacheEntry{},
 		notifyClose:    notifyClose,
 		secretEvalFunc: secretEvalFunc,
+		appStyle:       &dev.AppStyle{},
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.appConfig = appConfig
@@ -116,7 +119,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	}
 
 	if appEntry.IsDev {
-		newApp.appDev = dev.NewAppDev(logger, &appfs.WritableSourceFs{SourceFs: sourceFS}, workFS, systemConfig)
+		newApp.appDev = dev.NewAppDev(logger, &appfs.WritableSourceFs{SourceFs: sourceFS}, workFS, newApp.appStyle, systemConfig)
 	}
 
 	funcMap := system.GetFuncMap()
@@ -247,15 +250,16 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 		return false, fmt.Errorf("error loading starlark config: %w", err)
 	}
 
+	// Initialize style configuration
+	if err := a.appStyle.Init(a.Id, a.appDef); err != nil {
+		return false, err
+	}
+
 	if a.IsDev {
 		// Copy settings into appdev
 		a.appDev.Config = a.codeConfig
 		a.appDev.CustomLayout = a.CustomLayout
-
-		// Initialize style configuration
-		if err := a.appDev.AppStyle.Init(a.Id, a.appDef); err != nil {
-			return false, err
-		}
+		a.appDev.AppStyle = a.appStyle
 
 		// Setup the CSS files
 		if err = a.appDev.AppStyle.Setup(a.appDev); err != nil {
@@ -273,12 +277,14 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 			return false, err
 		}
 
-		if a.usesHtmlTemplate {
+		if a.usesHtmlTemplate || len(a.actions) > 0 {
 			// Setup the JS libraries
 			if err := a.appDev.SetupJsLibs(); err != nil {
 				return false, err
 			}
+		}
 
+		if a.usesHtmlTemplate {
 			// Create the generated HTML
 			if err = a.appDev.GenerateHTML(); err != nil {
 				return false, err
@@ -336,13 +342,9 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 	for _, action := range a.actions {
 		// structured templates are not supported for actions currently
 		action.AppTemplate = a.template
-		if a.appDev != nil {
-			action.LightTheme = a.appDev.AppStyle.Light
-			action.DarkTheme = a.appDev.AppStyle.Dark
-		} else {
-			action.LightTheme = apptype.DEFAULT_DAISYUI_LIGHT_THEME
-			action.DarkTheme = apptype.DEFAULT_DAISYUI_DARK_THEME
-		}
+		action.StyleType = a.appStyle.GetStyleType()
+		action.LightTheme = cmp.Or(a.appStyle.Light, apptype.DEFAULT_DAISYUI_LIGHT_THEME)
+		action.DarkTheme = cmp.Or(a.appStyle.Dark, apptype.DEFAULT_DAISYUI_DARK_THEME)
 	}
 	a.initialized = true
 

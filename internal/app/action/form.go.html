@@ -1,5 +1,25 @@
 {{ template "header" . }}
 
+{{ if .dev }}
+  <script src="{{ astatic "astatic/sse.js" }}"></script>
+{{ end }}
+
+{{ if .dev }}
+  <div
+    id="cl_reload_listener"
+    hx-ext="sse"
+    sse-connect="{{ .path }}/_clace_app/sse"
+    sse-swap="clace_reload"
+    hx-trigger="sse:clace_reload"></div>
+  <script>
+    document
+      .getElementById("cl_reload_listener")
+      .addEventListener("sse:clace_reload", function (event) {
+        location.reload();
+      });
+  </script>
+{{ end }}
+
 
 <script>
   document.body.addEventListener("htmx:sendError", function (event) {
@@ -76,7 +96,7 @@
         type="submit"
         hx-post="{{ .path }}"
         hx-target="#ActionMessage"
-        hx-swap="innerHTML swap:80ms transform:out 30ms, transform:in 50ms"
+        hx-swap="innerHTML swap:80ms"
         hx-indicator="#ActionIndicator"
         class="btn btn-primary w-full">
         Run
@@ -90,7 +110,7 @@
     id="ActionIndicator"
     alt="Loading..."
     class="htmx-indicator"
-    src="{{ .path }}/astatic/spinner.svg" />
+    src="{{ astatic "astatic/spinner.svg" }}" />
 </div>
 <p id="ActionMessage" class="pt-2 text-center"></p>
 

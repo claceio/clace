@@ -137,6 +137,7 @@ func (d *DiskReadFS) StaticFiles() []string {
 		d.Logger.Err(err).Msg("error getting static files")
 		return nil
 	}
+
 	var staticRootFiles []string
 	staticRootFiles, err = doublestar.Glob(d.fs, "static_root/**/*")
 	if err != nil {

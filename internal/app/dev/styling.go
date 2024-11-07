@@ -24,14 +24,11 @@ const (
 	STYLE_FILE_PATH = "static/gen/css/style.css"
 )
 
-// StyleType is the type of style library used by the app
-type StyleType string
-
 const (
-	TailwindCSS StyleType = "tailwindcss"
-	DaisyUI     StyleType = "daisyui"
-	Other       StyleType = "other"
-	None        StyleType = ""
+	TailwindCSS types.StyleType = "tailwindcss"
+	DaisyUI     types.StyleType = "daisyui"
+	Other       types.StyleType = "other"
+	None        types.StyleType = ""
 )
 
 // AppStyle is the style related configuration and state for an app. It is created
@@ -40,7 +37,7 @@ const (
 // ensure only one call to the watcher is done at a time, no locking is implemented in AppStyle
 type AppStyle struct {
 	appId          types.AppId
-	library        StyleType
+	library        types.StyleType
 	themes         []string
 	libraryUrl     string
 	DisableWatcher bool
@@ -53,7 +50,7 @@ type AppStyle struct {
 
 // WatcherState is the state of the watcher process as of when it was last started.
 type WatcherState struct {
-	library           StyleType
+	library           types.StyleType
 	templateLocations []string
 }
 
@@ -320,4 +317,8 @@ func (s *AppStyle) StopWatcher() error {
 		s.watcher = nil
 	}
 	return nil
+}
+
+func (s *AppStyle) GetStyleType() types.StyleType {
+	return s.library
 }
