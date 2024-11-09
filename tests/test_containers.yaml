@@ -85,3 +85,10 @@ tests:
   container0520: # check curl
     command: curl -sS localhost:${HTTP_PORT}/cont_fh
     stdout: '"v2":"testworld"'
+
+  # Test go spec
+  container0600: # setup app
+    command: ../clace app create --approve --spec go --param port=8080 --param APP_ARGS="-addr 0.0.0.0:8080" --branch master github.com/golang/example/helloserver /cont_goapp
+  container0610: # check curl
+    command: curl -sS localhost:${HTTP_PORT}/cont_goapp
+    stdout: "Hello, Gopher!"
