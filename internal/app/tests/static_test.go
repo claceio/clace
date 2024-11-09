@@ -142,3 +142,40 @@ def handler(req):
 	testutil.AssertEqualsString(t, "header", "", response.Header().Get("Cache-Control"))
 	testutil.AssertEqualsBool(t, "header etag", true, response.Header().Get("ETag") == "")
 }
+
+func TestStaticDupRoute(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/"), ace.api("/static/file1"), ace.api("/robots.txt")])
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":                `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":                 `file1data`,
+		"static/file2.txt":             `file2data`,
+		"static_root/robots.txt":       `deny *`,
+		"static_root/abc/def/test.txt": `abc`,
+	}
+
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/static/file1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `{"key":"myvalue"}`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/robots.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want = `deny *`
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+}
