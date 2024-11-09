@@ -145,8 +145,10 @@ fi
 
 cat <<EOF >> $CL_CONFIG_FILE
 
-[secret.env]
+[https]
+disable_client_certs = false
 
+[secret.env]
 
 [client_auth.cert_test1]
 ca_cert_file="certs/testcerts1/ca.crt"
