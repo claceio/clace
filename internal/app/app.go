@@ -73,6 +73,7 @@ type App struct {
 	usesHtmlTemplate bool                          // Whether the app uses HTML templates, false if only JSON APIs
 	template         *template.Template            // unstructured templates, no base_templates defined
 	templateMap      map[string]*template.Template // structured templates, base_templates defined
+	staticOnly       bool                          // app has only static files, no HTML routes
 
 	watcher       *fsnotify.Watcher
 	sseListeners  []chan SSEMessage

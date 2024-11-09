@@ -179,3 +179,67 @@ def handler(req):
 	want = `deny *`
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 }
+
+func TestStaticOnly(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/static/file1"), ace.api("/robots.txt")], static_only=True)
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":                `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static/file1":                 `file1data`,
+		"static/file2.txt":             `file2data`,
+		"static_root/robots.txt":       `deny *`,
+		"static_root/abc/def/test.txt": `abc`,
+	}
+
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/index.go.html", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	want := `abc {{static "file1"}} def {{static "file2.txt"}}` // no template processing
+	testutil.AssertStringMatch(t, "body", want, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/robots.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `{"key":"myvalue"}`, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/file2.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `file2data`, response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static_root/abc/def/test.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `abc`, response.Body.String())
+}
+
+func TestStaticOnlyError(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/"), ace.api("/static/file1"), ace.api("/robots.txt")], static_only=True)
+
+def handler(req):
+	return {"key": "myvalue"}`,
+	}
+
+	_, _, err := CreateTestApp(logger, fileData)
+	testutil.AssertErrorContains(t, err, "static_only app cannot have HTML routes")
+}

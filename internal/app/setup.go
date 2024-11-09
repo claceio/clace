@@ -77,6 +77,10 @@ func (a *App) loadStarlarkConfig(dryRun DryRun) error {
 	if err != nil {
 		return err
 	}
+	a.staticOnly, err = apptype.GetBoolAttr(a.appDef, "static_only")
+	if err != nil {
+		return err
+	}
 
 	if a.IsDev {
 		a.appDev.CustomLayout = a.CustomLayout
@@ -399,15 +403,25 @@ func (a *App) initRouter() error {
 		}
 	}
 
-	// Mount static dir
-	if !rootWildcard {
-		staticPattern := path.Join("/", "static", "*")
-		router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+	if a.staticOnly && rootWildcard {
+		return fmt.Errorf("static_only app cannot have root level wildcard path for proxy")
 	}
 
-	err = a.addStaticRoot(router)
-	if err != nil {
-		return fmt.Errorf("error adding static root : %w ", err)
+	if a.staticOnly {
+		// All app files are served at the root level
+		staticPattern := path.Join("/", "*")
+		router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+	} else {
+		// Mount static dir
+		if !rootWildcard {
+			staticPattern := path.Join("/", "static", "*")
+			router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+		}
+
+		err = a.addStaticRoot(router)
+		if err != nil {
+			return fmt.Errorf("error adding static root : %w ", err)
+		}
 	}
 
 	err = a.initActions(router)
@@ -580,6 +594,10 @@ func (a *App) addRoute(count int, router *chi.Mux, routeVal starlark.Value, defa
 	}
 	if blockStr, err = apptype.GetStringAttr(pageDef, "partial"); err != nil {
 		return rootWildcard, err
+	}
+
+	if a.staticOnly {
+		return rootWildcard, fmt.Errorf("static_only app cannot have HTML routes")
 	}
 
 	a.usesHtmlTemplate = true
