@@ -21,11 +21,13 @@ import (
 // SecretManager provides access to the secrets for the system
 type SecretManager struct {
 	// Secrets is a map of secret providers
-	providers map[string]secretProvider
-	funcMap   template.FuncMap
+	providers       map[string]secretProvider
+	funcMap         template.FuncMap
+	config          map[string]types.SecretConfig
+	defaultProvider string
 }
 
-func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretConfig) (*SecretManager, error) {
+func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretConfig, defaultProvider string) (*SecretManager, error) {
 	providers := make(map[string]secretProvider)
 	for name, conf := range secretConfig {
 		var provider secretProvider
@@ -49,8 +51,10 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 	funcMap := GetFuncMap()
 
 	s := &SecretManager{
-		providers: providers,
-		funcMap:   funcMap,
+		providers:       providers,
+		funcMap:         funcMap,
+		config:          secretConfig,
+		defaultProvider: defaultProvider,
 	}
 	s.funcMap["secret"] = s.templateSecretFunc
 	return s, nil
@@ -58,15 +62,35 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 
 // templateSecretFunc is a template function that retrieves a secret from the secret manager.
 // Since the template function does not support errors, it panics if there is an error
-func (s *SecretManager) templateSecretFunc(providerName, secretName string) string {
+func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...string) string {
+	if strings.ToLower(providerName) == "default" {
+		// Use the system default provider
+		providerName = s.defaultProvider
+	}
+
 	provider, ok := s.providers[providerName]
 	if !ok {
 		panic(fmt.Errorf("unknown secret provider %s", providerName))
 	}
 
-	ret, err := provider.GetSecret(context.Background(), secretName)
+	secretKey := strings.Join(secretKeys, provider.GetJoinDelimiter())
+	config := s.config[providerName]
+	printf, ok := config["keys_printf"]
+	if ok && len(secretKeys) > 1 {
+		printfStr, ok := printf.(string)
+		if !ok {
+			panic(fmt.Errorf("keys_printf must be a string"))
+		}
+		args := make([]any, 0, len(secretKeys))
+		for _, key := range secretKeys {
+			args = append(args, key)
+		}
+		secretKey = fmt.Sprintf(printfStr, args...)
+	}
+
+	ret, err := provider.GetSecret(context.Background(), secretKey)
 	if err != nil {
-		panic(fmt.Errorf("error getting secret %s from %s: %w", secretName, providerName, err))
+		panic(fmt.Errorf("error getting secret %s from %s: %w", secretKey, providerName, err))
 	}
 	return ret
 }
@@ -99,6 +123,9 @@ type secretProvider interface {
 
 	// GetSecret returns the secret value for the given secret name
 	GetSecret(ctx context.Context, secretName string) (string, error)
+
+	// GetJoinDelimiter returns the delimiter used to join multiple secret keys
+	GetJoinDelimiter() string
 }
 
 // awsSecretProvider is a secret provider that reads secrets from AWS Secrets Manager
@@ -142,6 +169,10 @@ func (a *awsSecretProvider) GetSecret(ctx context.Context, secretName string) (s
 		return "", err
 	}
 	return aws.ToString(result.SecretString), nil
+}
+
+func (a *awsSecretProvider) GetJoinDelimiter() string {
+	return "/"
 }
 
 var _ secretProvider = &awsSecretProvider{}
@@ -208,6 +239,10 @@ func (v *vaultSecretProvider) GetSecret(ctx context.Context, secretName string) 
 	return value, nil
 }
 
+func (v *vaultSecretProvider) GetJoinDelimiter() string {
+	return "/"
+}
+
 var _ secretProvider = &vaultSecretProvider{}
 
 // envSecretProvider is a secret provider that reads secrets from environment variables
@@ -220,6 +255,10 @@ func (e *envSecretProvider) Configure(ctx context.Context, conf map[string]any) 
 
 func (e *envSecretProvider) GetSecret(ctx context.Context, secretName string) (string, error) {
 	return os.Getenv(secretName), nil
+}
+
+func (e *envSecretProvider) GetJoinDelimiter() string {
+	return "_"
 }
 
 var _ secretProvider = &envSecretProvider{}

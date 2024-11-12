@@ -117,6 +117,7 @@ cat <<EOF > $CL_CONFIG_FILE
 [security]
 admin_password_bcrypt = "\$2a\$10\$PMaPsOVMBfKuDG04RsqJbeKIOJjlYi1Ie1KQbPCZRQx38bqYfernm"
 callback_url = "https://localhost:25223"
+app_default_secrets_provider="env"
 EOF
 
 if [[ -n "$CL_INFOCLACE_SSH" ]]; then
@@ -145,10 +146,13 @@ fi
 
 cat <<EOF >> $CL_CONFIG_FILE
 
+
+
 [https]
 disable_client_certs = false
 
 [secret.env]
+keys_printf = "%s%s_%s"
 
 [client_auth.cert_test1]
 ca_cert_file="certs/testcerts1/ca.crt"
@@ -158,6 +162,7 @@ ca_cert_file="certs/testcerts2/ca.crt"
 EOF
 
 export TESTENV=abc
+export c1c2_c3=xyz
 GOCOVERDIR=$GOCOVERDIR ../clace server start &
 sleep 2
 commander test $CL_TEST_VERBOSE --dir ./commander/

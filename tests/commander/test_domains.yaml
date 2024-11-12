@@ -60,6 +60,11 @@ tests:
   secret0330:
     command: curl -su "admin:qwerty" localhost:25222/secret2
     stdout: unknown secret provider vault
+  secret0340: # Create app, with secret param
+    command: ../clace app create --approve --param secret_provider=default ./env_app  /secret3
+  secret0350:
+    command: curl -su "admin:qwerty" localhost:25222/secret3/multi
+    stdout: xyz # value of c1c2_c3 env
 
   # Test errors
   createerror0100:
