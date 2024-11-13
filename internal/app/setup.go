@@ -352,6 +352,11 @@ func (a *App) checkAppPathStripping() (bool, error) {
 	return appPathStripping, nil
 }
 
+func fileExists(fs appfs.ReadableFS, name string) bool {
+	_, err := fs.Stat(name)
+	return err == nil
+}
+
 func (a *App) initRouter() error {
 	var defaultHandler starlark.Callable
 	if a.globals.Has(apptype.DEFAULT_HANDLER) {
@@ -408,14 +413,41 @@ func (a *App) initRouter() error {
 	}
 
 	if a.staticOnly {
-		// All app files are served at the root level
+		singleFile, err := apptype.GetBoolAttr(a.appDef, "single_file")
+		if err != nil {
+			return err
+		}
+
+		indexPage, err := apptype.GetStringAttr(a.appDef, "index")
+		if err != nil {
+			return err
+		}
+
+		if indexPage == "" {
+			if fileExists(a.sourceFS, "index.html") {
+				indexPage = "index.html"
+			} else if fileExists(a.sourceFS, "index.htm") {
+				indexPage = "index.htm"
+			}
+		}
+
+		if singleFile && indexPage == "" {
+			return fmt.Errorf("single_file static app must have index_page attribute set")
+		}
+
 		staticPattern := path.Join("/", "*")
-		router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+		if singleFile {
+			// Single file app
+			router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServerSingle(a.sourceFS, indexPage)))
+		} else {
+			// All app files are served at the root level
+			router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS, indexPage)))
+		}
 	} else {
 		// Mount static dir
 		if !rootWildcard {
 			staticPattern := path.Join("/", "static", "*")
-			router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS)))
+			router.Handle(staticPattern, http.StripPrefix(a.Path, appfs.FileServer(a.sourceFS, "")))
 		}
 
 		err = a.addStaticRoot(router)

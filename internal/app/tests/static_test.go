@@ -230,6 +230,89 @@ def handler(req):
 	testutil.AssertStringMatch(t, "body", `abc`, response.Body.String())
 }
 
+func TestStaticIndex(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", static_only=True, index="static2/file1")
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":                `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static2/file1":                `file1data`,
+		"static/file2.txt":             `file2data`,
+		"static_root2/robots.txt":      `deny *`,
+		"static_root/abc/def/test.txt": `abc`,
+	}
+
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "file1data", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "file1data", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/file2.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "file2data", response.Body.String())
+}
+
+func TestStaticIndexSingle(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+app = ace.app("testApp", static_only=True, index="static2/file1", single_file=True)
+
+def handler(req):
+	return {"key": "myvalue"}`,
+		"index.go.html":                `abc {{static "file1"}} def {{static "file2.txt"}}`,
+		"static2/file1":                `file1data`,
+		"static/file2.txt":             `file2data`,
+		"static_root2/robots.txt":      `deny *`,
+		"static_root/abc/def/test.txt": `abc`,
+	}
+
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "file1data", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", "file1data", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/static/file2.txt", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 404, response.Code)
+}
+
 func TestStaticOnlyError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{

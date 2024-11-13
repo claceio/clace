@@ -239,23 +239,33 @@ var hashSuffixRegex = regexp.MustCompile(`-[0-9a-f]{64}`)
 // Because FileServer is focused on small known path files, several features
 // of http.FileServer have been removed including canonicalizing directories,
 // defaulting index.html pages, precondition checks, & content range headers.
-func FileServer(fsys *SourceFs) http.Handler {
-	return &fsHandler{fsys: fsys}
+func FileServer(fsys *SourceFs, indexPage string) http.Handler {
+	return &fsHandler{fsys: fsys, indexPage: indexPage}
+}
+
+func FileServerSingle(fsys *SourceFs, indexPage string) http.Handler {
+	return &fsHandler{fsys: fsys, indexPage: indexPage, singleFile: true}
 }
 
 type fsHandler struct {
-	fsys *SourceFs
+	fsys       *SourceFs
+	indexPage  string
+	singleFile bool
 }
 
 func (h *fsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Clean up filename based on URL path.
 	filename := r.URL.Path
-	if filename == "/" {
-		filename = "."
-	} else {
-		filename = strings.TrimPrefix(filename, "/")
-	}
+	filename = strings.TrimPrefix(filename, "/")
 	filename = path.Clean(filename)
+	if filename == "/" || filename == "." {
+		filename = h.indexPage
+	}
+
+	if h.singleFile && filename != h.indexPage {
+		http.Error(w, "404 page not found", http.StatusNotFound)
+		return
+	}
 
 	// Read file from attached file system.
 	f, hash, err := h.fsys.open(filename)

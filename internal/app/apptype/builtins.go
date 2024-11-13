@@ -62,8 +62,8 @@ var (
 )
 
 func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var customLayout, staticOnly starlark.Bool
-	var name starlark.String
+	var customLayout, staticOnly, singleFile starlark.Bool
+	var name, index starlark.String
 	var routes, actions *starlark.List
 	var settings *starlark.Dict
 	var permissions, libraries *starlark.List
@@ -71,7 +71,8 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	var containerConfig starlark.Value
 	if err := starlark.UnpackArgs(APP, args, kwargs, "name", &name,
 		"routes?", &routes, "style?", &style, "permissions?", &permissions, "libraries?", &libraries, "settings?",
-		&settings, "custom_layout?", &customLayout, "container?", &containerConfig, "actions?", &actions, "static_only", &staticOnly); err != nil {
+		&settings, "custom_layout?", &customLayout, "container?", &containerConfig, "actions?", &actions,
+		"static_only?", &staticOnly, "index?", &index, "single_file?", &singleFile); err != nil {
 		return nil, fmt.Errorf("error unpacking app args: %w", err)
 	}
 
@@ -101,6 +102,8 @@ func createAppBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 		"libraries":     libraries,
 		"actions":       actions,
 		"static_only":   staticOnly,
+		"index":         index,
+		"single_file":   singleFile,
 	}
 
 	if style != nil {

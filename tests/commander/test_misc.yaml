@@ -109,3 +109,21 @@ tests:
   param0180:
     command: ../clace param list /test_param1
     stdout: No param values
+
+  # Test static spec
+  static0100: # Create app, with test folder user as input
+    command: ../clace app create --approve  --spec static --param index=test_misc.yaml ./commander /static_app1
+  static0200:
+    command: curl -su "admin:qwerty" localhost:25222/static_app1
+    stdout: static0100
+  static0300:
+    command: curl -su "admin:qwerty" localhost:25222/static_app1/test_certs.yaml
+    stdout: certs010
+  static0400: # Create app, with test folder user as input
+    command: ../clace app create --approve  --spec static --param index=test_misc.yaml --param single_file=True ./commander /static_app2
+  static0500:
+    command: curl -su "admin:qwerty" localhost:25222/static_app2
+    stdout: static0100
+  static0600:
+    command: curl -su "admin:qwerty" localhost:25222/static_app2/test_certs.yaml
+    stdout: 404 page not found

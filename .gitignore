@@ -11,4 +11,5 @@ logs/
 run/
 config/
 internal/server/appspecs/
+internal/server/appspecs/dummy/README
 coverage/
