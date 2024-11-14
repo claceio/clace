@@ -27,6 +27,12 @@ const (
 	NO_SOURCE               = "-" // No source url is provided
 )
 
+type ContextKey string
+
+const (
+	USER_ID ContextKey = "user_id"
+)
+
 const (
 	TL_CONTEXT                  = "TL_context"
 	TL_DEFER_MAP                = "TL_defer_map"
