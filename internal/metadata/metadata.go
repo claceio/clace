@@ -271,13 +271,13 @@ func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
 }
 
 func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
-	sql := `select domain, path, is_dev, id, main_app from apps`
+	sqlStr := `select domain, path, is_dev, id, main_app, settings, metadata, source_url from apps`
 	if !includeInternal {
-		sql += ` where main_app = ''`
+		sqlStr += ` where main_app = ''`
 	}
-	sql += ` order by create_time asc`
+	sqlStr += ` order by create_time asc`
 
-	stmt, err := m.db.Prepare(sql)
+	stmt, err := m.db.Prepare(sqlStr)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -288,13 +288,32 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 	apps := make([]types.AppInfo, 0)
 	defer rows.Close()
 	for rows.Next() {
-		var path, domain, id, mainApp string
+		var path, domain, id, mainApp, sourceUrl string
 		var isDev bool
-		err = rows.Scan(&domain, &path, &isDev, &id, &mainApp)
+		var settingsStr, metadataStr sql.NullString
+		err = rows.Scan(&domain, &path, &isDev, &id, &mainApp, &settingsStr, &metadataStr, &sourceUrl)
 		if err != nil {
 			return nil, fmt.Errorf("error querying apps: %w", err)
 		}
-		apps = append(apps, types.CreateAppInfo(types.AppId(id), path, domain, isDev, types.AppId(mainApp)))
+
+		var metadata types.AppMetadata
+		var settings types.AppSettings
+
+		if metadataStr.Valid && metadataStr.String != "" {
+			err = json.Unmarshal([]byte(metadataStr.String), &metadata)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+			}
+		}
+
+		if settingsStr.Valid && settingsStr.String != "" {
+			err = json.Unmarshal([]byte(settingsStr.String), &settings)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling settings: %w", err)
+			}
+		}
+
+		apps = append(apps, types.CreateAppInfo(types.AppId(id), path, domain, isDev, types.AppId(mainApp), settings.AuthnType, sourceUrl, metadata.Spec))
 	}
 	if closeErr := rows.Close(); closeErr != nil {
 		return nil, fmt.Errorf("error closing rows: %w", closeErr)

@@ -182,6 +182,8 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	}
 	server.Trace().Str("cmd", config.System.ContainerCommand).Msg("Container management command")
 	go server.handleAppClose()
+
+	initClacePlugin(server)
 	return server, nil
 }
 

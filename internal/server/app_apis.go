@@ -438,7 +438,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 			http.Error(w, "Authentication failed", http.StatusUnauthorized)
 			return
 		}
-		userId = "admin"
+		userId = "admin" // not using the actual user id, just a admin placeholder
 	} else if appAuthString == "cert" || strings.HasPrefix(appAuthString, "cert_") {
 		// Use client certificate authentication
 		if s.config.Https.DisableClientCerts {
