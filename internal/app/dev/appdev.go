@@ -117,7 +117,7 @@ func (a *AppDev) SetupJsLibs() error {
 		a.Trace().Msg("htmx already included, skipping")
 	}
 	if !hasHtmxSSE {
-		a.JsLibs = append(a.JsLibs, *NewLibrary("https://unpkg.com/htmx.org@" + a.Config.Htmx.Version + "/dist/ext/sse.js"))
+		a.JsLibs = append(a.JsLibs, *NewLibrary("https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"))
 	}
 
 	for _, jsLib := range a.JsLibs {

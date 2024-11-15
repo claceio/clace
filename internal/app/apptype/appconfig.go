@@ -36,7 +36,7 @@ func NewCodeConfig() *CodeConfig {
 			ContainerExclude:  []string{"static/**/*", "static_root/**/*", "base_templates/**/*", "*.go.html", "*.star", "config_gen.lock"},
 		},
 		Htmx: HtmxConfig{
-			Version: "1.9.2",
+			Version: "2.0.3",
 		},
 	}
 }

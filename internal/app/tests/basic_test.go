@@ -91,7 +91,7 @@ def handler(req):
 	var config apptype.CodeConfig
 
 	json.Unmarshal([]byte(fileData[apptype.CONFIG_LOCK_FILE_NAME]), &config)
-	testutil.AssertEqualsString(t, "config", "1.9.2", config.Htmx.Version)
+	testutil.AssertEqualsString(t, "config", "2.0.3", config.Htmx.Version)
 }
 
 func TestAppLoadNoHtml(t *testing.T) {
@@ -248,7 +248,7 @@ def handler(req):
 	a.ServeHTTP(response, request)
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	want := `Template contents <script src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script> .`
+	want := `Template contents <script src="/test/static/gen/lib/htmx-491955cd1810747d7d7b9ccb936400afb760e06d25d53e4572b64b6563b2784e.min.js"></script> .`
 	fmt.Println(response.Body.String())
 	testutil.AssertStringMatch(t, "body", want, response.Body.String())
 
@@ -390,8 +390,8 @@ def handler(req):
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>testApp</title>
-		<script src="/test/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js"></script>
-		<script src="/test/static/gen/lib/sse-66dadc2c017a266e589ea23d6825f7806f75317056ef29a56e5da01ea312f6e5.js"></script>
+		<script src="/test/static/gen/lib/htmx-491955cd1810747d7d7b9ccb936400afb760e06d25d53e4572b64b6563b2784e.min.js"></script>
+		<script src="/test/static/gen/lib/sse-83eca6fa0611fe2b0bf1700b424b88b5eced38ef448ef9760a2ea08fbc875611.js"></script>
 		<div id="cl_reload_listener" hx-ext="sse"
 		sse-connect="/test/_clace_app/sse" sse-swap="clace_reload"
 		hx-trigger="sse:clace_reload"></div>

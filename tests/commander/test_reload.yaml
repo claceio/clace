@@ -49,7 +49,7 @@ tests:
     stdout:
       exactly: "2" # two apps are at version 2, dev stays at version 1
   reload0230: #Check static file hash
-    command: 'curl -Iu "admin:qwerty" localhost:25222/reload_local1/static/gen/lib/htmx-fd346e9c8639d4624893fc455f2407a09b418301736dd18ebbb07764637fb478.min.js | grep 200'
+    command: 'curl -Iu "admin:qwerty" localhost:25222/reload_local1/static/gen/lib/htmx-491955cd1810747d7d7b9ccb936400afb760e06d25d53e4572b64b6563b2784e.min.js | grep 200'
     stdout:
   reload0240: #Check static file direct
     command: 'curl -Iu "admin:qwerty" localhost:25222/reload_local1/static/gen/lib/htmx.min.js | grep 200'
