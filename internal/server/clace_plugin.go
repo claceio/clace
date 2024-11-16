@@ -83,11 +83,16 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 		}
 
 		v := starlark.Dict{}
+		v.SetKey(starlark.String("name"), starlark.String(app.Name))
 		v.SetKey(starlark.String("path"), starlark.String(app.AppPathDomain.String()))
 		v.SetKey(starlark.String("id"), starlark.String(app.Id))
 		v.SetKey(starlark.String("is_dev"), starlark.Bool(app.IsDev))
 		v.SetKey(starlark.String("main_app"), starlark.String(app.MainApp))
-		v.SetKey(starlark.String("auth"), starlark.String(app.Auth))
+		if app.Auth == types.AppAuthnDefault {
+			v.SetKey(starlark.String("auth"), starlark.String(c.server.config.Security.AppDefaultAuthType))
+		} else {
+			v.SetKey(starlark.String("auth"), starlark.String(app.Auth))
+		}
 		v.SetKey(starlark.String("source_url"), starlark.String(app.SourceUrl))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))
 
