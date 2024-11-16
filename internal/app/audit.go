@@ -100,6 +100,17 @@ func (a *App) Audit() (*types.ApproveResult, error) {
 		return nil, fmt.Errorf("source init failed: %v", err)
 	}
 
+	appDef, err := verifyConfig(globals)
+	if err != nil {
+		return nil, err
+	}
+
+	name, err := apptype.GetStringAttr(appDef, "name")
+	if err != nil {
+		return nil, err
+	}
+
+	a.Metadata.Name = name
 	return a.createApproveResponse(loads, globals)
 }
 

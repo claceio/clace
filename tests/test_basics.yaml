@@ -153,8 +153,16 @@ tests:
     stdout:
       line-count: 4
       contains:
-        - "Type  Version Auth"
+        - "Name                           Id                                  Type  Version"
         - "PROD        1 DEFAULT"
+    exit-code: 0
+  basic501: # Test app list command
+    command: ../clace app list
+    stderr:
+      line-count: 0
+    stdout:
+      contains:
+        - "TestApp                        app_prd_"
     exit-code: 0
   basic510: # Test app list command with internal
     command: ../clace app list --internal

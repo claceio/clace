@@ -250,6 +250,7 @@ func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
 	if err = a.loadStarlarkConfig(dryRun); err != nil {
 		return false, fmt.Errorf("error loading starlark config: %w", err)
 	}
+	a.Metadata.Name = a.Name
 
 	// Initialize style configuration
 	if err := a.appStyle.Init(a.Id, a.appDef); err != nil {

@@ -228,6 +228,7 @@ func (a AppPathDomain) String() string {
 // AppInfo is the basic info for an app
 type AppInfo struct {
 	AppPathDomain
+	Name      string
 	Id        AppId
 	IsDev     bool
 	MainApp   AppId
@@ -243,12 +244,13 @@ func CreateAppPathDomain(path, domain string) AppPathDomain {
 	}
 }
 
-func CreateAppInfo(id AppId, path, domain string, isDev bool, mainApp AppId, auth AppAuthnType, sourceUrl string, spec AppSpec) AppInfo {
+func CreateAppInfo(id AppId, name, path, domain string, isDev bool, mainApp AppId, auth AppAuthnType, sourceUrl string, spec AppSpec) AppInfo {
 	return AppInfo{
 		AppPathDomain: AppPathDomain{
 			Path:   path,
 			Domain: domain,
 		},
+		Name:      name,
 		Id:        id,
 		IsDev:     isDev,
 		MainApp:   mainApp,
@@ -320,6 +322,7 @@ func (ae *AppEntry) AppPathDomain() AppPathDomain {
 
 // AppMetadata contains the configuration for an app. App configurations are version controlled.
 type AppMetadata struct {
+	Name             string            `json:"name"`
 	VersionMetadata  VersionMetadata   `json:"version_metadata"`
 	Loads            []string          `json:"loads"`
 	Permissions      []Permission      `json:"permissions"`

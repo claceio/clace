@@ -288,18 +288,18 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			fmt.Fprintf(cCtx.App.Writer, "\n")
 		}
 	case FORMAT_BASIC:
-		formatStrHead := "%-5s %4s %-7s %-s\n"
-		formatStrData := "%-5s %4d %-7s %-s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Type", "Ver", "Auth", "AppPath")
+		formatStrHead := "%-30s %-5s %4s %-7s %-s\n"
+		formatStrData := "%-30s %-5s %4d %-7s %-s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Name", "Type", "Ver", "Auth", "AppPath")
 
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Metadata.Name, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
 				app.AppEntry.AppPathDomain())
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s %-5s %-7s %-15s %-60s %-40s %-30s %-30s\n"
-		formatStrData := "%-35s %-5s %7d %-15s %-60s %-40s %-30s %-30s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Type", "Version", "Auth",
+		formatStrHead := "%-30s %-35s %-5s %-7s %-15s %-60s %-40s %-30s %-30s\n"
+		formatStrData := "%-30s %-35s %-5s %7d %-15s %-60s %-40s %-30s %-30s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Name", "Id", "Type", "Version", "Auth",
 			"AppPath", "SourceUrl", "Spec", "GitInfo")
 
 		for _, app := range apps {
@@ -307,12 +307,12 @@ func printAppList(cCtx *cli.Context, apps []types.AppResponse, format string) {
 			if app.Metadata.VersionMetadata.GitBranch != "" || app.Metadata.VersionMetadata.GitCommit != "" {
 				gitInfo = fmt.Sprintf("%s:%.20s", app.Metadata.VersionMetadata.GitBranch, app.Metadata.VersionMetadata.GitCommit)
 			}
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Id, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, app.Metadata.Name, app.Id, appType(app), app.Metadata.VersionMetadata.Version, authType(app),
 				app.AppEntry.AppPathDomain(), app.SourceUrl, app.Metadata.Spec, gitInfo)
 		}
 	case FORMAT_CSV:
 		for _, app := range apps {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%d,%s,%s,\"%s\",\"%s\", %s, %s, \"%s\"\n", app.Id, appType(app),
+			fmt.Fprintf(cCtx.App.Writer, "\"%s\",%s,%s,%d,%s,%s,\"%s\",\"%s\", %s, %s, \"%s\"\n", app.Metadata.Name, app.Id, appType(app),
 				app.Metadata.VersionMetadata.Version, authType(app), app.Metadata.VersionMetadata.GitBranch,
 				app.AppEntry.AppPathDomain(), app.SourceUrl, app.Metadata.Spec, app.Metadata.VersionMetadata.GitBranch, app.Metadata.VersionMetadata.GitCommit)
 		}

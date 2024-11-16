@@ -594,10 +594,11 @@ func (s *Server) auditApp(ctx context.Context, tx types.Transaction, app *app.Ap
 	if approve {
 		app.AppEntry.Metadata.Loads = auditResult.NewLoads
 		app.AppEntry.Metadata.Permissions = auditResult.NewPermissions
-		if err := s.db.UpdateAppMetadata(ctx, tx, app.AppEntry); err != nil {
-			return nil, err
-		}
 		s.Info().Msgf("Approved app %s %s: %+v %+v", app.Path, app.Domain, auditResult.NewLoads, auditResult.NewPermissions)
+	}
+
+	if err := s.db.UpdateAppMetadata(ctx, tx, app.AppEntry); err != nil {
+		return nil, err
 	}
 
 	return auditResult, nil

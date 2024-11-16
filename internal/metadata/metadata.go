@@ -313,7 +313,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 			}
 		}
 
-		apps = append(apps, types.CreateAppInfo(types.AppId(id), path, domain, isDev, types.AppId(mainApp), settings.AuthnType, sourceUrl, metadata.Spec))
+		apps = append(apps, types.CreateAppInfo(types.AppId(id), metadata.Name, path, domain, isDev, types.AppId(mainApp), settings.AuthnType, sourceUrl, metadata.Spec))
 	}
 	if closeErr := rows.Close(); closeErr != nil {
 		return nil, fmt.Errorf("error closing rows: %w", closeErr)

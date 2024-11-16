@@ -112,6 +112,11 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 		if _, err := stageApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading stage app %s: %w", stageApp.AppEntry, err)
 		}
+
+		// Persist name in metadata
+		if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
+			return nil, err
+		}
 	}
 
 	if promote {
@@ -146,15 +151,16 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 			} else {
 				devApp.AppEntry.Metadata.Loads = devResult.NewLoads
 				devApp.AppEntry.Metadata.Permissions = devResult.NewPermissions
-				if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
-					return nil, err
-				}
 			}
 			approveResults = append(approveResults, *devResult)
 		}
 
 		if _, err := devApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading dev app %s: %w", devApp.AppEntry, err)
+		}
+
+		if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
+			return nil, err
 		}
 	}
 
