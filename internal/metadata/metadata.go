@@ -275,7 +275,7 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 	if !includeInternal {
 		sqlStr += ` where main_app = ''`
 	}
-	sqlStr += ` order by create_time asc`
+	sqlStr += ` order by create_time desc`
 
 	stmt, err := m.db.Prepare(sqlStr)
 	if err != nil {
