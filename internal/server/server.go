@@ -442,8 +442,19 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 		magicConfig := certmagic.NewDefault()
 		magicConfig.OnDemand = &certmagic.OnDemandConfig{
 			DecisionFunc: func(name string) error {
-				// Always issue a certificate
-				return nil
+				if !s.config.System.DisableUnknownDomains {
+					// Allow on-demand certificates for unknown domains
+					return nil
+				}
+
+				allDomains, err := s.apps.GetAllDomains()
+				if err != nil {
+					return err
+				}
+				if allDomains[name] {
+					return nil
+				}
+				return fmt.Errorf("unknown domain %s", name)
 			},
 		}
 		tlsConfig = magicConfig.TLSConfig()

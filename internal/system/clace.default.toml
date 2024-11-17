@@ -53,6 +53,8 @@ tailwindcss_command = "tailwindcss"
 file_watcher_debounce_millis = 300
 node_path = ""                      # node module lookup paths https://esbuild.github.io/api/#node-paths
 container_command = "auto"          # "auto" or "docker" or "podman"
+default_domain = "localhost"        # default domain for apps
+disable_unknown_domains = true      # disable unknown domains, if default domain is set. Otherwise, unknown domains are allowed
 
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/clace_app.db"

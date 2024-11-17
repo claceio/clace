@@ -508,20 +508,11 @@ func (s *Server) verifyClientCerts(r *http.Request, authName string) error {
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 	//s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
-	apps, err := s.apps.GetAllApps()
+	apps, domainMap, err := s.apps.GetAppInfo()
 	if err != nil {
 		return types.AppInfo{}, err
 	}
 	matchPath = normalizePath(matchPath)
-
-	// Find unique domains
-	domainMap := map[string]bool{}
-	for _, appInfo := range apps {
-		if !domainMap[appInfo.Domain] {
-			domainMap[appInfo.Domain] = true
-			// TODO : cache domain list
-		}
-	}
 
 	// Check if host header matches a known domain
 	checkDomain := false
@@ -530,14 +521,22 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 	}
 
 	for _, appInfo := range apps {
-		if checkDomain && appInfo.Domain != hostHeader {
-			// Request uses known domain, but app is not for this domain
-			continue
-		}
+		if s.config.System.DisableUnknownDomains {
+			appDomain := cmp.Or(appInfo.Domain, s.config.System.DefaultDomain)
+			if hostHeader != appDomain {
+				// Host header does not match
+				continue
+			}
+		} else {
+			if checkDomain && appInfo.Domain != hostHeader {
+				// Request uses known domain, but app is not for this domain
+				continue
+			}
 
-		if !checkDomain && appInfo.Domain != "" {
-			// Request does not use known domain, but app is for a domain
-			continue
+			if !checkDomain && appInfo.Domain != "" {
+				// Request does not use known domain, but app is for a domain
+				continue
+			}
 		}
 
 		if strings.HasPrefix(matchPath, appInfo.Path) {

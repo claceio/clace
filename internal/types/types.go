@@ -170,6 +170,8 @@ type SystemConfig struct {
 	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
 	NodePath                  string `toml:"node_path"`
 	ContainerCommand          string `toml:"container_command"`
+	DefaultDomain             string `toml:"default_domain"`
+	DisableUnknownDomains     bool   `toml:"disable_unknown_domains"`
 }
 
 // GitAuth is a github auth config entry

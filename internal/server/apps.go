@@ -12,12 +12,13 @@ import (
 	"github.com/claceio/clace/internal/types"
 )
 
-// AppStore is a store of apps. Apps are initialized lazily, the first GetApp call on each app
-// will load the app from the database.
+// AppStore is a store of apps. List of apps is stored in memory. Apps are initialized lazily,
+// AddApp has to be called before GetApp to initialize the app
 type AppStore struct {
 	*types.Logger
-	server  *Server
-	allApps []types.AppInfo
+	server     *Server
+	allApps    []types.AppInfo
+	allDomains map[string]bool
 
 	mu     sync.RWMutex
 	appMap map[types.AppPathDomain]*app.App
@@ -31,21 +32,78 @@ func NewAppStore(logger *types.Logger, server *Server) *AppStore {
 	}
 }
 
-func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
+func (a *AppStore) GetAppInfo() ([]types.AppInfo, map[string]bool, error) {
+	a.mu.RLock()
+	if a.allApps != nil {
+		a.mu.RUnlock()
+		return a.allApps, a.allDomains, nil
+	}
+	a.mu.RUnlock()
+
+	// Get exclusive lock
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	err := a.updateAppInfo(a.allApps)
+	if err != nil {
+		return nil, nil, err
+	}
+	return a.allApps, a.allDomains, nil
+}
+
+func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
+	a.mu.RLock()
 	if a.allApps != nil {
+		a.mu.RUnlock()
 		return a.allApps, nil
 	}
+	a.mu.RUnlock()
 
-	var err error
-	a.allApps, err = a.server.db.GetAllApps(true)
+	// Get exclusive lock
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	err := a.updateAppInfo(a.allApps)
 	if err != nil {
 		return nil, err
 	}
-
 	return a.allApps, nil
+}
+
+func (a *AppStore) GetAllDomains() (map[string]bool, error) {
+	a.mu.RLock()
+	if a.allDomains != nil {
+		a.mu.RUnlock()
+		return a.allDomains, nil
+	}
+	a.mu.RUnlock()
+
+	// Get exclusive lock
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	err := a.updateAppInfo(a.allApps)
+	if err != nil {
+		return nil, err
+	}
+	return a.allDomains, nil
+}
+
+func (a *AppStore) updateAppInfo(allApps []types.AppInfo) error {
+	var err error
+	a.allApps, err = a.server.db.GetAllApps(true)
+	if err != nil {
+		return err
+	}
+
+	a.allDomains = make(map[string]bool)
+	a.allDomains[a.server.config.System.DefaultDomain] = true
+	for _, appInfo := range allApps {
+		if appInfo.Domain != "" {
+			a.allDomains[appInfo.Domain] = true
+		}
+	}
+	return nil
 }
 
 func (a *AppStore) ClearAllAppCache() {
@@ -53,6 +111,7 @@ func (a *AppStore) ClearAllAppCache() {
 	defer a.mu.Unlock()
 
 	a.allApps = nil
+	a.allDomains = nil
 }
 
 func (a *AppStore) GetApp(pathDomain types.AppPathDomain) (*app.App, error) {
@@ -87,6 +146,7 @@ func (a *AppStore) DeleteLinkedApps(pathDomain types.AppPathDomain) error {
 
 	a.clearApp(pathDomain)
 	a.allApps = nil
+	a.allDomains = nil
 	return nil
 }
 
@@ -106,6 +166,7 @@ func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
 		a.clearApp(pd)
 	}
 	a.allApps = nil
+	a.allDomains = nil
 }
 
 func (a *AppStore) UpdateApps(apps []*app.App) {
@@ -118,4 +179,5 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 		a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
 	}
 	a.allApps = nil
+	a.allDomains = nil
 }

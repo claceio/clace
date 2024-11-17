@@ -46,6 +46,8 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "tailwind command", "tailwindcss", c.System.TailwindCSSCommand)
 	testutil.AssertEqualsInt(t, "file debounce", 300, c.System.FileWatcherDebounceMillis)
 	testutil.AssertEqualsString(t, "node path", "", c.System.NodePath)
+	testutil.AssertEqualsString(t, "default domain", "localhost", c.System.DefaultDomain)
+	testutil.AssertEqualsBool(t, "unknown domains", true, c.System.DisableUnknownDomains)
 
 	// Global Settings
 	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)
