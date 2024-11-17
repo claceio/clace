@@ -44,7 +44,7 @@ func (a *AppStore) GetAppInfo() ([]types.AppInfo, map[string]bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo(a.allApps)
+	err := a.updateAppInfo()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,7 +63,7 @@ func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo(a.allApps)
+	err := a.updateAppInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -82,14 +82,14 @@ func (a *AppStore) GetAllDomains() (map[string]bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo(a.allApps)
+	err := a.updateAppInfo()
 	if err != nil {
 		return nil, err
 	}
 	return a.allDomains, nil
 }
 
-func (a *AppStore) updateAppInfo(allApps []types.AppInfo) error {
+func (a *AppStore) updateAppInfo() error {
 	var err error
 	a.allApps, err = a.server.db.GetAllApps(true)
 	if err != nil {
@@ -98,7 +98,7 @@ func (a *AppStore) updateAppInfo(allApps []types.AppInfo) error {
 
 	a.allDomains = make(map[string]bool)
 	a.allDomains[a.server.config.System.DefaultDomain] = true
-	for _, appInfo := range allApps {
+	for _, appInfo := range a.allApps {
 		if appInfo.Domain != "" {
 			a.allDomains[appInfo.Domain] = true
 		}
