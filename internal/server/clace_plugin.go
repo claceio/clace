@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/claceio/clace/internal/app"
@@ -68,6 +69,19 @@ func (c *clacePlugin) verifyHasAccess(userId string, appAuth types.AppAuthnType)
 	}
 }
 
+func getAppUrl(app types.AppInfo, server *Server) string {
+	useHttps := server.config.Https.Port < 0
+	domain := app.AppPathDomain.Domain
+	if domain == "" {
+		domain = server.config.System.DefaultDomain
+	}
+	if useHttps {
+		return fmt.Sprintf("https://%s:%d%s", domain, server.config.Https.Port, app.Path)
+	} else {
+		return fmt.Sprintf("http://%s:%d%s", domain, server.config.Http.Port, app.Path)
+	}
+}
+
 func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	apps, err := c.server.apps.GetAllApps()
 	if err != nil {
@@ -84,6 +98,7 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 
 		v := starlark.Dict{}
 		v.SetKey(starlark.String("name"), starlark.String(app.Name))
+		v.SetKey(starlark.String("url"), starlark.String(getAppUrl(app, c.server)))
 		v.SetKey(starlark.String("path"), starlark.String(app.AppPathDomain.String()))
 		v.SetKey(starlark.String("id"), starlark.String(app.Id))
 		v.SetKey(starlark.String("is_dev"), starlark.Bool(app.IsDev))
