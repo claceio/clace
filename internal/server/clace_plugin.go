@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -70,11 +71,8 @@ func (c *clacePlugin) verifyHasAccess(userId string, appAuth types.AppAuthnType)
 }
 
 func getAppUrl(app types.AppInfo, server *Server) string {
-	useHttps := server.config.Https.Port < 0
-	domain := app.AppPathDomain.Domain
-	if domain == "" {
-		domain = server.config.System.DefaultDomain
-	}
+	useHttps := server.config.Https.Port > 0
+	domain := cmp.Or(app.AppPathDomain.Domain, server.config.System.DefaultDomain)
 	if useHttps {
 		return fmt.Sprintf("https://%s:%d%s", domain, server.config.Https.Port, app.Path)
 	} else {
