@@ -230,13 +230,16 @@ func (a AppPathDomain) String() string {
 // AppInfo is the basic info for an app
 type AppInfo struct {
 	AppPathDomain
-	Name      string
-	Id        AppId
-	IsDev     bool
-	MainApp   AppId
-	Auth      AppAuthnType
-	SourceUrl string
-	Spec      AppSpec
+	Name       string
+	Id         AppId
+	IsDev      bool
+	MainApp    AppId
+	Auth       AppAuthnType
+	SourceUrl  string
+	Spec       AppSpec
+	Version    int
+	GitSha     string
+	GitMessage string
 }
 
 func CreateAppPathDomain(path, domain string) AppPathDomain {
@@ -246,19 +249,24 @@ func CreateAppPathDomain(path, domain string) AppPathDomain {
 	}
 }
 
-func CreateAppInfo(id AppId, name, path, domain string, isDev bool, mainApp AppId, auth AppAuthnType, sourceUrl string, spec AppSpec) AppInfo {
+func CreateAppInfo(id AppId, name, path, domain string, isDev bool, mainApp AppId,
+	auth AppAuthnType, sourceUrl string, spec AppSpec,
+	version int, gitSha, gitMessage string) AppInfo {
 	return AppInfo{
 		AppPathDomain: AppPathDomain{
 			Path:   path,
 			Domain: domain,
 		},
-		Name:      name,
-		Id:        id,
-		IsDev:     isDev,
-		MainApp:   mainApp,
-		Auth:      auth,
-		SourceUrl: sourceUrl,
-		Spec:      spec,
+		Name:       name,
+		Id:         id,
+		IsDev:      isDev,
+		MainApp:    mainApp,
+		Auth:       auth,
+		SourceUrl:  sourceUrl,
+		Spec:       spec,
+		Version:    version,
+		GitSha:     gitSha,
+		GitMessage: gitMessage,
 	}
 }
 

@@ -108,6 +108,9 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 		}
 		v.SetKey(starlark.String("source_url"), starlark.String(app.SourceUrl))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))
+		v.SetKey(starlark.String("version"), starlark.MakeInt(app.Version))
+		v.SetKey(starlark.String("git_sha"), starlark.String(app.GitSha))
+		v.SetKey(starlark.String("git_message"), starlark.String(app.GitMessage))
 
 		ret.Append(&v)
 	}
