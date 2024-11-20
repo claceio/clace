@@ -280,7 +280,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Not a result struct
-		status = ret.String()
+		status = strings.Trim(ret.String(), "\"")
 	}
 
 	if deferredCleanup() != nil {
@@ -400,6 +400,10 @@ func (a *Action) renderResultsAuto(w http.ResponseWriter, valuesMap []map[string
 		return a.renderResultsText(w, valuesStr)
 	}
 
+	if len(valuesMap) == 0 {
+		return a.actionTemplate.ExecuteTemplate(w, "result-empty", nil)
+	}
+
 	if len(valuesMap) > 0 {
 		firstRow := valuesMap[0]
 		hasComplex := false
@@ -436,7 +440,7 @@ func (a *Action) renderResultsText(w http.ResponseWriter, valuesStr []string) er
 
 func (a *Action) renderResultsTable(w http.ResponseWriter, valuesMap []map[string]any) error {
 	if len(valuesMap) == 0 {
-		return nil
+		return a.actionTemplate.ExecuteTemplate(w, "result-empty", nil)
 	}
 	firstRow := valuesMap[0]
 	keys := make([]string, 0, len(firstRow))

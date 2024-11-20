@@ -35,8 +35,10 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 			provider = &awsSecretProvider{}
 		} else if name == "vault" || strings.HasPrefix(name, "vault_") {
 			provider = &vaultSecretProvider{}
-		} else if name == "env" {
+		} else if name == "env" || strings.HasPrefix(name, "env_") {
 			provider = &envSecretProvider{}
+		} else if name == "prop" || strings.HasPrefix(name, "prop_") {
+			provider = &propertiesSecretProvider{}
 		} else {
 			return nil, fmt.Errorf("unknown secret provider %s", name)
 		}
@@ -100,7 +102,8 @@ func (s *SecretManager) EvalTemplate(input string) (string, error) {
 	if len(input) < 4 {
 		return input, nil
 	}
-	if input[0] != '{' || input[1] != '{' || input[len(input)-1] != '}' || input[len(input)-2] != '}' {
+
+	if !strings.Contains(input, "{{") || !strings.Contains(input, "}}") {
 		return input, nil
 	}
 

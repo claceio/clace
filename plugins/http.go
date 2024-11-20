@@ -7,14 +7,18 @@ package plugins
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/apptype"
@@ -103,13 +107,14 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 			params       = &starlark.Dict{}
 			headers      = &starlark.Dict{}
 			formBody     = &starlark.Dict{}
+			signAuth     = &starlark.Dict{}
 			formEncoding starlark.String
-			auth         starlark.Tuple
+			basicAuth    starlark.Tuple
 			body         starlark.String
 			jsonBody     starlark.Value
 		)
 
-		if err := starlark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "body", &body, "form_body", &formBody, "form_encoding", &formEncoding, "json_body", &jsonBody, "auth", &auth); err != nil {
+		if err := starlark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "body", &body, "form_body", &formBody, "form_encoding", &formEncoding, "json_body", &jsonBody, "auth_basic", &basicAuth, "auth_signature", &signAuth); err != nil {
 			return nil, err
 		}
 
@@ -141,11 +146,18 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		if err = setHeaders(req, headers); err != nil {
 			return nil, err
 		}
-		if err = setAuth(req, auth); err != nil {
+		if err = setBasicAuth(req, basicAuth); err != nil {
 			return nil, err
 		}
+
 		if err = setBody(req, body, formBody, formEncoding, jsonBody); err != nil {
 			return nil, err
+		}
+
+		if signAuth.Len() > 0 {
+			if err = setSignAuth(req, signAuth); err != nil {
+				return nil, err
+			}
 		}
 
 		res, err := h.client.Do(req)
@@ -190,13 +202,14 @@ func setQueryParams(rawurl *string, params *starlark.Dict) error {
 
 		q.Set(keystr, valstr)
 	}
-
-	u.RawQuery = q.Encode()
+	if q.Encode() != "" {
+		u.RawQuery = q.Encode()
+	}
 	*rawurl = u.String()
 	return nil
 }
 
-func setAuth(req *http.Request, auth starlark.Tuple) error {
+func setBasicAuth(req *http.Request, auth starlark.Tuple) error {
 	if len(auth) == 0 {
 		return nil
 	} else if len(auth) == 2 {
@@ -212,6 +225,111 @@ func setAuth(req *http.Request, auth starlark.Tuple) error {
 		return nil
 	}
 	return fmt.Errorf("expected two values for auth params tuple")
+}
+
+func getKeyAsString(dict *starlark.Dict, key string) (string, error) {
+	val, ok, err := dict.Get(starlark.String(key))
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf("key %s not found", key)
+	}
+	return AsString(val)
+}
+
+func setSignAuth(req *http.Request, auth *starlark.Dict) error {
+	signType, err := getKeyAsString(auth, "type")
+	if err != nil {
+		return err
+	}
+	userId, err := getKeyAsString(auth, "user")
+	if err != nil {
+		return err
+	}
+	apiKey, err := getKeyAsString(auth, "api_key")
+	if err != nil {
+		return err
+	}
+
+	var authHeaders map[string]string
+	switch signType {
+	case "SL":
+		authHeaders, err = createSLAuthHeader(req, userId, apiKey)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown auth type: %s", signType)
+	}
+	for key, val := range authHeaders {
+		req.Header.Set(key, val)
+	}
+	return nil
+}
+
+func createSLAuthHeader(req *http.Request, userId, apiKey string) (map[string]string, error) {
+	parsedUrl, err := url.Parse(req.URL.String())
+	if err != nil {
+		return nil, err
+	}
+
+	host, _, err := net.SplitHostPort(parsedUrl.Host)
+	if err != nil {
+		host = parsedUrl.Host
+	}
+	pathQS := parsedUrl.Path
+	if parsedUrl.RawQuery != "" {
+		pathQS = fmt.Sprintf("%s?%s", pathQS, parsedUrl.RawQuery)
+	}
+
+	if strings.Contains(host, ":") {
+		// If IPv6 address, unescape the % chars if present and add square brackets
+		unescapedHost, err := url.PathUnescape(host)
+		if err != nil {
+			return nil, err
+		}
+
+		host = fmt.Sprintf("[%s]", unescapedHost)
+	}
+
+	headerKeys := make([]string, 0, len(req.Header))
+	headerValues := make([]string, 0, len(req.Header))
+
+	hasDate := false
+	for k, v := range req.Header {
+		if len(v) == 0 {
+			continue
+		}
+		lowerKey := strings.ToLower(k)
+		if lowerKey == "referer" {
+			// Referer header is not include in signature
+			continue
+		}
+		headerKeys = append(headerKeys, lowerKey)
+		headerValues = append(headerValues, strings.ToLower(v[0]))
+		if lowerKey == "date" {
+			hasDate = true
+		}
+	}
+
+	retHeaders := map[string]string{}
+	if !hasDate {
+		// Add date header if not already present
+		headerKeys = append(headerKeys, "date")
+		dateValue := time.Now().Format(time.RFC1123)
+		headerValues = append(headerValues, dateValue)
+		retHeaders["date"] = dateValue
+	}
+
+	unhashedSig := fmt.Sprintf("%s%s;%s;%s",
+		host, pathQS, strings.Join(headerValues, ";"), apiKey)
+	sha256 := fmt.Sprintf("%s", sha256.Sum256([]byte(unhashedSig)))
+	hashedSig := base64.StdEncoding.EncodeToString([]byte(sha256))
+
+	authHeader := fmt.Sprintf("SLSignature keyId=%s, headers=%s, %s", userId, strings.Join(headerKeys, ";"), hashedSig)
+	retHeaders["Authorization"] = authHeader
+	return retHeaders, nil
 }
 
 func setHeaders(req *http.Request, headers *starlark.Dict) error {

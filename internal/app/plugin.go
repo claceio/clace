@@ -392,6 +392,21 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 							v.SetIndex(i, starlark.String(evalString))
 						}
 					}
+				case *starlark.Dict:
+					for _, key := range v.Keys() {
+						value, _, err := v.Get(key)
+						if err != nil {
+							return nil, err
+						}
+						switch sv := value.(type) {
+						case starlark.String:
+							evalString, err := a.secretEvalFunc(sv.GoString())
+							if err != nil {
+								return nil, err
+							}
+							v.SetKey(key, starlark.String(evalString))
+						}
+					}
 				}
 			}
 
@@ -414,6 +429,21 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 								return nil, err
 							}
 							v.SetIndex(i, starlark.String(evalString))
+						}
+					}
+				case *starlark.Dict:
+					for _, key := range v.Keys() {
+						value, _, err := v.Get(key)
+						if err != nil {
+							return nil, err
+						}
+						switch sv := value.(type) {
+						case starlark.String:
+							evalString, err := a.secretEvalFunc(sv.GoString())
+							if err != nil {
+								return nil, err
+							}
+							v.SetKey(key, starlark.String(evalString))
 						}
 					}
 				}

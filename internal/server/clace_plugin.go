@@ -81,17 +81,38 @@ func getAppUrl(app types.AppInfo, server *Server) string {
 }
 
 func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+
+	var query starlark.String
+	var include_internal starlark.Bool
+	if err := starlark.UnpackArgs("list_apps", args, kwargs, "query?", &query, "include_internal?", &include_internal); err != nil {
+		return nil, err
+	}
+
 	apps, err := c.server.apps.GetAllApps()
 	if err != nil {
 		return nil, err
 	}
 
 	userId := getRequestUserId(thread)
-
 	ret := starlark.List{}
 	for _, app := range apps {
 		if !c.verifyHasAccess(userId, app.Auth) {
 			continue
+		}
+
+		// Filter out internal apps
+		if app.MainApp != "" && !bool(include_internal) {
+			continue
+		}
+
+		// Check query filter
+		if query != "" {
+			queryStr := strings.ToLower(query.GoString())
+			if !strings.Contains(strings.ToLower(app.Name), queryStr) &&
+				!strings.Contains(strings.ToLower(app.AppPathDomain.String()), queryStr) &&
+				!strings.Contains(strings.ToLower(app.SourceUrl), queryStr) {
+				continue
+			}
 		}
 
 		v := starlark.Dict{}
@@ -103,8 +124,10 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 		v.SetKey(starlark.String("main_app"), starlark.String(app.MainApp))
 		if app.Auth == types.AppAuthnDefault {
 			v.SetKey(starlark.String("auth"), starlark.String(c.server.config.Security.AppDefaultAuthType))
+			v.SetKey(starlark.String("auth_uses_default"), starlark.Bool(true))
 		} else {
 			v.SetKey(starlark.String("auth"), starlark.String(app.Auth))
+			v.SetKey(starlark.String("auth_uses_default"), starlark.Bool(false))
 		}
 		v.SetKey(starlark.String("source_url"), starlark.String(app.SourceUrl))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))

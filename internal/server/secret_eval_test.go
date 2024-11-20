@@ -4,6 +4,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
@@ -14,11 +15,11 @@ func evalFunc(input string) (string, error) {
 	if len(input) < 4 {
 		return input, nil
 	}
-	if input[0] != '{' || input[1] != '{' || input[len(input)-1] != '}' || input[len(input)-2] != '}' {
+	if !strings.Contains(input, "{{") || !strings.Contains(input, "}}") {
 		return input, nil
 	}
 
-	return "XXXmysecretXXX", nil
+	return "aXXXmysecretXXXb", nil
 }
 
 func TestUpdateAuth(t *testing.T) {
@@ -26,7 +27,7 @@ func TestUpdateAuth(t *testing.T) {
 		Auth: map[string]types.AuthConfig{
 			"auth0": {
 				Key:    "myclientID",
-				Secret: `{{ secret("asm", "mysecret")}}`,
+				Secret: `a{{ secret("asm", "mysecret")}}b`,
 			},
 			"auth2": {
 				Key:    "myclientID2",
@@ -38,7 +39,7 @@ func TestUpdateAuth(t *testing.T) {
 	err := updateConfigSecrets(serverConfig, evalFunc)
 	testutil.AssertEqualsError(t, "error", err, nil)
 	testutil.AssertEqualsString(t, "clientID", "myclientID", serverConfig.Auth["auth0"].Key)
-	testutil.AssertEqualsString(t, "secret", "XXXmysecretXXX", serverConfig.Auth["auth0"].Secret)
+	testutil.AssertEqualsString(t, "secret", "aXXXmysecretXXXb", serverConfig.Auth["auth0"].Secret)
 	testutil.AssertEqualsString(t, "clientID", "myclientID2", serverConfig.Auth["auth2"].Key)
-	testutil.AssertEqualsString(t, "secret", "XXXmysecretXXX", serverConfig.Auth["auth2"].Secret)
+	testutil.AssertEqualsString(t, "secret", "aXXXmysecretXXXb", serverConfig.Auth["auth2"].Secret)
 }

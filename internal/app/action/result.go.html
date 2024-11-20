@@ -14,6 +14,12 @@
   </div>
 {{ end }}
 
+{{ block "result-empty" . }}
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">No Output</div>
+  </div>
+{{ end }}
+
 {{ block "result-textarea" . }}
   <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
     <div class="divider text-lg text-secondary">Output</div>
