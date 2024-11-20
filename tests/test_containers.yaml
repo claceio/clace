@@ -55,13 +55,13 @@ tests:
     stdout: ok
 
   container0300: # setup proxy
-    command: ../clace app create --spec proxy --approve -param url=https://clace.io - /cont_proxy
+    command: ../clace app create --spec proxy --approve -param url=https://www.google.com - /cont_proxy
   container0310: # check stage
     command: curl -sS localhost:${HTTP_PORT}/cont_proxy_cl_stage
-    stdout: platform
+    stdout: doctype
   container0320: # check prod
     command: curl -sS localhost:${HTTP_PORT}/cont_proxy
-    stdout: platform
+    stdout: doctype
 
   container0400: # setup nginx image
     command: ../clace app create --spec image --approve --param image=nginx --param port=80 - /cont_image_nginx
