@@ -656,7 +656,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
-            &#34;errormessage&#34;
+            errormessage 
           </div>
 		<div
 			id="param_param1_error"
@@ -677,7 +677,9 @@ param("param3", description="param3 description", type=INT, default=10)`,
 			hx-swap-oob="true"
 			hx-swap="outerHTML"
 			class="text-error mt-1">
-  		</div>`, response.Body.String())
+  		</div>
+		<div id="action_result" hx-swap-oob="true" hx-swap="outerHTML"> <div class="divider text-lg text-secondary">No Output</div> </div>
+		`, response.Body.String())
 
 	values = url.Values{
 		"param1": {"p1val"},
