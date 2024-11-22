@@ -55,6 +55,8 @@ node_path = ""                      # node module lookup paths https://esbuild.g
 container_command = "auto"          # "auto" or "docker" or "podman"
 default_domain = "localhost"        # default domain for apps
 disable_unknown_domains = true      # disable unknown domains, if default domain is set. Otherwise, unknown domains are allowed
+root_serve_list_apps = "auto"       # "auto" means serve list_apps app for default domain, "disable" means don't server for any domain,
+# any other value means server for specified domain
 
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/clace_app.db"

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -149,14 +150,50 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(domain, ":") {
 		domain = strings.Split(domain, ":")[0]
 	}
-	matchedApp, err := h.server.MatchApp(domain, r.URL.Path)
-	if err != nil {
-		h.Error().Err(err).Str("path", r.URL.Path).Msg("No app matched request")
-		http.Error(w, "No matching app found", http.StatusNotFound)
+
+	var serveListApps = false
+	matchedApp, matchErr := h.server.MatchApp(domain, r.URL.Path)
+	if matchErr != nil {
+		systemConfig := h.server.config.System
+		if systemConfig.RootServeListApps != "disable" {
+			// No app is installed at root, use the list_apps app
+			var serveAtDomain string
+			if systemConfig.RootServeListApps == "auto" {
+				serveAtDomain = systemConfig.DefaultDomain
+			} else {
+				serveAtDomain = systemConfig.RootServeListApps
+			}
+			if domain == serveAtDomain {
+				serveListApps = true
+			}
+		}
+	}
+
+	if matchErr != nil && !serveListApps {
+		h.Error().Err(matchErr).Str("path", r.URL.Path).Msg("No app matched request")
+		http.Error(w, matchErr.Error(), http.StatusNotFound)
 		return
 	}
 
-	h.server.authenticateAndServeApp(w, r, matchedApp.AppPathDomain)
+	var serveApp *app.App
+	var err error
+	if !serveListApps {
+		serveApp, err = h.server.GetApp(matchedApp.AppPathDomain, true)
+		if err != nil {
+			h.Error().Err(err).Str("path", r.URL.Path).Msg("Error getting app")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		serveApp, err = h.server.GetListAppsApp()
+		if err != nil {
+			h.Error().Err(err).Str("path", r.URL.Path).Msg("Error getting list_apps app")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	h.server.authenticateAndServeApp(w, r, serveApp)
 }
 
 func validatePathForCreate(inp string) error {

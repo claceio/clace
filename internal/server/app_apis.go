@@ -408,14 +408,8 @@ func (s *Server) DeleteApps(ctx context.Context, appPathGlob string, dryRun bool
 	return ret, nil
 }
 
-func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request, appInfo types.AppPathDomain) {
-	app, err := s.GetApp(appInfo, true)
-	if err != nil {
-		s.Error().Err(err).Msg("error getting App")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
+func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request, app *app.App) {
+	var err error
 	appAuth := app.Settings.AuthnType
 	if appAuth == "" || appAuth == types.AppAuthnDefault {
 		appAuth = types.AppAuthnType(s.config.Security.AppDefaultAuthType)

@@ -172,6 +172,7 @@ type SystemConfig struct {
 	ContainerCommand          string `toml:"container_command"`
 	DefaultDomain             string `toml:"default_domain"`
 	DisableUnknownDomains     bool   `toml:"disable_unknown_domains"`
+	RootServeListApps         string `toml:"root_serve_list_apps"`
 }
 
 // GitAuth is a github auth config entry

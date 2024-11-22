@@ -18,16 +18,20 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/caddyserver/certmagic"
+	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/passwd"
+	"github.com/claceio/clace/internal/server/list_apps"
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi/middleware"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/claceio/clace/internal/app/appfs"
 	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
 	_ "github.com/claceio/clace/plugins"            // Register builtin plugins
 )
@@ -128,6 +132,8 @@ type Server struct {
 	ssoAuth        *SSOAuth
 	notifyClose    chan types.AppPathDomain
 	secretsManager *system.SecretManager
+	listAppsApp    *app.App
+	mu             sync.RWMutex
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -569,4 +575,65 @@ func (s *Server) Stop(ctx context.Context) error {
 func isGit(url string) bool {
 	return strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "git@github.com") ||
 		strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
+}
+
+func (s *Server) GetListAppsApp() (*app.App, error) {
+	s.mu.RLock()
+	if s.listAppsApp != nil {
+		s.mu.RUnlock()
+		return s.listAppsApp, nil
+	}
+	s.mu.RUnlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var err error
+	embedReadFS := appfs.NewEmbedReadFS(s.Logger, list_apps.EmbedListApps)
+	_, err = embedReadFS.Stat("app.star")
+	if err != nil {
+		return nil, fmt.Errorf("list_apps not available in binary")
+	}
+
+	sourceFS, err := appfs.NewSourceFs("", embedReadFS, false)
+	if err != nil {
+		return nil, err
+	}
+
+	authnType := types.AppAuthnType(s.config.Security.AppDefaultAuthType)
+	if authnType == "" {
+		authnType = types.AppAuthnSystem
+	}
+	appEntry := types.AppEntry{
+		Id:        types.AppId("app_prd_app_list"),
+		Path:      "/",
+		Domain:    s.config.System.DefaultDomain,
+		SourceUrl: "-",
+		UserID:    "admin",
+		Settings: types.AppSettings{
+			AuthnType: authnType,
+		},
+		Metadata: types.AppMetadata{
+			Name:  "List Apps",
+			Loads: []string{"clace.in"},
+			Permissions: []types.Permission{
+				{Plugin: "clace.in", Method: "list_apps"},
+			},
+		},
+	}
+
+	subLogger := s.Logger.With().Str("id", string(appEntry.Id)).Logger()
+	appLogger := types.Logger{Logger: &subLogger}
+	s.listAppsApp, err = app.NewApp(sourceFS, nil, &appLogger, &appEntry, &s.config.System,
+		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.listAppsApp.Reload(true, true, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.listAppsApp, nil
 }
