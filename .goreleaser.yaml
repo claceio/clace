@@ -21,6 +21,7 @@ before:
     - rm -rf internal/server/list_apps
     - mv apps/clace/list_apps internal/server
     - cp embed.go internal/server/list_apps/
+    - rm -rf internal/server/list_apps/.git
     - rm -rf apps
     - go test -race ./...
 
