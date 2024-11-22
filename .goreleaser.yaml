@@ -20,6 +20,7 @@ before:
     - cp internal/server/list_apps/embed.go .
     - rm -rf internal/server/list_apps
     - cp -rf apps/clace/list_apps internal/server
+    - cp embed.go internal/server/list_apps
     - rm -rf apps
     - go test -race ./...
 
