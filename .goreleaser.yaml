@@ -13,8 +13,11 @@ before:
     - go mod download
     - go mod tidy
     - git clone --single-branch --depth 1 https://github.com/claceio/appspecs.git
+    - git clone --single-branch --depth 1 https://github.com/claceio/apps.git
     - rm -rf appspecs/.git
     - rm -rf internal/server/appspecs
+    - cp -rf apps/clace/list_apps/* internal/server/list_apps
+    - rm -rf apps
     - mv appspecs internal/server
     - go test -race ./...
 
