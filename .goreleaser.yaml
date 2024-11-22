@@ -16,6 +16,8 @@ before:
     - git clone --single-branch --depth 1 https://github.com/claceio/apps.git
     - rm -rf appspecs/.git
     - rm -rf internal/server/appspecs
+    - ls -l
+    - ls -l internal/server/list_apps
     - cp -rf apps/clace/list_apps/* internal/server/list_apps
     - rm -rf apps
     - mv appspecs internal/server
