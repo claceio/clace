@@ -146,13 +146,13 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 	h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
 
-	domain := r.Host
-	if strings.Contains(domain, ":") {
-		domain = strings.Split(domain, ":")[0]
+	requestDomain := r.Host
+	if strings.Contains(requestDomain, ":") {
+		requestDomain = strings.Split(requestDomain, ":")[0]
 	}
 
 	var serveListApps = false
-	matchedApp, matchErr := h.server.MatchApp(domain, r.URL.Path)
+	matchedApp, matchErr := h.server.MatchApp(requestDomain, r.URL.Path)
 	if matchErr != nil {
 		systemConfig := h.server.config.System
 		if systemConfig.RootServeListApps != "disable" {
@@ -163,7 +163,7 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 			} else {
 				serveAtDomain = systemConfig.RootServeListApps
 			}
-			if domain == serveAtDomain {
+			if requestDomain == serveAtDomain || (serveAtDomain == "localhost" && requestDomain == "127.0.0.1") {
 				serveListApps = true
 			}
 		}
