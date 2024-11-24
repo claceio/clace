@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"path"
 	"slices"
 	"strconv"
@@ -187,6 +188,8 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 		args[k] = v
 	}
 
+	qsParams := url.Values{}
+
 	// Update args with submitted form values
 	for _, param := range a.params {
 		formValue := r.Form.Get(param.Name)
@@ -194,6 +197,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 			if param.Type == starlark_type.BOOLEAN {
 				// Form does not submit unchecked checkboxes, set to false
 				args[param.Name] = starlark.Bool(false)
+				qsParams.Add(param.Name, "false")
 			}
 		} else {
 			newVal, err := apptype.ParamStringToType(param.Name, param.Type, formValue)
@@ -202,6 +206,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			args[param.Name] = newVal
+			qsParams.Add(param.Name, formValue)
 		}
 	}
 
@@ -306,6 +311,9 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	} else {
+		// Set the push URL for HTMX
+		w.Header().Set("HX-Push-Url", a.pagePath+"?"+qsParams.Encode())
 	}
 
 	// Render the result message
@@ -524,6 +532,7 @@ const (
 )
 
 func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.Query()
 	params := make([]ParamDef, 0, len(a.params))
 
 	options := make(map[string][]string)
@@ -557,6 +566,12 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		qValue := queryParams.Get(p.Name)
+		if qValue != "" {
+			// Prefer value from query params
+			value = qValue
+		}
+
 		param.Value = value // Default to string format
 		param.InputType = "text"
 		if p.Type == starlark_type.BOOLEAN {
@@ -572,7 +587,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		} else if options[p.Name] != nil {
 			param.InputType = "select"
 			param.Options = options[p.Name]
-			param.Value = param.Options[0]
+			param.Value = value
 		}
 
 		params = append(params, param)

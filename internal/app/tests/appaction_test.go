@@ -457,6 +457,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "push url", "/test?param1=abc&param2=true&param3=20", response.Header().Get("HX-Push-Url"))
 	testutil.AssertStringMatch(t, "match response", `
 	<div class="text-lg text-bold">
             done
