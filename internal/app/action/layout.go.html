@@ -1,6 +1,6 @@
 {{ define "header" }}
   <!DOCTYPE html>
-  <html data-theme="lemonade" lang="en">
+  <html data-theme="emerald" lang="en">
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -30,7 +30,7 @@
          <div class="p-8 grid grid-cols-5">
 
           <div class="col-start-1 col-span-1">
-            {{ if gt (len .links) 1 }}
+            {{ if and (.links) (gt (len .links) 1) }}
             <div class="dropdown dropdown-bottom">
                 <div tabindex="0" role="button" class="btn bg-transparent">
                     <svg xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"

@@ -215,7 +215,7 @@ app = ace.app("testApp",
             <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
-            <table class="table table-zebra text-xl font-mono">
+            <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
                 <tr>
                     <th>a</th>
@@ -332,7 +332,7 @@ app = ace.app("testApp",
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
-            <table class="table table-zebra text-xl font-mono">
+            <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
                 <tr>
                     <th>a</th>
@@ -395,7 +395,7 @@ app = ace.app("testApp",
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
-            <table class="table table-zebra text-xl font-mono">
+            <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
                 <tr>
                     <th>a</th>
@@ -487,7 +487,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
-            <table class="table table-zebra text-xl font-mono">
+            <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
                 <tr>
                     <th>c1</th>
@@ -742,7 +742,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
-            <table class="table table-zebra text-xl font-mono">
+            <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
                 <tr>
                   
