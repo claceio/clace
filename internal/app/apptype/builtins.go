@@ -36,8 +36,8 @@ const (
 )
 
 const (
-	DEFAULT_DAISYUI_LIGHT_THEME = "bumblebee"
-	DEFAULT_DAISYUI_DARK_THEME  = "dim"
+	DEFAULT_DAISYUI_LIGHT_THEME = "emerald"
+	DEFAULT_DAISYUI_DARK_THEME  = "night"
 )
 
 const (

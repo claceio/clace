@@ -11,7 +11,7 @@
             const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches 
             localStorage.setItem('theme-dark', {{ .darkTheme }});
             localStorage.setItem('theme-light', {{ .lightTheme }});
-            if (theme == 'theme-dark' || (theme == null && systemDark)) {
+            if (theme == 'dark' || (theme == null && systemDark)) {
                 document.documentElement.setAttribute("data-theme", {{ .darkTheme }})
             } else {
                 document.documentElement.setAttribute("data-theme", {{ .lightTheme }})
@@ -28,9 +28,29 @@
 
         <div class="lg:col-span-10 xl:col-span-8">
          <div class="p-8 grid grid-cols-5">
+
+          <div class="col-start-1 col-span-1">
+            {{ if gt (len .links) 1 }}
+            <div class="dropdown dropdown-bottom">
+                <div tabindex="0" role="button" class="btn bg-transparent">
+                    <svg xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"
+                    stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-menu-2">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l16 0" /><path d="M4 12l16 0" /><path d="M4 18l16 0" /></svg>
+                </div>
+                <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+                  {{ range .links }}
+                    {{ if ne .Path $.pagePath }}
+                      <li><a href="{{ .Path }}">{{ .Name }}</a></li>
+                    {{ end }}
+                  {{ end }}
+                </ul>
+            </div>
+            {{ end }}
+          </div>
+
           <div
             class="col-start-2 col-span-3 text-center text-3xl font-light text-sky-400 ">
-            {{.name}}
+            <a href="{{ .pagePath }}"> {{.name}} </a>
           </div>
 
           <div class="col-start-5 justify-self-end pt-2">

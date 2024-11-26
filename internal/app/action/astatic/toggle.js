@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     toggle = document.getElementById('theme-toggle') 
-    if (theme == 'theme-dark' || (theme == null && systemDark)) {
+    if (theme == 'dark' || (theme == null && systemDark)) {
         toggle.checked = true;
     } else {
         toggle.checked = false;

@@ -496,6 +496,15 @@ func (a *App) initActions(router *chi.Mux) error {
 		}
 	}
 
+	// Set the links for all actions
+	allLinks := make([]action.ActionLink, 0, len(a.actions))
+	for _, action := range a.actions {
+		allLinks = append(allLinks, action.GetLink())
+	}
+	for _, action := range a.actions {
+		action.Links = allLinks
+	}
+
 	return nil
 }
 

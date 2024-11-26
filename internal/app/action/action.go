@@ -32,6 +32,11 @@ import (
 var embedHtml embed.FS
 var embedFS = hashfs.NewFS(embedHtml)
 
+type ActionLink struct {
+	Name string
+	Path string
+}
+
 // Action represents a single action that is exposed by the App. Actions
 // provide a way to trigger app operations, with an auto-generated form UI
 // and an API interface
@@ -54,6 +59,7 @@ type Action struct {
 	DarkTheme         string
 	containerProxyUrl string
 	hidden            map[string]bool // params which are not shown in the UI
+	Links             []ActionLink    // links to other actions
 }
 
 // NewAction creates a new action
@@ -119,8 +125,15 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		StyleType:         styleType,
 		containerProxyUrl: containerProxyUrl,
 		hidden:            hiddenParams,
-		// AppTemplate and Theme names are initialized later
+		// Links, AppTemplate and Theme names are initialized later
 	}, nil
+}
+
+func (a *Action) GetLink() ActionLink {
+	return ActionLink{
+		Name: a.name,
+		Path: a.pagePath,
+	}
 }
 
 // GetEmbeddedTemplates returns the embedded templates files
@@ -610,6 +623,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"styleType":   string(a.StyleType),
 		"lightTheme":  a.LightTheme,
 		"darkTheme":   a.DarkTheme,
+		"links":       a.Links,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
