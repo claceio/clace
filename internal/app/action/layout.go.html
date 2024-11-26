@@ -30,7 +30,7 @@
          <div class="p-8 grid grid-cols-5">
 
           <div class="col-start-1 col-span-1">
-            {{ if and (.links) (gt (len .links) 1) }}
+            {{ if and (.links) (gt (len .links) 0) }}
             <div class="dropdown dropdown-bottom" title="Switch between Actions">
                 <div tabindex="0" role="button" class="btn btn-outline">
                     <svg xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"
@@ -39,9 +39,7 @@
                 </div>
                 <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
                   {{ range .links }}
-                    {{ if ne .Path $.pagePath }}
                       <li><a href="{{ .Path }}">{{ .Name }}</a></li>
-                    {{ end }}
                   {{ end }}
                 </ul>
             </div>

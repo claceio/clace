@@ -842,7 +842,7 @@ app = ace.app("testApp",
 	}
 	testutil.AssertStringContains(t, body, `<li><a href="/test/test2">test2Action</a></li>`)
 
-	request = httptest.NewRequest("GET", "/test/test2", nil)
+	request = httptest.NewRequest("GET", "/test/test2?param1=abc", nil)
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 
@@ -851,5 +851,5 @@ app = ace.app("testApp",
 	if strings.Contains(body, `<li><a href="/test/test2">test2Action</a></li>`) {
 		t.Errorf("actions switcher should not have current action, got %s", body)
 	}
-	testutil.AssertStringContains(t, body, `<li><a href="/test/test1">test1Action</a></li>`)
+	testutil.AssertStringContains(t, body, `<li><a href="/test/test1?param1=abc">test1Action</a></li>`)
 }

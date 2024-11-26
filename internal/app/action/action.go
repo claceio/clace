@@ -613,6 +613,16 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		params = append(params, param)
 	}
 
+	linksWithQS := make([]ActionLink, 0, len(a.Links))
+	for _, link := range a.Links {
+		if link.Path != a.pagePath { // Don't add self link
+			if r.URL.RawQuery != "" {
+				link.Path = link.Path + "?" + r.URL.RawQuery
+			}
+			linksWithQS = append(linksWithQS, link)
+		}
+	}
+
 	input := map[string]any{
 		"dev":         a.isDev,
 		"name":        a.name,
@@ -623,7 +633,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"styleType":   string(a.StyleType),
 		"lightTheme":  a.LightTheme,
 		"darkTheme":   a.DarkTheme,
-		"links":       a.Links,
+		"links":       linksWithQS,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
