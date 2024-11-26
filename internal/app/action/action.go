@@ -53,12 +53,13 @@ type Action struct {
 	LightTheme        string
 	DarkTheme         string
 	containerProxyUrl string
+	hidden            map[string]bool // params which are not shown in the UI
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
-	appPath string, styleType types.StyleType, containerProxyUrl string) (*Action, error) {
+	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
@@ -97,6 +98,11 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		pagePath = ""
 	}
 
+	hiddenParams := make(map[string]bool)
+	for _, h := range hidden {
+		hiddenParams[h] = true
+	}
+
 	return &Action{
 		Logger:            &appLogger,
 		isDev:             isDev,
@@ -112,6 +118,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		actionTemplate:    tmpl,
 		StyleType:         styleType,
 		containerProxyUrl: containerProxyUrl,
+		hidden:            hiddenParams,
 		// AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -551,7 +558,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, p := range a.params {
-		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) {
+		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) || a.hidden[p.Name] {
 			continue
 		}
 

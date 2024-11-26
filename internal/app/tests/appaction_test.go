@@ -588,11 +588,12 @@ def handler(dry_run, args):
 	return ace.result(status="done", values=["a", "b"], param_errors={"param1": "param1error", "param3": "param3error"})
 
 app = ace.app("testApp",
-	actions=[ace.action("testAction", "/", handler)])
+	actions=[ace.action("testAction", "/", handler, hidden=["param2"])])
 
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
-param("options-param1", description="param1 options", type=LIST, default=["a", "b", "c"])`,
+param("options-param1", description="param1 options", type=LIST, default=["a", "b", "c"])
+param("param2", description="param2 description", type=STRING, default="myvalue2")`,
 	}
 	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
@@ -609,6 +610,9 @@ param("options-param1", description="param1 options", type=LIST, default=["a", "
 	testutil.AssertStringContains(t, bodyStripped, `select id="param_param1`)
 	if strings.Contains(bodyStripped, `options-param1`) {
 		t.Errorf("options-param1 should not be in the body")
+	}
+	if strings.Contains(bodyStripped, `param2`) {
+		t.Errorf("hidden param2 should not be in the body")
 	}
 }
 
