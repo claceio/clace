@@ -811,3 +811,45 @@ app = ace.app("testApp",
 		t.Errorf("Expected full html response, got: %s", body)
 	}
 }
+
+func TestMultipleActions(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+
+app = ace.app("testApp",
+	actions=[ace.action("test1Action", "/test1", handler),
+	         ace.action("test2Action", "/test2", handler)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	body := response.Body.String()
+	if strings.Contains(body, `<li><a href="/test/test1">test1Action</a></li>`) {
+		t.Errorf("actions switcher should not have current action, got %s", body)
+	}
+	testutil.AssertStringContains(t, body, `<li><a href="/test/test2">test2Action</a></li>`)
+
+	request = httptest.NewRequest("GET", "/test/test2", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	body = response.Body.String()
+	if strings.Contains(body, `<li><a href="/test/test2">test2Action</a></li>`) {
+		t.Errorf("actions switcher should not have current action, got %s", body)
+	}
+	testutil.AssertStringContains(t, body, `<li><a href="/test/test1">test1Action</a></li>`)
+}
