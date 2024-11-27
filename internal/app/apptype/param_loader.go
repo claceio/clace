@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
 	"go.starlark.net/starlark"
@@ -18,14 +19,24 @@ const (
 	PARAM = "param"
 )
 
+type DisplayType string
+
+const (
+	DisplayTypePassword   DisplayType = "password"
+	DisplayTypeTextArea   DisplayType = "textarea"
+	DisplayTypeFileUpload DisplayType = "file"
+)
+
 // AppParam represents a parameter in an app.
 type AppParam struct {
-	Index        int
-	Name         string
-	Description  string
-	Required     bool
-	Type         starlark_type.TypeName
-	DefaultValue starlark.Value
+	Index              int
+	Name               string
+	Description        string
+	Required           bool
+	Type               starlark_type.TypeName
+	DefaultValue       starlark.Value
+	DisplayType        DisplayType
+	DisplayTypeOptions string
 }
 
 func ReadParamInfo(fileName string, inp []byte) (map[string]AppParam, error) {
@@ -80,6 +91,14 @@ func validateParamInfo(paramInfo map[string]AppParam) error {
 		default:
 			return fmt.Errorf("unknown type %s for %s", p.Type, p.Name)
 		}
+
+		if p.DisplayType != "" && p.DisplayType != DisplayTypePassword && p.DisplayType != DisplayTypeTextArea && p.DisplayType != DisplayTypeFileUpload {
+			return fmt.Errorf("unknown display type %s for %s", p.DisplayType, p.Name)
+		}
+
+		if p.DisplayType != "" && p.Type != starlark_type.STRING {
+			return fmt.Errorf("display_type %s is allowed for string type %s only", p.DisplayType, p.Name)
+		}
 	}
 	return nil
 }
@@ -89,12 +108,12 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 	index := 0
 
 	paramBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var name, description, dataType starlark.String
+		var name, description, dataType, displayType starlark.String
 		var defaultValue starlark.Value = starlark.None
 		var required starlark.Bool = starlark.Bool(true)
 
 		if err := starlark.UnpackArgs(PARAM, args, kwargs, "name", &name, "type?", &dataType, "default?", &defaultValue,
-			"description?", &description, "required?", &required); err != nil {
+			"description?", &description, "required?", &required, "display_type?", &displayType); err != nil {
 			return nil, err
 		}
 
@@ -126,34 +145,43 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 			}
 		}
 
+		dt, dto, _ := strings.Cut(string(displayType), ":")
+
 		index += 1
 		definedParams[string(name)] = AppParam{
-			Index:        index,
-			Name:         string(name),
-			Type:         typeVal,
-			DefaultValue: defaultValue,
-			Description:  string(description),
-			Required:     bool(required),
+			Index:              index,
+			Name:               string(name),
+			Type:               typeVal,
+			DefaultValue:       defaultValue,
+			Description:        string(description),
+			Required:           bool(required),
+			DisplayType:        DisplayType(dt),
+			DisplayTypeOptions: dto,
 		}
 
 		paramDict := starlark.StringDict{
-			"index":       starlark.MakeInt(index),
-			"name":        name,
-			"type":        dataType,
-			"default":     defaultValue,
-			"description": description,
-			"required":    required,
+			"index":                starlark.MakeInt(index),
+			"name":                 name,
+			"type":                 dataType,
+			"default":              defaultValue,
+			"description":          description,
+			"required":             required,
+			"display_type":         displayType,
+			"display_type_options": starlark.String(dto),
 		}
 		return starlarkstruct.FromStringDict(starlark.String(PARAM), paramDict), nil
 	}
 
 	builtins := starlark.StringDict{
-		PARAM:                         starlark.NewBuiltin(PARAM, paramBuiltin),
-		string(starlark_type.INT):     starlark.String(starlark_type.INT),
-		string(starlark_type.STRING):  starlark.String(starlark_type.STRING),
-		string(starlark_type.BOOLEAN): starlark.String(starlark_type.BOOLEAN),
-		string(starlark_type.DICT):    starlark.String(starlark_type.DICT),
-		string(starlark_type.LIST):    starlark.String(starlark_type.LIST),
+		PARAM:                                          starlark.NewBuiltin(PARAM, paramBuiltin),
+		string(starlark_type.INT):                      starlark.String(starlark_type.INT),
+		string(starlark_type.STRING):                   starlark.String(starlark_type.STRING),
+		string(starlark_type.BOOLEAN):                  starlark.String(starlark_type.BOOLEAN),
+		string(starlark_type.DICT):                     starlark.String(starlark_type.DICT),
+		string(starlark_type.LIST):                     starlark.String(starlark_type.LIST),
+		strings.ToUpper(string(DisplayTypePassword)):   starlark.String(DisplayTypePassword),
+		strings.ToUpper(string(DisplayTypeTextArea)):   starlark.String(DisplayTypeTextArea),
+		strings.ToUpper(string(DisplayTypeFileUpload)): starlark.String(DisplayTypeFileUpload),
 	}
 
 	thread := &starlark.Thread{

@@ -853,3 +853,49 @@ app = ace.app("testApp",
 	}
 	testutil.AssertStringContains(t, body, `<li><a href="/test/test1?param1=abc">test1Action</a></li>`)
 }
+
+func TestDisplayTypes(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+
+app = ace.app("testApp",
+	actions=[ace.action("test1Action", "/test1", handler)])
+		`,
+		"params.star": `param("param1", description="param1 description", default="myvalue", display_type=FILE)
+param("param2", description="param2 description", default="myvalue", display_type=PASSWORD)
+param("param3", description="param3 description", default="myvalue", display_type=TEXTAREA)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/test1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	body := response.Body.String()
+	testutil.AssertStringContains(t, body, `type="file"`)
+	testutil.AssertStringContains(t, body, `type="password"`)
+	testutil.AssertStringContains(t, body, `textarea`)
+}
+
+func TestDisplayTypesError(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+
+app = ace.app("testApp",
+	actions=[ace.action("test1Action", "/test1", handler)])
+		`,
+		"params.star": `param("param1", description="param1 description", type=BOOLEAN, default=False, display_type=FILE)`,
+	}
+	_, _, err := CreateTestApp(logger, fileData)
+	testutil.AssertErrorContains(t, err, "display_type file is allowed for string type param1 only")
+}

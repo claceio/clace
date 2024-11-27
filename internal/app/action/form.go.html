@@ -36,8 +36,11 @@
 </p>
 
 <div class="card w-full shadow-2xl p-6 rounded-lg">
-  <form method="post">
-    <!-- Name Field -->
+  <form
+    method="post"
+    {{ if .hasFileUpload }}
+      enctype="multipart/form-data" hx-encoding="multipart/form-data"
+    {{ end }}>
     {{ range .params }}
       <div class="grid grid-cols-2 gap-4 mb-4 items-center">
         <label class="label flex-col items-start" for="param_{{ .Name }}">
@@ -77,12 +80,41 @@
           </div>
         {{ else }}
           <div>
-            <input
-              id="param_{{ .Name }}"
-              name="{{ .Name }}"
-              type="text"
-              class="input input-bordered w-full"
-              value="{{ .Value }}" />
+            {{ if eq .DisplayType "textarea" }}
+              <textarea
+                id="param_{{ .Name }}"
+                name="{{ .Name }}"
+                class="textarea textarea-primary w-full"
+                {{ if .DisplayTypeOptions }}
+                  rows="{{ .DisplayTypeOptions }}"
+                {{ end }}>
+ {{- .Value -}}</textarea
+              >
+            {{ else if eq .DisplayType "password" }}
+              <input
+                id="param_{{ .Name }}"
+                name="{{ .Name }}"
+                type="password"
+                class="input input-bordered w-full"
+                value="{{ .Value }}" />
+            {{ else if eq .DisplayType "file" }}
+              <input
+                id="param_{{ .Name }}"
+                name="{{ .Name }}"
+                type="file"
+                {{ if .DisplayTypeOptions }}
+                  accept="{{ .DisplayTypeOptions }}"
+                {{ end }}
+                class="file-input file-input-primary w-full"
+                value="{{ .Value }}" />
+            {{ else }}
+              <input
+                id="param_{{ .Name }}"
+                name="{{ .Name }}"
+                type="{{ .DisplayType }}"
+                class="input input-bordered w-full"
+                value="{{ .Value }}" />
+            {{ end }}
             <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
           </div>
         {{ end }}

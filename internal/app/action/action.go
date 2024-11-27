@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"slices"
 	"strconv"
@@ -177,7 +178,7 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 	}
 	isHtmxRequest := r.Header.Get("HX-Request") == "true"
 
-	r.ParseForm()
+	r.ParseMultipartForm(10 << 20) // 10 MB max file size
 	var err error
 	dryRun := false
 	dryRunStr := r.Form.Get("dry-run")
@@ -210,23 +211,71 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	qsParams := url.Values{}
 
+	var tempDir string
 	// Update args with submitted form values
 	for _, param := range a.params {
-		formValue := r.Form.Get(param.Name)
-		if formValue == "" {
-			if param.Type == starlark_type.BOOLEAN {
-				// Form does not submit unchecked checkboxes, set to false
-				args[param.Name] = starlark.Bool(false)
-				qsParams.Add(param.Name, "false")
+		if a.hidden[param.Name] {
+			continue
+		}
+
+		if param.DisplayType == apptype.DisplayTypeFileUpload {
+			f, fh, err := r.FormFile(param.Name)
+			if err == http.ErrMissingFile {
+				args[param.Name] = starlark.String("")
+				continue
 			}
-		} else {
-			newVal, err := apptype.ParamStringToType(param.Name, param.Type, formValue)
+
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("error getting file %s: %s", param.Name, err), http.StatusBadRequest)
 				return
 			}
-			args[param.Name] = newVal
-			qsParams.Add(param.Name, formValue)
+
+			if tempDir == "" {
+				tempDir, err = os.MkdirTemp("", "clace-file-upload-*")
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				defer func() {
+					if remErr := os.RemoveAll(tempDir); remErr != nil {
+						a.Error().Err(remErr).Msg("error removing temp dir")
+					}
+				}()
+			}
+
+			fullPath := path.Join(tempDir, fh.Filename)
+			destFile, err := os.Create(fullPath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer destFile.Close()
+
+			// Write contents of uploaded file to destFile
+			if _, err = io.Copy(destFile, f); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			args[param.Name] = starlark.String(fullPath)
+		} else {
+			// Not file upload, regular param
+			formValue := r.Form.Get(param.Name)
+			if formValue == "" {
+				if param.Type == starlark_type.BOOLEAN {
+					// Form does not submit unchecked checkboxes, set to false
+					args[param.Name] = starlark.Bool(false)
+					qsParams.Add(param.Name, "false")
+				}
+			} else {
+				newVal, err := apptype.ParamStringToType(param.Name, param.Type, formValue)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				args[param.Name] = newVal
+				qsParams.Add(param.Name, formValue)
+			}
 		}
 	}
 
@@ -540,11 +589,13 @@ func RunDeferredCleanup(thread *starlark.Thread) error {
 }
 
 type ParamDef struct {
-	Name        string
-	Description string
-	Value       any
-	InputType   string
-	Options     []string
+	Name               string
+	Description        string
+	Value              any
+	InputType          string
+	Options            []string
+	DisplayType        string
+	DisplayTypeOptions string
 }
 
 const (
@@ -570,6 +621,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	hasFileUpload := false
 	for _, p := range a.params {
 		if strings.HasPrefix(p.Name, OPTIONS_PREFIX) || a.hidden[p.Name] {
 			continue
@@ -610,6 +662,24 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 			param.Value = value
 		}
 
+		if p.DisplayType != "" {
+			switch p.DisplayType {
+			case apptype.DisplayTypePassword:
+				param.DisplayType = "password"
+			case apptype.DisplayTypeTextArea:
+				param.DisplayType = "textarea"
+			case apptype.DisplayTypeFileUpload:
+				param.DisplayType = "file"
+				hasFileUpload = true
+			default:
+				http.Error(w, fmt.Sprintf("invalid display type for %s: %s", p.Name, p.DisplayType), http.StatusInternalServerError)
+				return
+			}
+			param.DisplayTypeOptions = p.DisplayTypeOptions
+		} else {
+			param.DisplayType = "text"
+		}
+
 		params = append(params, param)
 	}
 
@@ -624,16 +694,17 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := map[string]any{
-		"dev":         a.isDev,
-		"name":        a.name,
-		"description": a.description,
-		"appPath":     a.appPath,
-		"pagePath":    a.pagePath,
-		"params":      params,
-		"styleType":   string(a.StyleType),
-		"lightTheme":  a.LightTheme,
-		"darkTheme":   a.DarkTheme,
-		"links":       linksWithQS,
+		"dev":           a.isDev,
+		"name":          a.name,
+		"description":   a.description,
+		"appPath":       a.appPath,
+		"pagePath":      a.pagePath,
+		"params":        params,
+		"styleType":     string(a.StyleType),
+		"lightTheme":    a.LightTheme,
+		"darkTheme":     a.DarkTheme,
+		"links":         linksWithQS,
+		"hasFileUpload": hasFileUpload,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
