@@ -78,3 +78,27 @@
     </script>
   </div>
 {{ end }}
+
+{{ block "result-download" . }}
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">Output File</div>
+
+    {{ range . }}
+      <h2>
+        <a class="link link-primary" href="{{ .url }}"> Download {{ .name }}</a>
+      </h2>
+    {{ end }}
+  </div>
+{{ end }}
+
+{{ block "result-image" . }}
+  <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+    <div class="divider text-lg text-secondary">Output File</div>
+
+    {{ range . }}
+      <h2>{{ .name }}</h2>
+      <img src="{{ .url }}" alt="{{ .name }}" /><img />
+      <br />
+    {{ end }}
+  </div>
+{{ end }}

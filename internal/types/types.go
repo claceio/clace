@@ -127,6 +127,7 @@ type PluginContext struct {
 	StoreInfo *starlark_type.StoreInfo
 	Config    PluginSettings
 	AppConfig AppConfig
+	AppPath   string
 }
 
 // HttpConfig is the configuration for the HTTP server

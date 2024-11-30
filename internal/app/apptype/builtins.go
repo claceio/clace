@@ -52,8 +52,10 @@ const (
 	READ      = "READ"
 	WRITE     = "WRITE"
 
-	AUTO  = "AUTO"
-	TABLE = "TABLE"
+	AUTO     = "AUTO"
+	TABLE    = "TABLE"
+	DOWNLOAD = "DOWNLOAD"
+	IMAGE    = "IMAGE"
 )
 
 var (
@@ -425,6 +427,8 @@ func CreateBuiltin() starlark.StringDict {
 					WRITE:           starlark.String(WRITE),
 					AUTO:            starlark.String(AUTO),
 					TABLE:           starlark.String(TABLE),
+					DOWNLOAD:        starlark.String(DOWNLOAD),
+					IMAGE:           starlark.String(IMAGE),
 					"CONTAINER_URL": starlark.String(CONTAINER_URL),
 				},
 			},

@@ -79,17 +79,17 @@ func backgroundCleanup(ctx context.Context, cleanupTicker *time.Ticker) {
 }
 
 func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var path starlark.String
+	var pathVal starlark.String
 	visibility := starlark.String(UserAccess)
 	mimeType := starlark.String("application/octet-stream")
 	expiryMinutes := starlark.MakeInt(60)
 	singleAccess := starlark.Bool(true)
 
-	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &path, "visibility?", &visibility, "mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
+	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &pathVal, "visibility?", &visibility, "mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
 		return nil, err
 	}
 
-	pathStr, err := filepath.Abs(string(path))
+	pathStr, err := filepath.Abs(string(pathVal))
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +119,9 @@ func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, 
 
 	createTime := time.Now()
 	expireAt := createTime.Add(time.Duration(expiryMinutesInt) * time.Minute)
+	if expiryMinutesInt <= 0 {
+		expireAt = time.Unix(0, int64(^uint64(0)>>1))
+	}
 
 	id, err := ksuid.NewRandom()
 	if err != nil {
@@ -143,7 +146,19 @@ func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, 
 	if err != nil {
 		return nil, err
 	}
-	return starlark.String(userFile.Id), nil
+
+	appPath := f.pluginContext.AppPath
+	if appPath == "/" {
+		appPath = ""
+	}
+	downloadUrl := fmt.Sprintf("%s%s/file/%s", appPath, types.APP_INTERNAL_URL_PREFIX, userFile.Id)
+
+	ret := map[string]string{
+		"id":   userFile.Id,
+		"url":  downloadUrl,
+		"name": userFile.FileName,
+	}
+	return NewResponse(ret), nil
 }
 
 func AddUserFile(ctx context.Context, file *types.UserFile) error {

@@ -450,6 +450,10 @@ func (a *Action) renderResults(w http.ResponseWriter, report string, valuesMap [
 		return a.renderResultsText(w, valuesStr)
 	case apptype.JSON:
 		return a.renderResultsJson(w, valuesMap)
+	case apptype.DOWNLOAD:
+		return a.renderResultsDownload(w, valuesMap)
+	case apptype.IMAGE:
+		return a.renderResultsImage(w, valuesMap)
 	default:
 		// Custom template being used for the results
 		// Wrap the template output in a div with hx-swap-oob
@@ -512,6 +516,18 @@ func (a *Action) renderResultsAuto(w http.ResponseWriter, valuesMap []map[string
 func (a *Action) renderResultsText(w http.ResponseWriter, valuesStr []string) error {
 	// Render the result values, using HTMX OOB
 	err := a.actionTemplate.ExecuteTemplate(w, "result-textarea", valuesStr)
+	return err
+}
+
+func (a *Action) renderResultsDownload(w http.ResponseWriter, valuesMap []map[string]any) error {
+	// Render the result values, using HTMX OOB
+	err := a.actionTemplate.ExecuteTemplate(w, "result-download", valuesMap)
+	return err
+}
+
+func (a *Action) renderResultsImage(w http.ResponseWriter, valuesMap []map[string]any) error {
+	// Render the result values, using HTMX OOB
+	err := a.actionTemplate.ExecuteTemplate(w, "result-image", valuesMap)
 	return err
 }
 
