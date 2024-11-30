@@ -62,16 +62,17 @@ func (p *AppPlugins) GetPlugin(pluginInfo *plugin.PluginInfo, accountName string
 		}
 	}
 
-	appConfig := types.PluginSettings{}
+	pluginConfig := types.PluginSettings{}
 	if _, ok := p.pluginConfig[pluginAccount]; ok {
-		appConfig = p.pluginConfig[pluginAccount]
+		pluginConfig = p.pluginConfig[pluginAccount]
 	}
 
 	pluginContext := &types.PluginContext{
 		Logger:    p.app.Logger,
 		AppId:     p.app.AppEntry.Id,
 		StoreInfo: p.app.storeInfo,
-		Config:    appConfig,
+		Config:    pluginConfig,
+		AppConfig: p.app.appConfig,
 	}
 	appPlugin, err := pluginInfo.Builder(pluginContext)
 	if err != nil {

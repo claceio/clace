@@ -3,6 +3,7 @@ dist/
 /clace
 clace.db*
 clace_app.db*
+clace_fs.db*
 clace.toml
 *.swp
 .sw*

@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +21,6 @@ import (
 )
 
 const (
-	DB_CONNECTION_CONFIG = "db_connection"
 	SELECT_MAX_LIMIT     = 100_000
 	SELECT_DEFAULT_LIMIT = 10_000
 	SORT_ASCENDING       = "asc"
@@ -118,17 +116,6 @@ func (s *SqlStore) initialize(ctx context.Context) error {
 	}
 	s.isInitialized = true
 	return nil
-}
-
-func checkConnectString(connStr string) (string, error) {
-	parts := strings.SplitN(connStr, ":", 2)
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid connection string: %s", connStr)
-	}
-	if !strings.HasPrefix(parts[0], "sqlite") { // only sqlite for now
-		return "", fmt.Errorf("invalid connection string: %s, only sqlite supported", connStr)
-	}
-	return os.ExpandEnv(parts[1]), nil
 }
 
 func (s *SqlStore) Begin(ctx context.Context) (*sql.Tx, error) {

@@ -61,6 +61,9 @@ root_serve_list_apps = "auto"       # "auto" means serve list_apps app for defau
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/clace_app.db"
 
+[plugin."fs.in"]
+db_connection = "sqlite:$CL_HOME/clace_fs.db"
+
 [app_config]
 # app config can be set at the app level using a metadata config update. For example:
 #  clace app update-metadata conf --promote cors.allow_methods="GET, POST" /myapp
@@ -94,3 +97,6 @@ container.status_health_attempts = 3
 proxy.max_idle_conns = 250
 proxy.idle_conn_timeout_secs = 15
 proxy.disable_compression = true
+
+# FS plugin related settings
+fs.file_access = ["$TEMPDIR", "/tmp"]

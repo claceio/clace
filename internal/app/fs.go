@@ -1,7 +1,7 @@
 // Copyright (c) ClaceIO, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-package plugins
+package app
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/plugin"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
@@ -24,24 +24,98 @@ const (
 	MAX_FILE_LIMIT     = 100_000
 )
 
-func init() {
+type AccessType string
+
+const (
+	UserAccess AccessType = "user"
+	AppAccess  AccessType = "app"
+)
+
+func initFS() {
 	h := &fsPlugin{}
 	pluginFuncs := []plugin.PluginFunc{
-		app.CreatePluginApi(h.Abs, app.READ),
-		app.CreatePluginApi(h.List, app.READ),
-		app.CreatePluginApi(h.Find, app.READ),
+		CreatePluginApi(h.Abs, READ),
+		CreatePluginApi(h.List, READ),
+		CreatePluginApi(h.Find, READ),
+		CreatePluginApiName(h.LoadFile, READ, "load_file"),
+		CreatePluginConstant(strings.ToUpper(string(UserAccess)), starlark.String(UserAccess)),
+		CreatePluginConstant(strings.ToUpper(string(AppAccess)), starlark.String(AppAccess)),
 	}
-	app.RegisterPlugin("fs", NewFSPlugin, pluginFuncs)
+	RegisterPlugin("fs", NewFSPlugin, pluginFuncs)
 }
 
 type fsPlugin struct {
+	accessAllowed []string
+	pluginContext *types.PluginContext
 }
 
 func NewFSPlugin(pluginContext *types.PluginContext) (any, error) {
-	return &fsPlugin{}, nil
+	accessAllowed, err := resolveDirs(pluginContext.AppConfig.FS.FileAccess)
+	if err != nil {
+		return nil, err
+	}
+	return &fsPlugin{accessAllowed: accessAllowed,
+		pluginContext: pluginContext,
+	}, nil
 }
 
-func (h *fsPlugin) Abs(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func resolveDirs(allowed []string) ([]string, error) {
+	tempDir := os.TempDir()
+	ret := []string{}
+	for _, key := range allowed {
+		if key == "$TEMPDIR" {
+			key = tempDir
+		}
+
+		// Resolve symbolic links and canonicalize the paths
+		realPath, err := filepath.EvalSymlinks(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve path symlinks: %w", err)
+		}
+
+		absDir, err := filepath.Abs(realPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute directory: %w", err)
+		}
+
+		if !strings.HasSuffix(absDir, string(filepath.Separator)) {
+			absDir += string(filepath.Separator)
+		}
+
+		ret = append(ret, absDir)
+	}
+	return ret, nil
+}
+
+func (f *fsPlugin) checkAccess(filePath string) (bool, error) {
+	realPath, err := filepath.EvalSymlinks(filePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve path symlinks: %w", err)
+	}
+
+	absPath, err := filepath.Abs(realPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	for _, dir := range f.accessAllowed {
+		// Compute the relative path from baseDir to targetPath.
+		relPath, err := filepath.Rel(dir, absPath)
+		if err != nil {
+			return false, fmt.Errorf("failed to compute relative path: %w", err)
+		}
+
+		// Clean the relative path to remove any redundant components.
+		relPath = filepath.Clean(relPath)
+		if relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+			// Target path is inside the base directory.
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fsPlugin) Abs(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &path); err != nil {
 		return nil, err
@@ -53,10 +127,10 @@ func (h *fsPlugin) Abs(thread *starlark.Thread, builtin *starlark.Builtin, args 
 		return nil, err
 	}
 
-	return app.NewResponse(ret), nil
+	return NewResponse(ret), nil
 }
 
-func (h *fsPlugin) List(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (f *fsPlugin) List(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	var recursiveSize starlark.Bool
 	var ignoreError starlark.Bool
@@ -65,15 +139,15 @@ func (h *fsPlugin) List(thread *starlark.Thread, builtin *starlark.Builtin, args
 	}
 
 	pathStr := string(path)
-	ctx := app.GetContext(thread)
+	ctx := GetContext(thread)
 	ret, err := listDir(ctx, pathStr, bool(recursiveSize), bool(ignoreError))
 	if err != nil {
 		return nil, err
 	}
-	return app.NewResponse(ret), nil
+	return NewResponse(ret), nil
 }
 
-func (h *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (f *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path, nameGlob starlark.String
 	var minSize, limit starlark.Int
 	var ignoreError starlark.Bool
@@ -99,13 +173,13 @@ func (h *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args
 		limitInt = DEFAULT_FILE_LIMIT
 	}
 
-	ctx := app.GetContext(thread)
+	ctx := GetContext(thread)
 	ret, err := find(ctx, string(path), string(nameGlob), limitInt, minSizeInt, bool(ignoreError))
 	if err != nil {
 		return nil, err
 	}
 
-	return app.NewResponse(ret), nil
+	return NewResponse(ret), nil
 }
 
 type FileInfo struct {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"path"
 	"slices"
 	"strconv"
@@ -939,7 +940,81 @@ func (a *App) createInternalRoutes(router *chi.Mux) error {
 		router.Get(types.APP_INTERNAL_URL_PREFIX+"/sse", a.sseHandler)
 	}
 
+	router.Get(types.APP_INTERNAL_URL_PREFIX+"/file/{file_id}", a.userFileHandler)
 	return nil
+}
+
+func (a *App) userFileHandler(w http.ResponseWriter, r *http.Request) {
+	connectString := a.plugins.pluginConfig["fs.in"]["db_connection"] // this cannot be overridden at the app level
+	csStr, ok := connectString.(string)
+	if !ok {
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	err := InitFileStore(r.Context(), csStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fileID := chi.URLParam(r, "file_id")
+	fileEntry, err := GetUserFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "404 Not Found", http.StatusNotFound)
+		return
+	}
+
+	if fileEntry.Visibility == "private" && fileEntry.CreatedBy != types.ANONYMOUS_USER {
+		// Check if the user is authorized to access the file
+		reqUser := r.Context().Value(types.USER_ID)
+		if reqUser == nil {
+			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		userStr, ok := reqUser.(string)
+		if !ok {
+			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if userStr != fileEntry.CreatedBy {
+			http.Error(w, "403 Forbidden", http.StatusForbidden)
+			return
+		}
+	}
+	// For app level visibility, the file is accessible if the API is accessible
+
+	if !strings.HasPrefix(fileEntry.FilePath, "file://") {
+		http.Error(w, "500 Unknown file type", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", fileEntry.MimeType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileEntry.FileName))
+
+	filePath := fileEntry.FilePath[len("file://"):]
+	file, err := os.Open(filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+
+	// Copy the file content to the response writer
+	// This streams the content and uses chunked transfer encoding
+	if _, err := io.Copy(w, file); err != nil {
+		http.Error(w, "Error while copying file. "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if fileEntry.SingleAccess {
+		err = DeleteUserFile(r.Context(), fileID)
+		if err != nil {
+			a.Error().Err(err).Msgf("Error deleting file %s %s", fileID, fileEntry.FilePath)
+		}
+	}
 }
 
 func (a *App) loadLibraryInfo() ([]dev.JSLibrary, error) {

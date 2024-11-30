@@ -19,6 +19,7 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/metadata"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -97,7 +98,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	appEntry.Metadata.ContainerArgs = appRequest.ContainerArgs
 	appEntry.Metadata.ContainerVolumes = appRequest.ContainerVolumes
 	appEntry.Metadata.AppConfig = appRequest.AppConfig
-	appEntry.UserID = getUserId(ctx)
+	appEntry.UserID = system.GetContextUserId(ctx)
 
 	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
@@ -106,18 +107,6 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 
 	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return auditResult, nil
-}
-
-func getUserId(ctx context.Context) string {
-	userId := ctx.Value(types.USER_ID)
-	if userId == nil {
-		return ""
-	}
-	strValue, ok := userId.(string)
-	if !ok {
-		return ""
-	}
-	return strValue
 }
 
 func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*types.AppCreateResponse, error) {
@@ -423,7 +412,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	appAuthString := string(appAuth)
 	if appAuth == types.AppAuthnNone {
 		// No authentication required
-		userId = "anonymous"
+		userId = types.ANONYMOUS_USER
 	} else if appAuth == types.AppAuthnSystem {
 		// Use system admin user for authentication
 		authStatus := s.authHandler.authenticate(r.Header.Get("Authorization"))
@@ -432,7 +421,7 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 			http.Error(w, "Authentication failed", http.StatusUnauthorized)
 			return
 		}
-		userId = "admin" // not using the actual user id, just a admin placeholder
+		userId = types.ADMIN_USER // not using the actual user id, just a admin placeholder
 	} else if appAuthString == "cert" || strings.HasPrefix(appAuthString, "cert_") {
 		// Use client certificate authentication
 		if s.config.Https.DisableClientCerts {
@@ -946,7 +935,7 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 	previewAppEntry.Path = mainAppEntry.Path + types.PREVIEW_SUFFIX + "_" + commitId
 	previewAppEntry.MainApp = mainAppEntry.Id
 	previewAppEntry.Id = types.AppId(types.ID_PREFIX_APP_PREVIEW + string(mainAppEntry.Id)[len(types.ID_PREFIX_APP_PROD):])
-	previewAppEntry.UserID = getUserId(ctx)
+	previewAppEntry.UserID = system.GetContextUserId(ctx)
 
 	// Check if it already exists
 	if _, err = s.db.GetAppTx(ctx, tx, previewAppEntry.AppPathDomain()); err == nil {

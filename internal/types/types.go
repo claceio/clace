@@ -47,6 +47,11 @@ const (
 	CONTAINER_SOURCE_IMAGE_PREFIX = "image:"
 )
 
+const (
+	ANONYMOUS_USER = "anonymous"
+	ADMIN_USER     = "admin"
+)
+
 // Config entries shared between client and server
 type GlobalConfig struct {
 	ConfigFile string `toml:"config_file"`
@@ -79,6 +84,7 @@ type AppConfig struct {
 	CORS      CORS      `toml:"cors"`
 	Container Container `toml:"container"`
 	Proxy     Proxy     `toml:"proxy"`
+	FS        FS        `toml:"fs"`
 }
 
 type CORS struct {
@@ -87,6 +93,10 @@ type CORS struct {
 	AllowHeaders     string `toml:"allow_headers"`
 	AllowCredentials string `toml:"allow_credentials"`
 	MaxAge           string `toml:"max_age"`
+}
+
+type FS struct {
+	FileAccess []string `toml:"file_access"`
 }
 
 type Container struct {
@@ -116,6 +126,7 @@ type PluginContext struct {
 	AppId     AppId
 	StoreInfo *starlark_type.StoreInfo
 	Config    PluginSettings
+	AppConfig AppConfig
 }
 
 // HttpConfig is the configuration for the HTTP server
@@ -467,3 +478,17 @@ func StripQuotes(s string) string {
 
 // StyleType is the type of style library used by the app
 type StyleType string
+
+type UserFile struct {
+	Id           string
+	AppId        string
+	FilePath     string
+	FileName     string
+	MimeType     string
+	CreateTime   time.Time
+	ExpireAt     time.Time
+	CreatedBy    string
+	SingleAccess bool
+	Visibility   string
+	Metadata     map[string]any
+}

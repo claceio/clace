@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 )
 
@@ -20,37 +21,15 @@ func (s *SqlStore) initStore(ctx context.Context) error {
 	if s.pluginContext.StoreInfo == nil {
 		return fmt.Errorf("store info not found")
 	}
-
-	connectStringConfig, ok := s.pluginContext.Config[DB_CONNECTION_CONFIG]
-	if !ok {
-		return fmt.Errorf("db connection string not found in config")
-	}
-	connectString, ok := connectStringConfig.(string)
-	if !ok {
-		return fmt.Errorf("db connection string is not a string")
-	}
-
-	var err error
-	connectString, err = checkConnectString(connectString)
+	connectString, err := system.GetConnectString(s.pluginContext)
 	if err != nil {
 		return err
 	}
-
-	s.db, err = sql.Open("sqlite", connectString)
+	s.db, err = system.InitPluginDB(connectString)
 	if err != nil {
-		return fmt.Errorf("error opening db %s: %w", connectString, err)
+		return err
 	}
 	s.isSqlite = true
-
-	if _, err := s.db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return err
-	}
-	if _, err := s.db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		return err
-	}
-	if _, err := s.db.Exec("PRAGMA busy_timeout=10000"); err != nil {
-		return err
-	}
 
 	s.prefix = "db_" + string(s.pluginContext.AppId)[len(types.ID_PREFIX_APP_PROD):]
 

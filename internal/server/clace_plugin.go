@@ -5,12 +5,12 @@ package server
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/plugin"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 )
@@ -32,20 +32,6 @@ type clacePlugin struct {
 	server *Server
 }
 
-func getRequestUserId(thread *starlark.Thread) string {
-	ctxVal := thread.Local(types.TL_CONTEXT)
-	if ctxVal == nil {
-		return ""
-	}
-
-	ctx, ok := ctxVal.(context.Context)
-	if !ok {
-		return ""
-	}
-
-	return getUserId(ctx)
-}
-
 func (c *clacePlugin) verifyHasAccess(userId string, appAuth types.AppAuthnType) bool {
 	if appAuth == types.AppAuthnDefault {
 		appAuth = types.AppAuthnType(c.server.config.Security.AppDefaultAuthType)
@@ -56,7 +42,7 @@ func (c *clacePlugin) verifyHasAccess(userId string, appAuth types.AppAuthnType)
 		// No auth required for this app, allow access
 		return true
 	} else if appAuth == types.AppAuthnSystem {
-		return userId == "admin"
+		return userId == types.ADMIN_USER
 	} else if appAuth == "cert" || strings.HasPrefix(string(appAuth), "cert_") {
 		return userId == string(appAuth)
 	} else {
@@ -93,7 +79,7 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 		return nil, err
 	}
 
-	userId := getRequestUserId(thread)
+	userId := system.GetRequestUserId(thread)
 	ret := starlark.List{}
 	for _, app := range apps {
 		if !c.verifyHasAccess(userId, app.Auth) {

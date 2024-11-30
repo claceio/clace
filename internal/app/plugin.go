@@ -36,6 +36,7 @@ var (
 
 func init() {
 	builtInPlugins = make(map[string]plugin.PluginMap)
+	initFS()
 }
 
 // RegisterPlugin registers a plugin with Clace

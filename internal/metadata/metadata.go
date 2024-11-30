@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	_ "modernc.org/sqlite"
 )
@@ -26,20 +26,9 @@ type Metadata struct {
 	db     *sql.DB
 }
 
-func checkConnectString(connStr string) (string, error) {
-	parts := strings.SplitN(connStr, ":", 2)
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid connection string: %s", connStr)
-	}
-	if !strings.HasPrefix(parts[0], "sqlite") {
-		return "", fmt.Errorf("invalid connection string: %s, only sqlite supported", connStr)
-	}
-	return os.ExpandEnv(parts[1]), nil
-}
-
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
-	dbPath, err := checkConnectString(config.Metadata.DBConnection)
+	dbPath, err := system.CheckConnectString(config.Metadata.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +38,8 @@ func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, e
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, err
-	}
-	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		return nil, err
-	}
-	if _, err := db.Exec("PRAGMA busy_timeout=10000"); err != nil {
+
+	if err := system.SQLItePragmas(db); err != nil {
 		return nil, err
 	}
 
