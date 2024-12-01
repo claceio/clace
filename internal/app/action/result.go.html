@@ -83,11 +83,12 @@
   <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
     <div class="divider text-lg text-secondary">Output File</div>
 
-    {{ range . }}
-      <h2>
-        <a class="link link-primary" href="{{ .url }}"> Download {{ .name }}</a>
-      </h2>
-    {{ end }}
+    <h2 class="text-center">
+      {{ range . }}
+        Download <a class="link link-primary" href="{{ .url }}">{{ .name }}</a>
+        <br />
+      {{ end }}
+    </h2>
   </div>
 {{ end }}
 

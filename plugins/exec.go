@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 
 	"github.com/claceio/clace/internal/app"
@@ -34,12 +35,13 @@ func NewExecPlugin(_ *types.PluginContext) (any, error) {
 
 func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
-		path           starlark.String
-		cmdArgs        *starlark.List
-		env            *starlark.List
-		processPartial starlark.Bool
+		path                         starlark.String
+		cmdArgs                      *starlark.List
+		env                          *starlark.List
+		processPartial, stdoutToFile starlark.Bool
 	)
-	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env, "process_partial?", &processPartial); err != nil {
+	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env,
+		"process_partial?", &processPartial, "stdout_file", &stdoutToFile); err != nil {
 		return nil, err
 	}
 	if cmdArgs == nil {
@@ -53,6 +55,7 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	argsList := make([]string, 0, cmdArgs.Len())
 	envList := make([]string, 0, env.Len())
 	processPartialBool := bool(processPartial)
+	stdoutToFileBool := bool(stdoutToFile)
 
 	for i := 0; i < cmdArgs.Len(); i++ {
 		value, ok := cmdArgs.Index(i).(starlark.String)
@@ -84,7 +87,19 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 	}
 
 	var buf bytes.Buffer
-	_, err = io.CopyN(&buf, stdout, MAX_BYTES_STDOUT)
+	var tempFile *os.File
+
+	if stdoutToFileBool {
+		tempFile, err = os.CreateTemp("", "clace-exec-stdout-*")
+		if err != nil {
+			return nil, fmt.Errorf("error creating temporary file: %w", err)
+		}
+		defer tempFile.Close()
+		_, err = io.Copy(tempFile, stdout)
+	} else {
+		_, err = io.CopyN(&buf, stdout, MAX_BYTES_STDOUT)
+	}
+
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
@@ -95,6 +110,10 @@ func (e *ExecPlugin) Run(thread *starlark.Thread, _ *starlark.Builtin, args star
 			return nil, fmt.Errorf("%s: %s", runErr, stderr.String())
 		}
 		return nil, runErr
+	}
+
+	if stdoutToFileBool {
+		return app.NewResponse(starlark.String(tempFile.Name())), nil
 	}
 
 	lines := starlark.NewList([]starlark.Value{})
