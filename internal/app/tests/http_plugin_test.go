@@ -19,6 +19,10 @@ func TestHttpPluginBasics(t *testing.T) {
 		io.WriteString(w, "test contents")
 	}))
 
+	testServerJson := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"key": "value"}`)
+	}))
+
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
 		"app.star": `
@@ -36,13 +40,15 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")],
 	])
 
 def handler(req):
-	resp1 = http.get("` + testServer.URL + `")
+	resp1 = http.get("` + testServer.URL + `?a=b")
 	resp2 = http.post("` + testServer.URL + `")
 	resp3 = http.delete("` + testServer.URL + `")
 	resp4 = http.put("` + testServer.URL + `")
 	resp5 = http.patch("` + testServer.URL + `")
 	resp6 = http.head("` + testServer.URL + `")
 	resp7 = http.options("` + testServer.URL + `")
+	resp8 = http.get("` + testServerJson.URL + `")
+
 	return {
 		"key1": resp1.value.body(),
 		"key2": resp2.value.body(),
@@ -51,6 +57,7 @@ def handler(req):
 		"key5": resp5.value.body(),
 		"key6": resp6.value.body(),
 		"key7": resp7.value.body(),
+		"key8": resp8.value.json(),
 		}
 `,
 	}
@@ -84,4 +91,5 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body", "test contents", ret["key5"].(string))
 	testutil.AssertEqualsString(t, "body", "", ret["key6"].(string))
 	testutil.AssertEqualsString(t, "body", "test contents", ret["key7"].(string))
+	testutil.AssertEqualsString(t, "body", `value`, ret["key8"].(map[string]any)["key"].(string))
 }
