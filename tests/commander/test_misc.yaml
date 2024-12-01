@@ -127,3 +127,17 @@ tests:
   static0600:
     command: curl -su "admin:qwerty" localhost:25222/static_app2/test_certs.yaml
     stdout: 404 page not found
+
+  # Test actions file handling
+  actions0100: # Create app
+    command: ../clace app create --approve github.com/claceio/apps/misc/num_lines /numlines
+  actions0200:
+    command: curl -su "admin:qwerty" localhost:25222/numlines
+    stdout: type="file"
+  actions0300:
+    command: echo "abc" > action_inp.txt
+  actions0400:
+    command: curl -su "admin:qwerty" -vX POST -F "file=@action_inp.txt" localhost:25222/numlines
+    stdout: /numlines/_clace_app/file/usr_file_
+  actions0500:
+    command: rm action_inp.txt
