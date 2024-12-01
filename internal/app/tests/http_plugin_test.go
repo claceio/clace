@@ -40,7 +40,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")],
 	])
 
 def handler(req):
-	resp1 = http.get("` + testServer.URL + `?a=b")
+	resp1 = http.get("` + testServer.URL + `?a=b", headers={"X-Test": "test"}, params={"c": "d"}, auth_basic=("user", "pass"))
 	resp2 = http.post("` + testServer.URL + `")
 	resp3 = http.delete("` + testServer.URL + `")
 	resp4 = http.put("` + testServer.URL + `")
