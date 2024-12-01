@@ -1,0 +1,45 @@
+load("fs.in", "fs")
+load("exec.in", "exec")
+load("http.in", "http")
+
+def handler(req):
+   exec.run("sh", ["-c", "rm -rf /tmp/fileapptmp"])
+   exec.run("sh", ["-c", "mkdir /tmp/fileapptmp"])
+   ret1 = exec.run("sh", ["-c", "echo \"abc\" > /tmp/fileapptmp/testfileapp.txt"])
+   ret11 = exec.run("sh", ["-c", "echo \"abc\" > /tmp/fileapptmp/testfileapp2.txt"])
+   ret2 = fs.load_file("/tmp/fileapptmp/testfileapp.txt") # single_access=True is default
+   ret3 = fs.load_file("/tmp/fileapptmp/testfileapp2.txt", single_access=False)
+
+   # First attempt works
+   ret4 = http.get("http://localhost:25222" + ret2.value["url"])
+   if ret4.value.status_code != 200:
+      return "Error: %s" % ret4.value.status_code
+   ret5 = http.get("http://localhost:25222" + ret3.value["url"])
+   if ret5.value.status_code != 200:
+      return "Error: %d" % ret5.value.status_code
+
+   # Second attempt  fails for file1 (it got deleted on first GET call), works for file2 as it is multi_access
+   ret6 = http.get("http://localhost:25222" + ret2.value["url"])
+   if ret6.value.status_code == 200:
+      return "Error: %d" % ret6.value.status_code
+   ret7 = http.get("http://localhost:25222" + ret3.value["url"])
+   if ret7.value.status_code != 200:
+      return "Error: %d" % ret7.value.status_code
+
+   ret8 = fs.find("/tmp/fileapptmp", "testfileapp.txt")
+   if len(ret8.value) != 0:
+      return "Error: expected no files on disk %s"  % ret8.value
+   ret9 = fs.find("/tmp/fileapptmp", "testfileapp2.txt")
+   if len(ret9.value) == 0:
+      return "Error: expected files on disk"
+
+   return "Success"
+
+app = ace.app("file test",
+              routes = [ace.api("/", type=ace.TEXT)],
+              permissions = [
+              ace.permission("fs.in", "load_file"),
+              ace.permission("fs.in", "find"),
+              ace.permission("exec.in", "run"),
+              ace.permission("http.in", "get")]
+             )

@@ -152,7 +152,7 @@ func (f *fsPlugin) Find(thread *starlark.Thread, builtin *starlark.Builtin, args
 	var minSize, limit starlark.Int
 	var ignoreError starlark.Bool
 
-	if err := starlark.UnpackArgs("find", args, kwargs, "path", &path, "name?", nameGlob, "limit?", &limit, "min_size?", &minSize, "ignore_errors", &ignoreError); err != nil {
+	if err := starlark.UnpackArgs("find", args, kwargs, "path", &path, "name?", &nameGlob, "limit?", &limit, "min_size?", &minSize, "ignore_errors", &ignoreError); err != nil {
 		return nil, err
 	}
 

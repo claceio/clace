@@ -141,3 +141,8 @@ tests:
     stdout: /numlines/_clace_app/file/usr_file_
   actions0500:
     command: rm action_inp.txt
+  actions1000: # Create app
+    command: ../clace app create --auth=none --approve ./file_app /file_app
+  actions1100:
+    command: curl localhost:25222/file_app
+    stdout: Success

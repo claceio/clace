@@ -53,25 +53,38 @@ func InitFileStore(ctx context.Context, connectString string) error {
 	return nil
 }
 
-func backgroundCleanup(ctx context.Context, cleanupTicker *time.Ticker) {
-	for range cleanupTicker.C {
-		expired, err := listExpiredFile(ctx)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error cleaning up expired files %s", err)
-			break
-		}
+func fileCleanup(ctx context.Context) error {
+	expired, err := listExpiredFile(ctx)
+	if err != nil {
+		return fmt.Errorf("error cleaning up expired files %w", err)
+	}
 
-		for _, file := range expired {
-			if strings.HasPrefix(file.FilePath, "file://") {
-				err := os.Remove(strings.TrimPrefix(file.FilePath, "file://"))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error deleting file %s: %s", file.FilePath, err)
-				}
+	for _, file := range expired {
+		if strings.HasPrefix(file.FilePath, "file://") {
+			err := os.Remove(strings.TrimPrefix(file.FilePath, "file://"))
+			if err != nil {
+				return fmt.Errorf("error deleting file %s: %w", file.FilePath, err)
 			}
 		}
-		err = deleteExpiredFiles(ctx)
+	}
+	err = deleteExpiredFiles(ctx)
+	if err != nil {
+		return fmt.Errorf("error deleting expired files %w", err)
+	}
+	return nil
+}
+
+func backgroundCleanup(ctx context.Context, cleanupTicker *time.Ticker) {
+	err := fileCleanup(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error cleaning up expired files %s", err)
+		return
+	}
+
+	for range cleanupTicker.C {
+		err := fileCleanup(ctx)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error deleting expired files %s", err)
+			fmt.Fprintf(os.Stderr, "error cleaning up expired files %s", err)
 			break
 		}
 	}
