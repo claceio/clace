@@ -10,6 +10,7 @@
   <a href="https://github.com/claceio/clace/actions"><img src="https://github.com/claceio/clace/workflows/CI/badge.svg" alt="Build Status"></a>
   <a href="https://app.codecov.io/github/claceio/clace"><img src="https://img.shields.io/codecov/c/github/claceio/clace" alt="Code Coverage"></a>
   <a href="https://goreportcard.com/report/github.com/claceio/clace"><img src="https://goreportcard.com/badge/github.com/claceio/clace" alt="Go Report Card"></a>
+  <a href="https://github.com/avelino/awesome-go"><img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Go"></a>
 </p>
 
 ### Menu
