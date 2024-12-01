@@ -79,13 +79,14 @@ func backgroundCleanup(ctx context.Context, cleanupTicker *time.Ticker) {
 }
 
 func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var pathVal starlark.String
+	var pathVal, fileName starlark.String
 	visibility := starlark.String(UserAccess)
 	mimeType := starlark.String("application/octet-stream")
 	expiryMinutes := starlark.MakeInt(60)
 	singleAccess := starlark.Bool(true)
 
-	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &pathVal, "visibility?", &visibility, "mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
+	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &pathVal, "name?", &fileName, "visibility?", &visibility,
+		"mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
 		return nil, err
 	}
 
@@ -128,11 +129,16 @@ func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, 
 		return nil, err
 	}
 
+	fileNameStr := string(fileName)
+	if fileNameStr == "" {
+		fileNameStr = filepath.Base(pathStr)
+	}
+
 	userFile := &types.UserFile{
 		Id:           "usr_file_" + id.String(),
 		AppId:        string(f.pluginContext.AppId),
 		FilePath:     "file://" + pathStr,
-		FileName:     filepath.Base(pathStr),
+		FileName:     fileNameStr,
 		MimeType:     string(mimeType),
 		CreateTime:   createTime,
 		ExpireAt:     expireAt,
