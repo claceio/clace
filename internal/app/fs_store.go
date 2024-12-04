@@ -91,14 +91,14 @@ func backgroundCleanup(ctx context.Context, cleanupTicker *time.Ticker) {
 	fmt.Fprintf(os.Stderr, "background file cleanup stopped")
 }
 
-func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (f *fsPlugin) ServeTmpFile(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var pathVal, fileName starlark.String
 	visibility := starlark.String(UserAccess)
 	mimeType := starlark.String("application/octet-stream")
 	expiryMinutes := starlark.MakeInt(60)
 	singleAccess := starlark.Bool(true)
 
-	if err := starlark.UnpackArgs("load_file", args, kwargs, "path", &pathVal, "name?", &fileName, "visibility?", &visibility,
+	if err := starlark.UnpackArgs("serve_tmp_file", args, kwargs, "path", &pathVal, "name?", &fileName, "visibility?", &visibility,
 		"mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
 		return nil, err
 	}

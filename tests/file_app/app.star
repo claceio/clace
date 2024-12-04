@@ -7,8 +7,8 @@ def handler(req):
    exec.run("sh", ["-c", "mkdir /tmp/fileapptmp"])
    ret1 = exec.run("sh", ["-c", "echo \"abc\" > /tmp/fileapptmp/testfileapp.txt"])
    ret11 = exec.run("sh", ["-c", "echo \"abc\" > /tmp/fileapptmp/testfileapp2.txt"])
-   ret2 = fs.load_file("/tmp/fileapptmp/testfileapp.txt") # single_access=True is default
-   ret3 = fs.load_file("/tmp/fileapptmp/testfileapp2.txt", single_access=False)
+   ret2 = fs.serve_tmp_file("/tmp/fileapptmp/testfileapp.txt") # single_access=True is default
+   ret3 = fs.serve_tmp_file("/tmp/fileapptmp/testfileapp2.txt", single_access=False)
 
    # First attempt works
    ret4 = http.get("http://localhost:25222" + ret2.value["url"])
@@ -38,7 +38,7 @@ def handler(req):
 app = ace.app("file test",
               routes = [ace.api("/", type=ace.TEXT)],
               permissions = [
-              ace.permission("fs.in", "load_file"),
+              ace.permission("fs.in", "serve_tmp_file"),
               ace.permission("fs.in", "find"),
               ace.permission("exec.in", "run"),
               ace.permission("http.in", "get")]

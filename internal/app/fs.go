@@ -37,7 +37,7 @@ func initFS() {
 		CreatePluginApi(h.Abs, READ),
 		CreatePluginApi(h.List, READ),
 		CreatePluginApi(h.Find, READ),
-		CreatePluginApiName(h.LoadFile, READ, "load_file"),
+		CreatePluginApiName(h.ServeTmpFile, READ, "serve_tmp_file"),
 		CreatePluginConstant(strings.ToUpper(string(UserAccess)), starlark.String(UserAccess)),
 		CreatePluginConstant(strings.ToUpper(string(AppAccess)), starlark.String(AppAccess)),
 	}
