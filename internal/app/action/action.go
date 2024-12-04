@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -61,12 +62,13 @@ type Action struct {
 	containerProxyUrl string
 	hidden            map[string]bool // params which are not shown in the UI
 	Links             []ActionLink    // links to other actions
+	showValidate      bool
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
-	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string) (*Action, error) {
+	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string, showValidate bool) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
@@ -126,6 +128,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		StyleType:         styleType,
 		containerProxyUrl: containerProxyUrl,
 		hidden:            hiddenParams,
+		showValidate:      showValidate,
 		// Links, AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -158,14 +161,33 @@ func GetEmbeddedTemplates() (map[string][]byte, error) {
 
 func (a *Action) BuildRouter() (*chi.Mux, error) {
 	r := chi.NewRouter()
-	r.Post("/", a.runAction)
 	r.Get("/", a.getForm)
+	r.Post("/", a.runAction)
+	r.Post("/suggest", a.suggestAction)
+	r.Post("/validate", a.validateAction)
 
 	r.Handle("/astatic/*", http.StripPrefix(path.Join(a.pagePath), hashfs.FileServer(embedFS)))
 	return r, nil
 }
 
 func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
+	a.execAction(w, r, false, false)
+}
+
+func (a *Action) suggestAction(w http.ResponseWriter, r *http.Request) {
+	a.execAction(w, r, true, false)
+}
+
+func (a *Action) validateAction(w http.ResponseWriter, r *http.Request) {
+	a.execAction(w, r, false, true)
+}
+
+func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, isValidate bool) {
+	if isSuggest && a.suggest == nil {
+		http.Error(w, "suggest not supported for this action", http.StatusNotImplemented)
+		return
+	}
+
 	thread := &starlark.Thread{
 		Name:  a.name,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
@@ -180,16 +202,6 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseMultipartForm(10 << 20) // 10 MB max file size
 	var err error
-	dryRun := false
-	dryRunStr := r.Form.Get("dry-run")
-	if dryRunStr != "" {
-		dryRun, err = strconv.ParseBool(dryRunStr)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid value for dry-run: %s", dryRunStr), http.StatusBadRequest)
-			return
-		}
-	}
-
 	deferredCleanup := func() error {
 		// Check for any deferred cleanups
 		err = RunDeferredCleanup(thread)
@@ -281,9 +293,16 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 
 	argsValue := Args{members: args}
 
+	callable := a.run
+	callInput := starlark.Tuple{starlark.Bool(isValidate), &argsValue}
+	if isSuggest {
+		callable = a.suggest
+		callInput = starlark.Tuple{&argsValue}
+	}
+
 	// Call the handler function
 	var ret starlark.Value
-	ret, err = starlark.Call(thread, a.run, starlark.Tuple{starlark.Bool(dryRun), &argsValue}, nil)
+	ret, err = starlark.Call(thread, callable, callInput, nil)
 
 	if err == nil {
 		pluginErrLocal := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
@@ -313,8 +332,13 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 			msg = msg + " : " + firstFrame
 		}
 
-		// No err handler defined, abort
+		// err handler is not supported for actions
 		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+
+	if isSuggest {
+		a.handleSuggestResponse(w, ret)
 		return
 	}
 
@@ -421,6 +445,11 @@ func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	}
+
+	if isValidate {
+		// No need to render the results
+		return
 	}
 
 	err = a.renderResults(w, report, valuesMap, valuesStr)
@@ -721,9 +750,128 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"darkTheme":     a.DarkTheme,
 		"links":         linksWithQS,
 		"hasFileUpload": hasFileUpload,
+		"showSuggest":   a.suggest != nil,
+		"showValidate":  a.showValidate,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (a *Action) handleSuggestResponse(w http.ResponseWriter, retVal starlark.Value) {
+	ret, err := starlark_type.UnmarshalStarlark(retVal)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error unmarshalling suggest response: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	message, retIsString := ret.(string)
+	if !retIsString {
+		message = "Suggesting values"
+	}
+
+	err = a.actionTemplate.ExecuteTemplate(w, "status", message)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if retIsString {
+		// No suggestions available
+		return
+	}
+
+	retDict := map[string]any{}
+	switch retType := ret.(type) {
+	case map[string]any:
+		for k, v := range retType {
+			retDict[k] = v
+		}
+	case map[string]string:
+		for k, v := range retType {
+			retDict[k] = v
+		}
+	case map[string]int:
+		for k, v := range retType {
+			retDict[k] = v
+		}
+	case map[string]bool:
+		for k, v := range retType {
+			retDict[k] = v
+		}
+	case map[string][]string:
+		for k, v := range retType {
+			retDict[k] = v
+		}
+	default:
+		http.Error(w, fmt.Sprintf("invalid suggest response type: %T, expected dict", retType), http.StatusInternalServerError)
+		return
+	}
+
+	paramMap := map[string]apptype.AppParam{}
+	for _, p := range a.params {
+		paramMap[p.Name] = p
+	}
+
+	keys := slices.Collect(maps.Keys(retDict))
+	slices.Sort(keys)
+	for _, key := range keys {
+		value := retDict[key]
+		p, ok := paramMap[key]
+		if !ok || strings.HasPrefix(key, OPTIONS_PREFIX) {
+			a.Info().Msgf("ignoring suggest response for param: %s", key)
+			continue
+		}
+		param := ParamDef{
+			Name:        p.Name,
+			Description: p.Description,
+		}
+
+		param.Value = fmt.Sprintf("%v", value)
+		param.InputType = "text"
+
+		valueList, valueIsList := value.([]string)
+		if p.DisplayType == apptype.DisplayTypeFileUpload {
+			http.Error(w, fmt.Sprintf("suggest not supported for file upload param: %s", p.Name), http.StatusInternalServerError)
+			return
+		} else if p.Type == starlark_type.STRING && valueIsList {
+			param.InputType = "select"
+			param.Value = valueList[0]
+			param.Options = valueList
+		} else if p.Type == starlark_type.BOOLEAN {
+			boolValue, err := strconv.ParseBool(fmt.Sprintf("%v", value))
+			if err != nil {
+				http.Error(w, fmt.Sprintf("invalid value for %s: %s", p.Name, value), http.StatusInternalServerError)
+				return
+			}
+			if boolValue {
+				param.Value = "checked"
+			}
+			param.InputType = "checkbox"
+		}
+
+		if p.DisplayType != "" {
+			switch p.DisplayType {
+			case apptype.DisplayTypePassword:
+				param.DisplayType = "password"
+			case apptype.DisplayTypeTextArea:
+				param.DisplayType = "textarea"
+			case apptype.DisplayTypeFileUpload:
+				param.DisplayType = "file"
+			default:
+				http.Error(w, fmt.Sprintf("invalid display type for %s: %s", p.Name, p.DisplayType), http.StatusInternalServerError)
+				return
+			}
+			param.DisplayTypeOptions = p.DisplayTypeOptions
+		} else {
+			param.DisplayType = "text"
+		}
+
+		err = a.actionTemplate.ExecuteTemplate(w, "param_suggest", param)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }

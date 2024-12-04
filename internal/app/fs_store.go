@@ -98,7 +98,7 @@ func (f *fsPlugin) LoadFile(thread *starlark.Thread, builtin *starlark.Builtin, 
 	expiryMinutes := starlark.MakeInt(60)
 	singleAccess := starlark.Bool(true)
 
-	if err := starlark.UnpackArgs("abs", args, kwargs, "path", &pathVal, "name?", &fileName, "visibility?", &visibility,
+	if err := starlark.UnpackArgs("load_file", args, kwargs, "path", &pathVal, "name?", &fileName, "visibility?", &visibility,
 		"mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access", &singleAccess); err != nil {
 		return nil, err
 	}

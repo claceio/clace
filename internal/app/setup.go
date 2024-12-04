@@ -520,6 +520,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	var name, path, description string
 	var run, suggest starlark.Callable
 	var hidden []string
+	var showValidate bool
 	var err error
 	if name, err = apptype.GetStringAttr(actionDef, "name"); err != nil {
 		return err
@@ -534,6 +535,9 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 		return err
 	}
 	if hidden, err = apptype.GetListStringAttr(actionDef, "hidden", true); err != nil {
+		return err
+	}
+	if showValidate, err = apptype.GetBoolAttr(actionDef, "show_validate"); err != nil {
 		return err
 	}
 	sa, _ := actionDef.Attr("suggest")
@@ -552,7 +556,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	}
 	action, err := action.NewAction(a.Logger, a.sourceFS, a.IsDev, name, description, path, run, suggest,
 		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path, a.appStyle.GetStyleType(),
-		containerProxyUrl, hidden)
+		containerProxyUrl, hidden, showValidate)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}

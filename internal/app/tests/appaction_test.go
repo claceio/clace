@@ -899,3 +899,154 @@ app = ace.app("testApp",
 	_, _, err := CreateTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "display_type file is allowed for string type param1 only")
 }
+
+func TestSuggest(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}], report=ace.AUTO)
+
+def suggest_handler(args):
+	return {"param1": ["a", "b", "c"], "param2": True}
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, suggest=suggest_handler)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("param2", description="param2 description", type=BOOLEAN, default=False)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "/test/suggest")
+	if strings.Contains(response.Body.String(), "/test/validate") {
+		t.Errorf("validate API should not be in the body")
+	}
+
+	request = httptest.NewRequest("POST", "/test/suggest", nil)
+	request.Header.Set("HX-Request", "true")
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `<div class="text-lg text-bold">
+            Suggesting values
+          </div>
+        
+          <div id="param_param1_div" hx-swap-oob="true" hx-swap="outerHTML">
+            
+                    
+                      <div>
+                        <select
+                          id="param_param1"
+                          class="select select-bordered w-full"
+                          name="param1">
+                          
+                          
+                            <option value="a" selected>
+                              a
+                            </option>
+                          
+                            <option value="b" >
+                              b
+                            </option>
+                          
+                            <option value="c" >
+                              c
+                            </option>
+                          
+                        </select>
+                        <div id="param_param1_error" class="text-error mt-1"></div>
+                      </div>
+                    
+                    
+                  
+          </div>
+        
+          <div id="param_param2_div" hx-swap-oob="true" hx-swap="outerHTML">
+            
+                    
+                      <div class="flex justify-center">
+                        <input
+                          id="param_param2"
+                          name="param2"
+                          type="checkbox"
+                          value="true"
+                          class="checkbox checkbox-primary justify-self-center"
+                          checked />
+                        <div class="pl-4">
+                          <div
+                            id="param_param2_error"
+                            class="text-error mt-1"></div>
+                        </div>
+                      </div>
+                    
+                    
+                  
+          </div>`, response.Body.String())
+}
+
+func TestValidate(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+    if dry_run:
+	    return "Looks good"
+    return ace.result(status="done", values=[{"a": {"c": 1}, "b": "abc"}], report=ace.AUTO)
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, show_validate=True)])
+
+		`,
+		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("param2", description="param2 description", type=BOOLEAN, default=False)`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "/test/validate")
+	if strings.Contains(response.Body.String(), "/test/suggest") {
+		t.Errorf("suggest API should not be in the body")
+	}
+
+	request = httptest.NewRequest("POST", "/test/validate", nil)
+	request.Header.Set("HX-Request", "true")
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "body", `<div class="text-lg text-bold">
+            Looks good
+          </div>
+        
+          <div
+            id="param_param1_error"
+            hx-swap-oob="true"
+            hx-swap="outerHTML"
+            class="text-error mt-1">
+            
+          </div>
+        
+          <div
+            id="param_param2_error"
+            hx-swap-oob="true"
+            hx-swap="outerHTML"
+            class="text-error mt-1">
+            
+          </div>`, response.Body.String())
+}
