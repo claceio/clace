@@ -138,6 +138,11 @@ type Server struct {
 
 // NewServer creates a new instance of the Clace Server
 func NewServer(config *types.ServerConfig) (*Server, error) {
+	metadataDir := os.ExpandEnv("$CL_HOME/metadata")
+	if err := os.MkdirAll(metadataDir, 0700); err != nil {
+		return nil, fmt.Errorf("error creating metadata directory %s : %w", metadataDir, err)
+	}
+
 	l := types.NewLogger(&config.Log)
 	db, err := metadata.NewMetadata(l, config)
 	if err != nil {

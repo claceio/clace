@@ -45,7 +45,7 @@ access_logging = true
 
 # Metadata Storage Config
 [metadata]
-db_connection = "sqlite:$CL_HOME/clace.db"
+db_connection = "sqlite:$CL_HOME/metadata/clace_metadata.db"
 auto_upgrade = true
 
 [system]
@@ -59,10 +59,10 @@ root_serve_list_apps = "auto"       # "auto" means serve list_apps app for defau
 # any other value means server for specified domain
 
 [plugin."store.in"]
-db_connection = "sqlite:$CL_HOME/clace_app.db"
+db_connection = "sqlite:$CL_HOME/metdata/clace_app_store.db"
 
 [plugin."fs.in"]
-db_connection = "sqlite:$CL_HOME/clace_fs.db"
+db_connection = "sqlite:$CL_HOME/metadata/clace_fs.db"
 
 [app_config]
 # app config can be set at the app level using a metadata config update. For example:

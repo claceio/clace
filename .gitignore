@@ -1,9 +1,7 @@
 dist/
 .vscode
 /clace
-clace.db*
-clace_app.db*
-clace_fs.db*
+metadata/
 clace.toml
 *.swp
 .sw*
