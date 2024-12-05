@@ -429,7 +429,8 @@ app = ace.app("testApp",
 		`,
 		"params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
 param("param2", description="param2 description", type=BOOLEAN, default=False)
-param("param3", description="param3 description", type=INT, default=10)`,
+param("param3", description="param3 description", type=INT, default=10)
+param("param4", description="param4 description", type=STRING, required=False, display_type=PASSWORD)`,
 	}
 	a, _, err := CreateTestApp(logger, fileData)
 	if err != nil {
@@ -448,6 +449,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
 		"param1": {"abc"},
 		"param2": {"true"},
 		"param3": {"20"},
+		"param4": {"secretvalue"},
 	}
 
 	request = httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
@@ -483,6 +485,13 @@ param("param3", description="param3 description", type=INT, default=10)`,
 			hx-swap="outerHTML"
 			class="text-error mt-1">
   		 </div>
+
+		 <div
+			id="param_param4_error"
+			hx-swap-oob="true"
+			hx-swap="outerHTML"
+			class="text-error mt-1">
+		 </div>
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>

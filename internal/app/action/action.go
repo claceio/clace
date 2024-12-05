@@ -286,7 +286,10 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 					return
 				}
 				args[param.Name] = newVal
-				qsParams.Add(param.Name, formValue)
+
+				if param.DisplayType != apptype.DisplayTypePassword {
+					qsParams.Add(param.Name, formValue)
+				}
 			}
 		}
 	}
