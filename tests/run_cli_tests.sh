@@ -23,7 +23,7 @@ else
 fi
 
 cd tests
-rm -rf clace.db
+rm -rf metadata
 
 export CL_HOME=.
 unset CL_CONFIG_FILE
@@ -39,7 +39,7 @@ error_handler () {
 }
 
 cleanup() {
-  rm -rf clace.db
+  rm -rf metadata
   rm -rf logs/ clace.toml config_container.toml server.stdout flaskapp
 
   if [[ -d ../appspecs_bk ]]; then
@@ -95,7 +95,7 @@ EOF
 
 commander test $CL_TEST_VERBOSE test_basics.yaml
 CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
-rm -rf clace.db* run/clace.sock config_basic_*.toml
+rm -rf metadata run/clace.sock config_basic_*.toml
 
 cat <<EOF > config_np.toml
 [http]
@@ -207,7 +207,7 @@ app_default_auth_type="none"
 [system]
 container_command="$cmd"
 EOF
-    rm -rf clace.db* run/clace.sock
+    rm -rf metadata run/clace.sock
     CL_CONFIG_FILE=config_container.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
     sleep 2
 

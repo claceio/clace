@@ -89,6 +89,8 @@ func panicRecovery(next http.Handler) http.Handler {
 // NewUDSHandler creates a new handler for admin APIs over the unix domain socket
 func NewUDSHandler(logger *types.Logger, config *types.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
+
+	router.Use(server.handleStatus)
 	router.Use(panicRecovery)
 
 	handler := &Handler{
@@ -112,6 +114,7 @@ func NewUDSHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 // authentication is enabled. It also mounts the internal APIs if admin over TCP is enabled
 func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
+	router.Use(server.handleStatus)
 	router.Use(panicRecovery)
 
 	handler := &Handler{
