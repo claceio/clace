@@ -86,7 +86,7 @@ func pluginErrorWrapper(f StarlarkFunction, errorHandler starlark.Callable) Star
 
 		if err != nil {
 			// Error response wrapped in a PluginResponse
-			return NewErrorResponse(err, errorHandler, thread), nil
+			return NewErrorResponse(err, thread), nil
 		}
 
 		// Success response, wrapped in a PluginResponse

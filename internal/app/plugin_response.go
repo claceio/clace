@@ -14,20 +14,18 @@ import (
 
 // PluginResponse is a starlark.Value that represents the response to a plugin request
 type PluginResponse struct {
-	errorCode     int
-	err           error
-	value         any
-	errorCallable starlark.Callable
-	thread        *starlark.Thread
+	errorCode int
+	err       error
+	value     any
+	thread    *starlark.Thread
 }
 
-func NewErrorResponse(err error, errorCallable starlark.Callable, thread *starlark.Thread) *PluginResponse {
+func NewErrorResponse(err error, thread *starlark.Thread) *PluginResponse {
 	return &PluginResponse{
-		errorCode:     1,
-		err:           err,
-		value:         nil,
-		errorCallable: errorCallable,
-		thread:        thread,
+		errorCode: 1,
+		err:       err,
+		value:     nil,
+		thread:    thread,
 	}
 }
 
@@ -60,7 +58,7 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 		}
 		return starlark.String(r.err.Error()), nil
 	case "value":
-		if r.err != nil && r.errorCallable != nil {
+		if r.err != nil {
 			// Value is being accessed when there was an error, abort
 			return nil, r.err
 		}

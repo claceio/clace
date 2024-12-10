@@ -34,7 +34,7 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 		}
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, types.REQUEST_ID, id.String())
+		ctx = context.WithValue(ctx, types.REQUEST_ID, "rid_"+id.String())
 		r = r.WithContext(ctx)
 
 		// Wrap the ResponseWriter
