@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/claceio/clace/internal/app/action"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/app/starlark_type"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi"
 	"go.starlark.net/starlark"
@@ -123,6 +125,32 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 				return nil
 			}
 
+			event := types.AuditEvent{
+				RequestId:  system.GetContextUserId(r.Context()),
+				CreateTime: time.Now(),
+				UserId:     system.GetContextUserId(r.Context()),
+				EventType:  types.EventTypeCustom,
+				Status:     "Success",
+			}
+
+			if a.auditInsert != nil {
+				defer func() {
+					op := system.GetThreadLocalKey(thread, types.TL_AUDIT_OPERATION)
+					target := system.GetThreadLocalKey(thread, types.TL_AUDIT_TARGET)
+					detail := system.GetThreadLocalKey(thread, types.TL_AUDIT_DETAIL)
+
+					if op != "" {
+						// Audit event was set, insert it
+						event.Operation = op
+						event.Target = target
+						event.Detail = detail
+						if err := a.auditInsert(&event); err != nil {
+							a.Error().Err(err).Msg("error inserting audit event")
+						}
+					}
+				}()
+			}
+
 			defer deferredCleanup()
 
 			// Call the handler function
@@ -138,6 +166,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			}
 
 			if err != nil {
+				event.Status = "Error"
 				a.Error().Err(err).Msg("error calling handler")
 
 				firstFrame := ""

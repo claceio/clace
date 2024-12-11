@@ -47,6 +47,7 @@ access_logging = true
 [metadata]
 db_connection = "sqlite:$CL_HOME/metadata/clace_metadata.db"
 auto_upgrade = true
+audit_db_connection = "sqlite:$CL_HOME/metadata/clace_audit.db"
 
 [system]
 tailwindcss_command = "tailwindcss"

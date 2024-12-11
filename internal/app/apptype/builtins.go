@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -31,6 +32,7 @@ const (
 	LIBRARY               = "library"
 	ACTION                = "action"
 	RESULT                = "result"
+	AUDIT                 = "audit"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
@@ -356,6 +358,25 @@ func createResultBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.
 	return starlarkstruct.FromStringDict(starlark.String(RESULT), fields), nil
 }
 
+func createAuditBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var operation, target, detail starlark.String
+	if err := starlark.UnpackArgs(AUDIT, args, kwargs, "operation", &operation, "target", &target, "detail?", &detail); err != nil {
+		return nil, fmt.Errorf("error unpacking audit args: %w", err)
+	}
+
+	// Set the audit values in the thread local, that last call to audit from a handler takes effect
+	thread.SetLocal(types.TL_AUDIT_OPERATION, operation.GoString())
+	thread.SetLocal(types.TL_AUDIT_TARGET, target.GoString())
+	thread.SetLocal(types.TL_AUDIT_DETAIL, detail.GoString())
+
+	fields := starlark.StringDict{
+		"operation": operation,
+		"target":    target,
+		"detail":    detail,
+	}
+	return starlarkstruct.FromStringDict(starlark.String(AUDIT), fields), nil
+}
+
 func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	var config starlark.Value
@@ -419,6 +440,7 @@ func CreateBuiltin() starlark.StringDict {
 					LIBRARY:    starlark.NewBuiltin(LIBRARY, createLibraryBuiltin),
 					ACTION:     starlark.NewBuiltin(ACTION, createActionBuiltin),
 					RESULT:     starlark.NewBuiltin(RESULT, createResultBuiltin),
+					AUDIT:      starlark.NewBuiltin(AUDIT, createAuditBuiltin),
 
 					GET:             starlark.String(GET),
 					POST:            starlark.String(POST),

@@ -41,7 +41,7 @@ func CheckConnectString(connStr string) (string, error) {
 	return os.ExpandEnv(parts[1]), nil
 }
 
-func InitPluginDB(connectString string) (*sql.DB, error) {
+func InitDB(connectString string) (*sql.DB, error) {
 	var err error
 	connectString, err = CheckConnectString(connectString)
 	if err != nil {

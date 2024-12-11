@@ -5,8 +5,12 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"time"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/segmentio/ksuid"
 )
@@ -23,6 +27,57 @@ func (crw *CustomResponseWriter) WriteHeader(code int) {
 	crw.ResponseWriter.WriteHeader(code)
 }
 
+func (s *Server) initAuditDB(connectString string) error {
+	var err error
+	s.auditDB, err = system.InitDB(connectString)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.auditDB.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time timestamp,` +
+		`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
+		return err
+	}
+
+	cleanupTicker := time.NewTicker(5 * time.Minute)
+	go s.auditCleanup(cleanupTicker)
+
+	return nil
+}
+
+func (s *Server) insertAuditEvent(event *types.AuditEvent) error {
+	_, err := s.auditDB.Exec(`insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
+		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		event.RequestId, event.AppId, event.CreateTime, event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
+	return err
+}
+
+func (s *Server) cleanupEvents() error {
+	// TODO: Implement cleanup
+	return nil
+}
+
+func (s *Server) auditCleanup(cleanupTicker *time.Ticker) {
+	err := s.cleanupEvents()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error cleaning up audit entries %s", err)
+		return
+	}
+
+	for range cleanupTicker.C {
+		err := s.cleanupEvents()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error cleaning up audit entries %s", err)
+			break
+		}
+	}
+	fmt.Fprintf(os.Stderr, "background audit cleanup stopped")
+}
+
+type ContextUser struct {
+	UserId string
+}
+
 func (server *Server) handleStatus(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -33,8 +88,12 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			return
 		}
 
+		contextShared := ContextUser{}
+
+		rid := "rid_" + id.String()
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, types.REQUEST_ID, "rid_"+id.String())
+		ctx = context.WithValue(ctx, types.REQUEST_ID, rid)
+		ctx = context.WithValue(ctx, types.USER_ID_SHARED, &contextShared)
 		r = r.WithContext(ctx)
 
 		// Wrap the ResponseWriter
@@ -43,7 +102,29 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			statusCode:     http.StatusOK, // Default status
 		}
 
+		startTime := time.Now()
 		// Call the next handler
 		next.ServeHTTP(crw, r)
+		duration := time.Since(startTime)
+
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+			// Don't create audit events for get requests
+			return
+		}
+
+		event := types.AuditEvent{
+			RequestId:  rid,
+			CreateTime: time.Now(),
+			UserId:     contextShared.UserId,
+			EventType:  types.EventTypeHTTP,
+			Operation:  r.Method,
+			Target:     r.Host + ":" + r.URL.Path,
+			Status:     fmt.Sprintf("%d", crw.statusCode),
+			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, r.URL.Path, crw.statusCode, duration.Milliseconds()),
+		}
+
+		if err := server.insertAuditEvent(&event); err != nil {
+			server.Error().Err(err).Msg("error inserting audit event")
+		}
 	})
 }

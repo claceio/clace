@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -134,6 +135,7 @@ type Server struct {
 	secretsManager *system.SecretManager
 	listAppsApp    *app.App
 	mu             sync.RWMutex
+	auditDB        *sql.DB
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -174,6 +176,10 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.ssoAuth = NewSSOAuth(l, config)
 	if err = server.ssoAuth.Setup(); err != nil {
 		return nil, err
+	}
+
+	if err = server.initAuditDB(config.Metadata.AuditDBConnection); err != nil {
+		return nil, fmt.Errorf("error initializing audit db: %w", err)
 	}
 
 	if config.Log.AccessLogging {
@@ -630,7 +636,7 @@ func (s *Server) GetListAppsApp() (*app.App, error) {
 	subLogger := s.Logger.With().Str("id", string(appEntry.Id)).Logger()
 	appLogger := types.Logger{Logger: &subLogger}
 	s.listAppsApp, err = app.NewApp(sourceFS, nil, &appLogger, &appEntry, &s.config.System,
-		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate)
+		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate, s.insertAuditEvent)
 	if err != nil {
 		return nil, err
 	}

@@ -30,8 +30,10 @@ const (
 type ContextKey string
 
 const (
-	USER_ID    ContextKey = "user_id"
-	REQUEST_ID ContextKey = "request_id"
+	USER_ID        ContextKey = "user_id"
+	USER_ID_SHARED ContextKey = "user_id_shared"
+	REQUEST_ID     ContextKey = "request_id"
+	APP_ID         ContextKey = "app_id"
 )
 
 const (
@@ -40,6 +42,9 @@ const (
 	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
 	TL_PLUGIN_API_FAILED_ERROR  = "TL_plugin_api_failed_error"
 	TL_CONTAINER_URL            = "TL_container_url"
+	TL_AUDIT_OPERATION          = "TL_audit_operation"
+	TL_AUDIT_TARGET             = "TL_audit_target"
+	TL_AUDIT_DETAIL             = "TL_audit_detail"
 )
 
 const (
@@ -163,8 +168,9 @@ type SecurityConfig struct {
 
 // MetadataConfig is the configuration for the Metadata persistence layer
 type MetadataConfig struct {
-	DBConnection string `toml:"db_connection"`
-	AutoUpgrade  bool   `toml:"auto_upgrade"`
+	DBConnection      string `toml:"db_connection"`
+	AutoUpgrade       bool   `toml:"auto_upgrade"`
+	AuditDBConnection string `toml:"audit_db_connection"`
 }
 
 // LogConfig is the configuration for the Logger
@@ -493,4 +499,25 @@ type UserFile struct {
 	SingleAccess bool
 	Visibility   string
 	Metadata     map[string]any
+}
+
+type EventType string
+
+const (
+	EventTypeSystem EventType = "system"
+	EventTypeHTTP   EventType = "http"
+	EventTypeAction EventType = "action"
+	EventTypeCustom EventType = "custom"
+)
+
+type AuditEvent struct {
+	RequestId  string
+	AppId      AppId
+	CreateTime time.Time
+	UserId     string
+	EventType  EventType
+	Operation  string
+	Target     string
+	Status     string
+	Detail     string
 }

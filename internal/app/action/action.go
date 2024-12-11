@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/claceio/clace/internal/app/appfs"
@@ -63,12 +64,14 @@ type Action struct {
 	hidden            map[string]bool // params which are not shown in the UI
 	Links             []ActionLink    // links to other actions
 	showValidate      bool
+	auditInsert       func(*types.AuditEvent) error
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
-	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string, showValidate bool) (*Action, error) {
+	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string, showValidate bool,
+	auditInsert func(*types.AuditEvent) error) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
@@ -129,6 +132,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		containerProxyUrl: containerProxyUrl,
 		hidden:            hiddenParams,
 		showValidate:      showValidate,
+		auditInsert:       auditInsert,
 		// Links, AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -171,18 +175,18 @@ func (a *Action) BuildRouter() (*chi.Mux, error) {
 }
 
 func (a *Action) runAction(w http.ResponseWriter, r *http.Request) {
-	a.execAction(w, r, false, false)
+	a.execAction(w, r, false, false, "execute")
 }
 
 func (a *Action) suggestAction(w http.ResponseWriter, r *http.Request) {
-	a.execAction(w, r, true, false)
+	a.execAction(w, r, true, false, "suggest")
 }
 
 func (a *Action) validateAction(w http.ResponseWriter, r *http.Request) {
-	a.execAction(w, r, false, true)
+	a.execAction(w, r, false, true, "validate")
 }
 
-func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, isValidate bool) {
+func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, isValidate bool, op string) {
 	if isSuggest && a.suggest == nil {
 		http.Error(w, "suggest not supported for this action", http.StatusNotImplemented)
 		return
@@ -191,6 +195,46 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	thread := &starlark.Thread{
 		Name:  a.name,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
+	}
+
+	event := types.AuditEvent{
+		RequestId:  system.GetContextRequestId(r.Context()),
+		CreateTime: time.Now(),
+		UserId:     system.GetContextUserId(r.Context()),
+		EventType:  types.EventTypeAction,
+		Operation:  op,
+		Target:     a.name,
+		Status:     "Success",
+	}
+
+	customEvent := types.AuditEvent{
+		RequestId:  system.GetContextUserId(r.Context()),
+		CreateTime: time.Now(),
+		UserId:     system.GetContextUserId(r.Context()),
+		EventType:  types.EventTypeCustom,
+		Status:     "Success",
+	}
+
+	if a.auditInsert != nil {
+		defer func() {
+			if err := a.auditInsert(&event); err != nil {
+				a.Error().Err(err).Msg("error inserting audit event")
+			}
+
+			op := system.GetThreadLocalKey(thread, types.TL_AUDIT_OPERATION)
+			target := system.GetThreadLocalKey(thread, types.TL_AUDIT_TARGET)
+			detail := system.GetThreadLocalKey(thread, types.TL_AUDIT_DETAIL)
+
+			if op != "" {
+				// Audit event was set, insert it
+				customEvent.Operation = op
+				customEvent.Target = target
+				customEvent.Detail = detail
+				if err := a.auditInsert(&customEvent); err != nil {
+					a.Error().Err(err).Msg("error inserting custom audit event")
+				}
+			}
+		}()
 	}
 
 	// Save the request context in the starlark thread local
@@ -317,6 +361,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	if err != nil {
+		event.Status = "Error"
 		a.Error().Err(err).Msg("error calling action run handler")
 
 		firstFrame := ""
@@ -389,6 +434,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	if err != nil {
+		event.Status = "Error"
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

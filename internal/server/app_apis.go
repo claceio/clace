@@ -299,7 +299,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 			DiskReadFS: appfs.NewDiskReadFS(&appLogger, appPath, *appEntry.Metadata.SpecFiles),
 		})
 	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System,
-		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate)
+		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate, s.insertAuditEvent)
 }
 
 func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetResponse, error) {
@@ -455,6 +455,13 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	s.Trace().Msgf("Authenticated user %s", userId)
 	ctx := context.WithValue(r.Context(), types.USER_ID, userId)
 	r = r.WithContext(ctx)
+
+	contextShared := r.Context().Value(types.USER_ID_SHARED)
+	if contextShared != nil {
+		// allow audit middleware to access the user id
+		userIdShared := contextShared.(*ContextUser)
+		userIdShared.UserId = userId
+	}
 
 	// Authentication successful, serve the app
 	app.ServeHTTP(w, r)

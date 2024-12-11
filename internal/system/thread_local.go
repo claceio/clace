@@ -10,6 +10,19 @@ import (
 	"go.starlark.net/starlark"
 )
 
+func GetThreadLocalKey(thread *starlark.Thread, key string) string {
+	value := thread.Local(key)
+	if value == nil {
+		return ""
+	}
+
+	valueStr, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return valueStr
+}
+
 func GetRequestUserId(thread *starlark.Thread) string {
 	ctxVal := thread.Local(types.TL_CONTEXT)
 	if ctxVal == nil {
@@ -24,14 +37,26 @@ func GetRequestUserId(thread *starlark.Thread) string {
 	return GetContextUserId(ctx)
 }
 
-func GetContextUserId(ctx context.Context) string {
-	userId := ctx.Value(types.USER_ID)
-	if userId == nil {
+func GetContextValue(ctx context.Context, key types.ContextKey) string {
+	value := ctx.Value(key)
+	if value == nil {
 		return ""
 	}
-	strValue, ok := userId.(string)
+	valueStr, ok := value.(string)
 	if !ok {
 		return ""
 	}
-	return strValue
+	return valueStr
+}
+
+func GetContextUserId(ctx context.Context) string {
+	return GetContextValue(ctx, types.USER_ID)
+}
+
+func GetContextRequestId(ctx context.Context) string {
+	return GetContextValue(ctx, types.REQUEST_ID)
+}
+
+func GetContextAppId(ctx context.Context) string {
+	return GetContextValue(ctx, types.APP_ID)
 }

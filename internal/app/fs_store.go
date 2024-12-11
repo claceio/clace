@@ -37,7 +37,7 @@ func InitFileStore(ctx context.Context, connectString string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	var err error
-	db, err = system.InitPluginDB(connectString)
+	db, err = system.InitDB(connectString)
 	if err != nil {
 		return err
 	}

@@ -25,7 +25,7 @@ func (s *SqlStore) initStore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.db, err = system.InitPluginDB(connectString)
+	s.db, err = system.InitDB(connectString)
 	if err != nil {
 		return err
 	}
