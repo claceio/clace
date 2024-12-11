@@ -122,7 +122,7 @@ func (s *Server) TokenCreate(ctx context.Context, appPath string, webhookType ty
 		return nil, err
 	}
 
-	if err = s.CompleteTransaction(ctx, tx, []types.AppPathDomain{appPathDomain}, dryRun); err != nil {
+	if err = s.CompleteTransaction(ctx, tx, []types.AppPathDomain{appPathDomain}, dryRun, "webhook-create"); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +170,7 @@ func (s *Server) TokenDelete(ctx context.Context, appPath string, webhookType ty
 		return nil, err
 	}
 
-	if err = s.CompleteTransaction(ctx, tx, []types.AppPathDomain{appPathDomain}, dryRun); err != nil {
+	if err = s.CompleteTransaction(ctx, tx, []types.AppPathDomain{appPathDomain}, dryRun, "webhook-delete"); err != nil {
 		return nil, err
 	}
 

@@ -129,6 +129,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 				RequestId:  system.GetContextUserId(r.Context()),
 				CreateTime: time.Now(),
 				UserId:     system.GetContextUserId(r.Context()),
+				AppId:      system.GetContextAppId(r.Context()),
 				EventType:  types.EventTypeCustom,
 				Status:     "Success",
 			}

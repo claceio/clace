@@ -30,10 +30,10 @@ const (
 type ContextKey string
 
 const (
-	USER_ID        ContextKey = "user_id"
-	USER_ID_SHARED ContextKey = "user_id_shared"
-	REQUEST_ID     ContextKey = "request_id"
-	APP_ID         ContextKey = "app_id"
+	USER_ID    ContextKey = "user_id"
+	SHARED     ContextKey = "shared"
+	REQUEST_ID ContextKey = "request_id"
+	APP_ID     ContextKey = "app_id"
 )
 
 const (

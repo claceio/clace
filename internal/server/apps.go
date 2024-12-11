@@ -4,11 +4,14 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 )
 
@@ -167,6 +170,54 @@ func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
 	}
 	a.allApps = nil
 	a.allDomains = nil
+}
+
+func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPathDomain, op string) error {
+	appInfo, error := a.GetAllApps()
+	if error != nil {
+		return error
+	}
+	appMap := getAppInfoMap(appInfo)
+
+	event := types.AuditEvent{
+		RequestId:  system.GetContextRequestId(ctx),
+		CreateTime: time.Now(),
+		UserId:     system.GetContextUserId(ctx),
+		EventType:  types.EventTypeSystem,
+		Operation:  op,
+		Status:     "Success",
+	}
+
+	for _, pd := range pathDomain {
+		appInfo, ok := appMap[pd.String()]
+		if !ok {
+			return fmt.Errorf("app not found: %s", pd)
+		}
+
+		event.Target = pd.String()
+		event.AppId = appInfo.Id
+
+		if err := a.server.InsertAuditEvent(&event); err != nil {
+			return err
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, pd := range pathDomain {
+		a.clearApp(pd)
+	}
+	a.allApps = nil
+	a.allDomains = nil
+	return nil
+}
+
+func getAppInfoMap(appInfo []types.AppInfo) map[string]types.AppInfo {
+	ret := make(map[string]types.AppInfo)
+	for _, info := range appInfo {
+		ret[info.AppPathDomain.String()] = info
+	}
+	return ret
 }
 
 func (a *AppStore) UpdateApps(apps []*app.App) {

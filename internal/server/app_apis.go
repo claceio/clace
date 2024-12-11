@@ -454,14 +454,16 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 	// Create a new context with the user ID
 	s.Trace().Msgf("Authenticated user %s", userId)
 	ctx := context.WithValue(r.Context(), types.USER_ID, userId)
-	r = r.WithContext(ctx)
+	ctx = context.WithValue(ctx, types.APP_ID, string(app.Id))
 
-	contextShared := r.Context().Value(types.USER_ID_SHARED)
+	contextShared := ctx.Value(types.SHARED)
 	if contextShared != nil {
 		// allow audit middleware to access the user id
-		userIdShared := contextShared.(*ContextUser)
-		userIdShared.UserId = userId
+		cs := contextShared.(*ContextShared)
+		cs.UserId = userId
+		cs.AppId = string(app.Id)
 	}
+	r = r.WithContext(ctx)
 
 	// Authentication successful, serve the app
 	app.ServeHTTP(w, r)
@@ -593,7 +595,7 @@ func (s *Server) auditApp(ctx context.Context, tx types.Transaction, app *app.Ap
 	return auditResult, nil
 }
 
-func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, entries []types.AppPathDomain, dryRun bool) error {
+func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, entries []types.AppPathDomain, dryRun bool, op string) error {
 	if dryRun {
 		return nil
 	}
@@ -604,8 +606,11 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, 
 
 	// Update the in memory cache
 	if entries != nil {
-		s.apps.DeleteApps(entries)
+		if err := s.apps.DeleteAppsAudit(ctx, entries, op); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 

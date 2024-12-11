@@ -57,6 +57,6 @@ func GetContextRequestId(ctx context.Context) string {
 	return GetContextValue(ctx, types.REQUEST_ID)
 }
 
-func GetContextAppId(ctx context.Context) string {
-	return GetContextValue(ctx, types.APP_ID)
+func GetContextAppId(ctx context.Context) types.AppId {
+	return types.AppId(GetContextValue(ctx, types.APP_ID))
 }

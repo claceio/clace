@@ -201,6 +201,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 		RequestId:  system.GetContextRequestId(r.Context()),
 		CreateTime: time.Now(),
 		UserId:     system.GetContextUserId(r.Context()),
+		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeAction,
 		Operation:  op,
 		Target:     a.name,
@@ -208,9 +209,10 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	customEvent := types.AuditEvent{
-		RequestId:  system.GetContextUserId(r.Context()),
+		RequestId:  system.GetContextRequestId(r.Context()),
 		CreateTime: time.Now(),
 		UserId:     system.GetContextUserId(r.Context()),
+		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeCustom,
 		Status:     "Success",
 	}
@@ -221,15 +223,12 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 				a.Error().Err(err).Msg("error inserting audit event")
 			}
 
-			op := system.GetThreadLocalKey(thread, types.TL_AUDIT_OPERATION)
-			target := system.GetThreadLocalKey(thread, types.TL_AUDIT_TARGET)
-			detail := system.GetThreadLocalKey(thread, types.TL_AUDIT_DETAIL)
+			customEvent.Operation = system.GetThreadLocalKey(thread, types.TL_AUDIT_OPERATION)
+			customEvent.Target = system.GetThreadLocalKey(thread, types.TL_AUDIT_TARGET)
+			customEvent.Detail = system.GetThreadLocalKey(thread, types.TL_AUDIT_DETAIL)
 
-			if op != "" {
-				// Audit event was set, insert it
-				customEvent.Operation = op
-				customEvent.Target = target
-				customEvent.Detail = detail
+			if customEvent.Operation != "" {
+				// Audit event was set in handler, insert it
 				if err := a.auditInsert(&customEvent); err != nil {
 					a.Error().Err(err).Msg("error inserting custom audit event")
 				}

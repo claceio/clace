@@ -368,13 +368,7 @@ func createAuditBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starl
 	thread.SetLocal(types.TL_AUDIT_OPERATION, operation.GoString())
 	thread.SetLocal(types.TL_AUDIT_TARGET, target.GoString())
 	thread.SetLocal(types.TL_AUDIT_DETAIL, detail.GoString())
-
-	fields := starlark.StringDict{
-		"operation": operation,
-		"target":    target,
-		"detail":    detail,
-	}
-	return starlarkstruct.FromStringDict(starlark.String(AUDIT), fields), nil
+	return starlark.None, nil
 }
 
 func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {

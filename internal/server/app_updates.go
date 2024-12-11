@@ -165,7 +165,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 	}
 
 	// Commit the transaction if not dry run and update the in memory app store
-	if err := s.CompleteTransaction(ctx, tx, reloadResults, dryRun); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, reloadResults, dryRun, "reload"); err != nil {
 		return nil, err
 	}
 
@@ -197,7 +197,7 @@ func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry
 	return nil
 }
 
-func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any) (*types.AppStagedUpdateResponse, error) {
+func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any, op string) (*types.AppStagedUpdateResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, dryRun, p
 		PromoteResults:      promoteResults,
 	}
 
-	if err := s.CompleteTransaction(ctx, tx, entries, dryRun); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, entries, dryRun, op); err != nil {
 		return nil, err
 	}
 
@@ -342,7 +342,7 @@ func (s *Server) PromoteApps(ctx context.Context, appPathGlob string, dryRun boo
 		result = append(result, appInfo.AppPathDomain)
 	}
 
-	if err = s.CompleteTransaction(ctx, tx, result, dryRun); err != nil {
+	if err = s.CompleteTransaction(ctx, tx, result, dryRun, "promote"); err != nil {
 		return nil, err
 	}
 
@@ -419,7 +419,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, appPathGlob string, dryR
 		return nil, err
 	}
 
-	s.apps.DeleteApps(results) // Delete instead of update to avoid having to initialize all the linked apps
+	s.apps.DeleteAppsAudit(ctx, results, "update-settings") // Delete instead of update to avoid having to initialize all the linked apps
 	// Apps will get reloaded on the next request
 	return ret, nil
 }

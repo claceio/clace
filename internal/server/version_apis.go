@@ -187,6 +187,6 @@ func (s *Server) VersionSwitch(ctx context.Context, mainAppPath string, dryRun b
 		return nil, err
 	}
 
-	s.apps.DeleteApps([]types.AppPathDomain{appPathDomain})
+	s.apps.DeleteAppsAudit(ctx, []types.AppPathDomain{appPathDomain}, "version-switch")
 	return ret, nil
 }

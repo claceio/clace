@@ -4,7 +4,6 @@
 package server
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -199,11 +198,6 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Add app id to the context
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, types.APP_ID, serveApp.Id)
-	r = r.WithContext(ctx)
-
 	h.server.authenticateAndServeApp(w, r, serveApp)
 }
 
@@ -242,6 +236,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 		RequestId:  system.GetContextRequestId(r.Context()),
 		CreateTime: time.Now(),
 		UserId:     system.GetContextUserId(r.Context()),
+		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeSystem,
 		Operation:  operation,
 		Status:     "Success",
@@ -413,6 +408,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		RequestId:  system.GetContextRequestId(r.Context()),
 		CreateTime: time.Now(),
 		UserId:     system.GetContextUserId(r.Context()),
+		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeSystem,
 		Operation:  fmt.Sprintf("webhook_%s", webhookType),
 		Status:     "Success",
@@ -576,7 +572,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
 
-	approveResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.auditHandler, map[string]any{})
+	approveResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.auditHandler, map[string]any{}, "approve")
 	return approveResult, err
 }
 
@@ -600,7 +596,7 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 		"account": r.URL.Query().Get("account"),
 	}
 
-	linkResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.accountLinkHandler, args)
+	linkResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.accountLinkHandler, args, "account-link")
 	return linkResult, err
 }
 
@@ -624,7 +620,7 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 		"paramValue": r.URL.Query().Get("paramValue"),
 	}
 
-	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateParamHandler, args)
+	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateParamHandler, args, "update-param")
 	return updateResult, err
 }
 
@@ -780,7 +776,7 @@ func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
 		"metadata": updateAppRequest,
 	}
 
-	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateMetadataHandler, args)
+	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateMetadataHandler, args, "update-metadata")
 	return updateResult, err
 
 }

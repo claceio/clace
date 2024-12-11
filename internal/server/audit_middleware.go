@@ -52,6 +52,13 @@ func (s *Server) insertAuditEvent(event *types.AuditEvent) error {
 	return err
 }
 
+func (s *Server) InsertAuditEvent(event *types.AuditEvent) error {
+	_, err := s.auditDB.Exec(`insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
+		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		event.RequestId, event.AppId, event.CreateTime, event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
+	return err
+}
+
 func (s *Server) cleanupEvents() error {
 	// TODO: Implement cleanup
 	return nil
@@ -74,8 +81,9 @@ func (s *Server) auditCleanup(cleanupTicker *time.Ticker) {
 	fmt.Fprintf(os.Stderr, "background audit cleanup stopped")
 }
 
-type ContextUser struct {
+type ContextShared struct {
 	UserId string
+	AppId  string
 }
 
 func (server *Server) handleStatus(next http.Handler) http.Handler {
@@ -88,12 +96,15 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			return
 		}
 
-		contextShared := ContextUser{}
+		contextShared := ContextShared{
+			UserId: types.ADMIN_USER,
+		}
 
 		rid := "rid_" + id.String()
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, types.REQUEST_ID, rid)
-		ctx = context.WithValue(ctx, types.USER_ID_SHARED, &contextShared)
+		ctx = context.WithValue(ctx, types.USER_ID, types.ADMIN_USER)
+		ctx = context.WithValue(ctx, types.SHARED, &contextShared)
 		r = r.WithContext(ctx)
 
 		// Wrap the ResponseWriter
@@ -116,6 +127,7 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			RequestId:  rid,
 			CreateTime: time.Now(),
 			UserId:     contextShared.UserId,
+			AppId:      types.AppId(contextShared.AppId),
 			EventType:  types.EventTypeHTTP,
 			Operation:  r.Method,
 			Target:     r.Host + ":" + r.URL.Path,
