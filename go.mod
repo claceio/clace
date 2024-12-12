@@ -51,7 +51,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.2 // indirect
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/caddyserver/zerossl v0.1.3 // indirect
-	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
@@ -64,10 +63,8 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20241206021119-61a79c692802 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -78,17 +75,14 @@ require (
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
-	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/libdns/libdns v0.2.2 // indirect
 	github.com/markbates/going v1.0.3 // indirect
-	github.com/mholt/acmez v1.2.0 // indirect
 	github.com/mholt/acmez/v2 v2.0.3 // indirect
 	github.com/miekg/dns v1.1.62 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -107,7 +101,6 @@ require (
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
@@ -117,13 +110,11 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.17.0 // indirect
-	modernc.org/gc/v3 v3.0.0-20241004144649-1aea3fae8852 // indirect
 	modernc.org/libc v1.61.4 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
@@ -141,7 +132,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/crypto v0.30.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/sys v0.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
