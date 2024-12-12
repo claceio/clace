@@ -146,3 +146,15 @@ tests:
   actions1100:
     command: curl localhost:25222/file_app
     stdout: Success
+
+  # Test audit APIs
+  audit0100: # Create app
+    command: ../clace app create --auth=none --approve ./audit_app /audittestapp
+  audit0110: # reload
+    command: ../clace app reload --promote /audittestapp
+  audit0200:
+    command: curl localhost:25222/audittestapp/audit
+    stdout: OK
+  audit0300:
+    command: curl localhost:25222/audittestapp
+    stdout: OK
