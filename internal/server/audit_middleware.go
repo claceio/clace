@@ -38,6 +38,12 @@ func (s *Server) initAuditDB(connectString string) error {
 		`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
 		return err
 	}
+	if _, err := s.auditDB.Exec(`create index IF NOT EXISTS idx_rid_audit ON audit (rid, create_time DESC)`); err != nil {
+		return err
+	}
+	if _, err := s.auditDB.Exec(`create index IF NOT EXISTS idx_misc_audit ON audit (app_id, event_type, operation, target, create_time DESC)`); err != nil {
+		return err
+	}
 
 	cleanupTicker := time.NewTicker(5 * time.Minute)
 	go s.auditCleanup(cleanupTicker)

@@ -648,3 +648,17 @@ func (s *Server) GetListAppsApp() (*app.App, error) {
 
 	return s.listAppsApp, nil
 }
+
+func (s *Server) ParseGlob(appGlob string) ([]types.AppInfo, error) {
+	appsInfo, err := s.apps.GetAllApps()
+	if err != nil {
+		return nil, err
+	}
+
+	matched, err := ParseGlobFromInfo(appGlob, appsInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return matched, nil
+}

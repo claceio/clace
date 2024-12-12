@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/plugin"
@@ -19,6 +20,7 @@ func initClacePlugin(server *Server) {
 	c := &clacePlugin{}
 	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApiName(c.ListApps, app.READ, "list_apps"),
+		app.CreatePluginApiName(c.ListAuditEvents, app.READ, "list_audit_events"),
 	}
 
 	newClacePlugin := func(pluginContext *types.PluginContext) (any, error) {
@@ -123,5 +125,147 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 
 		ret.Append(&v)
 	}
+
+	return &ret, nil
+}
+
+func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var appGlob, userId, eventType, operation, target, status, rid, detail starlark.String
+	var startDate, endDate starlark.String
+	beforeTimestamp := starlark.MakeInt64(0)
+	limit := starlark.MakeInt(100)
+	if err := starlark.UnpackArgs("list_audit_events", args, kwargs, "app_glob?", &appGlob, "user_id?", &userId, "event_type?",
+		&eventType, "operation?", &operation, "target?", &target, "status?", &status, "startDate", &startDate, "endDate?", &endDate,
+		"rid?", &rid, "detail?", &detail, "offset?", &limit, "before_timestamp?", &beforeTimestamp); err != nil {
+		return nil, err
+	}
+
+	var query strings.Builder
+	query.WriteString("select rid, app_id, create_time, user_id, event_type, operation, target, status, detail from audit ")
+
+	filterConditions := []string{}
+	appGlobStr := strings.TrimSpace(appGlob.GoString())
+	if appGlobStr != "" {
+		appInfo, err := c.server.ParseGlob(appGlobStr)
+		if err != nil {
+			return nil, err
+		}
+		if len(appInfo) > 0 {
+			appIds := []string{}
+			for _, app := range appInfo {
+				appIds = append(appIds, "\""+string(app.Id)+"\"")
+			}
+
+			filterConditions = append(filterConditions, fmt.Sprintf("app_id in (%s)", strings.Join(appIds, ",")))
+		}
+	}
+
+	queryParams := []any{}
+	userIdStr := strings.TrimSpace(userId.GoString())
+	if userIdStr != "" {
+		filterConditions = append(filterConditions, "user_id = ?")
+		queryParams = append(queryParams, userIdStr)
+	}
+
+	eventTypeStr := strings.TrimSpace(eventType.GoString())
+	if eventTypeStr != "" {
+		filterConditions = append(filterConditions, "event_type = ?")
+		queryParams = append(queryParams, eventTypeStr)
+	}
+
+	operationStr := strings.TrimSpace(operation.GoString())
+	if operationStr != "" {
+		filterConditions = append(filterConditions, "operation = ?")
+		queryParams = append(queryParams, operationStr)
+	}
+
+	targetStr := strings.TrimSpace(target.GoString())
+	if targetStr != "" {
+		filterConditions = append(filterConditions, "target = ?")
+		queryParams = append(queryParams, targetStr)
+	}
+
+	statusStr := strings.TrimSpace(status.GoString())
+	if statusStr != "" {
+		filterConditions = append(filterConditions, "status = ?")
+		queryParams = append(queryParams, statusStr)
+	}
+
+	startDateStr := strings.TrimSpace(startDate.GoString())
+	if startDateStr != "" {
+		filterConditions = append(filterConditions, "date(create_time) >= date(?)")
+		queryParams = append(queryParams, startDateStr)
+	}
+
+	endDateStr := strings.TrimSpace(endDate.GoString())
+	if endDateStr != "" {
+		filterConditions = append(filterConditions, "date(create_time) <= date(?)")
+		queryParams = append(queryParams, endDateStr)
+	}
+
+	ridStr := strings.TrimSpace(rid.GoString())
+	if ridStr != "" {
+		filterConditions = append(filterConditions, "rid = ?")
+		queryParams = append(queryParams, ridStr)
+	}
+
+	detailStr := strings.TrimSpace(detail.GoString())
+	if detailStr != "" {
+		filterConditions = append(filterConditions, "detail like ?")
+		queryParams = append(queryParams, detailStr)
+	}
+
+	beforeTimestampVal, _ := beforeTimestamp.Int64()
+	if beforeTimestampVal > 0 {
+		query.WriteString(" datetime(create_time) < datetime(?)")
+		queryParams = append(queryParams, beforeTimestampVal)
+	}
+
+	if len(filterConditions) > 0 {
+		query.WriteString(" where ")
+		query.WriteString(strings.Join(filterConditions, " and "))
+	}
+
+	query.WriteString(" order by create_time desc")
+
+	limitVal, _ := limit.Int64()
+	if limitVal <= 0 || limitVal > 10_000 {
+		return nil, fmt.Errorf("limit has to be between 1 and 10000")
+	}
+	query.WriteString(" limit ?")
+	queryParams = append(queryParams, limitVal)
+
+	rows, err := c.server.auditDB.Query(query.String(), queryParams...)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := starlark.List{}
+	for rows.Next() {
+		var rid, appId, userId, eventType, operation, target, status, detail string
+		var createTime time.Time
+		err := rows.Scan(&rid, &appId, &createTime, &userId, &eventType, &operation, &target, &status, &detail)
+		if err != nil {
+			return nil, err
+		}
+
+		v := starlark.Dict{}
+		v.SetKey(starlark.String("rid"), starlark.String(rid))
+		v.SetKey(starlark.String("app_id"), starlark.String(appId))
+		v.SetKey(starlark.String("create_time"), starlark.String(createTime.Format("2006-01-02T15:04:05.999Z")))
+		v.SetKey(starlark.String("user_id"), starlark.String(userId))
+		v.SetKey(starlark.String("event_type"), starlark.String(eventType))
+		v.SetKey(starlark.String("operation"), starlark.String(operation))
+		v.SetKey(starlark.String("target"), starlark.String(target))
+		v.SetKey(starlark.String("status"), starlark.String(status))
+		v.SetKey(starlark.String("detail"), starlark.String(detail))
+
+		ret.Append(&v)
+	}
+
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
 	return &ret, nil
 }
