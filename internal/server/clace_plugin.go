@@ -6,6 +6,7 @@ package server
 import (
 	"cmp"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ func initClacePlugin(server *Server) {
 	c := &clacePlugin{}
 	pluginFuncs := []plugin.PluginFunc{
 		app.CreatePluginApiName(c.ListApps, app.READ, "list_apps"),
+		app.CreatePluginApiName(c.ListAllApps, app.READ, "list_all_apps"),
 		app.CreatePluginApiName(c.ListAuditEvents, app.READ, "list_audit_events"),
 	}
 
@@ -68,11 +70,18 @@ func getAppUrl(app types.AppInfo, server *Server) string {
 	}
 }
 
-func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (c *clacePlugin) ListAllApps(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return c.listAppsImpl(thread, builtin, args, kwargs, false, "list_all_apps")
+}
 
+func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return c.listAppsImpl(thread, builtin, args, kwargs, true, "list_apps")
+}
+
+func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, permCheck bool, apiName string) (starlark.Value, error) {
 	var query starlark.String
 	var include_internal starlark.Bool
-	if err := starlark.UnpackArgs("list_apps", args, kwargs, "query?", &query, "include_internal?", &include_internal); err != nil {
+	if err := starlark.UnpackArgs(apiName, args, kwargs, "query?", &query, "include_internal?", &include_internal); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +93,7 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 	userId := system.GetRequestUserId(thread)
 	ret := starlark.List{}
 	for _, app := range apps {
-		if !c.verifyHasAccess(userId, app.Auth) {
+		if permCheck && !c.verifyHasAccess(userId, app.Auth) {
 			continue
 		}
 
@@ -131,12 +140,11 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 
 func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var appGlob, userId, eventType, operation, target, status, rid, detail starlark.String
-	var startDate, endDate starlark.String
-	beforeTimestamp := starlark.MakeInt64(0)
-	limit := starlark.MakeInt(100)
+	var startDate, endDate, beforeTimestamp starlark.String
+	limit := starlark.MakeInt(20)
 	if err := starlark.UnpackArgs("list_audit_events", args, kwargs, "app_glob?", &appGlob, "user_id?", &userId, "event_type?",
-		&eventType, "operation?", &operation, "target?", &target, "status?", &status, "startDate", &startDate, "endDate?", &endDate,
-		"rid?", &rid, "detail?", &detail, "offset?", &limit, "before_timestamp?", &beforeTimestamp); err != nil {
+		&eventType, "operation?", &operation, "target?", &target, "status?", &status, "start_date", &startDate, "end_date?", &endDate,
+		"rid?", &rid, "detail?", &detail, "limit?", &limit, "before_timestamp?", &beforeTimestamp); err != nil {
 		return nil, err
 	}
 
@@ -150,14 +158,12 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		if err != nil {
 			return nil, err
 		}
-		if len(appInfo) > 0 {
-			appIds := []string{}
-			for _, app := range appInfo {
-				appIds = append(appIds, "\""+string(app.Id)+"\"")
-			}
-
-			filterConditions = append(filterConditions, fmt.Sprintf("app_id in (%s)", strings.Join(appIds, ",")))
+		appIds := []string{}
+		for _, app := range appInfo {
+			appIds = append(appIds, "\""+string(app.Id)+"\"")
 		}
+
+		filterConditions = append(filterConditions, fmt.Sprintf("app_id in (%s)", strings.Join(appIds, ",")))
 	}
 
 	queryParams := []any{}
@@ -193,13 +199,13 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 
 	startDateStr := strings.TrimSpace(startDate.GoString())
 	if startDateStr != "" {
-		filterConditions = append(filterConditions, "date(create_time) >= date(?)")
+		filterConditions = append(filterConditions, `create_time >= strftime('%s', ?) * 1000000000`)
 		queryParams = append(queryParams, startDateStr)
 	}
 
 	endDateStr := strings.TrimSpace(endDate.GoString())
 	if endDateStr != "" {
-		filterConditions = append(filterConditions, "date(create_time) <= date(?)")
+		filterConditions = append(filterConditions, `create_time <= (strftime('%s', ?) + 86400) * 1000000000`)
 		queryParams = append(queryParams, endDateStr)
 	}
 
@@ -215,10 +221,14 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		queryParams = append(queryParams, detailStr)
 	}
 
-	beforeTimestampVal, _ := beforeTimestamp.Int64()
-	if beforeTimestampVal > 0 {
-		query.WriteString(" datetime(create_time) < datetime(?)")
-		queryParams = append(queryParams, beforeTimestampVal)
+	beforeTimestampStr := strings.TrimSpace(beforeTimestamp.GoString())
+	if beforeTimestampStr != "" {
+		filterConditions = append(filterConditions, " create_time < ?")
+		bt, err := strconv.ParseInt(beforeTimestampStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("before_timestamp has to be a valid in value in milliseconds")
+		}
+		queryParams = append(queryParams, bt)
 	}
 
 	if len(filterConditions) > 0 {
@@ -240,19 +250,38 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		return nil, err
 	}
 
+	apps, err := c.server.apps.GetAllApps()
+	if err != nil {
+		return nil, err
+	}
+	appIdMap := map[types.AppId]types.AppInfo{}
+	for _, app := range apps {
+		appIdMap[app.Id] = app
+	}
+
 	ret := starlark.List{}
 	for rows.Next() {
 		var rid, appId, userId, eventType, operation, target, status, detail string
-		var createTime time.Time
+		var createTime int64
 		err := rows.Scan(&rid, &appId, &createTime, &userId, &eventType, &operation, &target, &status, &detail)
 		if err != nil {
 			return nil, err
 		}
 
+		utcTime := time.Unix(0, createTime).UTC()
+
 		v := starlark.Dict{}
 		v.SetKey(starlark.String("rid"), starlark.String(rid))
 		v.SetKey(starlark.String("app_id"), starlark.String(appId))
-		v.SetKey(starlark.String("create_time"), starlark.String(createTime.Format("2006-01-02T15:04:05.999Z")))
+		if appInfo, ok := appIdMap[types.AppId(appId)]; ok {
+			v.SetKey(starlark.String("app_name"), starlark.String(appInfo.Name))
+			v.SetKey(starlark.String("app_path"), starlark.String(appInfo.AppPathDomain.String()))
+		} else {
+			v.SetKey(starlark.String("app_name"), starlark.String(""))
+			v.SetKey(starlark.String("app_path"), starlark.String(""))
+		}
+		v.SetKey(starlark.String("create_time_epoch"), starlark.String(strconv.FormatInt(createTime, 10)))
+		v.SetKey(starlark.String("create_time"), starlark.String(utcTime.Format("2006-01-02T15:04:05.999Z")))
 		v.SetKey(starlark.String("user_id"), starlark.String(userId))
 		v.SetKey(starlark.String("event_type"), starlark.String(eventType))
 		v.SetKey(starlark.String("operation"), starlark.String(operation))

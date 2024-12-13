@@ -204,6 +204,7 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS *app
 	}
 	buf.WriteString(fmt.Sprintf("'%s'", path.Join(workFS.Root, "action", "*.go.html")))
 
+	templateLocations = append(templateLocations, "base_templates/*.go.html")
 	// Add the template locations to the input list
 	for _, loc := range templateLocations {
 		buf.WriteString(", ")

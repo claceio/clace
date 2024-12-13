@@ -34,7 +34,7 @@ func (s *Server) initAuditDB(connectString string) error {
 		return err
 	}
 
-	if _, err := s.auditDB.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time timestamp,` +
+	if _, err := s.auditDB.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time int,` +
 		`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
 		return err
 	}
@@ -51,17 +51,10 @@ func (s *Server) initAuditDB(connectString string) error {
 	return nil
 }
 
-func (s *Server) insertAuditEvent(event *types.AuditEvent) error {
-	_, err := s.auditDB.Exec(`insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
-		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		event.RequestId, event.AppId, event.CreateTime, event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
-	return err
-}
-
 func (s *Server) InsertAuditEvent(event *types.AuditEvent) error {
 	_, err := s.auditDB.Exec(`insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
 		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		event.RequestId, event.AppId, event.CreateTime, event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
+		event.RequestId, event.AppId, event.CreateTime.UnixNano(), event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
 	return err
 }
 
@@ -141,7 +134,7 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, r.URL.Path, crw.statusCode, duration.Milliseconds()),
 		}
 
-		if err := server.insertAuditEvent(&event); err != nil {
+		if err := server.InsertAuditEvent(&event); err != nil {
 			server.Error().Err(err).Msg("error inserting audit event")
 		}
 	})

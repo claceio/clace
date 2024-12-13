@@ -180,12 +180,11 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 	appMap := getAppInfoMap(appInfo)
 
 	event := types.AuditEvent{
-		RequestId:  system.GetContextRequestId(ctx),
-		CreateTime: time.Now(),
-		UserId:     system.GetContextUserId(ctx),
-		EventType:  types.EventTypeSystem,
-		Operation:  op,
-		Status:     "Success",
+		RequestId: system.GetContextRequestId(ctx),
+		UserId:    system.GetContextUserId(ctx),
+		EventType: types.EventTypeSystem,
+		Operation: op,
+		Status:    "Success",
 	}
 
 	for _, pd := range pathDomain {
@@ -196,6 +195,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 
 		event.Target = pd.String()
 		event.AppId = appInfo.Id
+		event.CreateTime = time.Now()
 
 		if err := a.server.InsertAuditEvent(&event); err != nil {
 			return err

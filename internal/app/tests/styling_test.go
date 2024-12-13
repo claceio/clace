@@ -81,7 +81,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html'], theme: { extend: {}, }, plugins: [ ], }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html', 'base_templates/*.go.html'], theme: { extend: {}, }, plugins: [ ], }`, string(data))
 }
 
 func TestStyleDaisyUI(t *testing.T) {
@@ -103,7 +103,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["emerald", "night"], }, }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html', 'base_templates/*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["emerald", "night"], }, }`, string(data))
 }
 
 func TestStyleDaisyUIThemes(t *testing.T) {
@@ -125,7 +125,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["cupcake", "dark", "emerald", "night"], }, }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html', 'base_templates/*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["cupcake", "dark", "emerald", "night"], }, }`, string(data))
 }
 
 func TestStyleDaisyUILight(t *testing.T) {
@@ -147,7 +147,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 
 	data, err = workFS.ReadFile("style/tailwind.config.js")
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["abc", "cupcake", "xyz"], }, }`, string(data))
+	testutil.AssertStringMatch(t, "tailwind.config.js", `module.exports = { content: ['action/*.go.html', '*.go.html', 'base_templates/*.go.html'], theme: { extend: {}, }, plugins: [ require("daisyui") ], daisyui: { themes: ["abc", "cupcake", "xyz"], }, }`, string(data))
 }
 
 func TestStyleCustom(t *testing.T) {

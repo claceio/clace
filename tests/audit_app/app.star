@@ -13,11 +13,11 @@ def handler(req):
     if len(events) != 0:
         return "Error: expected no audit events, got %d %s" % (len(events), events)
 
-    ret = clace.list_audit_events(operation="reload_app")
+    ret = clace.list_audit_events(operation="reload_apps")
     events = ret.value
     if len(events) == 0:
         return "Error: expected some audit events, got %d %s" % (len(events), events)
-    if events[0]["operation"] != "reload_app":
+    if events[0]["operation"] != "reload_apps":
         return "Invalid event2 %s" % events[0]
 
     return "OK"

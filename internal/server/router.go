@@ -243,7 +243,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}
 
 	defer func() {
-		if err := h.server.insertAuditEvent(&event); err != nil {
+		if err := h.server.InsertAuditEvent(&event); err != nil {
 			h.Error().Err(err).Msg("error inserting audit event")
 		}
 	}()
@@ -415,7 +415,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	}
 
 	defer func() {
-		if err := h.server.insertAuditEvent(&event); err != nil {
+		if err := h.server.InsertAuditEvent(&event); err != nil {
 			h.Error().Err(err).Msg("error inserting audit event")
 		}
 	}()
@@ -903,7 +903,7 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 
 	// Get apps
 	r.Get("/apps", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "list_app", h.getApps)
+		h.apiHandler(w, r, enableBasicAuth, "list_apps", h.getApps)
 	}))
 
 	// Get app
@@ -918,22 +918,22 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 
 	// Delete app
 	r.Delete("/app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "delete_app", h.deleteApps)
+		h.apiHandler(w, r, enableBasicAuth, "delete_apps", h.deleteApps)
 	}))
 
 	// API to approve the plugin usage and permissions for the app
 	r.Post("/approve", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "approve_app", h.approveApps)
+		h.apiHandler(w, r, enableBasicAuth, "approve_apps", h.approveApps)
 	}))
 
 	// API to reload apps
 	r.Post("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "reload_app", h.reloadApps)
+		h.apiHandler(w, r, enableBasicAuth, "reload_apps", h.reloadApps)
 	}))
 
 	// API to promote apps
 	r.Post("/promote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "promote_app", h.promoteApps)
+		h.apiHandler(w, r, enableBasicAuth, "promote_apps", h.promoteApps)
 	}))
 
 	// API to create a preview version of an app
