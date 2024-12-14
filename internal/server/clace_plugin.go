@@ -23,6 +23,7 @@ func initClacePlugin(server *Server) {
 		app.CreatePluginApiName(c.ListApps, app.READ, "list_apps"),
 		app.CreatePluginApiName(c.ListAllApps, app.READ, "list_all_apps"),
 		app.CreatePluginApiName(c.ListAuditEvents, app.READ, "list_audit_events"),
+		app.CreatePluginApiName(c.ListOperations, app.READ, "list_operations"),
 	}
 
 	newClacePlugin := func(pluginContext *types.PluginContext) (any, error) {
@@ -290,6 +291,62 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		v.SetKey(starlark.String("detail"), starlark.String(detail))
 
 		ret.Append(&v)
+	}
+
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
+	return &ret, nil
+}
+
+func (c *clacePlugin) ListOperations(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackArgs("list_operations", args, kwargs); err != nil {
+		return nil, err
+	}
+
+	rows, err := c.server.auditDB.Query(
+		"select distinct operation from (select operation from audit where event_type='custom' order by create_time desc limit 100000)")
+	if err != nil {
+		return nil, err
+	}
+
+	ret := starlark.List{}
+	ret.Append(starlark.String("reload_apps"))
+	ret.Append(starlark.String("list_apps"))
+	ret.Append(starlark.String("get_app"))
+	ret.Append(starlark.String("create_app"))
+	ret.Append(starlark.String("create_preview"))
+	ret.Append(starlark.String("delete_apps"))
+	ret.Append(starlark.String("approve_apps"))
+	ret.Append(starlark.String("promote_apps"))
+	ret.Append(starlark.String("update_settings"))
+	ret.Append(starlark.String("update_metadata"))
+	ret.Append(starlark.String("update_links"))
+	ret.Append(starlark.String("update_params"))
+	ret.Append(starlark.String("list_versions"))
+	ret.Append(starlark.String("list_files"))
+	ret.Append(starlark.String("version_switch"))
+	ret.Append(starlark.String("list_webhooks"))
+	ret.Append(starlark.String("token_create"))
+	ret.Append(starlark.String("token_delete"))
+	ret.Append(starlark.String("stop_server"))
+	ret.Append(starlark.String("POST"))
+	ret.Append(starlark.String("PUT"))
+	ret.Append(starlark.String("DELETE"))
+	ret.Append(starlark.String("PATCH"))
+	ret.Append(starlark.String("suggest"))
+	ret.Append(starlark.String("validate"))
+	ret.Append(starlark.String("execute"))
+
+	for rows.Next() {
+		var operation string
+		err := rows.Scan(&operation)
+		if err != nil {
+			return nil, err
+		}
+
+		ret.Append(starlark.String(operation))
 	}
 
 	if closeErr := rows.Close(); closeErr != nil {
