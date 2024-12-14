@@ -305,13 +305,26 @@ func (c *clacePlugin) ListOperations(thread *starlark.Thread, builtin *starlark.
 		return nil, err
 	}
 
-	rows, err := c.server.auditDB.Query(
-		"select distinct operation from (select operation from audit where event_type='custom' order by create_time desc limit 100000)")
+	rows, err := c.server.auditDB.Query("select distinct operation from audit where event_type = 'custom'")
 	if err != nil {
 		return nil, err
 	}
 
 	ret := starlark.List{}
+	for rows.Next() {
+		var operation string
+		err := rows.Scan(&operation)
+		if err != nil {
+			return nil, err
+		}
+
+		ret.Append(starlark.String(operation))
+	}
+
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
 	ret.Append(starlark.String("reload_apps"))
 	ret.Append(starlark.String("list_apps"))
 	ret.Append(starlark.String("get_app"))
@@ -338,20 +351,6 @@ func (c *clacePlugin) ListOperations(thread *starlark.Thread, builtin *starlark.
 	ret.Append(starlark.String("suggest"))
 	ret.Append(starlark.String("validate"))
 	ret.Append(starlark.String("execute"))
-
-	for rows.Next() {
-		var operation string
-		err := rows.Scan(&operation)
-		if err != nil {
-			return nil, err
-		}
-
-		ret.Append(starlark.String(operation))
-	}
-
-	if closeErr := rows.Close(); closeErr != nil {
-		return nil, fmt.Errorf("error closing rows: %w", closeErr)
-	}
 
 	return &ret, nil
 }
