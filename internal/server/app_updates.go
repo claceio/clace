@@ -585,7 +585,10 @@ func (s *Server) updateAppMetadataConfig(appEntry *types.AppEntry, configType ty
 		}
 
 		key = strings.TrimSpace(key)
-		value = types.StripQuotes(strings.TrimSpace(value))
+		value = strings.TrimSpace(value)
+		if configType != types.AppMetadataAppConfig {
+			value = types.StripQuotes(value)
+		}
 
 		switch configType {
 		case types.AppMetadataContainerOptions:

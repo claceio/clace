@@ -91,6 +91,7 @@ type AppConfig struct {
 	Container Container `toml:"container"`
 	Proxy     Proxy     `toml:"proxy"`
 	FS        FS        `toml:"fs"`
+	Audit     Audit     `toml:"audit"`
 }
 
 type CORS struct {
@@ -103,6 +104,10 @@ type CORS struct {
 
 type FS struct {
 	FileAccess []string `toml:"file_access"`
+}
+
+type Audit struct {
+	RedactUrl bool `toml:"redact_url"`
 }
 
 type Container struct {

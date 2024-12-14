@@ -85,7 +85,7 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 		return nil, err
 	}
 
-	apps, err := c.server.apps.GetAllApps()
+	apps, err := c.server.apps.GetAllAppsInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		return nil, err
 	}
 
-	apps, err := c.server.apps.GetAllApps()
+	apps, err := c.server.apps.GetAllAppsInfo()
 	if err != nil {
 		return nil, err
 	}

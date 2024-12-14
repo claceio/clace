@@ -72,7 +72,7 @@ func (p *AppPlugins) GetPlugin(pluginInfo *plugin.PluginInfo, accountName string
 		AppId:     p.app.AppEntry.Id,
 		StoreInfo: p.app.storeInfo,
 		Config:    pluginConfig,
-		AppConfig: p.app.appConfig,
+		AppConfig: p.app.AppConfig,
 		AppPath:   p.app.AppEntry.Path,
 	}
 	appPlugin, err := pluginInfo.Builder(pluginContext)

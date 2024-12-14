@@ -500,7 +500,7 @@ func (s *Server) verifyClientCerts(r *http.Request, authName string) error {
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 	//s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
-	apps, domainMap, err := s.apps.GetAppInfo()
+	apps, domainMap, err := s.apps.GetAppsFullInfo()
 	if err != nil {
 		return types.AppInfo{}, err
 	}

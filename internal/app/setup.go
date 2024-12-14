@@ -782,12 +782,12 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 	proxy := httputil.NewSingleHostReverseProxy(url)
 
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	maxIdleConnCount := a.appConfig.Proxy.MaxIdleConns
+	maxIdleConnCount := a.AppConfig.Proxy.MaxIdleConns
 	customTransport.MaxConnsPerHost = maxIdleConnCount * 2
 	customTransport.MaxIdleConns = maxIdleConnCount
 	customTransport.MaxIdleConnsPerHost = maxIdleConnCount
-	customTransport.IdleConnTimeout = time.Duration(a.appConfig.Proxy.IdleConnTimeoutSecs) * time.Second
-	customTransport.DisableCompression = a.appConfig.Proxy.DisableCompression
+	customTransport.IdleConnTimeout = time.Duration(a.AppConfig.Proxy.IdleConnTimeoutSecs) * time.Second
+	customTransport.DisableCompression = a.AppConfig.Proxy.DisableCompression
 	proxy.Transport = customTransport
 
 	defaultDirector := proxy.Director

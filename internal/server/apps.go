@@ -21,6 +21,7 @@ type AppStore struct {
 	*types.Logger
 	server     *Server
 	allApps    []types.AppInfo
+	idToInfo   map[types.AppId]types.AppInfo
 	allDomains map[string]bool
 
 	mu     sync.RWMutex
@@ -35,7 +36,7 @@ func NewAppStore(logger *types.Logger, server *Server) *AppStore {
 	}
 }
 
-func (a *AppStore) GetAppInfo() ([]types.AppInfo, map[string]bool, error) {
+func (a *AppStore) GetAppsFullInfo() ([]types.AppInfo, map[string]bool, error) {
 	a.mu.RLock()
 	if a.allApps != nil {
 		a.mu.RUnlock()
@@ -54,7 +55,7 @@ func (a *AppStore) GetAppInfo() ([]types.AppInfo, map[string]bool, error) {
 	return a.allApps, a.allDomains, nil
 }
 
-func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
+func (a *AppStore) GetAllAppsInfo() ([]types.AppInfo, error) {
 	a.mu.RLock()
 	if a.allApps != nil {
 		a.mu.RUnlock()
@@ -71,6 +72,27 @@ func (a *AppStore) GetAllApps() ([]types.AppInfo, error) {
 		return nil, err
 	}
 	return a.allApps, nil
+}
+
+func (a *AppStore) GetAppInfo(appId types.AppId) (types.AppInfo, bool) {
+	a.mu.RLock()
+	if a.idToInfo != nil {
+		a.mu.RUnlock()
+		info, ok := a.idToInfo[appId]
+		return info, ok
+	}
+	a.mu.RUnlock()
+
+	// Get exclusive lock
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	err := a.updateAppInfo()
+	if err != nil {
+		return types.AppInfo{}, false
+	}
+	info, ok := a.idToInfo[appId]
+	return info, ok
 }
 
 func (a *AppStore) GetAllDomains() (map[string]bool, error) {
@@ -99,6 +121,11 @@ func (a *AppStore) updateAppInfo() error {
 		return err
 	}
 
+	a.idToInfo = make(map[types.AppId]types.AppInfo)
+	for _, appInfo := range a.allApps {
+		a.idToInfo[appInfo.Id] = appInfo
+	}
+
 	a.allDomains = make(map[string]bool)
 	a.allDomains[a.server.config.System.DefaultDomain] = true
 	for _, appInfo := range a.allApps {
@@ -115,6 +142,7 @@ func (a *AppStore) ClearAllAppCache() {
 
 	a.allApps = nil
 	a.allDomains = nil
+	a.idToInfo = nil
 }
 
 func (a *AppStore) GetApp(pathDomain types.AppPathDomain) (*app.App, error) {
@@ -150,6 +178,7 @@ func (a *AppStore) DeleteLinkedApps(pathDomain types.AppPathDomain) error {
 	a.clearApp(pathDomain)
 	a.allApps = nil
 	a.allDomains = nil
+	a.idToInfo = nil
 	return nil
 }
 
@@ -170,10 +199,11 @@ func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
 	}
 	a.allApps = nil
 	a.allDomains = nil
+	a.idToInfo = nil
 }
 
 func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPathDomain, op string) error {
-	appInfo, error := a.GetAllApps()
+	appInfo, error := a.GetAllAppsInfo()
 	if error != nil {
 		return error
 	}
@@ -209,6 +239,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 	}
 	a.allApps = nil
 	a.allDomains = nil
+	a.idToInfo = nil
 	return nil
 }
 
@@ -231,4 +262,5 @@ func (a *AppStore) UpdateApps(apps []*app.App) {
 	}
 	a.allApps = nil
 	a.allDomains = nil
+	a.idToInfo = nil
 }

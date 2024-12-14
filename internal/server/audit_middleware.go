@@ -122,6 +122,23 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			return
 		}
 
+		redactUrl := false
+		if contextShared.AppId != "" {
+			appInfo, ok := server.apps.GetAppInfo(types.AppId(contextShared.AppId))
+			if !ok {
+				return
+			}
+			app, err := server.apps.GetApp(appInfo.AppPathDomain)
+			if err != nil {
+				return
+			}
+			redactUrl = app.AppConfig.Audit.RedactUrl
+		}
+
+		path := r.URL.Path
+		if redactUrl {
+			path = "<REDACTED>"
+		}
 		event := types.AuditEvent{
 			RequestId:  rid,
 			CreateTime: time.Now(),
@@ -129,9 +146,9 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			AppId:      types.AppId(contextShared.AppId),
 			EventType:  types.EventTypeHTTP,
 			Operation:  r.Method,
-			Target:     r.Host + ":" + r.URL.Path,
+			Target:     r.Host + ":" + path,
 			Status:     fmt.Sprintf("%d", crw.statusCode),
-			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, r.URL.Path, crw.statusCode, duration.Milliseconds()),
+			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, path, crw.statusCode, duration.Milliseconds()),
 		}
 
 		if err := server.InsertAuditEvent(&event); err != nil {

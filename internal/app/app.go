@@ -83,7 +83,7 @@ type App struct {
 	// App config that takes default values from toml config, overridden with app level metadata.
 	// It is important that this property is used instead of reading from app metadata config, so that toml
 	// config defaults are applied.
-	appConfig types.AppConfig
+	AppConfig types.AppConfig
 
 	lastRequestTime atomic.Int64
 	secretEvalFunc  func(string) (string, error)
@@ -117,7 +117,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		auditInsert:    auditInsert,
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
-	newApp.appConfig = appConfig
+	newApp.AppConfig = appConfig
 	if err := newApp.updateAppConfig(); err != nil {
 		return nil, err
 	}
@@ -485,7 +485,7 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
 		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
-		a.sourceFS, a.paramValuesStr, a.appConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
+		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}
@@ -572,26 +572,26 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if a.appConfig.CORS.AllowOrigin != "" {
-		origin := a.appConfig.CORS.AllowOrigin
-		if a.appConfig.CORS.AllowOrigin == "origin" {
+	if a.AppConfig.CORS.AllowOrigin != "" {
+		origin := a.AppConfig.CORS.AllowOrigin
+		if a.AppConfig.CORS.AllowOrigin == "origin" {
 			origin = getRequestUrl(r)
 		}
 
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
-			w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
-			w.Header().Set("Access-Control-Allow-Credentials", a.appConfig.CORS.AllowCredentials)
-			w.Header().Set("Access-Control-Max-Age", a.appConfig.CORS.MaxAge)
+			w.Header().Set("Access-Control-Allow-Methods", a.AppConfig.CORS.AllowMethods)
+			w.Header().Set("Access-Control-Allow-Headers", a.AppConfig.CORS.AllowHeaders)
+			w.Header().Set("Access-Control-Allow-Credentials", a.AppConfig.CORS.AllowCredentials)
+			w.Header().Set("Access-Control-Max-Age", a.AppConfig.CORS.MaxAge)
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Header().Set("Content-Length", "0")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", a.appConfig.CORS.AllowMethods)
-			w.Header().Set("Access-Control-Allow-Headers", a.appConfig.CORS.AllowHeaders)
+			w.Header().Set("Access-Control-Allow-Methods", a.AppConfig.CORS.AllowMethods)
+			w.Header().Set("Access-Control-Allow-Headers", a.AppConfig.CORS.AllowHeaders)
 		}
 	}
 
@@ -797,9 +797,9 @@ func (a *App) updateAppConfig() error {
 
 	buf := strings.Builder{}
 	for key, value := range a.Metadata.AppConfig {
-		buf.WriteString(fmt.Sprintf("%s=\"%s\"\n", key, value))
+		buf.WriteString(fmt.Sprintf("%s=%s\n", key, value))
 	}
 
-	_, err := toml.Decode(buf.String(), &a.appConfig)
+	_, err := toml.Decode(buf.String(), &a.AppConfig)
 	return err
 }
