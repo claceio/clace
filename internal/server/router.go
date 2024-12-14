@@ -239,7 +239,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeSystem,
 		Operation:  operation,
-		Status:     "Success",
+		Status:     string(types.EventStatusSuccess),
 	}
 
 	defer func() {
@@ -251,7 +251,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	resp, err := apiFunc(r)
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Err(err).Msg("API Received request")
 	if err != nil {
-		event.Status = "Error"
+		event.Status = string(types.EventStatusFailure)
 		if reqError, ok := err.(types.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")
 			errStr, _ := json.Marshal(reqError)
@@ -270,7 +270,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	w.Header().Add("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		event.Status = "Error"
+		event.Status = string(types.EventStatusFailure)
 		h.Error().Err(err).Msg("error encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -421,7 +421,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	}()
 
 	if err != nil {
-		event.Status = "Error"
+		event.Status = string(types.EventStatusFailure)
 		if reqError, ok := err.(types.RequestError); ok {
 			w.Header().Add("Content-Type", "application/json")
 			errStr, _ := json.Marshal(reqError)

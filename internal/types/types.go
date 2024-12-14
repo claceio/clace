@@ -521,3 +521,10 @@ type AuditEvent struct {
 	Status     string
 	Detail     string
 }
+
+type EventStatus string
+
+const (
+	EventStatusSuccess EventStatus = "Success"
+	EventStatusFailure EventStatus = "Failed"
+)

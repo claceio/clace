@@ -184,7 +184,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 		UserId:    system.GetContextUserId(ctx),
 		EventType: types.EventTypeSystem,
 		Operation: op,
-		Status:    "Success",
+		Status:    string(types.EventStatusSuccess),
 	}
 
 	for _, pd := range pathDomain {

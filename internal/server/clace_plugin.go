@@ -141,7 +141,7 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var appGlob, userId, eventType, operation, target, status, rid, detail starlark.String
 	var startDate, endDate, beforeTimestamp starlark.String
-	limit := starlark.MakeInt(20)
+	limit := starlark.MakeInt(50)
 	if err := starlark.UnpackArgs("list_audit_events", args, kwargs, "app_glob?", &appGlob, "user_id?", &userId, "event_type?",
 		&eventType, "operation?", &operation, "target?", &target, "status?", &status, "start_date", &startDate, "end_date?", &endDate,
 		"rid?", &rid, "detail?", &detail, "limit?", &limit, "before_timestamp?", &beforeTimestamp); err != nil {

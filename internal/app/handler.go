@@ -131,7 +131,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 				UserId:     system.GetContextUserId(r.Context()),
 				AppId:      system.GetContextAppId(r.Context()),
 				EventType:  types.EventTypeCustom,
-				Status:     "Success",
+				Status:     string(types.EventStatusSuccess),
 			}
 
 			if a.auditInsert != nil {
@@ -167,7 +167,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			}
 
 			if err != nil {
-				event.Status = "Error"
+				event.Status = string(types.EventStatusFailure)
 				a.Error().Err(err).Msg("error calling handler")
 
 				firstFrame := ""

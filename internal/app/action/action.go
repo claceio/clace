@@ -205,7 +205,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 		EventType:  types.EventTypeAction,
 		Operation:  op,
 		Target:     a.name,
-		Status:     "Success",
+		Status:     string(types.EventStatusSuccess),
 	}
 
 	customEvent := types.AuditEvent{
@@ -214,7 +214,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 		UserId:     system.GetContextUserId(r.Context()),
 		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeCustom,
-		Status:     "Success",
+		Status:     string(types.EventStatusSuccess),
 	}
 
 	if a.auditInsert != nil {
@@ -360,7 +360,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	if err != nil {
-		event.Status = "Error"
+		event.Status = string(types.EventStatusFailure)
 		a.Error().Err(err).Msg("error calling action run handler")
 
 		firstFrame := ""
@@ -433,7 +433,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	if err != nil {
-		event.Status = "Error"
+		event.Status = string(types.EventStatusFailure)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
