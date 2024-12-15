@@ -17,7 +17,7 @@ def handler(req):
     events = ret.value
     if len(events) == 0:
         return "Error: expected some audit events, got %d %s" % (len(events), events)
-    if events[0]["operation"] != "reload_apps":
+    if events[0]["operation"] != "reload_apps_promote":
         return "Invalid event2 %s" % events[0]
 
     return "OK"

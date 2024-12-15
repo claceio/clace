@@ -182,8 +182,9 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 
 	operationStr := strings.TrimSpace(operation.GoString())
 	if operationStr != "" {
-		filterConditions = append(filterConditions, "operation = ?")
-		queryParams = append(queryParams, operationStr)
+		opList, opQuery := getOpList(operationStr)
+		filterConditions = append(filterConditions, "operation in ("+opQuery+")")
+		queryParams = append(queryParams, opList...)
 	}
 
 	targetStr := strings.TrimSpace(target.GoString())
@@ -353,4 +354,27 @@ func (c *clacePlugin) ListOperations(thread *starlark.Thread, builtin *starlark.
 	ret.Append(starlark.String("execute"))
 
 	return &ret, nil
+}
+
+func getOpList(op string) ([]any, string) {
+	opList := []any{op}
+	switch op {
+	case "reload_apps":
+		opList = []any{"reload_apps", "reload_apps_promote_approve", "reload_apps_approve", "reload_apps_promote"}
+	case "approve_apps":
+		opList = []any{"approve_apps", "approve_apps_promote"}
+	case "update_metadata":
+		opList = []any{"update_metadata", "update_metadata_promote"}
+	case "update_settings":
+		opList = []any{"update_settings", "update_settings_promote"}
+	case "param_update":
+		opList = []any{"param_update", "param_update_promote"}
+		// Some infrequent operations like account link are not included in the list for now
+	}
+
+	queryParams := []string{}
+	for range opList {
+		queryParams = append(queryParams, "?")
+	}
+	return opList, strings.Join(queryParams, ",")
 }

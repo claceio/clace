@@ -249,6 +249,17 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, enableBasic
 	}()
 
 	resp, err := apiFunc(r)
+
+	contextShared := r.Context().Value(types.SHARED)
+	if contextShared != nil {
+		cs := contextShared.(*ContextShared)
+		event.Target = cs.Target
+		event.Operation = cs.Operation
+		if cs.DryRun {
+			event.Operation = fmt.Sprintf("%s_dryrun", event.Operation)
+		}
+	}
+
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Err(err).Msg("API Received request")
 	if err != nil {
 		event.Status = string(types.EventStatusFailure)
@@ -411,6 +422,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 		AppId:      system.GetContextAppId(r.Context()),
 		EventType:  types.EventTypeSystem,
 		Operation:  fmt.Sprintf("webhook_%s", webhookType),
+		Target:     appPathDomain.String(),
 		Status:     "Success",
 	}
 
@@ -524,6 +536,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPath, dryRun)
 
 	var appRequest types.CreateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&appRequest)
@@ -549,6 +562,7 @@ func (h *Handler) deleteApps(r *http.Request) (any, error) {
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 
 	results, err := h.server.DeleteApps(r.Context(), appPathGlob, dryRun)
 	if err != nil {
@@ -563,6 +577,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
 	if err != nil {
 		return nil, err
@@ -571,6 +586,7 @@ func (h *Handler) approveApps(r *http.Request) (any, error) {
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateOperationInContext(r, genOperationName("approve_apps", promote, false))
 
 	approveResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.auditHandler, map[string]any{}, "approve")
 	return approveResult, err
@@ -582,6 +598,7 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
 	if err != nil {
 		return nil, err
@@ -590,6 +607,7 @@ func (h *Handler) accountLink(r *http.Request) (any, error) {
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateOperationInContext(r, genOperationName("account_link", promote, false))
 
 	args := map[string]any{
 		"plugin":  r.URL.Query().Get("plugin"),
@@ -606,10 +624,12 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 	promote, err := parseBoolArg(r.URL.Query().Get(PROMOTE_ARG), false)
 	if err != nil {
 		return nil, err
 	}
+	updateOperationInContext(r, genOperationName("update_params", promote, false))
 
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
@@ -653,11 +673,13 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 
 	promote, err := parseBoolArg(r.URL.Query().Get("promote"), false)
 	if err != nil {
 		return nil, err
 	}
+	updateOperationInContext(r, genOperationName("reload_apps", promote, approve))
 
 	ret, err := h.server.ReloadApps(r.Context(), appPathGlob, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
@@ -673,10 +695,12 @@ func (h *Handler) promoteApps(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
 
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateOperationInContext(r, genOperationName("promote_apps", false, false))
 
 	ret, err := h.server.PromoteApps(r.Context(), appPathGlob, dryRun)
 	if err != nil {
@@ -695,6 +719,7 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 	if appPath == "" {
 		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPath, dryRun)
 	commitId := r.URL.Query().Get("commitId")
 	if commitId == "" {
 		return nil, types.CreateRequestError("commitId is required", http.StatusBadRequest)
@@ -703,6 +728,7 @@ func (h *Handler) previewApp(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateOperationInContext(r, genOperationName("preview_app", false, approve))
 
 	ret, err := h.server.PreviewApp(r.Context(), appPath, commitId, approve, dryRun)
 	if err != nil {
@@ -717,6 +743,7 @@ func (h *Handler) getApp(r *http.Request) (any, error) {
 	if appPath == "" {
 		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPath, false)
 
 	ret, err := h.server.GetAppApi(r.Context(), appPath)
 	if err != nil {
@@ -736,6 +763,8 @@ func (h *Handler) updateAppSettings(r *http.Request) (any, error) {
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
+	updateOperationInContext(r, genOperationName("update_settings", false, false))
 
 	var updateAppRequest types.UpdateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&updateAppRequest)
@@ -765,6 +794,8 @@ func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPathGlob, dryRun)
+	updateOperationInContext(r, genOperationName("update_metadata", promote, false))
 
 	var updateAppRequest types.UpdateAppMetadataRequest
 	err = json.NewDecoder(r.Body).Decode(&updateAppRequest)
@@ -786,6 +817,8 @@ func (h *Handler) versionList(r *http.Request) (any, error) {
 	if appPath == "" {
 		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPath, false)
+	updateOperationInContext(r, genOperationName("version_list", false, false))
 
 	ret, err := h.server.VersionList(r.Context(), appPath)
 	if err != nil {
@@ -800,7 +833,9 @@ func (h *Handler) versionFiles(r *http.Request) (any, error) {
 	if appPath == "" {
 		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPath, false)
 	version := r.URL.Query().Get("version")
+	updateOperationInContext(r, genOperationName("version_files", false, false))
 
 	ret, err := h.server.VersionFiles(r.Context(), appPath, version)
 	if err != nil {
@@ -820,6 +855,8 @@ func (h *Handler) versionSwitch(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPath, dryRun)
+	updateOperationInContext(r, genOperationName("version_switch", false, false))
 
 	ret, err := h.server.VersionSwitch(r.Context(), appPath, dryRun, version)
 	if err != nil {
@@ -834,6 +871,7 @@ func (h *Handler) tokenList(r *http.Request) (any, error) {
 	if appPath == "" {
 		return nil, types.CreateRequestError("appPath is required", http.StatusBadRequest)
 	}
+	updateTargetInContext(r, appPath, false)
 
 	ret, err := h.server.TokenList(r.Context(), appPath)
 	if err != nil {
@@ -853,6 +891,7 @@ func (h *Handler) tokenCreate(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPath, dryRun)
 
 	tokenType := r.URL.Query().Get("webhookType")
 	if appPath == "" {
@@ -877,6 +916,7 @@ func (h *Handler) tokenDelete(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	updateTargetInContext(r, appPath, dryRun)
 
 	tokenType := r.URL.Query().Get("webhookType")
 	if appPath == "" {
@@ -1017,4 +1057,15 @@ func (h *Handler) serveWebhooks() http.Handler {
 	}))
 
 	return r
+}
+
+func genOperationName(op string, promote, approve bool) string {
+	if promote && approve {
+		return fmt.Sprintf("%s_%s_%s", op, "promote", "approve")
+	} else if promote {
+		return fmt.Sprintf("%s_%s", op, "promote")
+	} else if approve {
+		return fmt.Sprintf("%s_%s", op, "approve")
+	}
+	return op
 }

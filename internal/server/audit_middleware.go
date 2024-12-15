@@ -81,8 +81,30 @@ func (s *Server) auditCleanup(cleanupTicker *time.Ticker) {
 }
 
 type ContextShared struct {
-	UserId string
-	AppId  string
+	UserId    string
+	AppId     string
+	Operation string
+	Target    string
+	DryRun    bool
+}
+
+func updateTargetInContext(r *http.Request, target string, dryRun bool) {
+	contextShared := r.Context().Value(types.SHARED)
+	if contextShared != nil {
+		cs := contextShared.(*ContextShared)
+		if target != "" {
+			cs.Target = target
+		}
+		cs.DryRun = dryRun
+	}
+}
+
+func updateOperationInContext(r *http.Request, operation string) {
+	contextShared := r.Context().Value(types.SHARED)
+	if contextShared != nil {
+		cs := contextShared.(*ContextShared)
+		cs.Operation = operation
+	}
 }
 
 func (server *Server) handleStatus(next http.Handler) http.Handler {
