@@ -166,6 +166,7 @@ type SecurityConfig struct {
 	AppDefaultAuthType        string `toml:"app_default_auth_type"`
 	AppDefaultSecretsProvider string `toml:"app_default_secrets_provider"`
 	SessionSecret             string `toml:"session_secret"`
+	SessionBlockKey           string `toml:"session_block_key"`
 	SessionMaxAge             int    `toml:"session_max_age"`
 	SessionHttpsOnly          bool   `toml:"session_https_only"`
 	CallbackUrl               string `toml:"callback_url"`

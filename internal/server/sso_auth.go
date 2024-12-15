@@ -6,7 +6,6 @@ package server
 import (
 	"crypto/rand"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -66,20 +65,39 @@ func genCookieName(provider string) string {
 	return fmt.Sprintf("%s_%s", provider, SESSION_COOKIE)
 }
 
+func generateRandomKey(length int) (string, error) {
+	key := make([]byte, length)
+	_, err := rand.Read(key)
+	if err != nil {
+		return "", err
+	}
+	return string(key), nil
+}
+
 func (s *SSOAuth) Setup() error {
+	var err error
 	sessionKey := s.config.Security.SessionSecret
 	if sessionKey == "" {
-		k := make([]byte, 32)
-		if _, err := io.ReadFull(rand.Reader, k); err != nil {
+		sessionKey, err = generateRandomKey(32)
+		if err != nil {
 			return err
 		}
 	}
 
-	s.cookieStore = sessions.NewCookieStore([]byte(sessionKey))
+	sessionBlockKey := s.config.Security.SessionBlockKey
+	if sessionBlockKey == "" {
+		sessionBlockKey, err = generateRandomKey(32)
+		if err != nil {
+			return err
+		}
+	}
+
+	s.cookieStore = sessions.NewCookieStore([]byte(sessionKey), []byte(sessionBlockKey))
 	s.cookieStore.MaxAge(s.config.Security.SessionMaxAge)
 	s.cookieStore.Options.Path = "/"
 	s.cookieStore.Options.HttpOnly = true
 	s.cookieStore.Options.Secure = s.config.Security.SessionHttpsOnly
+	s.cookieStore.Options.SameSite = http.SameSiteLaxMode
 
 	gothic.Store = s.cookieStore // Set the store for gothic
 	gothic.GetProviderName = getProviderName
