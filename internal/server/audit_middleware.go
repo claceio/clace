@@ -34,19 +34,65 @@ func (s *Server) initAuditDB(connectString string) error {
 		return err
 	}
 
-	if _, err := s.auditDB.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time int,` +
-		`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
-		return err
-	}
-	if _, err := s.auditDB.Exec(`create index IF NOT EXISTS idx_rid_audit ON audit (rid, create_time DESC)`); err != nil {
-		return err
-	}
-	if _, err := s.auditDB.Exec(`create index IF NOT EXISTS idx_misc_audit ON audit (app_id, event_type, operation, target, create_time DESC)`); err != nil {
+	if err := s.versionUpgradeAuditDB(); err != nil {
 		return err
 	}
 
 	cleanupTicker := time.NewTicker(5 * time.Minute)
 	go s.auditCleanup(cleanupTicker)
+	return nil
+}
+
+const CURRENT_AUDIT_DB_VERSION = 1
+
+func (s *Server) versionUpgradeAuditDB() error {
+	version := 0
+	row := s.auditDB.QueryRow("SELECT version, last_upgraded FROM audit_version")
+	var dt time.Time
+	row.Scan(&version, &dt)
+
+	if version > CURRENT_AUDIT_DB_VERSION {
+		return fmt.Errorf("audit DB version is newer than server version, exiting. Server %d, DB %d", CURRENT_AUDIT_DB_VERSION, version)
+	}
+
+	if version == CURRENT_AUDIT_DB_VERSION {
+		return nil
+	}
+
+	ctx := context.Background()
+	tx, err := s.auditDB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if version < 1 {
+		s.Info().Msg("No audit version, initializing")
+
+		if _, err := tx.ExecContext(ctx, `create table audit_version (version int, last_upgraded datetime)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `insert into audit_version values (1, datetime('now'))`); err != nil {
+			return err
+		}
+
+		if _, err := tx.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time int,` +
+			`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
+			return err
+		}
+
+		if _, err := tx.Exec(`create index IF NOT EXISTS idx_rid_audit ON audit (rid, create_time DESC)`); err != nil {
+			return err
+
+		}
+		if _, err := tx.Exec(`create index IF NOT EXISTS idx_misc_audit ON audit (app_id, event_type, operation, target, create_time DESC)`); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
 	return nil
 }

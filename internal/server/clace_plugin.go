@@ -279,7 +279,7 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 			v.SetKey(starlark.String("app_name"), starlark.String(appInfo.Name))
 			v.SetKey(starlark.String("app_path"), starlark.String(appInfo.AppPathDomain.String()))
 		} else {
-			v.SetKey(starlark.String("app_name"), starlark.String(""))
+			v.SetKey(starlark.String("app_name"), starlark.String(appId))
 			v.SetKey(starlark.String("app_path"), starlark.String(""))
 		}
 		v.SetKey(starlark.String("create_time_epoch"), starlark.String(strconv.FormatInt(createTime, 10)))
@@ -362,11 +362,11 @@ func getOpList(op string) ([]any, string) {
 	case "reload_apps":
 		opList = []any{"reload_apps", "reload_apps_promote_approve", "reload_apps_approve", "reload_apps_promote"}
 	case "approve_apps":
-		opList = []any{"approve_apps", "approve_apps_promote"}
+		opList = []any{"approve_apps", "approve_apps_promote", "reload_apps_promote_approve", "reload_apps_approve"}
+	case "promote_apps":
+		opList = []any{"promote_apps", "reload_apps_promote_approve", "reload_apps_promote", "approve_apps_promote", "param_update_promote"}
 	case "update_metadata":
 		opList = []any{"update_metadata", "update_metadata_promote"}
-	case "update_settings":
-		opList = []any{"update_settings", "update_settings_promote"}
 	case "param_update":
 		opList = []any{"param_update", "param_update_promote"}
 		// Some infrequent operations like account link are not included in the list for now

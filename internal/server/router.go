@@ -807,7 +807,7 @@ func (h *Handler) updateAppMetadata(r *http.Request) (any, error) {
 		"metadata": updateAppRequest,
 	}
 
-	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateMetadataHandler, args, "update-metadata")
+	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateMetadataHandler, args, "update_metadata")
 	return updateResult, err
 
 }
