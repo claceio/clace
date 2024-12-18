@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Webapp management for internal tools, app server for containerized apps</p>
+  <p align="center">Hypermedia based internal tools for teams</p>
 </p>
 
 <p>
@@ -31,13 +31,11 @@
 
 ## Overview
 
-Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows easy and secure hosting of multiple web apps, in any language/framework, on a single machine. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
+Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows you to build and deploy Hypermedia based web apps. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-Clace combines the functionality of a reverse proxy, a hypermedia based micro-framework and a container orchestrator (using Docker or Podman) in a single lightweight binary. After starting the Clace server and ensuring Docker or Podman is running, new apps can be installed in one command from GitHub source repo. Clace builds the image and starts the container lazily, on the first API call. Clace can also automatically build simple form based UI for backend APIs.
+Clace can also be used to develop any containerized web app on a shared server. Apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit/Gradio apps, adding OAuth authentication for access control across a team.
 
-Clace can be used to develop any containerized web app on a development machine and then deploy the app on a shared server. Apps are deployed directly from the git repo, no build step required. Clace can be used to deploy Streamlit apps, adding OAuth authentication for access control across a team.
-
-This repo hosts the source code for Clace server and client. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to build apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo.
+This repo hosts the source code for Clace. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to create apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo. Sample apps are in the [apps](https://github.com/claceio/apps) repo.
 
 <img alt="Clace intro gif" src="https://clace.io/intro_dark_small.gif"/>
 
@@ -45,10 +43,9 @@ This repo hosts the source code for Clace server and client. The source for the 
 
 Clace can be used to:
 
-- Develop a form based UI for backend CLI scripts and REST APIs
+- Automatically generate a form based UI for backend actions
 - Deploy containerized applications, Clace will build and manage the container lifecycle
-- Build Hypermedia based applications using Starlark (no containers required)
-- Hybrid approach, where the backend APIs are implemented in a container and a Hypermedia based UI is implemented in Clace
+- Build custom Hypermedia based applications using Starlark (no containers required)
 
 Clace supports the following for all apps:
 
