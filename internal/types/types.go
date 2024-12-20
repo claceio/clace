@@ -107,7 +107,8 @@ type FS struct {
 }
 
 type Audit struct {
-	RedactUrl bool `toml:"redact_url"`
+	RedactUrl      bool `toml:"redact_url"`
+	SkipHttpEvents bool `toml:"skip_http_events"`
 }
 
 type Container struct {
@@ -198,6 +199,9 @@ type SystemConfig struct {
 	DefaultDomain             string `toml:"default_domain"`
 	DisableUnknownDomains     bool   `toml:"disable_unknown_domains"`
 	RootServeListApps         string `toml:"root_serve_list_apps"`
+
+	HttpEventRetentionDays    int `toml:"http_event_retention_days"`
+	NonHttpEventRetentionDays int `toml:"non_http_event_retention_days"`
 }
 
 // GitAuth is a github auth config entry

@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -38,8 +39,8 @@ func (s *Server) initAuditDB(connectString string) error {
 		return err
 	}
 
-	cleanupTicker := time.NewTicker(5 * time.Minute)
-	go s.auditCleanup(cleanupTicker)
+	cleanupTicker := time.NewTicker(1 * time.Hour)
+	go s.auditCleanupLoop(cleanupTicker)
 	return nil
 }
 
@@ -105,11 +106,28 @@ func (s *Server) InsertAuditEvent(event *types.AuditEvent) error {
 }
 
 func (s *Server) cleanupEvents() error {
-	// TODO: Implement cleanup
+	httpCleanupTime := time.Now().Add(-time.Duration(s.config.System.HttpEventRetentionDays) * 24 * time.Hour).UnixNano()
+	nonHttpCleanupTime := time.Now().Add(-time.Duration(s.config.System.NonHttpEventRetentionDays) * 24 * time.Hour).UnixNano()
+
+	httpResult, err := s.auditDB.Exec(`delete from audit where event_type = "http" and create_time < ?`, httpCleanupTime)
+	if err != nil {
+		return err
+	}
+	nonHttpResult, err := s.auditDB.Exec(`delete from audit where event_type != "http" and create_time < ?`, nonHttpCleanupTime)
+	if err != nil {
+		return err
+	}
+
+	httpDeleted, err1 := httpResult.RowsAffected()
+	nonHttpDeleted, err2 := nonHttpResult.RowsAffected()
+	if cmp.Or(err1, err2) != nil {
+		return cmp.Or(err1, err2)
+	}
+	s.Info().Msgf("audit cleanup: http deleted %d, non-http deleted %d", httpDeleted, nonHttpDeleted)
 	return nil
 }
 
-func (s *Server) auditCleanup(cleanupTicker *time.Ticker) {
+func (s *Server) auditCleanupLoop(cleanupTicker *time.Ticker) {
 	err := s.cleanupEvents()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error cleaning up audit entries %s", err)
@@ -198,6 +216,11 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			}
 			app, err := server.apps.GetApp(appInfo.AppPathDomain)
 			if err != nil {
+				return
+			}
+
+			if app.AppConfig.Audit.SkipHttpEvents {
+				// http event auditing is disabled for this app
 				return
 			}
 			redactUrl = app.AppConfig.Audit.RedactUrl

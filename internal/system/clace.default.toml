@@ -60,6 +60,9 @@ disable_unknown_domains = true      # disable unknown domains, if default domain
 root_serve_list_apps = "auto"       # "auto" means serve list_apps app for default domain, "disable" means don't server for any domain,
 # any other value means server for specified domain
 
+http_event_retention_days = 90      # number of days to retain http events
+non_http_event_retention_days = 180 # number of days to retain non-http (system, action, custom) events
+
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/metadata/clace_app_store.db"
 
@@ -105,3 +108,4 @@ fs.file_access = ["$TEMPDIR", "/tmp"]
 
 # Audit related settings
 audit.redact_url = false
+audit.skip_http_events = false
