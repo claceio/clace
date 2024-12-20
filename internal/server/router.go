@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -116,16 +117,17 @@ func NewUDSHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 // authentication is enabled. It also mounts the internal APIs if admin over TCP is enabled
 func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Server) *Handler {
 	router := chi.NewRouter()
-	router.Use(server.handleStatus)
-	router.Use(panicRecovery)
-
 	handler := &Handler{
 		Logger: logger,
 		config: config,
 		server: server,
 		router: router,
 	}
-
+	if config.Http.RedirectToHttps {
+		router.Use(handler.httpsRedirectMiddleware)
+	}
+	router.Use(server.handleStatus)
+	router.Use(panicRecovery)
 	router.Use(middleware.Logger)
 	router.Use(AddVaryHeader)
 	router.Use(middleware.CleanPath)
@@ -146,6 +148,31 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 
 	router.HandleFunc("/*", handler.callApp)
 	return handler
+}
+
+// httpsRedirectMiddleware checks if the request was made using HTTP (no TLS)
+// and redirects it to the HTTPS version of the URL if so.
+func (h *Handler) httpsRedirectMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			u := *r.URL
+			u.Scheme = "https"
+			u.Host = r.Host
+
+			host, _, err := net.SplitHostPort(r.Host)
+			if err == nil {
+				// update https port
+				u.Host = fmt.Sprintf("%s:%d", host, h.server.config.Https.Port)
+			}
+
+			// Redirect to the HTTPS version of the URL
+			http.Redirect(w, r, u.String(), http.StatusPermanentRedirect) // 308 (301 does not keep method)
+			return
+		}
+
+		// If it's already HTTPS, just proceed
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {

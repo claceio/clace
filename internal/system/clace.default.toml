@@ -11,8 +11,9 @@ default_format = "table" # default output format for the client commands
 
 # HTTP port binding related Config
 [http]
-host = "127.0.0.1" # bind to localhost by default for HTTP
-port = 25222       # default port for HTTP
+host = "127.0.0.1"        # bind to localhost by default for HTTP
+port = 25222              # default port for HTTP
+redirect_to_https = false # redirect HTTP to HTTPS
 
 # HTTPS port binding related Config
 [https]

@@ -144,8 +144,9 @@ type PluginContext struct {
 
 // HttpConfig is the configuration for the HTTP server
 type HttpConfig struct {
-	Host string `toml:"host"`
-	Port int    `toml:"port"`
+	Host            string `toml:"host"`
+	Port            int    `toml:"port"`
+	RedirectToHttps bool   `toml:"redirect_to_https"`
 }
 
 // HttpsConfig is the configuration for the HTTPs server
