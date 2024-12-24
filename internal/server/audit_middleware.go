@@ -16,20 +16,21 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
+type FlushableWriter interface {
+	http.ResponseWriter
+	http.Flusher
+}
+
 // FlushableStatusResponseWriter wraps http.ResponseWriter to capture the status code.
 type FlushableStatusResponseWriter struct {
-	http.ResponseWriter
+	FlushableWriter
 	statusCode int
 }
 
 // WriteHeader captures the status code.
 func (f *FlushableStatusResponseWriter) WriteHeader(code int) {
 	f.statusCode = code
-	f.ResponseWriter.WriteHeader(code)
-}
-
-func (f *FlushableStatusResponseWriter) Flush() {
-	f.ResponseWriter.(http.Flusher).Flush()
+	f.FlushableWriter.WriteHeader(code)
 }
 
 // StatusResponseWriter wraps http.ResponseWriter to capture the status code.
@@ -210,10 +211,10 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 
 		// Wrap the ResponseWriter
 		var crw any
-		if _, ok := w.(http.Flusher); ok {
+		if fw, ok := w.(FlushableWriter); ok {
 			crw = &FlushableStatusResponseWriter{
-				ResponseWriter: w,
-				statusCode:     http.StatusOK, // Default status
+				FlushableWriter: fw,
+				statusCode:      http.StatusOK, // Default status
 			}
 		} else {
 			crw = &StatusResponseWriter{
