@@ -16,16 +16,32 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
-// CustomResponseWriter wraps http.ResponseWriter to capture the status code.
-type CustomResponseWriter struct {
+// FlushableStatusResponseWriter wraps http.ResponseWriter to capture the status code.
+type FlushableStatusResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
 }
 
 // WriteHeader captures the status code.
-func (crw *CustomResponseWriter) WriteHeader(code int) {
-	crw.statusCode = code
-	crw.ResponseWriter.WriteHeader(code)
+func (f *FlushableStatusResponseWriter) WriteHeader(code int) {
+	f.statusCode = code
+	f.ResponseWriter.WriteHeader(code)
+}
+
+func (f *FlushableStatusResponseWriter) Flush() {
+	f.ResponseWriter.(http.Flusher).Flush()
+}
+
+// StatusResponseWriter wraps http.ResponseWriter to capture the status code.
+type StatusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+// WriteHeader captures the status code.
+func (c *StatusResponseWriter) WriteHeader(code int) {
+	c.statusCode = code
+	c.ResponseWriter.WriteHeader(code)
 }
 
 func (s *Server) initAuditDB(connectString string) error {
@@ -193,14 +209,22 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 
 		// Wrap the ResponseWriter
-		crw := &CustomResponseWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK, // Default status
+		var crw any
+		if _, ok := w.(http.Flusher); ok {
+			crw = &FlushableStatusResponseWriter{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK, // Default status
+			}
+		} else {
+			crw = &StatusResponseWriter{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK, // Default status
+			}
 		}
 
 		startTime := time.Now()
 		// Call the next handler
-		next.ServeHTTP(crw, r)
+		next.ServeHTTP(crw.(http.ResponseWriter), r)
 		duration := time.Since(startTime)
 
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
@@ -230,6 +254,13 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 		if redactUrl {
 			path = "<REDACTED>"
 		}
+		statusCode := 200
+		if _, ok := crw.(*StatusResponseWriter); ok {
+			statusCode = crw.(*StatusResponseWriter).statusCode
+		} else {
+			statusCode = crw.(*FlushableStatusResponseWriter).statusCode
+		}
+
 		event := types.AuditEvent{
 			RequestId:  rid,
 			CreateTime: time.Now(),
@@ -238,8 +269,8 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 			EventType:  types.EventTypeHTTP,
 			Operation:  r.Method,
 			Target:     r.Host + ":" + path,
-			Status:     fmt.Sprintf("%d", crw.statusCode),
-			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, path, crw.statusCode, duration.Milliseconds()),
+			Status:     fmt.Sprintf("%d", statusCode),
+			Detail:     fmt.Sprintf("%s %s %s %d %d", r.Method, r.Host, path, statusCode, duration.Milliseconds()),
 		}
 
 		if err := server.InsertAuditEvent(&event); err != nil {
