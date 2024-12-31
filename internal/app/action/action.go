@@ -314,15 +314,14 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 			}
 			args[param.Name] = starlark.String(fullPath)
 		} else {
+			hasValue := r.Form.Has(param.Name)
 			// Not file upload, regular param
 			formValue := r.Form.Get(param.Name)
-			if formValue == "" {
-				if param.Type == starlark_type.BOOLEAN {
-					// Form does not submit unchecked checkboxes, set to false
-					args[param.Name] = starlark.Bool(false)
-					qsParams.Add(param.Name, "false")
-				}
-			} else {
+			if param.Type == starlark_type.BOOLEAN && !hasValue {
+				// Form does not submit unchecked checkboxes, set to false
+				args[param.Name] = starlark.Bool(false)
+				qsParams.Add(param.Name, "false")
+			} else if hasValue {
 				newVal, err := apptype.ParamStringToType(param.Name, param.Type, formValue)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusBadRequest)
@@ -885,6 +884,9 @@ func (a *Action) handleSuggestResponse(w http.ResponseWriter, retVal starlark.Va
 			return
 		} else if p.Type == starlark_type.STRING && valueIsList {
 			param.InputType = "select"
+			if len(valueList) == 0 {
+				continue
+			}
 			param.Value = valueList[0]
 			param.Options = valueList
 		} else if p.Type == starlark_type.BOOLEAN {

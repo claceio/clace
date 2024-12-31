@@ -168,16 +168,16 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 			}
 		}
 
-		if allInt {
-			ret := make([]int, len(value))
-			for i, v := range value {
-				ret[i] = v.(int)
-			}
-			val = ret
-		} else if allString {
+		if allString {
 			ret := make([]string, len(value))
 			for i, v := range value {
 				ret[i] = v.(string)
+			}
+			val = ret
+		} else if allInt {
+			ret := make([]int, len(value))
+			for i, v := range value {
+				ret[i] = v.(int)
 			}
 			val = ret
 		} else if allMapStringString {
@@ -230,7 +230,7 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 			}
 			val = _var
 		} else {
-			err = fmt.Errorf("constructor object from *starlarkstruct.Struct not supported Marshaler to starlark object: %s", v.Constructor().Type())
+			err = fmt.Errorf("constructor object from *starlarkstruct.Struct does not support Unmarshaler: %s", v.Constructor().Type())
 		}
 	default:
 		if _var, ok := v.(TypeUnmarshaler); ok {
