@@ -40,24 +40,26 @@
   <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
     <div class="divider text-lg text-secondary">Report</div>
 
-    <table class="table table-auto min-w-full table-zebra text-xl font-mono">
-      <thead>
-        <tr>
-          {{ range $k := .Keys }}
-            <th>{{ $k }}</th>
-          {{ end }}
-        </tr>
-      </thead>
-      <tbody>
-        {{ range $v := .Values }}
-          <tr>
-            {{ range $e := $v }}
-              <td>{{ $e }}</td>
+    <div class="overflow-x-auto">
+      <table class="table table-auto min-w-full table-zebra text-xl font-mono">
+        <thead>
+          <tr class="text-primary">
+            {{ range $k := .Keys }}
+              <th>{{ $k }}</th>
             {{ end }}
           </tr>
-        {{ end }}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {{ range $v := .Values }}
+            <tr>
+              {{ range $e := $v }}
+                <td>{{ $e }}</td>
+              {{ end }}
+            </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
   </div>
 {{ end }}
 

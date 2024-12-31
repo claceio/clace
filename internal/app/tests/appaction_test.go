@@ -215,9 +215,10 @@ app = ace.app("testApp",
             <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
+			<div class="overflow-x-auto">
             <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
-                <tr>
+                <tr class="text-primary">
                     <th>a</th>
                     <th>b</th>
                 </tr>
@@ -229,6 +230,7 @@ app = ace.app("testApp",
                   </tr>
               </tbody>
             </table>
+			</div>
           </div>`, response.Body.String())
 }
 
@@ -332,9 +334,10 @@ app = ace.app("testApp",
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
+			<div class="overflow-x-auto">
             <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
-                <tr>
+                <tr class="text-primary">
                     <th>a</th>
                     <th>b</th>
                 </tr>
@@ -346,6 +349,7 @@ app = ace.app("testApp",
                   </tr>
               </tbody>
             </table>
+			</div>
           </div>`, response.Body.String())
 }
 
@@ -395,9 +399,10 @@ app = ace.app("testApp",
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
+			<div class="overflow-x-auto">
             <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
-                <tr>
+                <tr class="text-primary">
                     <th>a</th>
                     <th>b</th>
                 </tr>
@@ -413,6 +418,7 @@ app = ace.app("testApp",
                   </tr>
               </tbody>
             </table>
+			</div>
           </div>`, response.Body.String())
 }
 
@@ -496,9 +502,10 @@ param("param4", description="param4 description", type=STRING, required=False, d
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
+			<div class="overflow-x-auto">
             <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
-                <tr>
+                <tr class="text-primary">
                     <th>c1</th>
                     <th>c2</th>
                     <th>c3</th>
@@ -512,6 +519,7 @@ param("param4", description="param4 description", type=STRING, required=False, d
                   </tr>
               </tbody>
             </table>
+			</div>
           </div>`, response.Body.String())
 }
 
@@ -751,9 +759,10 @@ param("param3", description="param3 description", type=INT, default=10)`,
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Report</div>
         
+			<div class="overflow-x-auto">
             <table class="table table-auto min-w-full table-zebra text-xl font-mono">
               <thead>
-                <tr>
+                <tr class="text-primary">
                   
                     <th>c1</th>
                   
@@ -777,6 +786,7 @@ param("param3", description="param3 description", type=INT, default=10)`,
                 
               </tbody>
             </table>
+			</div>
           </div>`, response.Body.String())
 }
 
