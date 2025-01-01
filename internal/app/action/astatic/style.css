@@ -2514,20 +2514,12 @@ html {
   width: 100%;
 }
 
-.min-w-full {
-  min-width: 100%;
-}
-
 .flex-grow {
   flex-grow: 1;
 }
 
 .table-auto {
   table-layout: auto;
-}
-
-.list-disc {
-  list-style-type: disc;
 }
 
 .grid-flow-col {
@@ -2609,16 +2601,8 @@ html {
   padding: 2rem;
 }
 
-.pl-1 {
-  padding-left: 0.25rem;
-}
-
 .pl-4 {
   padding-left: 1rem;
-}
-
-.pl-8 {
-  padding-left: 2rem;
 }
 
 .pt-1 {
@@ -2635,11 +2619,6 @@ html {
 
 .font-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-.text-2xl {
-  font-size: 1.5rem;
-  line-height: 2rem;
 }
 
 .text-3xl {

@@ -23,13 +23,10 @@
 
     <!-- Full screen container -->
     <body>
-      <div class="min-h-screen grid grid-flow-col lg:grid-cols-12">
-        <div class="lg:col-span-1 xl:col-span-2"></div>
+      <div class="">
+         <div class="p-2 grid grid-cols-5">
 
-        <div class="lg:col-span-10 xl:col-span-8">
-         <div class="p-8 grid grid-cols-5">
-
-          <div class="col-start-1 col-span-1">
+          <div class="col-start-1 col-span-1 justify-items-left">
             {{ if and (.links) (gt (len .links) 0) }}
             <div class="dropdown dropdown-bottom" title="Switch between Actions">
                 <div tabindex="0" role="button" class="btn btn-outline">
@@ -73,8 +70,6 @@
 {{ define "footer" }}
         </div>
 
-        <div class="lg:col-span-1 xl:col-span-2"></div>
-      </div>
     </body>
   </html>
 {{ end }}

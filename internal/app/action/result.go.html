@@ -39,9 +39,9 @@
 {{ block "result-table" . }}
   <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
     <div class="divider text-lg text-secondary">Report</div>
-
     <div class="overflow-x-auto">
-      <table class="table table-auto min-w-full table-zebra text-xl font-mono">
+      <table
+        class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
         <thead>
           <tr class="text-primary">
             {{ range $k := .Keys }}

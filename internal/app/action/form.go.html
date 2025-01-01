@@ -31,148 +31,156 @@
   });
 </script>
 
-<p class="text-center">
+<p class="text-center mb-4">
   {{ .description }}
 </p>
 
-<div class="card w-full shadow-2xl p-6 rounded-lg">
-  <form
-    method="post"
-    {{ if .hasFileUpload }}
-      enctype="multipart/form-data" hx-encoding="multipart/form-data"
-    {{ end }}>
-    {{ range .params }}
-      <div class="grid grid-cols-2 gap-4 mb-4 items-center">
-        <label class="label flex-col items-start" for="param_{{ .Name }}">
-          <span class="label-text font-bold">{{ .Name }}</span>
-          <span class="label-text text-sm text-gray-500"
-            >{{ .Description }}
-          </span>
-        </label>
+<div class="w-full flex justify-center pt-4">
+  <div class="max-w-2xl mx-auto p-2">
+    <form
+      method="post"
+      {{ if .hasFileUpload }}
+        enctype="multipart/form-data" hx-encoding="multipart/form-data"
+      {{ end }}>
+      {{ range .params }}
+        <div class="grid grid-cols-2 gap-4 mb-4 items-center">
+          <label class="label flex-col items-start" for="param_{{ .Name }}">
+            <span class="label-text font-bold">{{ .Name }}</span>
+            <span class="label-text text-sm text-gray-500"
+              >{{ .Description }}
+            </span>
+          </label>
 
-        <div id="param_{{ .Name }}_div">
-          {{ block "param_input_div" . }}
-            {{ if eq .InputType "checkbox" }}
-              <div class="flex justify-center">
-                <input
-                  id="param_{{ .Name }}"
-                  name="{{ .Name }}"
-                  type="checkbox"
-                  value="true"
-                  class="checkbox checkbox-primary justify-self-center"
-                  {{ .Value }} />
-                <div class="pl-4">
+          <div id="param_{{ .Name }}_div">
+            {{ block "param_input_div" . }}
+              {{ if eq .InputType "checkbox" }}
+                <div class="flex justify-center">
+                  <input
+                    id="param_{{ .Name }}"
+                    name="{{ .Name }}"
+                    type="checkbox"
+                    value="true"
+                    class="checkbox checkbox-primary justify-self-center"
+                    {{ .Value }} />
+                  <div class="pl-4">
+                    <div
+                      id="param_{{ .Name }}_error"
+                      class="text-error mt-1"></div>
+                  </div>
+                </div>
+              {{ else if eq .InputType "select" }}
+                <div>
+                  <select
+                    id="param_{{ .Name }}"
+                    class="select select-bordered w-full"
+                    name="{{ .Name }}">
+                    {{ $sel := .Value }}
+                    {{ range .Options }}
+                      <option
+                        value="{{ . }}"
+                        {{ if eq $sel . }}selected{{ end }}>
+                        {{ . }}
+                      </option>
+                    {{ end }}
+                  </select>
                   <div
                     id="param_{{ .Name }}_error"
                     class="text-error mt-1"></div>
                 </div>
-              </div>
-            {{ else if eq .InputType "select" }}
-              <div>
-                <select
-                  id="param_{{ .Name }}"
-                  class="select select-bordered w-full"
-                  name="{{ .Name }}">
-                  {{ $sel := .Value }}
-                  {{ range .Options }}
-                    <option value="{{ . }}" {{ if eq $sel . }}selected{{ end }}>
-                      {{ . }}
-                    </option>
-                  {{ end }}
-                </select>
-                <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
-              </div>
-            {{ else }}
-              <div>
-                {{ if eq .DisplayType "textarea" }}
-                  <textarea
-                    id="param_{{ .Name }}"
-                    name="{{ .Name }}"
-                    class="textarea textarea-primary w-full"
-                    {{ if .DisplayTypeOptions }}
-                      rows="{{ .DisplayTypeOptions }}"
-                    {{ end }}>
+              {{ else }}
+                <div>
+                  {{ if eq .DisplayType "textarea" }}
+                    <textarea
+                      id="param_{{ .Name }}"
+                      name="{{ .Name }}"
+                      class="textarea textarea-primary w-full"
+                      {{ if .DisplayTypeOptions }}
+                        rows="{{ .DisplayTypeOptions }}"
+                      {{ end }}>
  {{- .Value -}}</textarea
-                  >
-                {{ else if eq .DisplayType "password" }}
-                  <input
-                    id="param_{{ .Name }}"
-                    name="{{ .Name }}"
-                    type="password"
-                    class="input input-bordered w-full"
-                    value="{{ .Value }}" />
-                {{ else if eq .DisplayType "file" }}
-                  <input
-                    id="param_{{ .Name }}"
-                    name="{{ .Name }}"
-                    type="file"
-                    {{ if .DisplayTypeOptions }}
-                      accept="{{ .DisplayTypeOptions }}"
-                    {{ end }}
-                    class="file-input file-input-primary w-full"
-                    value="{{ .Value }}" />
-                {{ else }}
-                  <input
-                    id="param_{{ .Name }}"
-                    name="{{ .Name }}"
-                    type="{{ .DisplayType }}"
-                    class="input input-bordered w-full"
-                    value="{{ .Value }}" />
-                {{ end }}
-                <div id="param_{{ .Name }}_error" class="text-error mt-1"></div>
-              </div>
+                    >
+                  {{ else if eq .DisplayType "password" }}
+                    <input
+                      id="param_{{ .Name }}"
+                      name="{{ .Name }}"
+                      type="password"
+                      class="input input-bordered w-full"
+                      value="{{ .Value }}" />
+                  {{ else if eq .DisplayType "file" }}
+                    <input
+                      id="param_{{ .Name }}"
+                      name="{{ .Name }}"
+                      type="file"
+                      {{ if .DisplayTypeOptions }}
+                        accept="{{ .DisplayTypeOptions }}"
+                      {{ end }}
+                      class="file-input file-input-primary w-full"
+                      value="{{ .Value }}" />
+                  {{ else }}
+                    <input
+                      id="param_{{ .Name }}"
+                      name="{{ .Name }}"
+                      type="{{ .DisplayType }}"
+                      class="input input-bordered w-full"
+                      value="{{ .Value }}" />
+                  {{ end }}
+                  <div
+                    id="param_{{ .Name }}_error"
+                    class="text-error mt-1"></div>
+                </div>
+              {{ end }}
+              <!-- param_input_div block -->
             {{ end }}
-            <!-- param_input_div block -->
-          {{ end }}
-        </div>
-      </div>
-    {{ end }}
-
-
-    <!-- Submit Button -->
-    <div class="flex space-x-2">
-      {{ if .showSuggest }}
-        <div class="form-control mt-6 flex-grow ">
-          <button
-            type="submit"
-            hx-post="{{ .pagePath }}/suggest"
-            hx-target="#ActionMessage"
-            hx-swap="innerHTML swap:80ms"
-            hx-indicator="#ActionIndicator"
-            class="btn btn-primary w-full">
-            Suggest
-          </button>
-        </div>
-      {{ end }}
-
-      {{ if .showValidate }}
-        <div class="form-control mt-6 flex-grow ">
-          <button
-            type="submit"
-            hx-post="{{ .pagePath }}/validate"
-            hx-target="#ActionMessage"
-            hx-swap="innerHTML swap:80ms"
-            hx-indicator="#ActionIndicator"
-            class="btn btn-primary w-full">
-            Validate
-          </button>
+          </div>
         </div>
       {{ end }}
 
 
-      <div class="form-control mt-6 flex-grow ">
-        <button
-          type="submit"
-          hx-post="{{ .pagePath }}"
-          hx-target="#ActionMessage"
-          hx-swap="innerHTML swap:80ms"
-          hx-indicator="#ActionIndicator"
-          class="btn btn-primary w-full">
-          Run
-        </button>
+      <!-- Submit Button -->
+      <div class="flex space-x-2">
+        {{ if .showSuggest }}
+          <div class="form-control mt-6 flex-grow ">
+            <button
+              type="submit"
+              hx-post="{{ .pagePath }}/suggest"
+              hx-target="#ActionMessage"
+              hx-swap="innerHTML swap:80ms"
+              hx-indicator="#ActionIndicator"
+              class="btn btn-primary w-full">
+              Suggest
+            </button>
+          </div>
+        {{ end }}
+
+        {{ if .showValidate }}
+          <div class="form-control mt-6 flex-grow ">
+            <button
+              type="submit"
+              hx-post="{{ .pagePath }}/validate"
+              hx-target="#ActionMessage"
+              hx-swap="innerHTML swap:80ms"
+              hx-indicator="#ActionIndicator"
+              class="btn btn-primary w-full">
+              Validate
+            </button>
+          </div>
+        {{ end }}
+
+
+        <div class="form-control mt-6 flex-grow ">
+          <button
+            type="submit"
+            hx-post="{{ .pagePath }}"
+            hx-target="#ActionMessage"
+            hx-swap="innerHTML swap:80ms"
+            hx-indicator="#ActionIndicator"
+            class="btn btn-primary w-full">
+            Run
+          </button>
+        </div>
       </div>
-    </div>
-  </form>
+    </form>
+  </div>
 </div>
 
 <div class="pt-1 flex justify-center items-center">
@@ -182,9 +190,9 @@
     class="htmx-indicator"
     src="{{ astatic "astatic/spinner.svg" }}" />
 </div>
-<p id="ActionMessage" class="pt-2 text-center"></p>
+<p id="ActionMessage" class="pt-1 text-center"></p>
 
-<div class="pt-2 card w-full shadow-2xl p-6 rounded-lg overflow-x-auto">
+<div class="pt-1 card w-full shadow-2xl rounded-lg">
   <div id="action_result"></div>
 </div>
 
