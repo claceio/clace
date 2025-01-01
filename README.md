@@ -11,7 +11,7 @@
   <a href="https://app.codecov.io/github/claceio/clace"><img src="https://img.shields.io/codecov/c/github/claceio/clace" alt="Code Coverage"></a>
   <a href="https://goreportcard.com/report/github.com/claceio/clace"><img src="https://goreportcard.com/badge/github.com/claceio/clace" alt="Go Report Card"></a>
   <a href="https://github.com/avelino/awesome-go"><img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Go"></a>
-  <a href="https://landscape.cncf.io/?item=app-definition-and-development--application-definition-image-build--clace"><img src="https://img.shields.io/badge/CNCF%20Landscape-Green" alt="Listed in CNCF landscape"></a>
+  <a href="https://landscape.cncf.io/?item=app-definition-and-development--application-definition-image-build--clace"><img src="https://img.shields.io/badge/CNCF%20Landscape-0086FF" alt="Listed in CNCF landscape"></a>
 </p>
 
 ### Menu
