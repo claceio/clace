@@ -36,17 +36,19 @@
 </p>
 
 <div class="w-full flex justify-center pt-4">
-  <div class="max-w-2xl mx-auto p-2">
+  <div class="max-w-2xl mx-auto">
     <form
       method="post"
       {{ if .hasFileUpload }}
         enctype="multipart/form-data" hx-encoding="multipart/form-data"
       {{ end }}>
       {{ range .params }}
-        <div class="grid grid-cols-2 gap-4 mb-4 items-center">
-          <label class="label flex-col items-start" for="param_{{ .Name }}">
+        <div class="grid grid-cols-2 mb-1 items-center">
+          <label
+            class="label flex-col items-start px-2"
+            for="param_{{ .Name }}">
             <span class="label-text font-bold">{{ .Name }}</span>
-            <span class="label-text text-sm text-gray-500"
+            <span class="label-text text-xs md:text-sm text-gray-500"
               >{{ .Description }}
             </span>
           </label>
@@ -139,7 +141,7 @@
       <!-- Submit Button -->
       <div class="flex space-x-2">
         {{ if .showSuggest }}
-          <div class="form-control mt-6 flex-grow ">
+          <div class="form-control mt-4 flex-grow ">
             <button
               type="submit"
               hx-post="{{ .pagePath }}/suggest"
@@ -153,7 +155,7 @@
         {{ end }}
 
         {{ if .showValidate }}
-          <div class="form-control mt-6 flex-grow ">
+          <div class="form-control mt-4 flex-grow ">
             <button
               type="submit"
               hx-post="{{ .pagePath }}/validate"
@@ -167,7 +169,7 @@
         {{ end }}
 
 
-        <div class="form-control mt-6 flex-grow ">
+        <div class="form-control mt-4 flex-grow ">
           <button
             type="submit"
             hx-post="{{ .pagePath }}"
