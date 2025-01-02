@@ -127,7 +127,8 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 			v.SetKey(starlark.String("auth"), starlark.String(app.Auth))
 			v.SetKey(starlark.String("auth_uses_default"), starlark.Bool(false))
 		}
-		v.SetKey(starlark.String("source_url"), starlark.String(app.SourceUrl))
+		v.SetKey(starlark.String("source"), starlark.String(app.SourceUrl))
+		v.SetKey(starlark.String("source_url"), starlark.String(getSourceUrl(app.SourceUrl, app.Branch)))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))
 		v.SetKey(starlark.String("version"), starlark.MakeInt(app.Version))
 		v.SetKey(starlark.String("git_sha"), starlark.String(app.GitSha))
@@ -137,6 +138,43 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 	}
 
 	return &ret, nil
+}
+
+func getSourceUrl(sourceUrl, branch string) string {
+	if branch == "" {
+		return ""
+	}
+	url := sourceUrl
+	if strings.HasPrefix(sourceUrl, "http://") {
+		url = strings.TrimPrefix(sourceUrl, "http://")
+	} else if strings.HasPrefix(sourceUrl, "https://") {
+		url = strings.TrimPrefix(sourceUrl, "https://")
+	}
+
+	isGitUrl := false
+	if strings.HasPrefix(url, "github.com/") {
+		url = strings.TrimPrefix(url, "github.com/")
+	} else if strings.HasPrefix(url, "git@github.com:") {
+		url = strings.TrimPrefix(url, "git@github.com:")
+		isGitUrl = true
+	} else {
+		return "" // cannot get full url
+	}
+
+	splitPath := strings.Split(url, "/")
+	if len(splitPath) < 2 {
+		return "" // cannot get full url
+	}
+	folder := ""
+	if len(splitPath) > 2 {
+		folder = strings.Join(splitPath[2:], "/")
+	}
+
+	repo := splitPath[1]
+	if isGitUrl {
+		repo = strings.TrimSuffix(splitPath[1], ".git")
+	}
+	return fmt.Sprintf("https://github.com/%s/%s/tree/%s/%s", splitPath[0], repo, branch, folder)
 }
 
 func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
