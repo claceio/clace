@@ -91,6 +91,25 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 		return nil, err
 	}
 
+	appMap := map[types.AppId]types.AppInfo{}
+	for _, app := range apps {
+		appMap[app.Id] = app
+	}
+	versionMismatchMap := map[types.AppId]bool{}
+	for _, app := range apps {
+		if app.MainApp != "" {
+			mainApp, ok := appMap[types.AppId(app.MainApp)]
+			if !ok || !strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE) {
+				continue
+			}
+
+			if mainApp.Version != app.Version {
+				versionMismatchMap[app.Id] = true
+				versionMismatchMap[mainApp.Id] = true
+			}
+		}
+	}
+
 	userId := system.GetRequestUserId(thread)
 	ret := starlark.List{}
 	for _, app := range apps {
@@ -131,6 +150,7 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 		v.SetKey(starlark.String("source_url"), starlark.String(getSourceUrl(app.SourceUrl, app.Branch)))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))
 		v.SetKey(starlark.String("version"), starlark.MakeInt(app.Version))
+		v.SetKey(starlark.String("version_mismatch"), starlark.Bool(versionMismatchMap[app.Id]))
 		v.SetKey(starlark.String("git_sha"), starlark.String(app.GitSha))
 		v.SetKey(starlark.String("git_message"), starlark.String(app.GitMessage))
 
