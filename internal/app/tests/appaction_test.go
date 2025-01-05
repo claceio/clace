@@ -277,7 +277,7 @@ app = ace.app("testApp",
         
           <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
             <div class="divider text-lg text-secondary">Result</div>
-            <div class="json-container" data-json="{&#34;a&#34;:{&#34;c&#34;:1},&#34;b&#34;:&#34;abc&#34;}"></div>
+            <div class="json-container flex justify-center" data-json="{&#34;a&#34;:{&#34;c&#34;:1},&#34;b&#34;:&#34;abc&#34;}"></div>
             <script>
               document.querySelectorAll(".json-container").forEach(function (div) {
                 const jsonData = JSON.parse(div.getAttribute("data-json"));

@@ -68,7 +68,9 @@
     <div class="divider text-lg text-secondary">Result</div>
 
     {{ range . }}
-      <div class="json-container" data-json="{{ . | toJson }}"></div>
+      <div
+        class="json-container flex justify-center"
+        data-json="{{ . | toJson }}"></div>
     {{ end }}
 
 
@@ -99,9 +101,11 @@
     <div class="divider text-lg text-secondary">Output File</div>
 
     {{ range . }}
-      <h2>{{ .name }}</h2>
-      <img src="{{ .url }}" alt="{{ .name }}" /><img />
-      <br />
+      <div class="flex justify-center">
+        <h2>{{ .name }}</h2>
+        <img src="{{ .url }}" alt="{{ .name }}" /><img />
+        <br />
+      </div>
     {{ end }}
   </div>
 {{ end }}
