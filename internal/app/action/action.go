@@ -384,7 +384,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	if isSuggest {
-		a.handleSuggestResponse(w, ret)
+		a.handleSuggestResponse(w, qsParams.Encode(), ret)
 		return
 	}
 
@@ -461,6 +461,16 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if len(a.Links) > 1 {
+		linksWithQS := a.getLinksWithQS(qsParams.Encode())
+		input := map[string]any{"links": linksWithQS}
+		err = a.actionTemplate.ExecuteTemplate(w, "dropdown", input)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Render the param error messages, using HTMX OOB
@@ -775,16 +785,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		params = append(params, param)
 	}
 
-	linksWithQS := make([]ActionLink, 0, len(a.Links))
-	for _, link := range a.Links {
-		if link.Path != a.pagePath { // Don't add self link
-			if r.URL.RawQuery != "" {
-				link.Path = link.Path + "?" + r.URL.RawQuery
-			}
-			linksWithQS = append(linksWithQS, link)
-		}
-	}
-
+	linksWithQS := a.getLinksWithQS(r.URL.RawQuery)
 	input := map[string]any{
 		"dev":           a.isDev,
 		"name":          a.name,
@@ -806,7 +807,20 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *Action) handleSuggestResponse(w http.ResponseWriter, retVal starlark.Value) {
+func (a *Action) getLinksWithQS(qs string) []ActionLink {
+	linksWithQS := make([]ActionLink, 0, len(a.Links))
+	for _, link := range a.Links {
+		if link.Path != a.pagePath { // Don't add self link
+			if qs != "" {
+				link.Path = link.Path + "?" + qs
+			}
+			linksWithQS = append(linksWithQS, link)
+		}
+	}
+	return linksWithQS
+}
+
+func (a *Action) handleSuggestResponse(w http.ResponseWriter, paramQS string, retVal starlark.Value) {
 	ret, err := starlark_type.UnmarshalStarlark(retVal)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error unmarshalling suggest response: %s", err), http.StatusInternalServerError)
@@ -822,6 +836,16 @@ func (a *Action) handleSuggestResponse(w http.ResponseWriter, retVal starlark.Va
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if len(a.Links) > 1 {
+		linksWithQS := a.getLinksWithQS(paramQS)
+		input := map[string]any{"links": linksWithQS}
+		err = a.actionTemplate.ExecuteTemplate(w, "dropdown", input)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if retIsString {

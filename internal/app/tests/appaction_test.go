@@ -871,6 +871,70 @@ app = ace.app("testApp",
 		t.Errorf("actions switcher should not have current action, got %s", body)
 	}
 	testutil.AssertStringContains(t, body, `<li><a href="/test/test1?param1=abc">test1Action</a></li>`)
+
+	values := url.Values{
+		"param1": {"p1val"},
+	}
+	request = httptest.NewRequest("POST", "/test/test1", strings.NewReader(values.Encode()))
+	request.Header.Set("HX-Request", "true")
+	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringMatch(t, "response", `
+	<div class="text-lg text-bold">
+            done
+          </div>
+        
+                      <ul
+                        id="dropdown-menu"
+                        hx-swap-oob="true"
+                        hx-swap="outerHTML"
+                        tabindex="0"
+                        class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+                        
+                          <li><a href="/test/test2?param1=p1val">test2Action</a></li>
+                        
+                      </ul>
+                    
+          <div
+            id="param_param1_error"
+            hx-swap-oob="true"
+            hx-swap="outerHTML"
+            class="text-error mt-1">
+            
+          </div>
+        
+          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+            <div class="divider text-lg text-secondary">Report</div>
+            <div class="overflow-x-auto">
+              <table
+                class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
+                <thead>
+                  <tr class="text-primary">
+                    
+                      <th>a</th>
+                    
+                      <th>b</th>
+                    
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                    <tr>
+                      
+                        <td>1</td>
+                      
+                        <td>abc</td>
+                      
+                    </tr>
+                  
+                </tbody>
+              </table>
+            </div>
+          </div>
+	`, response.Body.String())
 }
 
 func TestDisplayTypes(t *testing.T) {

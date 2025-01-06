@@ -55,13 +55,19 @@
                 <path d="M4 18l16 0" />
               </svg>
             </div>
-            <ul
-              tabindex="0"
-              class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-              {{ range .links }}
-                <li><a href="{{ .Path }}">{{ .Name }}</a></li>
-              {{ end }}
-            </ul>
+
+            {{ block "dropdown" . }}
+              <ul
+                id="dropdown-menu"
+                hx-swap-oob="true"
+                hx-swap="outerHTML"
+                tabindex="0"
+                class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+                {{ range .links }}
+                  <li><a href="{{ .Path }}">{{ .Name }}</a></li>
+                {{ end }}
+              </ul>
+            {{ end }}
           </div>
         {{ end }}
       </div>
