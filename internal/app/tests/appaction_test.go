@@ -57,27 +57,29 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", response.Body.String(), `
-          <div class="text-lg text-bold">
+          <div role="status">
             done
           </div>
 
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+		  <output>
             <div class="divider text-lg text-secondary">Output</div>
             <textarea
+			  role="alert"
               rows="20"
               class="textarea textarea-success w-full font-mono"
               readonly>a
         b
-        </textarea
-            >
-          </div>
+        </textarea>
+			</output>
+          </output>
         `)
 
 }
@@ -132,42 +134,45 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
-	<div class="text-lg text-bold">
+	<div role="status">
             done
           </div>
         
           <div
             id="param_param1_error"
-            hx-swap-oob="true"
-            hx-swap="outerHTML"
-            class="text-error mt-1">
+            hx-swap-oob="innerHTML">
+			<div role="alert">
             param1error
+			</div>
           </div>
 
 		  <div
 			id="param_param2_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		  </div>
 
           <div
             id="param_param3_error"
-            hx-swap-oob="true"
-            hx-swap="outerHTML"
-            class="text-error mt-1">
+            hx-swap-oob="innerHTML">
+			<div role="alert">
             param3error
+			</div>
           </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+		    <output>
             <div class="divider text-lg text-secondary">Output</div>
             <textarea
+			role="alert"
               rows="20"
               class="textarea textarea-success w-full font-mono"
               readonly>a
         b
-        </textarea >
-          </div>
+        </textarea>
+          </output>
+          </output>
         `, response.Body.String())
 }
 
@@ -203,19 +208,20 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
-	<div class="text-lg text-bold"> done </div>
+	<div role="status"> done </div>
 
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
         
-            <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+            <output id="action_result" hx-swap-oob="innerHTML">
+		    <div>
             <div class="divider text-lg text-secondary">Report</div>
         
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto" role="alert">
             <table class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
               <thead>
                 <tr class="text-primary">
@@ -231,7 +237,8 @@ app = ace.app("testApp",
               </tbody>
             </table>
 			</div>
-          </div>`, response.Body.String())
+		    </div>
+          </output>`, response.Body.String())
 }
 
 func TestAutoReportJSON(t *testing.T) {
@@ -266,16 +273,17 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
-		  <div class="text-lg text-bold"> done </div>
+		  <div role="status"> done </div>
 
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+			<div role="alert">
             <div class="divider text-lg text-secondary">Result</div>
             <div class="json-container flex justify-center" data-json="{&#34;a&#34;:{&#34;c&#34;:1},&#34;b&#34;:&#34;abc&#34;}"></div>
             <script>
@@ -284,7 +292,8 @@ app = ace.app("testApp",
                 renderJSONWithRoot(jsonData, div);
               });
             </script>
-          </div>`, response.Body.String())
+		    </div>
+          </output>`, response.Body.String())
 }
 
 func TestReportTable(t *testing.T) {
@@ -320,21 +329,22 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "match response", `
-	<div class="text-lg text-bold">
+	<div role="status">
             done
           </div>
 
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+		    <div>
             <div class="divider text-lg text-secondary">Report</div>
         
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto" role="alert">
             <table class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
               <thead>
                 <tr class="text-primary">
@@ -350,7 +360,8 @@ app = ace.app("testApp",
               </tbody>
             </table>
 			</div>
-          </div>`, response.Body.String())
+		    </div>
+          </output>`, response.Body.String())
 }
 
 func TestReportTableMissingData(t *testing.T) {
@@ -385,21 +396,22 @@ app = ace.app("testApp",
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "match response", `<div role="status">
             done
           </div>
 
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+			<div>
             <div class="divider text-lg text-secondary">Report</div>
         
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto" role="alert">
             <table class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
               <thead>
                 <tr class="text-primary">
@@ -419,7 +431,8 @@ app = ace.app("testApp",
               </tbody>
             </table>
 			</div>
-          </div>`, response.Body.String())
+			</div>
+          </output>`, response.Body.String())
 }
 
 func TestParamPost(t *testing.T) {
@@ -467,42 +480,43 @@ param("param4", description="param4 description", type=STRING, required=False, d
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "push url", "/test?param1=abc&param2=true&param3=20", response.Header().Get("HX-Push-Url"))
 	testutil.AssertStringMatch(t, "match response", `
-	<div class="text-lg text-bold">
+	<div role="status">
             done
           </div>
 
+
 		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
 
 		 <div
 			id="param_param2_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
-
 		 <div
 			id="param_param3_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
   		 </div>
-
 		 <div
 			id="param_param4_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-		 </div>
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+			<div>
             <div class="divider text-lg text-secondary">Report</div>
         
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto" role="alert">
             <table class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
               <thead>
                 <tr class="text-primary">
@@ -520,7 +534,8 @@ param("param4", description="param4 description", type=STRING, required=False, d
               </tbody>
             </table>
 			</div>
-          </div>`, response.Body.String())
+			</div>
+          </output>`, response.Body.String())
 }
 
 func TestCustomReport(t *testing.T) {
@@ -555,18 +570,18 @@ app = ace.app("testApp",
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "match response", `<div role="status">
             done
           </div>
 
-		<div
+		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
 
-        <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  customdata  </div>`, response.Body.String())
+        <div id="action_result" hx-swap-oob="innerHTML"> <output role="alert"> customdata  </output> </div>`, response.Body.String())
 
 	// Unset the template
 	fileData["myfile.go.html"] = ``
@@ -587,14 +602,14 @@ app = ace.app("testApp",
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold"> done </div>
-		<div
+	testutil.AssertStringMatch(t, "match response", `<div role="status"> done </div>
+		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-        <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">  </div>html/template: "custom" is undefined`, response.Body.String())
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+        <div id="action_result" hx-swap-oob="innerHTML"> <output role="alert"> </output> </div>html/template: "custom" is undefined`, response.Body.String())
 }
 
 func TestParamOptions(t *testing.T) {
@@ -677,30 +692,30 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "match response", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "match response", `<div role="status">
             errormessage 
           </div>
-		<div
+
+		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-
-		<div
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+		 <div
 			id="param_param2_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-
-		<div
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+		 <div
 			id="param_param3_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-		<div id="action_result" hx-swap-oob="true" hx-swap="outerHTML"> <div class="divider text-lg text-secondary">No Output</div> </div>
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+
+		<output id="action_result" hx-swap-oob="innerHTML"> <div role="status" class="divider text-lg text-secondary">No Output</div> </output>
 		`, response.Body.String())
 
 	values = url.Values{
@@ -731,35 +746,34 @@ param("param3", description="param3 description", type=INT, default=10)`,
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "response", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "response", `<div role="status">
             done
           </div>
 
-		<div
+		 <div
 			id="param_param1_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-
-		<div
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+		 <div
 			id="param_param2_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-
-		<div
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+		 <div
 			id="param_param3_error"
-			hx-swap-oob="true"
-			hx-swap="outerHTML"
-			class="text-error mt-1">
-  		</div>
-        
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+
+          <output id="action_result" hx-swap-oob="innerHTML">
+		  	<div>
             <div class="divider text-lg text-secondary">Report</div>
         
-			<div class="overflow-x-auto">
+			<div class="overflow-x-auto" role="alert">
             <table class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
               <thead>
                 <tr class="text-primary">
@@ -787,7 +801,8 @@ param("param3", description="param3 description", type=INT, default=10)`,
               </tbody>
             </table>
 			</div>
-          </div>`, response.Body.String())
+		  	</div>
+          </output>`, response.Body.String())
 }
 
 func TestNonHtmxRequest(t *testing.T) {
@@ -883,7 +898,7 @@ app = ace.app("testApp",
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringMatch(t, "response", `
-	<div class="text-lg text-bold">
+	<div role="status">
             done
           </div>
         
@@ -897,18 +912,17 @@ app = ace.app("testApp",
                           <li><a href="/test/test2?param1=p1val">test2Action</a></li>
                         
                       </ul>
-                    
-          <div
-            id="param_param1_error"
-            hx-swap-oob="true"
-            hx-swap="outerHTML"
-            class="text-error mt-1">
-            
-          </div>
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
         
-          <div id="action_result" hx-swap-oob="true" hx-swap="outerHTML">
+          <output id="action_result" hx-swap-oob="innerHTML">
+		  	<div>
             <div class="divider text-lg text-secondary">Report</div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" role="alert">
               <table
                 class="table table-auto min-w-full table-zebra text-sm md:text-xl font-mono">
                 <thead>
@@ -933,7 +947,8 @@ app = ace.app("testApp",
                 </tbody>
               </table>
             </div>
-          </div>
+            </div>
+          </output>
 	`, response.Body.String())
 }
 
@@ -1020,11 +1035,11 @@ param("param2", description="param2 description", type=BOOLEAN, default=False)`,
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "body", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "body", `<div role="status">
             Suggesting values
           </div>
         
-          <div id="param_param1_div" hx-swap-oob="true" hx-swap="outerHTML">
+          <div id="param_param1_div" hx-swap-oob="innerHTML">
             
                     
                       <div>
@@ -1047,14 +1062,14 @@ param("param2", description="param2 description", type=BOOLEAN, default=False)`,
                             </option>
                           
                         </select>
-                        <div id="param_param1_error" class="text-error mt-1"></div>
+                        <div id="param_param1_error" aria-live="assertive" aria-atomic="true" class="text-error mt-1"></div>
                       </div>
                     
                     
                   
           </div>
         
-          <div id="param_param2_div" hx-swap-oob="true" hx-swap="outerHTML">
+          <div id="param_param2_div" hx-swap-oob="innerHTML">
             
                     
                       <div class="flex justify-center">
@@ -1068,6 +1083,7 @@ param("param2", description="param2 description", type=BOOLEAN, default=False)`,
                         <div class="pl-4">
                           <div
                             id="param_param2_error"
+							aria-live="assertive" aria-atomic="true"
                             class="text-error mt-1"></div>
                         </div>
                       </div>
@@ -1113,23 +1129,20 @@ param("param2", description="param2 description", type=BOOLEAN, default=False)`,
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertStringMatch(t, "body", `<div class="text-lg text-bold">
+	testutil.AssertStringMatch(t, "body", `<div role="status">
             Looks good
           </div>
         
-          <div
-            id="param_param1_error"
-            hx-swap-oob="true"
-            hx-swap="outerHTML"
-            class="text-error mt-1">
-            
-          </div>
-        
-          <div
-            id="param_param2_error"
-            hx-swap-oob="true"
-            hx-swap="outerHTML"
-            class="text-error mt-1">
-            
-          </div>`, response.Body.String())
+		 <div
+			id="param_param1_error"
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>
+		 <div
+			id="param_param2_error"
+			hx-swap-oob="innerHTML">
+			<div role="alert">
+			</div>
+  		 </div>`, response.Body.String())
 }

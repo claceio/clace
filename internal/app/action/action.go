@@ -543,7 +543,7 @@ func (a *Action) renderResults(w http.ResponseWriter, report string, valuesMap [
 	default:
 		// Custom template being used for the results
 		// Wrap the template output in a div with hx-swap-oob
-		_, err := io.WriteString(w, `<div id="action_result" hx-swap-oob="true" hx-swap="outerHTML"> `)
+		_, err := io.WriteString(w, `<div id="action_result" hx-swap-oob="innerHTML"> <output role="alert">`)
 		if err != nil {
 			return err
 		}
@@ -553,7 +553,7 @@ func (a *Action) renderResults(w http.ResponseWriter, report string, valuesMap [
 		} else {
 			tmplErr = a.AppTemplate.ExecuteTemplate(w, report, valuesMap)
 		}
-		_, err = io.WriteString(w, ` </div>`)
+		_, err = io.WriteString(w, ` </output> </div>`)
 		if err != nil {
 			return err
 		}

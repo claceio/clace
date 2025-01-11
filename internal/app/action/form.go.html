@@ -131,6 +131,8 @@
     </p>
     <form
       method="post"
+      role="form"
+      id="action_form"
       {{ if .hasFileUpload }}
         enctype="multipart/form-data" hx-encoding="multipart/form-data"
       {{ end }}>
@@ -159,6 +161,8 @@
                   <div class="pl-4">
                     <div
                       id="param_{{ .Name }}_error"
+                      aria-live="assertive"
+                      aria-atomic="true"
                       class="text-error mt-1"></div>
                   </div>
                 </div>
@@ -179,6 +183,8 @@
                   </select>
                   <div
                     id="param_{{ .Name }}_error"
+                    aria-live="assertive"
+                    aria-atomic="true"
                     class="text-error mt-1"></div>
                 </div>
               {{ else }}
@@ -218,9 +224,11 @@
                       class="input input-bordered w-full"
                       value="{{ .Value }}" />
                   {{ end }}
-                  <div
+                  <output
                     id="param_{{ .Name }}_error"
-                    class="text-error mt-1"></div>
+                    aria-live="assertive"
+                    aria-atomic="true"
+                    class="text-error mt-1"></output>
                 </div>
               {{ end }}
               <!-- param_input_div block -->
@@ -264,6 +272,7 @@
         <div class="form-control mt-4 flex-grow ">
           <button
             type="submit"
+            autofocus
             hx-post="{{ .pagePath }}"
             hx-target="#ActionMessage"
             hx-swap="innerHTML swap:80ms"
@@ -282,12 +291,19 @@
     id="ActionIndicator"
     alt="Loading..."
     class="htmx-indicator"
+    role="presentation"
     src="{{ astatic "astatic/spinner.svg" }}" />
 </div>
-<p id="ActionMessage" class="pt-1 text-center"></p>
+<output
+  id="ActionMessage"
+  aria-live="assertive"
+  aria-atomic="true"
+  class="pt-1 text-center"></output>
 
 <div class="pt-1 card w-full shadow-2xl rounded-lg">
-  <div id="action_result"></div>
+  <output id="action_result" aria-live="assertive" aria-atomic="true">
+    <span></span>
+  </output>
 </div>
 
 {{ template "footer" . }}
