@@ -29,6 +29,7 @@ const (
 	VARY_HEADER = "Vary"
 	DRY_RUN_ARG = "dryRun"
 	PROMOTE_ARG = "promote"
+	SERVER_NAME = "Clace"
 )
 
 var (
@@ -166,6 +167,7 @@ func (h *Handler) httpsRedirectMiddleware(next http.Handler) http.Handler {
 			}
 
 			// Redirect to the HTTPS version of the URL
+			w.Header().Add("Server", SERVER_NAME)
 			http.Redirect(w, r, u.String(), http.StatusPermanentRedirect) // 308 (301 does not keep method)
 			return
 		}
@@ -681,6 +683,7 @@ func AddVaryHeader(next http.Handler) http.Handler {
 		}
 
 		w.Header().Add(VARY_HEADER, value)
+		w.Header().Add("Server", SERVER_NAME)
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
