@@ -32,8 +32,8 @@
 </script>
 
 <div class="w-full flex flex-col justify-center items-center">
-  <div class="max-w-xl mx-auto">
-    <div class="p-2 flex justify-between items-center">
+  <div class="md:min-w-[768px] mx-auto">
+    <div class="p-2 flex justify-between items-center md:mt-4">
       <div>
         {{ if and (.links) (gt (len .links) 0) }}
           <div class="dropdown dropdown-bottom" title="Switch between Actions">
@@ -126,7 +126,7 @@
       </div>
     </div>
 
-    <p class="text-center my-4">
+    <p class="text-center my-4 md:my-6">
       {{ .description }}
     </p>
     <form

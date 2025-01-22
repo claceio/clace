@@ -2534,10 +2534,6 @@ html {
   min-width: 100%;
 }
 
-.max-w-xl {
-  max-width: 36rem;
-}
-
 .flex-grow {
   flex-grow: 1;
 }
@@ -2691,6 +2687,19 @@ html {
 }
 
 @media (min-width: 768px) {
+  .md\:my-6 {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .md\:mt-4 {
+    margin-top: 1rem;
+  }
+
+  .md\:min-w-\[768px\] {
+    min-width: 768px;
+  }
+
   .md\:text-sm {
     font-size: 0.875rem;
     line-height: 1.25rem;
