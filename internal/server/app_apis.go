@@ -23,6 +23,7 @@ import (
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/segmentio/ksuid"
 )
@@ -693,37 +694,15 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 	}, nil
 }
 
-func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) checkoutRepo(sourceUrl, branch, commit, gitAuth, targetPath string) (string, *object.Commit, string, error) {
 	// Figure on which repo to clone
-	repo, folder, err := parseGithubUrl(appEntry.SourceUrl)
+	repo, folder, err := parseGithubUrl(sourceUrl)
 	if err != nil {
-		return err
+		return "", nil, "", err
 	}
-
-	// Create temp directory on disk
-	tmpDir, err := os.MkdirTemp("", "clace_git_"+string(appEntry.Id)+"_")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-	s.Info().Msgf("Cloning git repo %s to %s", repo, tmpDir)
 
 	cloneOptions := git.CloneOptions{
 		URL: repo,
-	}
-
-	if branch == "" {
-		// No branch specified, use the one from the previous version, otherwise default to main
-		if appEntry.Metadata.VersionMetadata.GitBranch != "" {
-			branch = appEntry.Metadata.VersionMetadata.GitBranch
-		} else {
-			branch = "main"
-		}
-	}
-
-	if gitAuth == "" {
-		// If not auth is specified, use the previous one used
-		gitAuth = appEntry.Settings.GitAuthName
 	}
 
 	if commit == "" {
@@ -737,25 +716,26 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, ap
 		// Auth is specified, load the key
 		authEntry, err := s.loadGitKey(gitAuth)
 		if err != nil {
-			return err
+			return "", nil, "", err
 		}
 		s.Info().Msgf("Using git auth %s", authEntry.user)
 		auth, err := ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
 		if err != nil {
-			return err
+			return "", nil, "", err
 		}
 		cloneOptions.Auth = auth
 	}
 
 	// Configure the repo to Clone
-	gitRepo, err := git.PlainClone(tmpDir, false, &cloneOptions)
+	s.Info().Msgf("Cloning git repo %s to %s", repo, targetPath)
+	gitRepo, err := git.PlainClone(targetPath, false, &cloneOptions)
 	if err != nil {
-		return fmt.Errorf("error checking out branch %s: %w", branch, err)
+		return "", nil, "", fmt.Errorf("error checking out branch %s: %w", branch, err)
 	}
 
 	w, err := gitRepo.Worktree()
 	if err != nil {
-		return err
+		return "", nil, "", err
 	}
 	// Checkout specified hash
 	options := git.CheckoutOptions{}
@@ -772,17 +752,36 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, ap
 	}
 	*/
 	if err := w.Checkout(&options); err != nil {
-		return fmt.Errorf("error checking out branch %s commit %s: %w", branch, commit, err)
+		return "", nil, "", fmt.Errorf("error checking out branch %s commit %s: %w", branch, commit, err)
 	}
 
 	ref, err := gitRepo.Head()
 	if err != nil {
-		return err
+		return "", nil, "", err
 	}
 	newCommit, err := gitRepo.CommitObject(ref.Hash())
 	if err != nil {
+		return "", nil, "", err
+	}
+
+	return repo, newCommit, folder, nil
+}
+
+func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
+	// Create temp directory on disk
+	tmpDir, err := os.MkdirTemp("", "clace_git_"+string(appEntry.Id)+"_")
+	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tmpDir)
+
+	gitAuth = cmp.Or(gitAuth, appEntry.Settings.GitAuthName)
+	branch = cmp.Or(cmp.Or(branch, appEntry.Metadata.VersionMetadata.GitBranch), "main")
+	repo, newCommit, folder, err := s.checkoutRepo(appEntry.SourceUrl, branch, commit, gitAuth, tmpDir)
+	if err != nil {
+		return err
+	}
+
 	// Update the git info into the appEntry, the caller needs to persist it into the app metadata
 	// This function will persist it into the app_version metadata
 	appEntry.Metadata.VersionMetadata.GitCommit = newCommit.Hash.String()

@@ -44,6 +44,14 @@ func ParseGlobFromInfo(appPathGlob string, apps []types.AppInfo) ([]types.AppInf
 	return ret, nil
 }
 
+func MatchGlob(appPathGlob string, app types.AppPathDomain) (bool, error) {
+	apps, err := ParseGlob(appPathGlob, []types.AppPathDomain{app})
+	if err != nil {
+		return false, err
+	}
+	return len(apps) > 0, nil
+}
+
 // ParseGlob parses a path spec in the format of domain:path. If domain is not specified, it will match empty domain.
 // glob patters are supported, *:** matches all apps.
 func ParseGlob(appPathGlob string, apps []types.AppPathDomain) ([]types.AppPathDomain, error) {

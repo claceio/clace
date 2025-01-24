@@ -129,6 +129,14 @@ type AppReloadResponse struct {
 	PromoteResults []AppPathDomain `json:"promote_results"`
 }
 
+type AppApplyResponse struct {
+	DryRun         bool                `json:"dry_run"`
+	CreateResults  []AppCreateResponse `json:"create_results"`
+	UpdateResults  []AppPathDomain     `json:"update_results"`
+	ApproveResults []ApproveResult     `json:"approve_results"`
+	PromoteResults []AppPathDomain     `json:"promote_results"`
+}
+
 type AppPromoteResponse struct {
 	DryRun         bool            `json:"dry_run"`
 	PromoteResults []AppPathDomain `json:"promote_results"`

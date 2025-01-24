@@ -66,6 +66,19 @@ func GetBoolAttr(s starlark.HasAttrs, key string) (bool, error) {
 	return bool(vb), nil
 }
 
+func GetOptionalBoolAttr(s starlark.HasAttrs, key string) (bool, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		return false, nil
+	}
+	var vb starlark.Bool
+	var ok bool
+	if vb, ok = v.(starlark.Bool); !ok {
+		return false, fmt.Errorf("%s is not a bool", key)
+	}
+	return bool(vb), nil
+}
+
 func GetListStringAttr(s starlark.HasAttrs, key string, optional bool) ([]string, error) {
 	v, err := s.Attr(key)
 	if err != nil {

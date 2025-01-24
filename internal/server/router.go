@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -961,6 +962,39 @@ func (h *Handler) tokenDelete(r *http.Request) (any, error) {
 	return ret, nil
 }
 
+// apply is the handler for the apply API to apply app config
+func (h *Handler) apply(r *http.Request) (any, error) {
+	appPathGlob := cmp.Or(r.URL.Query().Get("appPathGlob"), "all")
+	applyPath := r.URL.Query().Get("path")
+	if applyPath == "" {
+		return nil, types.CreateRequestError("path is required", http.StatusBadRequest)
+	}
+	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
+	if err != nil {
+		return nil, err
+	}
+
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+	updateTargetInContext(r, "", dryRun)
+
+	promote, err := parseBoolArg(r.URL.Query().Get("promote"), false)
+	if err != nil {
+		return nil, err
+	}
+	updateOperationInContext(r, genOperationName("apply", promote, approve))
+
+	ret, err := h.server.Apply(r.Context(), applyPath, appPathGlob, approve, dryRun, promote,
+		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)
+	}
+
+	return ret, nil
+}
+
 // serveInternal returns a handler for the internal APIs for app admin and management
 func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// These API's are mounted at /_clace
@@ -1059,6 +1093,11 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// Token delete
 	r.Delete("/app_webhook_token", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, "token_delete", h.tokenDelete)
+	}))
+
+	// API to apply app config
+	r.Post("/apply", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, "apply", h.apply)
 	}))
 
 	return r
