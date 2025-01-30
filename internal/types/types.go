@@ -163,15 +163,15 @@ type HttpsConfig struct {
 
 // SecurityConfig is the configuration for Inter process communication
 type SecurityConfig struct {
-	AdminOverTCP              bool   `toml:"admin_over_tcp"`
-	AdminPasswordBcrypt       string `toml:"admin_password_bcrypt"`
-	AppDefaultAuthType        string `toml:"app_default_auth_type"`
-	AppDefaultSecretsProvider string `toml:"app_default_secrets_provider"`
-	SessionSecret             string `toml:"session_secret"`
-	SessionBlockKey           string `toml:"session_block_key"`
-	SessionMaxAge             int    `toml:"session_max_age"`
-	SessionHttpsOnly          bool   `toml:"session_https_only"`
-	CallbackUrl               string `toml:"callback_url"`
+	AdminOverTCP           bool   `toml:"admin_over_tcp"`
+	AdminPasswordBcrypt    string `toml:"admin_password_bcrypt"`
+	AppDefaultAuthType     string `toml:"app_default_auth_type"`
+	DefaultSecretsProvider string `toml:"default_secrets_provider"`
+	SessionSecret          string `toml:"session_secret"`
+	SessionBlockKey        string `toml:"session_block_key"`
+	SessionMaxAge          int    `toml:"session_max_age"`
+	SessionHttpsOnly       bool   `toml:"session_https_only"`
+	CallbackUrl            string `toml:"callback_url"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer

@@ -161,7 +161,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.notifyClose = make(chan types.AppPathDomain)
 
 	// Setup secrets manager
-	server.secretsManager, err = system.NewSecretManager(context.Background(), config.Secret, config.Security.AppDefaultSecretsProvider)
+	server.secretsManager, err = system.NewSecretManager(context.Background(), config.Secret, config.Security.DefaultSecretsProvider)
 	if err != nil {
 		return nil, err
 	}
