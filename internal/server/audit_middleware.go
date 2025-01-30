@@ -13,37 +13,9 @@ import (
 
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
+	"github.com/go-chi/chi/middleware"
 	"github.com/segmentio/ksuid"
 )
-
-type FlushableWriter interface {
-	http.ResponseWriter
-	http.Flusher
-}
-
-// FlushableStatusResponseWriter wraps http.ResponseWriter to capture the status code.
-type FlushableStatusResponseWriter struct {
-	FlushableWriter
-	statusCode int
-}
-
-// WriteHeader captures the status code.
-func (f *FlushableStatusResponseWriter) WriteHeader(code int) {
-	f.statusCode = code
-	f.FlushableWriter.WriteHeader(code)
-}
-
-// StatusResponseWriter wraps http.ResponseWriter to capture the status code.
-type StatusResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-// WriteHeader captures the status code.
-func (c *StatusResponseWriter) WriteHeader(code int) {
-	c.statusCode = code
-	c.ResponseWriter.WriteHeader(code)
-}
 
 func (s *Server) initAuditDB(connectString string) error {
 	var err error
@@ -210,22 +182,11 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 
 		// Wrap the ResponseWriter
-		var crw any
-		if fw, ok := w.(FlushableWriter); ok {
-			crw = &FlushableStatusResponseWriter{
-				FlushableWriter: fw,
-				statusCode:      http.StatusOK, // Default status
-			}
-		} else {
-			crw = &StatusResponseWriter{
-				ResponseWriter: w,
-				statusCode:     http.StatusOK, // Default status
-			}
-		}
+		wrapper := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		startTime := time.Now()
 		// Call the next handler
-		next.ServeHTTP(crw.(http.ResponseWriter), r)
+		next.ServeHTTP(wrapper, r)
 		duration := time.Since(startTime)
 
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
@@ -255,12 +216,7 @@ func (server *Server) handleStatus(next http.Handler) http.Handler {
 		if redactUrl {
 			path = "<REDACTED>"
 		}
-		statusCode := 200
-		if _, ok := crw.(*StatusResponseWriter); ok {
-			statusCode = crw.(*StatusResponseWriter).statusCode
-		} else {
-			statusCode = crw.(*FlushableStatusResponseWriter).statusCode
-		}
+		statusCode := wrapper.Status()
 
 		event := types.AuditEvent{
 			RequestId:  rid,
