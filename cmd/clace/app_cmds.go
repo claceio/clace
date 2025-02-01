@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"fmt"
@@ -372,7 +373,19 @@ func printApproveResult(approveResult types.ApproveResult) {
 	}
 	fmt.Printf("  Permissions:\n")
 	for _, perm := range approveResult.NewPermissions {
-		fmt.Printf("    %s.%s %s %s\n", perm.Plugin, perm.Method, perm.Arguments, permType(perm))
+		secrets := ""
+		if len(perm.Secrets) > 0 {
+			buf := new(bytes.Buffer)
+			for i, entry := range perm.Secrets {
+				if i > 0 {
+					buf.WriteString(";")
+				}
+				buf.WriteString(strings.Join(entry, ","))
+			}
+
+			secrets = fmt.Sprintf(" secrets=%s", buf.String())
+		}
+		fmt.Printf("    %s.%s %s %s %s\n", perm.Plugin, perm.Method, perm.Arguments, permType(perm), secrets)
 	}
 }
 

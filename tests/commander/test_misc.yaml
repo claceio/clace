@@ -52,6 +52,7 @@ tests:
   # Test secret loading
   secret0300: # Create app, with secret param
     command: ../clace app create --approve --param secret_provider=env --param secret_key=TESTENV ./env_app  /secret1
+    stdout: "secrets=c1,c2,c3;TESTENV"
   secret0310:
     command: curl -su "admin:qwerty" localhost:25222/secret1
     stdout: abc
