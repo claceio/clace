@@ -51,7 +51,7 @@ jobs:
           docker system prune -f
 
       - name: Upload Go test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Go-results-${{ matrix.go-version }}
           path: TestResults-${{ matrix.go-version }}.json
