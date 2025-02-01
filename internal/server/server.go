@@ -636,7 +636,7 @@ func (s *Server) GetListAppsApp() (*app.App, error) {
 	subLogger := s.Logger.With().Str("id", string(appEntry.Id)).Logger()
 	appLogger := types.Logger{Logger: &subLogger}
 	s.listAppsApp, err = app.NewApp(sourceFS, nil, &appLogger, &appEntry, &s.config.System,
-		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.EvalTemplate, s.InsertAuditEvent)
+		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.AppEvalTemplate, s.InsertAuditEvent)
 	if err != nil {
 		return nil, err
 	}

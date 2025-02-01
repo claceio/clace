@@ -311,6 +311,7 @@ type Permission struct {
 	Arguments []string `json:"arguments"`
 	IsRead    *bool    `json:"is_read,omitempty"` // Whether the call is a Read operation or Write operation.
 	// nil value means go with the default as set in the plugin code
+	Secrets [][]string `json:"secrets"` // The secrets that are allowed to be used in the call.
 }
 
 // AppAuthnType is the app level authentication type

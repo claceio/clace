@@ -5,6 +5,7 @@ package app
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -135,6 +136,11 @@ func needsApproval(a *types.ApproveResult) bool {
 		if !slices.Equal(a.Arguments, b.Arguments) {
 			return false
 		}
+
+		if !reflect.DeepEqual(a.Secrets, b.Secrets) {
+			return false
+		}
+
 		return true
 	}
 
@@ -182,6 +188,7 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 		}
 		var pluginStr, methodStr string
 		var args []string
+		var secrets [][]string
 		if pluginStr, err = apptype.GetStringAttr(permStruct, "plugin"); err != nil {
 			return nil, err
 		}
@@ -191,11 +198,15 @@ func (a *App) createApproveResponse(loads []string, globals starlark.StringDict)
 		if args, err = apptype.GetListStringAttr(permStruct, "arguments", true); err != nil {
 			return nil, err
 		}
+		if secrets, err = apptype.GetListListStringAttr(permStruct, "secrets", true); err != nil {
+			return nil, err
+		}
 
 		perm := types.Permission{
 			Plugin:    pluginStr,
 			Method:    methodStr,
 			Arguments: args,
+			Secrets:   secrets,
 		}
 
 		if slices.Contains(permStruct.AttrNames(), "is_read") {

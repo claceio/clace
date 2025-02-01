@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -65,6 +66,13 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 // templateSecretFunc is a template function that retrieves a secret from the secret manager.
 // Since the template function does not support errors, it panics if there is an error
 func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...string) string {
+	return s.appTemplateSecretFunc(nil, providerName, secretKeys...)
+}
+
+// appTemplateSecretFunc is a template function that retrieves a secret from the secret manager.
+// Since the template function does not support errors, it panics if there is an error. The appPerms
+// are checked to see if the secret can be accessed by the plugin API call
+func (s *SecretManager) appTemplateSecretFunc(appPerms [][]string, providerName string, secretKeys ...string) string {
 	if strings.ToLower(providerName) == "default" {
 		// Use the system default provider
 		providerName = s.defaultProvider
@@ -73,6 +81,39 @@ func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...st
 	provider, ok := s.providers[providerName]
 	if !ok {
 		panic(fmt.Errorf("unknown secret provider %s", providerName))
+	}
+
+	if len(appPerms) == 0 {
+		panic("Plugin does not have access to any secrets, update app permissions")
+	}
+
+	permMatched := false
+	for _, appPerm := range appPerms {
+		matched := true
+		for i, entry := range secretKeys {
+			if i >= len(appPerm) {
+				continue
+			}
+			if appPerm[i] != entry {
+				regexMatch, err := regexMatch(appPerm[i], entry)
+				if err != nil {
+					panic(fmt.Errorf("error matching secret value %s: %w", entry, err))
+				}
+				if !regexMatch {
+					matched = false
+					break
+				}
+			}
+		}
+
+		if matched {
+			permMatched = true
+			break
+		}
+	}
+
+	if !permMatched {
+		panic(fmt.Errorf("plugin does not have access to secret %s", strings.Join(secretKeys, provider.GetJoinDelimiter())))
 	}
 
 	secretKey := strings.Join(secretKeys, provider.GetJoinDelimiter())
@@ -97,6 +138,16 @@ func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...st
 	return ret
 }
 
+const REGEX_PREFIX = "regex:"
+
+func regexMatch(perm, entry string) (bool, error) {
+	if len(perm) <= 6 || !strings.HasPrefix(perm, REGEX_PREFIX) {
+		return false, nil
+	}
+	perm = perm[6:]
+	return regexp.MatchString(perm, entry)
+}
+
 // EvalTemplate evaluates the input string and replaces any secret placeholders with the actual secret value
 func (s *SecretManager) EvalTemplate(input string) (string, error) {
 	if len(input) < 4 {
@@ -108,6 +159,38 @@ func (s *SecretManager) EvalTemplate(input string) (string, error) {
 	}
 
 	tmpl, err := template.New("secret template").Funcs(s.funcMap).Parse(input)
+	if err != nil {
+		return "", err
+	}
+	var doc bytes.Buffer
+	err = tmpl.Execute(&doc, nil)
+	if err != nil {
+		return "", err
+	}
+	return doc.String(), nil
+}
+
+// EvalTemplate evaluates the input string and replaces any secret placeholders with the actual secret value
+func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, input string) (string, error) {
+	if len(input) < 4 {
+		return input, nil
+	}
+
+	if !strings.Contains(input, "{{") || !strings.Contains(input, "}}") {
+		return input, nil
+	}
+
+	funcMap := template.FuncMap{}
+	for name, fn := range s.funcMap {
+		funcMap[name] = fn
+	}
+
+	secretFunc := func(providerName string, secretKeys ...string) string {
+		return s.appTemplateSecretFunc(appSecrets, providerName, secretKeys...)
+	}
+	funcMap["secret"] = secretFunc
+
+	tmpl, err := template.New("secret template").Funcs(funcMap).Parse(input)
 	if err != nil {
 		return "", err
 	}

@@ -16,5 +16,7 @@ def multi(req):
 app = ace.app("test env",
               custom_layout=True,
               routes = [ace.api("/", type="TEXT"), ace.api("/multi", type="TEXT", handler=multi)],
-              permissions = [ace.permission("exec.in", "run", ["echo"])]
+              permissions = [
+                ace.permission("exec.in", "run", ["echo"], secrets=[["c1", "c2", "c3"], ["TESTENV"]]),
+              ]
              )

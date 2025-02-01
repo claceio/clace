@@ -283,6 +283,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 
 		approved := false
 		var lastError error
+		var secrets [][]string
 		for _, p := range a.Metadata.Permissions {
 			a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, modulePath, functionName)
 			if p.Plugin == modulePath && p.Method == functionName {
@@ -330,6 +331,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					}
 				}
 
+				secrets = p.Secrets // the secrets this plugin call is allowed access to
 				approved = true
 				break
 			}
@@ -377,7 +379,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			for i, arg := range args {
 				switch v := arg.(type) {
 				case starlark.String:
-					evalString, err := a.secretEvalFunc(v.GoString())
+					evalString, err := a.secretEvalFunc(secrets, v.GoString())
 					if err != nil {
 						return nil, err
 					}
@@ -386,7 +388,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					for i := 0; i < v.Len(); i++ {
 						switch sv := v.Index(i).(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -401,7 +403,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						}
 						switch sv := value.(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -415,7 +417,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			for i, kwarg := range kwargs {
 				switch v := kwarg[1].(type) {
 				case starlark.String:
-					evalString, err := a.secretEvalFunc(v.GoString())
+					evalString, err := a.secretEvalFunc(secrets, v.GoString())
 					if err != nil {
 						return nil, err
 
@@ -425,7 +427,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					for i := 0; i < v.Len(); i++ {
 						switch sv := v.Index(i).(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -440,7 +442,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						}
 						switch sv := value.(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
 							if err != nil {
 								return nil, err
 							}

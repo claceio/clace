@@ -93,3 +93,94 @@ def handler(req):
 	testutil.AssertEqualsString(t, "body", "test contents", ret["key7"].(string))
 	testutil.AssertEqualsString(t, "body", `value`, ret["key8"].(map[string]any)["key"].(string))
 }
+
+func TestSecretsConfig(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+
+load ("http.in", "http")
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")],
+    permissions=[
+	ace.permission("http.in", "get", secrets=["abc"]),
+	])
+
+def handler(req):
+	resp1 = http.get("` + testServer.URL + `?a=b", headers={"X-Test": "test"}, params={"c": "d"}, auth_basic=("user", "pass"))
+
+	return {
+		"key1": resp1.value.body(),
+		}
+`,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData,
+		[]string{"http.in"},
+		[]types.Permission{
+			{Plugin: "http.in", Method: "get"},
+		},
+		nil)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	_, err = a.Audit()
+	testutil.AssertErrorContains(t, err, "entry 0 in secrets list is not a list")
+}
+
+func TestSecretsAccess(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+
+load ("http.in", "http")
+
+
+def test1(req):
+	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret "env" "abc"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+	return resp.value.body()
+
+def test2(req):
+	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret "env" "abc2"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+	return resp.value.body()
+
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler=test1, type=ace.TEXT), ace.api("/api2", handler=test2, type=ace.TEXT)],
+    permissions=[
+	ace.permission("http.in", "get", secrets=[["abc"]]),
+	])
+`,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData,
+		[]string{"http.in"},
+		[]types.Permission{
+			{Plugin: "http.in", Method: "get", Secrets: [][]string{{"abc"}}},
+		},
+		nil)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	_, err = a.Audit()
+	testutil.AssertNoError(t, err)
+
+	request := httptest.NewRequest("GET", "/test/api1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/api2", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "error calling secret: plugin does not have access to secret abc")
+}

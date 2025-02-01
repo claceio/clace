@@ -86,7 +86,7 @@ type App struct {
 	AppConfig types.AppConfig
 
 	lastRequestTime atomic.Int64
-	secretEvalFunc  func(string) (string, error)
+	secretEvalFunc  func([][]string, string) (string, error)
 	auditInsert     func(*types.AuditEvent) error
 }
 
@@ -103,7 +103,7 @@ type SSEMessage struct {
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
 	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
-	secretEvalFunc func(string) (string, error),
+	secretEvalFunc func([][]string, string) (string, error),
 	auditInsert func(*types.AuditEvent) error) (*App, error) {
 	newApp := &App{
 		sourceFS:       sourceFS,
@@ -485,7 +485,8 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
 		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
-		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, a.Metadata.ContainerVolumes)
+		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, a.Metadata.ContainerVolumes,
+		a.getSecretsAllowed("container.in", "config"))
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}
@@ -802,4 +803,15 @@ func (a *App) updateAppConfig() error {
 
 	_, err := toml.Decode(buf.String(), &a.AppConfig)
 	return err
+}
+
+func (a *App) getSecretsAllowed(plugin, function string) [][]string {
+	ret := [][]string{}
+	for _, p := range a.Metadata.Permissions {
+		if p.Plugin == plugin && p.Method == function {
+			ret = append(ret, p.Secrets...)
+		}
+	}
+
+	return ret
 }

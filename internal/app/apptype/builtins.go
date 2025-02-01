@@ -251,20 +251,25 @@ func createResponseBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlar
 func createPermissionBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var plugin, method starlark.String
 	var arguments *starlark.List
+	var secrets *starlark.List
 	var rtype starlark.String
 	if err := starlark.UnpackArgs(PERMISSION, args, kwargs, "plugin", &plugin, "method", &method,
-		"arguments?", &arguments, "type?", &rtype); err != nil {
+		"arguments?", &arguments, "type?", &rtype, "secrets?", &secrets); err != nil {
 		return nil, fmt.Errorf("error unpacking permission args: %w", err)
 	}
 
 	if arguments == nil {
 		arguments = starlark.NewList([]starlark.Value{})
 	}
+	if secrets == nil {
+		secrets = starlark.NewList([]starlark.Value{})
+	}
 
 	fields := starlark.StringDict{
 		"plugin":    plugin,
 		"method":    method,
 		"arguments": arguments,
+		"secrets":   secrets,
 	}
 
 	if rtype == "READ" {

@@ -186,3 +186,40 @@ func GetDictAttr(s starlark.HasAttrs, key string, optional bool) (map[string]any
 
 	return retDict, nil
 }
+
+func GetListListStringAttr(s starlark.HasAttrs, key string, optional bool) ([][]string, error) {
+	v, err := s.Attr(key)
+	if err != nil {
+		if optional {
+			return [][]string{}, nil
+		} else {
+			return nil, fmt.Errorf("error getting %s: %s", key, err)
+		}
+	}
+	var list *starlark.List
+	var ok bool
+	if list, ok = v.(*starlark.List); !ok {
+		return nil, fmt.Errorf("%s is not a list", key)
+	}
+
+	ret := [][]string{}
+	iter := list.Iterate()
+	var val starlark.Value
+	count := -1
+	for iter.Next(&val) {
+		count++
+
+		tl, ok := val.(*starlark.List)
+		if !ok {
+			return nil, fmt.Errorf("entry %d in %s list is not a list", count, key)
+		}
+
+		v, err := GetStringList(tl)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, v)
+	}
+
+	return ret, nil
+}

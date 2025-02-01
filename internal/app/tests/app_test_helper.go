@@ -4,6 +4,7 @@
 package app_test
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"path"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/appfs"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 
 	_ "github.com/claceio/clace/internal/app/store" // Register db plugin
@@ -90,9 +92,13 @@ func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]str
 		Permissions: permissions,
 		ParamValues: params,
 	}
+	secretManager, err := system.NewSecretManager(context.Background(), map[string]types.SecretConfig{"env": types.SecretConfig{}}, "env")
+	if err != nil {
+		return nil, nil, err
+	}
 	workFS := appfs.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a, err := app.NewApp(sourceFS, workFS, logger,
-		createTestAppEntry(id, path, isDev, metadata), &systemConfig, pluginConfig, types.AppConfig{}, nil, nil, nil)
+		createTestAppEntry(id, path, isDev, metadata), &systemConfig, pluginConfig, types.AppConfig{}, nil, secretManager.AppEvalTemplate, nil)
 	if err != nil {
 		return nil, nil, err
 	}
