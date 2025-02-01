@@ -385,7 +385,7 @@ func printApproveResult(approveResult types.ApproveResult) {
 
 			secrets = fmt.Sprintf(" secrets=%s", buf.String())
 		}
-		fmt.Printf("    %s.%s %s %s %s\n", perm.Plugin, perm.Method, perm.Arguments, permType(perm), secrets)
+		fmt.Printf("    %s.%s %s %s%s\n", perm.Plugin, perm.Method, perm.Arguments, permType(perm), secrets)
 	}
 }
 
