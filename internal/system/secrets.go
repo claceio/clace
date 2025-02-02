@@ -5,6 +5,7 @@ package system
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -66,16 +67,16 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 // templateSecretFunc is a template function that retrieves a secret from the secret manager.
 // Since the template function does not support errors, it panics if there is an error
 func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...string) string {
-	return s.appTemplateSecretFunc(nil, providerName, secretKeys...)
+	return s.appTemplateSecretFunc(nil, s.defaultProvider, providerName, secretKeys...)
 }
 
 // appTemplateSecretFunc is a template function that retrieves a secret from the secret manager.
 // Since the template function does not support errors, it panics if there is an error. The appPerms
 // are checked to see if the secret can be accessed by the plugin API call
-func (s *SecretManager) appTemplateSecretFunc(appPerms [][]string, providerName string, secretKeys ...string) string {
-	if strings.ToLower(providerName) == "default" {
+func (s *SecretManager) appTemplateSecretFunc(appPerms [][]string, defaultProvider, providerName string, secretKeys ...string) string {
+	if providerName == "" || strings.ToLower(providerName) == "default" {
 		// Use the system default provider
-		providerName = s.defaultProvider
+		providerName = cmp.Or(defaultProvider, s.defaultProvider)
 	}
 
 	provider, ok := s.providers[providerName]
@@ -171,7 +172,7 @@ func (s *SecretManager) EvalTemplate(input string) (string, error) {
 }
 
 // EvalTemplate evaluates the input string and replaces any secret placeholders with the actual secret value
-func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, input string) (string, error) {
+func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string) (string, error) {
 	if len(input) < 4 {
 		return input, nil
 	}
@@ -186,7 +187,7 @@ func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, input string) (st
 	}
 
 	secretFunc := func(providerName string, secretKeys ...string) string {
-		return s.appTemplateSecretFunc(appSecrets, providerName, secretKeys...)
+		return s.appTemplateSecretFunc(appSecrets, defaultProvider, providerName, secretKeys...)
 	}
 	funcMap["secret"] = secretFunc
 

@@ -92,6 +92,10 @@ type AppConfig struct {
 	Proxy     Proxy     `toml:"proxy"`
 	FS        FS        `toml:"fs"`
 	Audit     Audit     `toml:"audit"`
+	Security  Security  `toml:"security"`
+}
+type Security struct {
+	DefaultSecretsProvider string `toml:"default_secrets_provider"`
 }
 
 type CORS struct {
@@ -161,17 +165,16 @@ type HttpsConfig struct {
 	DisableClientCerts bool   `toml:"disable_client_certs"`
 }
 
-// SecurityConfig is the configuration for Inter process communication
+// SecurityConfig is the security related configuration
 type SecurityConfig struct {
-	AdminOverTCP           bool   `toml:"admin_over_tcp"`
-	AdminPasswordBcrypt    string `toml:"admin_password_bcrypt"`
-	AppDefaultAuthType     string `toml:"app_default_auth_type"`
-	DefaultSecretsProvider string `toml:"default_secrets_provider"`
-	SessionSecret          string `toml:"session_secret"`
-	SessionBlockKey        string `toml:"session_block_key"`
-	SessionMaxAge          int    `toml:"session_max_age"`
-	SessionHttpsOnly       bool   `toml:"session_https_only"`
-	CallbackUrl            string `toml:"callback_url"`
+	AdminOverTCP        bool   `toml:"admin_over_tcp"`
+	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
+	AppDefaultAuthType  string `toml:"app_default_auth_type"`
+	SessionSecret       string `toml:"session_secret"`
+	SessionBlockKey     string `toml:"session_block_key"`
+	SessionMaxAge       int    `toml:"session_max_age"`
+	SessionHttpsOnly    bool   `toml:"session_https_only"`
+	CallbackUrl         string `toml:"callback_url"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer

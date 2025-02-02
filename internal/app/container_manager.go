@@ -119,7 +119,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 
 	// Evaluate secrets in the paramMap
 	for k, v := range paramMap {
-		val, err := app.secretEvalFunc(secretsAllowed, v)
+		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
 		if err != nil {
 			return nil, fmt.Errorf("error evaluating secret for %s: %w", k, err)
 		}

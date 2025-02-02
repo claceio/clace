@@ -379,7 +379,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			for i, arg := range args {
 				switch v := arg.(type) {
 				case starlark.String:
-					evalString, err := a.secretEvalFunc(secrets, v.GoString())
+					evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, v.GoString())
 					if err != nil {
 						return nil, err
 					}
@@ -388,7 +388,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					for i := 0; i < v.Len(); i++ {
 						switch sv := v.Index(i).(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -403,7 +403,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						}
 						switch sv := value.(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -417,7 +417,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 			for i, kwarg := range kwargs {
 				switch v := kwarg[1].(type) {
 				case starlark.String:
-					evalString, err := a.secretEvalFunc(secrets, v.GoString())
+					evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, v.GoString())
 					if err != nil {
 						return nil, err
 
@@ -427,7 +427,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					for i := 0; i < v.Len(); i++ {
 						switch sv := v.Index(i).(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
 							if err != nil {
 								return nil, err
 							}
@@ -442,7 +442,7 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 						}
 						switch sv := value.(type) {
 						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, sv.GoString())
+							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
 							if err != nil {
 								return nil, err
 							}

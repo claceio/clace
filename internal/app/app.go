@@ -86,7 +86,7 @@ type App struct {
 	AppConfig types.AppConfig
 
 	lastRequestTime atomic.Int64
-	secretEvalFunc  func([][]string, string) (string, error)
+	secretEvalFunc  func([][]string, string, string) (string, error)
 	auditInsert     func(*types.AuditEvent) error
 }
 
@@ -103,7 +103,7 @@ type SSEMessage struct {
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
 	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
-	secretEvalFunc func([][]string, string) (string, error),
+	secretEvalFunc func([][]string, string, string) (string, error),
 	auditInsert func(*types.AuditEvent) error) (*App, error) {
 	newApp := &App{
 		sourceFS:       sourceFS,

@@ -78,6 +78,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsInt(t, "proxy max idle", 250, c.AppConfig.Proxy.MaxIdleConns)
 	testutil.AssertEqualsInt(t, "proxy idle timeout", 15, c.AppConfig.Proxy.IdleConnTimeoutSecs)
 	testutil.AssertEqualsBool(t, "proxy disable compression", true, c.AppConfig.Proxy.DisableCompression)
+	testutil.AssertEqualsString(t, "secrets provider", "env", c.AppConfig.Security.DefaultSecretsProvider)
 }
 
 func TestClientConfig(t *testing.T) {
