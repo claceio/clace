@@ -117,7 +117,6 @@ cat <<EOF > $CL_CONFIG_FILE
 [security]
 admin_password_bcrypt = "\$2a\$10\$PMaPsOVMBfKuDG04RsqJbeKIOJjlYi1Ie1KQbPCZRQx38bqYfernm"
 callback_url = "https://localhost:25223"
-default_secrets_provider="env"
 EOF
 
 if [[ -n "$CL_INFOCLACE_SSH" ]]; then
