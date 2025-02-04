@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"text/template"
 
@@ -96,7 +95,7 @@ func (s *SecretManager) appTemplateSecretFunc(appPerms [][]string, defaultProvid
 				continue
 			}
 			if appPerm[i] != entry {
-				regexMatch, err := regexMatch(appPerm[i], entry)
+				regexMatch, err := types.RegexMatch(appPerm[i], entry)
 				if err != nil {
 					panic(fmt.Errorf("error matching secret value %s: %w", entry, err))
 				}
@@ -137,16 +136,6 @@ func (s *SecretManager) appTemplateSecretFunc(appPerms [][]string, defaultProvid
 		panic(fmt.Errorf("error getting secret %s from %s: %w", secretKey, providerName, err))
 	}
 	return ret
-}
-
-const REGEX_PREFIX = "regex:"
-
-func regexMatch(perm, entry string) (bool, error) {
-	if len(perm) <= 6 || !strings.HasPrefix(perm, REGEX_PREFIX) {
-		return false, nil
-	}
-	perm = perm[6:]
-	return regexp.MatchString(perm, entry)
 }
 
 // EvalTemplate evaluates the input string and replaces any secret placeholders with the actual secret value

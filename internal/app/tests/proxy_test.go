@@ -203,7 +203,65 @@ permissions=[
 			{Plugin: "proxy.in", Method: "config", Arguments: []string{"example.com"}},
 		}, map[string]types.PluginSettings{})
 
-	testutil.AssertErrorContains(t, err, "is not permitted to call proxy.in.config with argument 0 having value")
+	testutil.AssertErrorContains(t, err, "is not permitted to call proxy.in.config with argument 0 having value \"http://127.0.0.1:")
+	testutil.AssertErrorContains(t, err, "expected \"example.com\". Update the app or audit and approve permissions")
+}
+
+func TestProxyPermsFailureRegex(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/abc" {
+			t.Fatalf("Invalid path %s", r.URL.Path)
+		}
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
+permissions=[
+	ace.permission("proxy.in", "config", ["regex:.*.example.com"]),
+]
+)`, testServer.URL),
+	}
+
+	_, _, err := CreateTestAppPlugin(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config", Arguments: []string{"regex:.*.example.com"}},
+		}, map[string]types.PluginSettings{})
+
+	testutil.AssertErrorContains(t, err, "is not permitted to call proxy.in.config with argument 0 having value \"http://127.0.0.1:")
+	testutil.AssertErrorContains(t, err, "expected \"regex:.*.example.com\". Update the app or audit and approve permissions")
+}
+
+func TestProxyPermsRegex(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/abc" {
+			t.Fatalf("Invalid path %s", r.URL.Path)
+		}
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s"))],
+permissions=[
+	ace.permission("proxy.in", "config", ["regex:http://127.0.0.1:.*"]),
+]
+)`, testServer.URL),
+	}
+
+	_, _, err := CreateTestAppPlugin(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config", Arguments: []string{"regex:http://127.0.0.1:.*"}},
+		}, map[string]types.PluginSettings{})
+
+	testutil.AssertNoError(t, err)
 }
 
 func TestProxyStripPath(t *testing.T) {

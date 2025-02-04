@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -545,3 +547,13 @@ const (
 	EventStatusSuccess EventStatus = "Success"
 	EventStatusFailure EventStatus = "Failed"
 )
+
+const REGEX_PREFIX = "regex:"
+
+func RegexMatch(perm, entry string) (bool, error) {
+	if len(perm) <= 6 || !strings.HasPrefix(perm, REGEX_PREFIX) {
+		return false, nil
+	}
+	perm = perm[6:]
+	return regexp.MatchString(perm, entry)
+}

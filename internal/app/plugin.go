@@ -294,11 +294,17 @@ func (a *App) pluginHook(modulePath, accountName, functionName string, pluginInf
 					}
 					argMismatch := false
 					for i, arg := range p.Arguments {
-						expect := fmt.Sprintf("%q", arg)
-						if args[i].String() != fmt.Sprintf("%q", arg) {
-							lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value %s, expected %s. Update the app or audit and approve permissions", a.Path, modulePath, functionName, i, args[i].String(), expect)
-							argMismatch = true
-							break
+						funcInput := types.StripQuotes(args[i].String())
+						if funcInput != arg {
+							match, err := types.RegexMatch(arg, funcInput)
+							if err != nil {
+								return nil, err
+							}
+							if !match {
+								lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value \"%s\", expected \"%s\". Update the app or audit and approve permissions", a.Path, modulePath, functionName, i, funcInput, arg)
+								argMismatch = true
+								break
+							}
 						}
 						// More arguments than approved are permitted. Also, using kwargs is not allowed for args which are approved
 						// Regex support is not implemented, the arguments have to match exactly as approved
