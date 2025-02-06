@@ -6,6 +6,7 @@ package server
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ func (s *Server) loadApplyInfo(fileName string, data []byte) ([]*AppApplyConfig,
 	createAppBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var path, source starlark.String
 		var dev starlark.Bool
-		var params *starlark.Dict
+		var params *starlark.Dict = starlark.NewDict(0)
 
 		if err := starlark.UnpackArgs(APP, args, kwargs, "path", &path, "source", &source, "dev?", &dev, "params?", &params); err != nil {
 			return nil, err
@@ -38,7 +39,6 @@ func (s *Server) loadApplyInfo(fileName string, data []byte) ([]*AppApplyConfig,
 			"path":   path,
 			"source": source,
 			"dev":    dev,
-			"params": params,
 		}
 
 		appStruct := starlarkstruct.FromStringDict(starlark.String(APP), fields)
@@ -226,12 +226,12 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	createResults := make([]types.AppCreateResponse, 0, len(newApps))
 	for _, newApp := range newApps {
 		applyInfo := applyConfig[newApp]
-		res, err := s.applyAppCreate(ctx, tx, applyInfo, approve, dryRun)
+		res, err := s.applyAppCreate(ctx, tx, newApp, applyInfo, approve, dryRun)
 		if err != nil {
 			return nil, err
 		}
 
-		createResults = append(createResults, res)
+		createResults = append(createResults, *res)
 	}
 
 	for _, updateApp := range updatedApps {
@@ -263,8 +263,34 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	return ret, nil
 }
 
-func (s *Server) applyAppCreate(ctx context.Context, tx types.Transaction, applyInfo *AppApplyConfig, approve, dryRun bool) (types.AppCreateResponse, error) {
-	return types.AppCreateResponse{}, nil
+func convertToMapString(input map[string]any) (map[string]string, error) {
+	ret := make(map[string]string)
+	for k, v := range input {
+		if value, ok := v.(string); ok {
+			ret[k] = value
+		} else {
+			val, err := json.Marshal(v)
+			if err != nil {
+				return nil, err
+			}
+			ret[k] = string(val)
+		}
+	}
+	return ret, nil
+}
+
+func (s *Server) applyAppCreate(ctx context.Context, tx types.Transaction, appPath types.AppPathDomain, applyInfo *AppApplyConfig, approve, dryRun bool) (*types.AppCreateResponse, error) {
+	params, err := convertToMapString(applyInfo.Params)
+	if err != nil {
+		return nil, err
+	}
+	req := types.CreateAppRequest{
+		SourceUrl:   applyInfo.SourceUrl,
+		IsDev:       applyInfo.IsDev,
+		ParamValues: params,
+	}
+
+	return s.CreateApp(ctx, tx, appPath.String(), approve, dryRun, req)
 }
 
 func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, applyInfo *AppApplyConfig, approve, dryRun, promote bool) (bool, types.ApproveResult, types.AppPathDomain, error) {

@@ -56,7 +56,7 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun bool, appRequest types.CreateAppRequest) (*types.AppCreateResponse, error) {
+func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, appPath string, approve, dryRun bool, appRequest types.CreateAppRequest) (*types.AppCreateResponse, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
@@ -101,16 +101,15 @@ func (s *Server) CreateApp(ctx context.Context, appPath string, approve, dryRun 
 	appEntry.Metadata.AppConfig = appRequest.AppConfig
 	appEntry.UserID = system.GetContextUserId(ctx)
 
-	auditResult, err := s.createApp(ctx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
+	auditResult, err := s.createApp(ctx, currentTx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*types.AppCreateResponse, error) {
+func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*types.AppCreateResponse, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -135,11 +134,14 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 
 	idStr := strings.ToLower(genId.String()) // Lowercase the ID, helps use the ID in container names
 
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
+	tx := currentTx
+	if currentTx.Tx == nil {
+		tx, err = s.db.BeginTransaction(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
 	}
-	defer tx.Rollback()
 
 	if appEntry.IsDev {
 		appEntry.Id = types.AppId(types.ID_PREFIX_APP_DEV + idStr)
@@ -242,11 +244,13 @@ func (s *Server) createApp(ctx context.Context, appEntry *types.AppEntry, approv
 		return ret, nil
 	}
 
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
+	if currentTx.Tx == nil {
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
 
-	// In memory app cache is not updated. The next GetApp call will load the new app
+		s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
+	}
 	return ret, nil
 }
 

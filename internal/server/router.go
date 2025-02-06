@@ -574,7 +574,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	results, err := h.server.CreateApp(r.Context(), appPath, approve, dryRun, appRequest)
+	results, err := h.server.CreateApp(r.Context(), types.Transaction{}, appPath, approve, dryRun, appRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -965,7 +965,7 @@ func (h *Handler) tokenDelete(r *http.Request) (any, error) {
 // apply is the handler for the apply API to apply app config
 func (h *Handler) apply(r *http.Request) (any, error) {
 	appPathGlob := cmp.Or(r.URL.Query().Get("appPathGlob"), "all")
-	applyPath := r.URL.Query().Get("path")
+	applyPath := r.URL.Query().Get("applyPath")
 	if applyPath == "" {
 		return nil, types.CreateRequestError("path is required", http.StatusBadRequest)
 	}

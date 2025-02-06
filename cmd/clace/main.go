@@ -23,7 +23,7 @@ var (
 
 const configFileFlagName = "config-file"
 
-func getAllCommands(globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) ([]*cli.Command, error) {
+func getAllCommands(clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) ([]*cli.Command, error) {
 	var allCommands []*cli.Command
 	serverCommands, err := getServerCommands(serverConfig, clientConfig)
 	if err != nil {
@@ -50,7 +50,7 @@ func getAllCommands(globalConfig *types.GlobalConfig, clientConfig *types.Client
 	return allCommands, nil
 }
 
-func globalFlags(globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig) ([]cli.Flag, error) {
+func globalFlags(globalConfig *types.GlobalConfig) ([]cli.Flag, error) {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:        configFileFlagName,
@@ -98,11 +98,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	globalFlags, err := globalFlags(globalConfig, clientConfig)
+	globalFlags, err := globalFlags(globalConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	allCommands, err := getAllCommands(globalConfig, clientConfig, serverConfig)
+	allCommands, err := getAllCommands(clientConfig, serverConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
