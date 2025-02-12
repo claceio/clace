@@ -9,10 +9,94 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/types"
 )
+
+func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResult, error) {
+	prodAppEntry := appEntry
+	var err error
+	if !appEntry.IsDev {
+		appEntry, err = s.getStageApp(ctx, tx, appEntry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.loadAppCode(ctx, tx, appEntry, branch, commit, gitAuth); err != nil {
+		return nil, err
+	}
+
+	// Persist the metadata so that any git info is saved
+	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
+		return nil, err
+	}
+	if err := s.db.UpdateAppSettings(ctx, tx, appEntry); err != nil {
+		return nil, err
+	}
+
+	app, err := s.setupApp(appEntry, tx)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up app %s: %w", appEntry, err)
+	}
+
+	auditResult, err := app.Audit()
+	if err != nil {
+		return nil, fmt.Errorf("error auditing app %s: %w", appEntry, err)
+	}
+
+	var approvalResult *types.ApproveResult
+	if auditResult.NeedsApproval {
+		if !approve {
+			return nil, fmt.Errorf("app %s needs approval", appEntry)
+		} else {
+			app.AppEntry.Metadata.Loads = auditResult.NewLoads
+			app.AppEntry.Metadata.Permissions = auditResult.NewPermissions
+			if err := s.db.UpdateAppMetadata(ctx, tx, app.AppEntry); err != nil {
+				return nil, err
+			}
+			approvalResult = auditResult
+		}
+	}
+	reloadResults := make([]types.AppPathDomain, 0)
+	promoteResults := make([]types.AppPathDomain, 0)
+	if _, err := app.Reload(true, true, types.DryRun(dryRun)); err != nil {
+		return nil, fmt.Errorf("error reloading app %s: %w", appEntry, err)
+	}
+	// Persist name in metadata
+	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
+		return nil, err
+	}
+
+	reloadResults = append(reloadResults, appEntry.AppPathDomain())
+	if promote && !appEntry.IsDev {
+		if err = s.promoteApp(ctx, tx, appEntry, prodAppEntry); err != nil {
+			return nil, err
+		}
+		promoteResults = append(promoteResults, appEntry.AppPathDomain())
+		prodApp, err := s.setupApp(prodAppEntry, tx)
+		if err != nil {
+			return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
+		}
+
+		if _, err := prodApp.Reload(true, true, types.DryRun(dryRun)); err != nil {
+			return nil, fmt.Errorf("error reloading prod app %s: %w", appEntry, err)
+		}
+		// Persist name in metadata
+		if err := s.db.UpdateAppMetadata(ctx, tx, prodAppEntry); err != nil {
+			return nil, err
+		}
+		reloadResults = append(reloadResults, prodAppEntry.AppPathDomain())
+	}
+
+	ret := &types.AppReloadResult{
+		DryRun:         dryRun,
+		ApproveResult:  approvalResult,
+		ReloadResults:  reloadResults,
+		PromoteResults: promoteResults,
+	}
+	return ret, nil
+}
 
 func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResponse, error) {
 	filteredApps, err := s.FilterApps(appPathGlob, false)
@@ -30,138 +114,22 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
-	prodAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
-	stageAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
-	devAppEntries := make([]*types.AppEntry, 0, len(filteredApps))
-
 	// Track the staging and prod apps
 	for _, appInfo := range filteredApps {
-		if appInfo.IsDev {
-			var devAppEntry *types.AppEntry
-			if devAppEntry, err = s.GetAppEntry(ctx, tx, appInfo.AppPathDomain); err != nil {
-				return nil, err
-			}
-
-			devAppEntries = append(devAppEntries, devAppEntry)
-			continue
-		}
-		prodAppEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
+		appEntry, err := s.GetAppEntry(ctx, tx, appInfo.AppPathDomain)
 		if err != nil {
 			return nil, err
 		}
-		prodAppEntries = append(prodAppEntries, prodAppEntry)
-
-		stageAppEntry, err := s.getStageApp(ctx, tx, prodAppEntry)
+		ret, err := s.ReloadApp(ctx, tx, appEntry, approve, dryRun, promote, branch, commit, gitAuth)
 		if err != nil {
 			return nil, err
 		}
-		stageAppEntries = append(stageAppEntries, stageAppEntry)
-	}
 
-	stageApps := make([]*app.App, 0, len(stageAppEntries))
-	// Load code for all staging apps into the transaction context
-	for index, stageAppEntry := range stageAppEntries {
-		if err := s.loadAppCode(ctx, tx, stageAppEntry, branch, commit, gitAuth); err != nil {
-			return nil, err
+		reloadResults = append(reloadResults, ret.ReloadResults...)
+		if ret.ApproveResult != nil {
+			approveResults = append(approveResults, *ret.ApproveResult)
 		}
-		reloadResults = append(reloadResults, stageAppEntry.AppPathDomain())
-
-		// Persist the metadata so that any git info is saved
-		if err := s.db.UpdateAppMetadata(ctx, tx, stageAppEntry); err != nil {
-			return nil, err
-		}
-		if err := s.db.UpdateAppSettings(ctx, tx, stageAppEntry); err != nil {
-			return nil, err
-		}
-
-		stageApp, err := s.setupApp(stageAppEntry, tx)
-		if err != nil {
-			return nil, fmt.Errorf("error setting up stage app %s: %w", stageAppEntry, err)
-		}
-		stageApps = append(stageApps, stageApp)
-
-		stageResult, err := stageApp.Audit()
-		if err != nil {
-			return nil, fmt.Errorf("error approving app %s: %w", stageAppEntry, err)
-		}
-
-		if stageResult.NeedsApproval {
-			if !approve {
-				return nil, fmt.Errorf("app %s needs approval", stageAppEntry)
-			} else {
-				stageApp.AppEntry.Metadata.Loads = stageResult.NewLoads
-				stageApp.AppEntry.Metadata.Permissions = stageResult.NewPermissions
-				if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
-					return nil, err
-				}
-			}
-			approveResults = append(approveResults, *stageResult)
-		}
-
-		if promote {
-			prodAppEntry := prodAppEntries[index]
-			if err = s.promoteApp(ctx, tx, stageAppEntry, prodAppEntry); err != nil {
-				return nil, err
-			}
-
-			promoteResults = append(promoteResults, prodAppEntry.AppPathDomain())
-		}
-	}
-
-	for _, stageApp := range stageApps {
-		if _, err := stageApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
-			return nil, fmt.Errorf("error reloading stage app %s: %w", stageApp.AppEntry, err)
-		}
-
-		// Persist name in metadata
-		if err := s.db.UpdateAppMetadata(ctx, tx, stageApp.AppEntry); err != nil {
-			return nil, err
-		}
-	}
-
-	if promote {
-		for _, prodAppEntry := range prodAppEntries {
-			prodApp, err := s.setupApp(prodAppEntry, tx)
-			if err != nil {
-				return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
-			}
-			if _, err := prodApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
-				return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
-			}
-
-			reloadResults = append(reloadResults, prodAppEntry.AppPathDomain())
-		}
-	}
-
-	for _, devAppEntry := range devAppEntries {
-		devApp, err := s.setupApp(devAppEntry, tx)
-		if err != nil {
-			return nil, fmt.Errorf("error setting up app %s: %w", devAppEntry, err)
-		}
-		reloadResults = append(reloadResults, devAppEntry.AppPathDomain())
-
-		devResult, err := devApp.Audit()
-		if err != nil {
-			return nil, fmt.Errorf("error auditing dev app %s: %w", devAppEntry, err)
-		}
-
-		if devResult.NeedsApproval {
-			if !approve {
-				return nil, fmt.Errorf("app %s needs approval", devAppEntry)
-			} else {
-				devApp.AppEntry.Metadata.Loads = devResult.NewLoads
-				devApp.AppEntry.Metadata.Permissions = devResult.NewPermissions
-			}
-			approveResults = append(approveResults, *devResult)
-		}
-
-		if _, err := devApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
-			return nil, fmt.Errorf("error reloading dev app %s: %w", devApp.AppEntry, err)
-		}
-
-		if err := s.db.UpdateAppMetadata(ctx, tx, devApp.AppEntry); err != nil {
-			return nil, err
-		}
+		promoteResults = append(promoteResults, ret.PromoteResults...)
 	}
 
 	// Commit the transaction if not dry run and update the in memory app store
@@ -336,7 +304,7 @@ func (s *Server) PromoteApps(ctx context.Context, appPathGlob string, dryRun boo
 		if err != nil {
 			return nil, fmt.Errorf("error setting up prod app %s: %w", prodAppEntry, err)
 		}
-		if _, err := prodApp.Reload(true, true, app.DryRun(dryRun)); err != nil {
+		if _, err := prodApp.Reload(true, true, types.DryRun(dryRun)); err != nil {
 			return nil, fmt.Errorf("error reloading prod app %s: %w", prodApp.AppEntry, err)
 		}
 		result = append(result, appInfo.AppPathDomain)

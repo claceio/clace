@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -56,7 +57,7 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, appPath string, approve, dryRun bool, appRequest types.CreateAppRequest) (*types.AppCreateResponse, error) {
+func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, appPath string, approve, dryRun bool, appRequest *types.CreateAppRequest) (*types.AppCreateResponse, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
@@ -101,7 +102,7 @@ func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, app
 	appEntry.Metadata.AppConfig = appRequest.AppConfig
 	appEntry.UserID = system.GetContextUserId(ctx)
 
-	auditResult, err := s.createApp(ctx, currentTx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName)
+	auditResult, err := s.createApp(ctx, currentTx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName, appRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -109,7 +110,7 @@ func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, app
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string) (*types.AppCreateResponse, error) {
+func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string, applyInfo *types.CreateAppRequest) (*types.AppCreateResponse, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -173,6 +174,14 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 		stageAppEntry.Id = types.AppId(types.ID_PREFIX_APP_STAGE + string(appEntry.Id)[len(types.ID_PREFIX_APP_PROD):])
 		stageAppEntry.MainApp = appEntry.Id
 		stageAppEntry.Metadata.VersionMetadata.Version = 1
+
+		if currentTx.Tx != nil {
+			// Save the apply info in the app metadata (if called from apply context)
+			stageAppEntry.Metadata.VersionMetadata.ApplyInfo, err = json.Marshal(applyInfo)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if err := s.db.CreateApp(ctx, tx, &stageAppEntry); err != nil {
 			return nil, err
 		}
@@ -354,7 +363,7 @@ func (s *Server) GetApp(pathDomain types.AppPathDomain, init bool) (*app.App, er
 	}
 
 	// Initialize the app
-	if err := application.Initialize(app.DryRunFalse); err != nil {
+	if err := application.Initialize(types.DryRunFalse); err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
 	}
 

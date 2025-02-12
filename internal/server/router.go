@@ -4,7 +4,6 @@
 package server
 
 import (
-	"cmp"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -557,7 +556,6 @@ func (h *Handler) stopServer(r *http.Request) (any, error) {
 }
 
 func (h *Handler) createApp(r *http.Request) (any, error) {
-	appPath := r.URL.Query().Get("appPath")
 	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
 	if err != nil {
 		return nil, err
@@ -566,15 +564,16 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	updateTargetInContext(r, appPath, dryRun)
 
 	var appRequest types.CreateAppRequest
 	err = json.NewDecoder(r.Body).Decode(&appRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
+	appPath := appRequest.Path
+	updateTargetInContext(r, appPath, dryRun)
 
-	results, err := h.server.CreateApp(r.Context(), types.Transaction{}, appPath, approve, dryRun, appRequest)
+	results, err := h.server.CreateApp(r.Context(), types.Transaction{}, appPath, approve, dryRun, &appRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -964,10 +963,13 @@ func (h *Handler) tokenDelete(r *http.Request) (any, error) {
 
 // apply is the handler for the apply API to apply app config
 func (h *Handler) apply(r *http.Request) (any, error) {
-	appPathGlob := cmp.Or(r.URL.Query().Get("appPathGlob"), "all")
+	appPathGlob := r.URL.Query().Get("appPathGlob")
+	if appPathGlob == "" {
+		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
+	}
 	applyPath := r.URL.Query().Get("applyPath")
 	if applyPath == "" {
-		return nil, types.CreateRequestError("path is required", http.StatusBadRequest)
+		return nil, types.CreateRequestError("applyPath is required", http.StatusBadRequest)
 	}
 	approve, err := parseBoolArg(r.URL.Query().Get("approve"), false)
 	if err != nil {
@@ -987,6 +989,7 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 	updateOperationInContext(r, genOperationName("apply", promote, approve))
 
 	ret, err := h.server.Apply(r.Context(), applyPath, appPathGlob, approve, dryRun, promote,
+		types.AppReloadOption(r.URL.Query().Get("reload")),
 		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)

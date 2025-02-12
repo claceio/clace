@@ -337,6 +337,7 @@ type VersionMetadata struct {
 	GitBranch       string `json:"git_branch"`
 	GitCommit       string `json:"git_commit"`
 	GitMessage      string `json:"git_message"`
+	ApplyInfo       []byte `json:"apply_info"`
 }
 
 // AppEntry is the application configuration in the DB
@@ -557,3 +558,10 @@ func RegexMatch(perm, entry string) (bool, error) {
 	perm = perm[6:]
 	return regexp.MatchString(perm, entry)
 }
+
+type DryRun bool
+
+const (
+	DryRunTrue  DryRun = true
+	DryRunFalse DryRun = false
+)

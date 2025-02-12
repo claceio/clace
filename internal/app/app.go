@@ -33,13 +33,6 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-type DryRun bool
-
-const (
-	DryRunTrue  DryRun = true
-	DryRunFalse DryRun = false
-)
-
 // App is the main object that represents a Clace app. It is created when the app is loaded
 type App struct {
 	*types.Logger
@@ -145,7 +138,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	return newApp, nil
 }
 
-func (a *App) Initialize(dryRun DryRun) error {
+func (a *App) Initialize(dryRun types.DryRun) error {
 	var reloaded bool
 	var err error
 	if reloaded, err = a.Reload(false, true, dryRun); err != nil {
@@ -187,7 +180,7 @@ func (a *App) ResetFS() {
 	a.sourceFS.Reset()
 }
 
-func (a *App) Reload(force, immediate bool, dryRun DryRun) (bool, error) {
+func (a *App) Reload(force, immediate bool, dryRun types.DryRun) (bool, error) {
 	requestTime := time.Now()
 
 	a.initMutex.Lock()
@@ -659,7 +652,7 @@ func (a *App) startWatcher() error {
 
 					inReload.Store(true)
 					defer inReload.Store(false)
-					_, err := a.Reload(true, false, DryRun(false))
+					_, err := a.Reload(true, false, types.DryRun(false))
 					if err != nil {
 						a.Error().Err(err).Msg("Error reloading app")
 					}

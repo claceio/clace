@@ -127,7 +127,6 @@ Examples:
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
-			values.Add("appPath", cCtx.Args().Get(1))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 
@@ -171,6 +170,7 @@ Examples:
 			}
 
 			body := types.CreateAppRequest{
+				Path:             cCtx.Args().Get(1),
 				SourceUrl:        cCtx.Args().Get(0),
 				IsDev:            cCtx.Bool("dev"),
 				AppAuthn:         types.AppAuthnType(cCtx.String("auth")),

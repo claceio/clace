@@ -102,7 +102,7 @@ func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]str
 	if err != nil {
 		return nil, nil, err
 	}
-	err = a.Initialize(app.DryRunFalse)
+	err = a.Initialize(types.DryRunFalse)
 	return a, workFS, err
 }
 

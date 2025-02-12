@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestLibraryBasic(t *testing.T) {
@@ -42,7 +42,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")],
 
 	// File is cached, should be served from cache even if file server is closed
 	testServer.Close()
-	ok, err := a.Reload(true, true, app.DryRunFalse)
+	ok, err := a.Reload(true, true, types.DryRunFalse)
 	if !ok || err != nil {
 		t.Fatalf("Error %s", err)
 	}

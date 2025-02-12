@@ -36,7 +36,7 @@ func init() {
 	resolve.AllowRecursion = true
 }
 
-func (a *App) loadStarlarkConfig(dryRun DryRun) error {
+func (a *App) loadStarlarkConfig(dryRun types.DryRun) error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
 	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)

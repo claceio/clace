@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestLoadStarlark(t *testing.T) {
@@ -92,7 +92,7 @@ app = ace.app("testApp", custom_layout=True, routes = testroutes)`,
 
 	// Now add a loop in the graph
 	fileData["test1.star"] = `load ("app.star", "mypage")`
-	r, err := a.Reload(true, true, app.DryRunFalse)
+	r, err := a.Reload(true, true, types.DryRunFalse)
 	testutil.AssertErrorContains(t, err, "cycle in starlark load graph during load of test1.star")
 	testutil.AssertEqualsBool(t, "reload", false, r) // reload should have failed
 }

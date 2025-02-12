@@ -29,7 +29,9 @@ func (r RequestError) Error() string {
 }
 
 // CreateAppRequest is the request body for creating an app
+// This gets saved as ApplyInfo when doing declarative app creation
 type CreateAppRequest struct {
+	Path             string            `json:"path"`
 	SourceUrl        string            `json:"source_url"`
 	IsDev            bool              `json:"is_dev"`
 	AppAuthn         AppAuthnType      `json:"app_authn"`
@@ -122,11 +124,27 @@ type AppApproveResponse struct {
 	PromoteResults      []AppPathDomain `json:"promote_results"`
 }
 
+type AppReloadResult struct {
+	DryRun         bool            `json:"dry_run"`
+	ApproveResult  *ApproveResult  `json:"approve_results"`
+	PromoteResults []AppPathDomain `json:"promote_results"`
+	ReloadResults  []AppPathDomain `json:"reload_results"`
+}
+
 type AppReloadResponse struct {
 	DryRun         bool            `json:"dry_run"`
 	ReloadResults  []AppPathDomain `json:"reload_results"`
 	ApproveResults []ApproveResult `json:"approve_results"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
+}
+
+type AppApplyResult struct {
+	DryRun        bool              `json:"dry_run"`
+	CreateResult  AppCreateResponse `json:"create_result"`
+	ApproveResult *ApproveResult    `json:"approve_result"`
+	Updated       bool              `json:"updated"`
+	Reloaded      bool              `json:"reloaded"`
+	Promoted      bool              `json:"promoted"`
 }
 
 type AppApplyResponse struct {
@@ -135,6 +153,7 @@ type AppApplyResponse struct {
 	UpdateResults  []AppPathDomain     `json:"update_results"`
 	ApproveResults []ApproveResult     `json:"approve_results"`
 	PromoteResults []AppPathDomain     `json:"promote_results"`
+	ReloadResults  []AppPathDomain     `json:"reload_results"`
 }
 
 type AppPromoteResponse struct {
@@ -203,3 +222,11 @@ type TokenCreateResponse struct {
 type TokenDeleteResponse struct {
 	DryRun bool `json:"dry_run"`
 }
+
+type AppReloadOption string
+
+const (
+	AppReloadOptionNone    AppReloadOption = "reload_none"
+	AppReloadOptionUpdated AppReloadOption = "reload_updated"
+	AppReloadOptionAll     AppReloadOption = "reload_all"
+)
