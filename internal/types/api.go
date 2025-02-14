@@ -101,6 +101,7 @@ type AppListResponse struct {
 }
 
 type AppCreateResponse struct {
+	Path           string          `json:"path"`
 	DryRun         bool            `json:"dry_run"`
 	HttpUrl        string          `json:"http_url"`
 	HttpsUrl       string          `json:"https_url"`
@@ -142,8 +143,8 @@ type AppApplyResult struct {
 	DryRun        bool              `json:"dry_run"`
 	CreateResult  AppCreateResponse `json:"create_result"`
 	ApproveResult *ApproveResult    `json:"approve_result"`
-	Updated       bool              `json:"updated"`
-	Reloaded      bool              `json:"reloaded"`
+	Updated       []AppPathDomain   `json:"updated"`
+	Reloaded      []AppPathDomain   `json:"reloaded"`
 	Promoted      bool              `json:"promoted"`
 }
 
@@ -226,7 +227,7 @@ type TokenDeleteResponse struct {
 type AppReloadOption string
 
 const (
-	AppReloadOptionNone    AppReloadOption = "reload_none"
-	AppReloadOptionUpdated AppReloadOption = "reload_updated"
-	AppReloadOptionAll     AppReloadOption = "reload_all"
+	AppReloadOptionNone    AppReloadOption = "none"
+	AppReloadOptionUpdated AppReloadOption = "updated"
+	AppReloadOptionAll     AppReloadOption = "all"
 )

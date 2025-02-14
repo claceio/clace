@@ -190,36 +190,35 @@ Examples:
 				return err
 			}
 
-			approveResult := createResult.ApproveResults[0]
-			if len(createResult.ApproveResults) == 2 {
-				fmt.Printf("App audit results %s - %s\n", createResult.ApproveResults[1].AppPathDomain, createResult.ApproveResults[1].Id)
-			}
-			fmt.Printf("App audit results %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-			printApproveResult(approveResult)
-
-			if approveResult.NeedsApproval {
-				if cCtx.Bool("approve") {
-					fmt.Print("App created. Permissions have been approved\n")
-				} else {
-					fmt.Print("App created. Permissions need to be approved\n")
-				}
-			} else {
-				fmt.Print("App created. No approval required\n")
-			}
-
-			if createResult.HttpUrl != "" {
-				fmt.Printf("\n HTTP Url: %s\n", createResult.HttpUrl)
-			}
-			if createResult.HttpsUrl != "" {
-				fmt.Printf("HTTPS Url: %s\n", createResult.HttpsUrl)
-			}
-
+			printCreateResult(cCtx, createResult)
 			if createResult.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}
 
 			return nil
 		},
+	}
+}
+
+func printCreateResult(cCtx *cli.Context, createResult types.AppCreateResponse) {
+	fmt.Printf("      App: %s\n", createResult.Path)
+	if createResult.HttpUrl != "" {
+		fmt.Printf(" HTTP Url: %s\n", createResult.HttpUrl)
+	}
+	if createResult.HttpsUrl != "" {
+		fmt.Printf("HTTPS Url: %s\n", createResult.HttpsUrl)
+	}
+	approveResult := createResult.ApproveResults[0]
+	printApproveResult(approveResult)
+
+	if approveResult.NeedsApproval {
+		if cCtx.Bool("approve") {
+			fmt.Print("App created. Permissions have been approved\n")
+		} else {
+			fmt.Print("App created. Permissions need to be approved\n")
+		}
+	} else {
+		fmt.Print("App created. No approval required\n")
 	}
 }
 

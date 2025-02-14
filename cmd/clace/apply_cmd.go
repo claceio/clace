@@ -21,7 +21,9 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry in server config to use", ""))
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
-	flags = append(flags, newBoolFlag("reload", "", "Which apps to reload: none, updated, all (default)", false))
+	flags = append(flags, newStringFlag("reload", "r", "Which apps to reload: none, updated (default), all", "updated"))
+	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
+	flags = append(flags, newBoolFlag("force", "f", "Force update app config, removing non-declarative changes", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -39,11 +41,16 @@ Examples:
   Apply app config for all apps: clace apply ./app.ace all
   Apply app config for all apps: clace apply ./app.ace all
   Apply app config for example.com domain apps: clace apply ./app.ace example.com:**
-  Apply app config from git for all apps: clace apply github.com/claceio/apps/apps.ace all
+  Apply app config from git for all apps: clace apply --reload=updated --promote --approve github.com/claceio/apps/apps.ace all
+  Apply app config from git for all apps, overwriting changes: clace apply --reload=updated --promote --force github.com/claceio/apps/apps.ace all
 `,
 
 		Action: func(cCtx *cli.Context) error {
-			if cCtx.NArg() != 2 {
+			if cCtx.NArg() < 2 {
+				reload := cCtx.String("reload")
+				if reload != "" && reload != "none" && reload != "updated" && reload != "all" {
+					return fmt.Errorf("invalid value for --reload, expected none/updated/all: %s", reload)
+				}
 				return fmt.Errorf("expected two arguments: <filePath> <appPathGlob>")
 			}
 
@@ -58,6 +65,8 @@ Examples:
 			values.Add("commit", cCtx.String("commit"))
 			values.Add("gitAuth", cCtx.String("git-auth"))
 			values.Add("reload", cCtx.String("reload"))
+			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
+			values.Add("force", strconv.FormatBool(cCtx.Bool("force")))
 
 			var applyResponse types.AppApplyResponse
 			err := client.Post("/_clace/apply", values, nil, &applyResponse)
@@ -66,6 +75,70 @@ Examples:
 			}
 
 			fmt.Printf("Applied %#+v\n", applyResponse)
+
+			if len(applyResponse.CreateResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Created apps:\n")
+				for i, createResult := range applyResponse.CreateResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					printCreateResult(cCtx, createResult)
+				}
+			}
+
+			if len(applyResponse.UpdateResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Updated apps: ")
+				for i, updateResult := range applyResponse.UpdateResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", updateResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			if len(applyResponse.ReloadResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Reloaded apps: ")
+				for i, reloadResult := range applyResponse.ReloadResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", reloadResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			if len(applyResponse.ApproveResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Approved apps:\n")
+				for _, approveResult := range applyResponse.ApproveResults {
+					if !approveResult.NeedsApproval {
+						// Server does not return these for reload to reduce the noise
+						fmt.Printf("No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+					} else {
+						fmt.Printf("App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+						printApproveResult(approveResult)
+					}
+				}
+			}
+
+			if len(applyResponse.PromoteResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Promoted apps: ")
+				for i, promoteResult := range applyResponse.PromoteResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", promoteResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated, %d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
+				len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
+
+			if applyResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
 			return nil
 		},
 	}

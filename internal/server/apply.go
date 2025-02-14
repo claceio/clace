@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 	"github.com/claceio/clace/internal/app/appfs"
@@ -212,12 +213,16 @@ func (s *Server) setupSource(applyPath, branch, commit, gitAuth string) (string,
 }
 
 func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
-	reload types.AppReloadOption, branch, commit, gitAuth string) (*types.AppApplyResponse, error) {
+	reload types.AppReloadOption, branch, commit, gitAuth string, force bool) (*types.AppApplyResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
+
+	if reload == "" {
+		reload = types.AppReloadOptionUpdated
+	}
 
 	dir, file, err := s.setupSource(applyPath, branch, commit, gitAuth)
 	if err != nil {
@@ -258,7 +263,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	}
 
 	filteredApps := make([]types.AppPathDomain, 0, len(applyConfig))
-	for appPathDomain, _ := range applyConfig {
+	for appPathDomain := range applyConfig {
 		match, err := MatchGlob(appPathGlob, appPathDomain)
 		if err != nil {
 			return nil, err
@@ -317,20 +322,16 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 
 	for _, updateApp := range updatedApps {
 		applyInfo := applyConfig[updateApp]
-		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload)
+		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, force)
 		if err != nil {
 			return nil, err
 		}
 
-		if applyResult.Updated {
-			updateResults = append(updateResults, updateApp)
-		}
+		updateResults = append(updateResults, applyResult.Updated...)
 		if applyResult.Promoted {
 			promoteResults = append(promoteResults, updateApp)
 		}
-		if applyResult.Reloaded {
-			reloadResults = append(reloadResults, updateApp)
-		}
+		reloadResults = append(reloadResults, applyResult.Reloaded...)
 		if applyResult.ApproveResult != nil {
 			approveResults = append(approveResults, *applyResult.ApproveResult)
 		}
@@ -380,7 +381,7 @@ func convertToMapString(input map[string]any, convertToml bool) (map[string]stri
 }
 
 func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPathDomain types.AppPathDomain, newInfo *types.CreateAppRequest,
-	approve, dryRun, promote bool, reload types.AppReloadOption) (*types.AppApplyResult, error) {
+	approve, dryRun, promote bool, reload types.AppReloadOption, force bool) (*types.AppApplyResult, error) {
 	liveApp, err := s.GetAppEntry(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, fmt.Errorf("app missing during update %w", err)
@@ -405,32 +406,29 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	var oldInfo *types.CreateAppRequest
 	if len(oldInfoStr) > 0 {
 		if err := json.Unmarshal([]byte(oldInfoStr), &oldInfo); err != nil {
-			return nil, fmt.Errorf("error unmarshalling old app info: %w", err)
+			return nil, fmt.Errorf("error unmarshalling stored app info: %w", err)
 		}
+		oldInfo.AppAuthn = cmp.Or(oldInfo.AppAuthn, types.AppAuthnDefault)
 	}
+	newInfo.AppAuthn = cmp.Or(newInfo.AppAuthn, types.AppAuthnDefault)
 
 	authChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.AppAuthn
-	}, newInfo.ParamValues, liveApp.Metadata.ParamValues)
+	}, newInfo.AppAuthn, liveApp.Settings.AuthnType, force)
+	if authChanged {
+		return nil, fmt.Errorf("app %s authentication changed, cannot apply changes. Use \"app update-settings\"", appPathDomain)
+	}
+
 	gitAuthChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.GitAuthName
-	}, newInfo.ParamValues, liveApp.Metadata.ParamValues)
-
-	if authChanged || gitAuthChanged {
-		return nil, fmt.Errorf("app %s authentication or git auth changed, cannot apply changes, use \"app update-settings\"", appPathDomain)
+	}, newInfo.GitAuthName, liveApp.Settings.GitAuthName, force)
+	if gitAuthChanged {
+		return nil, fmt.Errorf("app %s git auth changed, cannot apply changes. Use \"app update-settings\"", appPathDomain)
 	}
+
 	specChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.Spec
-	}, newInfo.Spec, liveApp.Metadata.Spec)
-
-	gitBranchChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
-		return info.GitBranch
-	}, newInfo.ParamValues, liveApp.Metadata.ParamValues)
-
-	var oldParams map[string]string
-	if oldInfo != nil {
-		oldParams = oldInfo.ParamValues
-	}
+	}, newInfo.Spec, liveApp.Metadata.Spec, force)
 	if specChanged {
 		if newInfo.Spec == "" {
 			liveApp.Metadata.SpecFiles = nil
@@ -445,43 +443,111 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		}
 	}
 
+	gitBranchChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
+		return info.GitBranch
+	}, newInfo.GitBranch, liveApp.Metadata.VersionMetadata.GitBranch, force)
 	if gitBranchChanged {
 		liveApp.Metadata.VersionMetadata.GitBranch = newInfo.GitBranch
 	}
-	paramsChanged := mergeMap(oldParams, newInfo.ParamValues, liveApp.Metadata.ParamValues)
-
-	updated := specChanged || gitBranchChanged || paramsChanged
-	if updated {
-		if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
-			return nil, err
+	gitCommitChanged := false
+	if newInfo.GitCommit != "" {
+		gitCommitChanged = checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
+			return info.GitCommit
+		}, newInfo.GitCommit, liveApp.Metadata.VersionMetadata.GitCommit, force)
+		if gitCommitChanged {
+			liveApp.Metadata.VersionMetadata.GitCommit = newInfo.GitCommit
 		}
 	}
 
-	ret := &types.AppApplyResult{
-		DryRun:   dryRun,
-		Updated:  updated,
-		Promoted: promote && !liveApp.IsDev,
-		Reloaded: reload == types.AppReloadOptionAll || updated && reload == types.AppReloadOptionUpdated,
+	var oldParams map[string]string
+	if oldInfo != nil {
+		oldParams = oldInfo.ParamValues
 	}
-	if reload == types.AppReloadOptionAll || updated && reload == types.AppReloadOptionUpdated {
-		reloadResult, err := s.ReloadApp(ctx, tx, liveApp, approve, dryRun, promote, newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName)
+	paramsChanged := mergeMap(oldParams, newInfo.ParamValues, liveApp.Metadata.ParamValues, force)
+
+	var oldContOptions map[string]string
+	if oldInfo != nil {
+		oldContOptions = oldInfo.ContainerOptions
+	}
+	contConfigChanged := mergeMap(oldContOptions, newInfo.ContainerOptions, liveApp.Metadata.ContainerOptions, force)
+
+	var oldContArgs map[string]string
+	if oldInfo != nil {
+		oldContArgs = oldInfo.ContainerArgs
+	}
+	contArgsChanged := mergeMap(oldContArgs, newInfo.ContainerArgs, liveApp.Metadata.ContainerArgs, force)
+
+	var oldContVolumes []string
+	if oldInfo != nil {
+		oldContVolumes = oldInfo.ContainerVolumes
+	}
+	contVolsChanged := mergeSlice(oldContVolumes, newInfo.ContainerVolumes, &liveApp.Metadata.ContainerVolumes, force)
+
+	var oldAppConfig map[string]string
+	if oldInfo != nil {
+		oldAppConfig = oldInfo.AppConfig
+	}
+	appConfigChanged := mergeMap(oldAppConfig, newInfo.AppConfig, liveApp.Metadata.AppConfig, force)
+
+	updated := specChanged || gitBranchChanged || gitCommitChanged || paramsChanged ||
+		contConfigChanged || contArgsChanged || contVolsChanged || appConfigChanged
+	updatedApps := make([]types.AppPathDomain, 0)
+	if updated {
+		liveApp.Metadata.VersionMetadata.ApplyInfo, err = json.Marshal(newInfo)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
+			return nil, err
+		}
+		updatedApps = append(updatedApps, liveApp.AppPathDomain())
+	}
+
+	reloadApp := reload == types.AppReloadOptionAll || updated && reload == types.AppReloadOptionUpdated
+	promoteApp := false
+	ret := &types.AppApplyResult{
+		DryRun: dryRun,
+	}
+	if reloadApp {
+		reloadResult, err := s.ReloadApp(ctx, tx, prodApp, approve, dryRun, promote, newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName)
 		if err != nil {
 			return nil, err
 		}
 		ret.ApproveResult = reloadResult.ApproveResult
+		ret.Reloaded = reloadResult.ReloadResults
+		promoteApp = len(reloadResult.PromoteResults) > 0
 	}
 
-	if promote && !liveApp.IsDev {
-		// For prod apps, promote the staging app
-		if err = s.promoteApp(ctx, tx, liveApp, prodApp); err != nil {
-			return nil, err
+	if updated && promote && !liveApp.IsDev {
+		if !reloadApp {
+			// For prod apps, promote the staging app (unless already promoted as part of reload)
+			if err = s.promoteApp(ctx, tx, liveApp, prodApp); err != nil {
+				return nil, err
+			}
+			promoteApp = true
 		}
+		updatedApps = append(updatedApps, prodApp.AppPathDomain())
 	}
 
+	ret.Updated = updatedApps
+	ret.Promoted = promoteApp
 	return ret, nil
 }
 
-func mergeMap(old, new, live map[string]string) bool {
+func mergeMap(old, new, live map[string]string, force bool) bool {
+	if force {
+		// Force overwrite the live map
+		if reflect.DeepEqual(live, new) {
+			return false
+		}
+		// Force update all values
+		clear(live)
+		for k, v := range new {
+			live[k] = v
+		}
+		return true
+	}
+
 	updated := false
 	if old == nil {
 		// First run of apply
@@ -496,13 +562,18 @@ func mergeMap(old, new, live map[string]string) bool {
 			newV, ok := new[k]
 			if ok && v != newV {
 				// Changed from old to new
-				updated = true
-				live[k] = newV
+				if live[k] != newV {
+					updated = true
+					live[k] = newV
+				}
 			}
 			if !ok {
 				// Removed from new
-				updated = true
-				delete(live, k)
+				_, present := live[k]
+				if present {
+					updated = true
+					delete(live, k)
+				}
 			}
 		}
 
@@ -518,8 +589,67 @@ func mergeMap(old, new, live map[string]string) bool {
 	return updated
 }
 
-func checkPropertyChanged(oldInfo *types.CreateAppRequest, fetchVal func(*types.CreateAppRequest) any, newVal, liveVal any) bool {
-	if oldInfo == nil {
+func mergeSlice(old, new []string, live *[]string, force bool) bool {
+	if force {
+		if reflect.DeepEqual(*live, new) {
+			return false
+		}
+		// Force update all values
+		*live = append([]string{}, new...)
+		return true
+	}
+
+	updated := false
+	liveDict := make(map[string]int)
+	for i, v := range *live {
+		liveDict[v] = i
+	}
+	newDict := make(map[string]int)
+	for i, v := range new {
+		newDict[v] = i
+	}
+	oldDict := make(map[string]int)
+	for i, v := range old {
+		oldDict[v] = i
+	}
+
+	if old == nil {
+		// First run of apply
+		for _, v := range new {
+			// Add values from new, retaining existing live values
+			if !hasEntry(v, liveDict) {
+				updated = true
+				*live = append(*live, v)
+			}
+		}
+	} else {
+		// Three way merge
+		for _, v := range old {
+			if !hasEntry(v, newDict) && hasEntry(v, liveDict) {
+				// Removed from new
+				updated = true
+				*live = slices.Delete(*live, liveDict[v], liveDict[v]+1)
+			}
+		}
+		for _, v := range new {
+			if !hasEntry(v, oldDict) && !hasEntry(v, liveDict) {
+				// Added in new
+				updated = true
+				*live = append(*live, v)
+			}
+		}
+	}
+
+	return updated
+}
+
+func hasEntry(s string, dict map[string]int) bool {
+	_, ok := dict[s]
+	return ok
+}
+
+func checkPropertyChanged(oldInfo *types.CreateAppRequest, fetchVal func(*types.CreateAppRequest) any, newVal, liveVal any, force bool) bool {
+	if force || oldInfo == nil {
 		return !reflect.DeepEqual(liveVal, newVal)
 	}
 	var oldVal = fetchVal(oldInfo)

@@ -243,6 +243,7 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 	}
 
 	ret := &types.AppCreateResponse{
+		Path:           appEntry.String(),
 		HttpUrl:        s.getAppHttpUrl(appEntry),
 		HttpsUrl:       s.getAppHttpsUrl(appEntry),
 		DryRun:         dryRun,

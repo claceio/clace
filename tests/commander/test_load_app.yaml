@@ -9,13 +9,13 @@ tests:
     command: ../clace app create --dev ./disk_usage /disk_usage_dev
     stderr:
       line-count: 0
-    stdout: "App audit results /disk_usage_dev - app"
+    stdout: "App: /disk_usage_dev"
     exit-code: 0
   load0030: # create prod app
     command: ../clace app create ./disk_usage /disk_usage_prod
     stderr:
       line-count: 0
-    stdout: "App audit results /disk_usage_prod - app"
+    stdout: "App: /disk_usage_prod"
     exit-code: 0
   load0040: # test dev app
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev
