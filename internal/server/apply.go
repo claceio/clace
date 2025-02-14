@@ -394,12 +394,6 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		if err != nil {
 			return nil, err
 		}
-
-		stagingFileStore := metadata.NewFileStore(liveApp.Id, liveApp.Metadata.VersionMetadata.Version, s.db, tx)
-		err := stagingFileStore.IncrementAppVersion(ctx, tx, &liveApp.Metadata)
-		if err != nil {
-			return nil, fmt.Errorf("error incrementing app version: %w", err)
-		}
 	}
 
 	oldInfoStr := string(liveApp.Metadata.VersionMetadata.ApplyInfo)
@@ -497,10 +491,11 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		if err != nil {
 			return nil, err
 		}
-		if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
-			return nil, err
-		}
+
 		updatedApps = append(updatedApps, liveApp.AppPathDomain())
+		if promote && !liveApp.IsDev {
+			updatedApps = append(updatedApps, prodApp.AppPathDomain())
+		}
 	}
 
 	reloadApp := reload == types.AppReloadOptionAll || updated && reload == types.AppReloadOptionUpdated
@@ -509,24 +504,31 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		DryRun: dryRun,
 	}
 	if reloadApp {
-		reloadResult, err := s.ReloadApp(ctx, tx, prodApp, approve, dryRun, promote, newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName)
+		// Reload does the version increment and promotion
+		reloadResult, err := s.ReloadApp(ctx, tx, prodApp, liveApp, approve, dryRun, promote,
+			newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName)
 		if err != nil {
 			return nil, err
 		}
 		ret.ApproveResult = reloadResult.ApproveResult
 		ret.Reloaded = reloadResult.ReloadResults
 		promoteApp = len(reloadResult.PromoteResults) > 0
-	}
-
-	if updated && promote && !liveApp.IsDev {
-		if !reloadApp {
-			// For prod apps, promote the staging app (unless already promoted as part of reload)
+	} else if updated {
+		// No reload, increment version and promote (if enabled)
+		stagingFileStore := metadata.NewFileStore(liveApp.Id, liveApp.Metadata.VersionMetadata.Version, s.db, tx)
+		err := stagingFileStore.IncrementAppVersion(ctx, tx, &liveApp.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error incrementing app version: %w", err)
+		}
+		if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
+			return nil, err
+		}
+		if promote && !liveApp.IsDev {
 			if err = s.promoteApp(ctx, tx, liveApp, prodApp); err != nil {
 				return nil, err
 			}
 			promoteApp = true
 		}
-		updatedApps = append(updatedApps, prodApp.AppPathDomain())
 	}
 
 	ret.Updated = updatedApps

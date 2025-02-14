@@ -13,13 +13,18 @@ import (
 	"github.com/claceio/clace/internal/types"
 )
 
-func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResult, error) {
+func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, stageAppEntry *types.AppEntry,
+	approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResult, error) {
 	prodAppEntry := appEntry
 	var err error
 	if !appEntry.IsDev {
-		appEntry, err = s.getStageApp(ctx, tx, appEntry)
-		if err != nil {
-			return nil, err
+		if stageAppEntry != nil {
+			appEntry = stageAppEntry
+		} else {
+			appEntry, err = s.getStageApp(ctx, tx, appEntry)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -120,7 +125,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 		if err != nil {
 			return nil, err
 		}
-		ret, err := s.ReloadApp(ctx, tx, appEntry, approve, dryRun, promote, branch, commit, gitAuth)
+		ret, err := s.ReloadApp(ctx, tx, appEntry, nil, approve, dryRun, promote, branch, commit, gitAuth)
 		if err != nil {
 			return nil, err
 		}
