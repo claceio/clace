@@ -74,8 +74,6 @@ Examples:
 				return err
 			}
 
-			fmt.Printf("Applied %#+v\n", applyResponse)
-
 			if len(applyResponse.CreateResults) > 0 {
 				fmt.Fprintf(cCtx.App.Writer, "Created apps:\n")
 				for i, createResult := range applyResponse.CreateResults {
@@ -132,8 +130,8 @@ Examples:
 				fmt.Fprintln(cCtx.App.Writer)
 			}
 
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) updated, %d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
-				len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) created, %d app(s) updated, %d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
+				len(applyResponse.CreateResults), len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
 
 			if applyResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

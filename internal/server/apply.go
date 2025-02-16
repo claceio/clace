@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 
 	"github.com/BurntSushi/toml"
 	"github.com/claceio/clace/internal/app/appfs"
@@ -602,24 +601,24 @@ func mergeSlice(old, new []string, live *[]string, force bool) bool {
 	}
 
 	updated := false
-	liveDict := make(map[string]int)
-	for i, v := range *live {
-		liveDict[v] = i
+	liveDict := make(map[string]bool)
+	for _, v := range *live {
+		liveDict[v] = true
 	}
-	newDict := make(map[string]int)
-	for i, v := range new {
-		newDict[v] = i
+	newDict := make(map[string]bool)
+	for _, v := range new {
+		newDict[v] = true
 	}
-	oldDict := make(map[string]int)
-	for i, v := range old {
-		oldDict[v] = i
+	oldDict := make(map[string]bool)
+	for _, v := range old {
+		oldDict[v] = true
 	}
 
 	if old == nil {
 		// First run of apply
 		for _, v := range new {
 			// Add values from new, retaining existing live values
-			if !hasEntry(v, liveDict) {
+			if !liveDict[v] {
 				updated = true
 				*live = append(*live, v)
 			}
@@ -627,14 +626,20 @@ func mergeSlice(old, new []string, live *[]string, force bool) bool {
 	} else {
 		// Three way merge
 		for _, v := range old {
-			if !hasEntry(v, newDict) && hasEntry(v, liveDict) {
+			if !newDict[v] && liveDict[v] {
 				// Removed from new
 				updated = true
-				*live = slices.Delete(*live, liveDict[v], liveDict[v]+1)
+				tmp := []string{}
+				for _, lv := range *live {
+					if lv != v {
+						tmp = append(tmp, lv)
+					}
+				}
+				*live = tmp
 			}
 		}
 		for _, v := range new {
-			if !hasEntry(v, oldDict) && !hasEntry(v, liveDict) {
+			if !oldDict[v] && !liveDict[v] {
 				// Added in new
 				updated = true
 				*live = append(*live, v)
@@ -643,11 +648,6 @@ func mergeSlice(old, new []string, live *[]string, force bool) bool {
 	}
 
 	return updated
-}
-
-func hasEntry(s string, dict map[string]int) bool {
-	_, ok := dict[s]
-	return ok
 }
 
 func checkPropertyChanged(oldInfo *types.CreateAppRequest, fetchVal func(*types.CreateAppRequest) any, newVal, liveVal any, force bool) bool {
