@@ -16,7 +16,7 @@ tests:
     command: ../clace app update-metadata copt --promote co3='[5,6]' /applytest/app4
     exit-code: 0
   apply0013:
-    command: ../clace app update-metadata cvol --promote "v1:/abc" v3 /applytest/app4
+    command: ../clace app update-metadata cvol --promote "v1:/abc" v2 v3 /applytest/app4
     exit-code: 0
   apply0020: ## apply update
     command: ../clace apply ./apply_files/apply2.ace all
