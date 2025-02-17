@@ -201,7 +201,7 @@ Examples:
 }
 
 func printCreateResult(cCtx *cli.Context, createResult types.AppCreateResponse) {
-	fmt.Printf("      App: %s\n", createResult.Path)
+	fmt.Printf("      App: %s\n", &createResult.AppPathDomain)
 	if createResult.HttpUrl != "" {
 		fmt.Printf(" HTTP Url: %s\n", createResult.HttpUrl)
 	}

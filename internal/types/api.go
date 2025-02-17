@@ -101,7 +101,7 @@ type AppListResponse struct {
 }
 
 type AppCreateResponse struct {
-	Path           string          `json:"path"`
+	AppPathDomain  AppPathDomain   `json:"app_path_domain"`
 	DryRun         bool            `json:"dry_run"`
 	HttpUrl        string          `json:"http_url"`
 	HttpsUrl       string          `json:"https_url"`

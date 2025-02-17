@@ -8,9 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 	"github.com/claceio/clace/internal/app/appfs"
@@ -336,8 +338,25 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		}
 	}
 
+	// Get list of all updated apps
+	allUpdatedApps := []types.AppPathDomain{}
+	allUpdatedApps = append(allUpdatedApps, updateResults...)
+	allUpdatedApps = append(allUpdatedApps, reloadResults...)
+	allUpdatedApps = append(allUpdatedApps, promoteResults...)
+	for _, app := range approveResults {
+		allUpdatedApps = append(allUpdatedApps, app.AppPathDomain)
+	}
+	for _, app := range createResults {
+		allUpdatedApps = append(allUpdatedApps, app.AppPathDomain)
+	}
+	allAppMap := make(map[types.AppPathDomain]bool)
+	for _, app := range allUpdatedApps {
+		allAppMap[app] = true
+	}
+	allUpdatedApps = slices.Collect(maps.Keys(allAppMap))
+
 	// Commit the transaction if not dry run and update the in memory app store
-	if err := s.CompleteTransaction(ctx, tx, updateResults, dryRun, "apply"); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, allUpdatedApps, dryRun, "apply"); err != nil {
 		return nil, err
 	}
 

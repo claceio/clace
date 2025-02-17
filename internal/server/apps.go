@@ -220,7 +220,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 	for _, pd := range pathDomain {
 		appInfo, ok := appMap[pd.String()]
 		if !ok {
-			return fmt.Errorf("app not found: %s", pd)
+			continue
 		}
 
 		event.Target = pd.String()
