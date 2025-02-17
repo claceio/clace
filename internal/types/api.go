@@ -229,5 +229,5 @@ type AppReloadOption string
 const (
 	AppReloadOptionNone    AppReloadOption = "none"
 	AppReloadOptionUpdated AppReloadOption = "updated"
-	AppReloadOptionAll     AppReloadOption = "all"
+	AppReloadOptionMatched AppReloadOption = "matched"
 )

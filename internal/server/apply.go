@@ -516,7 +516,7 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		}
 	}
 
-	reloadApp := reload == types.AppReloadOptionAll || updated && reload == types.AppReloadOptionUpdated
+	reloadApp := reload == types.AppReloadOptionMatched || updated && reload == types.AppReloadOptionUpdated
 	promoteApp := false
 	ret := &types.AppApplyResult{
 		DryRun: dryRun,

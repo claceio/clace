@@ -4,27 +4,27 @@ config:
     GOCOVERDIR: ${GOCOVERDIR}/../client
     PATH: ${PATH}
 tests:
-  apply0010: ## create all apps
+  apply_git0010: ## create all apps
     command: ../clace apply ./apply_files/apply_git.ace all
     stdout: "3 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted."
-  apply0020:
-    command: ../clace apply --approve --promote --reload=all ./apply_files/apply_git.ace all
+  apply_git0020:
+    command: ../clace apply --approve --promote --reload=matched ./apply_files/apply_git.ace all
     stdout: "0 app(s) created, 0 app(s) updated, 6 app(s) reloaded, 3 app(s) approved, 3 app(s) promoted."
-  apply0030: # check curl after approval
+  apply_git0030: # check curl after approval
     command: curl -su "admin:qwerty" localhost:25222/applytest/test1/
     stdout: "Disk Usage"
-  apply0040: # check curl after approval for stage
+  apply_git0040: # check curl after approval for stage
     command: curl -su "admin:qwerty" localhost:25222/applytest/test1_cl_stage/
     stdout: "Disk Usage"
 
-  apply0050: ## check auth error
+  apply_git0050: ## check auth error
     command: ../clace apply ./apply_files/apply_git2.ace /applytest/test1
     stderr: "app /applytest/test1 authentication changed, cannot apply changes"
     exit-code: 1
-  apply0051: ## check git auth error
+  apply_git0051: ## check git auth error
     command: ../clace apply ./apply_files/apply_git2.ace /applytest/test2
     stderr: "app /applytest/test2 git auth changed, cannot apply changes"
     exit-code: 1
-  apply0052: ## check spec update
+  apply_git0052: ## check spec update
     command: ../clace apply ./apply_files/apply_git2.ace /applytest/test3
     stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted"
