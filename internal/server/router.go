@@ -573,7 +573,7 @@ func (h *Handler) createApp(r *http.Request) (any, error) {
 	appPath := appRequest.Path
 	updateTargetInContext(r, appPath, dryRun)
 
-	results, err := h.server.CreateApp(r.Context(), types.Transaction{}, appPath, approve, dryRun, &appRequest)
+	results, err := h.server.CreateApp(r.Context(), appPath, approve, dryRun, &appRequest)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

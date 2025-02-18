@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -193,24 +192,18 @@ func appDefToApplyInfo(appDef *starlarkstruct.Struct) (*types.CreateAppRequest, 
 	}, nil
 }
 
-func (s *Server) setupSource(applyPath, branch, commit, gitAuth string) (string, string, error) {
+func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCache *RepoCache) (string, string, error) {
 	if !isGit(applyPath) {
 		return filepath.Dir(applyPath), filepath.Base(applyPath), nil
 	}
 
-	// Create temp directory on disk
-	tmpDir, err := os.MkdirTemp("", "clace_git_apply_")
-	if err != nil {
-		return "", "", err
-	}
-
 	branch = cmp.Or(branch, "main")
-	_, _, file, err := s.checkoutRepo(applyPath, branch, commit, gitAuth, tmpDir)
+	repo, folder, _, _, err := repoCache.CheckoutRepo(applyPath, branch, commit, gitAuth)
 	if err != nil {
 		return "", "", err
 	}
 
-	return tmpDir, file, nil
+	return repo, folder, nil
 }
 
 func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
@@ -225,7 +218,13 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		reload = types.AppReloadOptionUpdated
 	}
 
-	dir, file, err := s.setupSource(applyPath, branch, commit, gitAuth)
+	repoCache, err := NewRepoCache(s)
+	if err != nil {
+		return nil, err
+	}
+	defer repoCache.Cleanup()
+
+	dir, file, err := s.setupSource(applyPath, branch, commit, gitAuth, repoCache)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +312,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	createResults := make([]types.AppCreateResponse, 0, len(newApps))
 	for _, newApp := range newApps {
 		applyInfo := applyConfig[newApp]
-		res, err := s.CreateApp(ctx, tx, newApp.String(), approve, dryRun, applyInfo)
+		res, err := s.CreateAppTx(ctx, tx, newApp.String(), approve, dryRun, applyInfo, repoCache)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +322,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 
 	for _, updateApp := range updatedApps {
 		applyInfo := applyConfig[updateApp]
-		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, force)
+		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, force, repoCache)
 		if err != nil {
 			return nil, err
 		}
@@ -399,7 +398,7 @@ func convertToMapString(input map[string]any, convertToml bool) (map[string]stri
 }
 
 func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPathDomain types.AppPathDomain, newInfo *types.CreateAppRequest,
-	approve, dryRun, promote bool, reload types.AppReloadOption, force bool) (*types.AppApplyResult, error) {
+	approve, dryRun, promote bool, reload types.AppReloadOption, force bool, repoCache *RepoCache) (*types.AppApplyResult, error) {
 	liveApp, err := s.GetAppEntry(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, fmt.Errorf("app missing during update %w", err)
@@ -524,7 +523,7 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	if reloadApp {
 		// Reload does the version increment and promotion
 		reloadResult, err := s.ReloadApp(ctx, tx, prodApp, liveApp, approve, dryRun, promote,
-			newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName)
+			newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName, repoCache)
 		if err != nil {
 			return nil, err
 		}

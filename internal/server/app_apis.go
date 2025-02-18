@@ -22,10 +22,6 @@ import (
 	"github.com/claceio/clace/internal/metadata"
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/segmentio/ksuid"
 )
 
@@ -57,7 +53,40 @@ func normalizePath(inp string) string {
 	return inp
 }
 
-func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, appPath string, approve, dryRun bool, appRequest *types.CreateAppRequest) (*types.AppCreateResponse, error) {
+func (s *Server) CreateApp(ctx context.Context, appPath string,
+	approve, dryRun bool, appRequest *types.CreateAppRequest) (*types.AppCreateResponse, error) {
+
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	repoCache, err := NewRepoCache(s)
+	if err != nil {
+		return nil, err
+	}
+	defer repoCache.Cleanup()
+
+	result, err := s.CreateAppTx(ctx, tx, appPath, approve, dryRun, appRequest, repoCache)
+	if err != nil {
+		return nil, err
+	}
+
+	if dryRun {
+		return result, nil
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	s.apps.ClearAllAppCache()
+	return result, nil
+}
+
+func (s *Server) CreateAppTx(ctx context.Context, currentTx types.Transaction, appPath string,
+	approve, dryRun bool, appRequest *types.CreateAppRequest, repoCache *RepoCache) (*types.AppCreateResponse, error) {
 	appPathDomain, err := parseAppPath(appPath)
 	if err != nil {
 		return nil, err
@@ -102,7 +131,7 @@ func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, app
 	appEntry.Metadata.AppConfig = appRequest.AppConfig
 	appEntry.UserID = system.GetContextUserId(ctx)
 
-	auditResult, err := s.createApp(ctx, currentTx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName, appRequest)
+	auditResult, err := s.createApp(ctx, currentTx, &appEntry, approve, dryRun, appRequest.GitBranch, appRequest.GitCommit, appRequest.GitAuthName, appRequest, repoCache)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -110,7 +139,8 @@ func (s *Server) CreateApp(ctx context.Context, currentTx types.Transaction, app
 	return auditResult, nil
 }
 
-func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string, applyInfo *types.CreateAppRequest) (*types.AppCreateResponse, error) {
+func (s *Server) createApp(ctx context.Context, tx types.Transaction,
+	appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string, applyInfo *types.CreateAppRequest, repoCache *RepoCache) (*types.AppCreateResponse, error) {
 	if isGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
@@ -134,15 +164,6 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 	}
 
 	idStr := strings.ToLower(genId.String()) // Lowercase the ID, helps use the ID in container names
-
-	tx := currentTx
-	if currentTx.Tx == nil {
-		tx, err = s.db.BeginTransaction(ctx)
-		if err != nil {
-			return nil, err
-		}
-		defer tx.Rollback()
-	}
 
 	if appEntry.IsDev {
 		appEntry.Id = types.AppId(types.ID_PREFIX_APP_DEV + idStr)
@@ -175,7 +196,7 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 		stageAppEntry.MainApp = appEntry.Id
 		stageAppEntry.Metadata.VersionMetadata.Version = 1
 
-		if currentTx.Tx != nil {
+		if tx.Tx != nil {
 			// Save the apply info in the app metadata (if called from apply context)
 			stageAppEntry.Metadata.VersionMetadata.ApplyInfo, err = json.Marshal(applyInfo)
 			if err != nil {
@@ -190,7 +211,7 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 
 	if isGit(workEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
-		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth); err != nil {
+		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth, repoCache); err != nil {
 			return nil, fmt.Errorf("failed to load source %s from git: %w. Wrong org/repo name can show as auth error."+
 				" Use --git-auth for private repos, --branch to change branch", workEntry.SourceUrl, err)
 		}
@@ -250,17 +271,6 @@ func (s *Server) createApp(ctx context.Context, currentTx types.Transaction, app
 		ApproveResults: results,
 	}
 
-	if dryRun {
-		return ret, nil
-	}
-
-	if currentTx.Tx == nil {
-		if err = tx.Commit(); err != nil {
-			return nil, err
-		}
-
-		s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
-	}
 	return ret, nil
 }
 
@@ -708,98 +718,19 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 	}, nil
 }
 
-func (s *Server) checkoutRepo(sourceUrl, branch, commit, gitAuth, targetPath string) (string, *object.Commit, string, error) {
-	// Figure on which repo to clone
-	repo, folder, err := parseGithubUrl(sourceUrl)
-	if err != nil {
-		return "", nil, "", err
-	}
-
-	cloneOptions := git.CloneOptions{
-		URL: repo,
-	}
-
-	if commit == "" {
-		// No commit id specified, checkout specified branch
-		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(branch)
-		cloneOptions.SingleBranch = true
-		cloneOptions.Depth = 1
-	}
-
-	if gitAuth != "" {
-		// Auth is specified, load the key
-		authEntry, err := s.loadGitKey(gitAuth)
-		if err != nil {
-			return "", nil, "", err
-		}
-		s.Info().Msgf("Using git auth %s", authEntry.user)
-		auth, err := ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
-		if err != nil {
-			return "", nil, "", err
-		}
-		cloneOptions.Auth = auth
-	}
-
-	// Configure the repo to Clone
-	s.Info().Msgf("Cloning git repo %s to %s", repo, targetPath)
-	gitRepo, err := git.PlainClone(targetPath, false, &cloneOptions)
-	if err != nil {
-		return "", nil, "", fmt.Errorf("error checking out branch %s: %w", branch, err)
-	}
-
-	w, err := gitRepo.Worktree()
-	if err != nil {
-		return "", nil, "", err
-	}
-	// Checkout specified hash
-	options := git.CheckoutOptions{}
-	if commit != "" {
-		s.Info().Msgf("Checking out commit %s", commit)
-		options.Hash = plumbing.NewHash(commit)
-	} else {
-		options.Branch = plumbing.NewBranchReferenceName(branch)
-	}
-
-	/* Sparse checkout seems to not be reliable with go-git
-	if folder != "" {
-		options.SparseCheckoutDirectories = []string{folder}
-	}
-	*/
-	if err := w.Checkout(&options); err != nil {
-		return "", nil, "", fmt.Errorf("error checking out branch %s commit %s: %w", branch, commit, err)
-	}
-
-	ref, err := gitRepo.Head()
-	if err != nil {
-		return "", nil, "", err
-	}
-	newCommit, err := gitRepo.CommitObject(ref.Hash())
-	if err != nil {
-		return "", nil, "", err
-	}
-
-	return repo, newCommit, folder, nil
-}
-
-func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
-	// Create temp directory on disk
-	tmpDir, err := os.MkdirTemp("", "clace_git_"+string(appEntry.Id)+"_")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-
+func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache) error {
 	gitAuth = cmp.Or(gitAuth, appEntry.Settings.GitAuthName)
 	branch = cmp.Or(cmp.Or(branch, appEntry.Metadata.VersionMetadata.GitBranch), "main")
-	repo, newCommit, folder, err := s.checkoutRepo(appEntry.SourceUrl, branch, commit, gitAuth, tmpDir)
+
+	repo, folder, message, hash, err := repoCache.CheckoutRepo(appEntry.SourceUrl, branch, commit, gitAuth)
 	if err != nil {
 		return err
 	}
 
 	// Update the git info into the appEntry, the caller needs to persist it into the app metadata
 	// This function will persist it into the app_version metadata
-	appEntry.Metadata.VersionMetadata.GitCommit = newCommit.Hash.String()
-	appEntry.Metadata.VersionMetadata.GitMessage = newCommit.Message
+	appEntry.Metadata.VersionMetadata.GitCommit = hash
+	appEntry.Metadata.VersionMetadata.GitMessage = message
 	if commit != "" {
 		appEntry.Metadata.VersionMetadata.GitBranch = ""
 	} else {
@@ -807,10 +738,11 @@ func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, ap
 	}
 	appEntry.Settings.GitAuthName = gitAuth
 
-	s.Info().Msgf("Cloned git repo %s %s:%s folder %s to %s, commit %s: %s", repo, appEntry.Metadata.VersionMetadata.GitBranch, appEntry.Metadata.VersionMetadata.GitCommit, folder, tmpDir, newCommit.Hash.String(), newCommit.Message)
-	checkoutFolder := tmpDir
+	s.Info().Msgf("Cloned git repo %s %s:%s folder %s to %s, commit %s: %s", repo,
+		appEntry.Metadata.VersionMetadata.GitBranch, appEntry.Metadata.VersionMetadata.GitCommit, folder, repo, hash, message)
+	checkoutFolder := repo
 	if folder != "" {
-		checkoutFolder = path.Join(tmpDir, folder)
+		checkoutFolder = path.Join(repo, folder)
 	}
 
 	s.Info().Msgf("Loading app sources from %s", checkoutFolder)
@@ -947,6 +879,12 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 	}
 	defer tx.Rollback()
 
+	repoCache, err := NewRepoCache(s)
+	if err != nil {
+		return nil, err
+	}
+	defer repoCache.Cleanup()
+
 	mainAppEntry, err := s.db.GetAppTx(ctx, tx, mainAppPathDomain)
 	if err != nil {
 		return nil, err
@@ -976,7 +914,7 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 	}
 
 	// Checkout the git repo locally and load into database
-	if err := s.loadSourceFromGit(ctx, tx, &previewAppEntry, "", commitId, previewAppEntry.Settings.GitAuthName); err != nil {
+	if err := s.loadSourceFromGit(ctx, tx, &previewAppEntry, "", commitId, previewAppEntry.Settings.GitAuthName, repoCache); err != nil {
 		return nil, fmt.Errorf("failed to load source %s from git: %w", previewAppEntry.SourceUrl, err)
 	}
 

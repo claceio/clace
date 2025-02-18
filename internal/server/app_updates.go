@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, stageAppEntry *types.AppEntry,
-	approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResult, error) {
+	approve, dryRun, promote bool, branch, commit, gitAuth string, repoCache *RepoCache) (*types.AppReloadResult, error) {
 	prodAppEntry := appEntry
 	var err error
 	if !appEntry.IsDev {
@@ -28,7 +28,7 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 		}
 	}
 
-	if err := s.loadAppCode(ctx, tx, appEntry, branch, commit, gitAuth); err != nil {
+	if err := s.loadAppCode(ctx, tx, appEntry, branch, commit, gitAuth, repoCache); err != nil {
 		return nil, err
 	}
 
@@ -115,6 +115,12 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 	}
 	defer tx.Rollback()
 
+	repoCache, err := NewRepoCache(s)
+	if err != nil {
+		return nil, err
+	}
+	defer repoCache.Cleanup()
+
 	reloadResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
@@ -125,7 +131,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 		if err != nil {
 			return nil, err
 		}
-		ret, err := s.ReloadApp(ctx, tx, appEntry, nil, approve, dryRun, promote, branch, commit, gitAuth)
+		ret, err := s.ReloadApp(ctx, tx, appEntry, nil, approve, dryRun, promote, branch, commit, gitAuth, repoCache)
 		if err != nil {
 			return nil, err
 		}
@@ -152,12 +158,12 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 	return ret, nil
 }
 
-func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string) error {
+func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache) error {
 	s.Info().Msgf("Reloading app code %v", appEntry)
 
 	if isGit(appEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
-		if err := s.loadSourceFromGit(ctx, tx, appEntry, branch, commit, gitAuth); err != nil {
+		if err := s.loadSourceFromGit(ctx, tx, appEntry, branch, commit, gitAuth, repoCache); err != nil {
 			return err
 		}
 	} else {

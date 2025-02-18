@@ -16,6 +16,9 @@ tests:
   apply_git0040: # check curl after approval for stage
     command: curl -su "admin:qwerty" localhost:25222/applytest/test1_cl_stage/
     stdout: "Disk Usage"
+  apply_git0041: # check curl after approval
+    command: curl -su "admin:qwerty" localhost:25222/applytest/test3/
+    stdout: "List Files"
 
   apply_git0050: ## check auth error
     command: ../clace apply ./apply_files/apply_git2.ace /applytest/test1
@@ -26,5 +29,5 @@ tests:
     stderr: "app /applytest/test2 git auth changed, cannot apply changes"
     exit-code: 1
   apply_git0052: ## check spec update
-    command: ../clace apply ./apply_files/apply_git2.ace /applytest/test3
+    command: ../clace apply --approve ./apply_files/apply_git2.ace /applytest/test3
     stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted"
