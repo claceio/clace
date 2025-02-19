@@ -198,12 +198,18 @@ func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCach
 	}
 
 	branch = cmp.Or(branch, "main")
-	repo, folder, _, _, err := repoCache.CheckoutRepo(applyPath, branch, commit, gitAuth)
+	repo, applyFile, _, _, err := repoCache.CheckoutRepo(applyPath, branch, commit, gitAuth)
 	if err != nil {
 		return "", "", err
 	}
-
-	return repo, folder, nil
+	if applyFile == "" {
+		return "", "", fmt.Errorf("apply file name has to be specified within source repo")
+	}
+	if applyFile[len(applyFile)-1] == '/' {
+		applyFile = applyFile[:len(applyFile)-1]
+	}
+	s.Trace().Msgf("Applying %s files from repo %s", applyFile, repo)
+	return repo, applyFile, nil
 }
 
 func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
@@ -238,7 +244,12 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	if err != nil {
 		return nil, err
 	}
+
+	if len(globFiles) == 0 {
+		return nil, fmt.Errorf("no matching files found in %s", applyPath)
+	}
 	for _, f := range globFiles {
+		s.Trace().Msgf("Applying file %s", f)
 		fileBytes, err := sourceFS.ReadFile(f)
 		if err != nil {
 			return nil, fmt.Errorf("error reading file %s: %w", f, err)
@@ -311,6 +322,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 
 	createResults := make([]types.AppCreateResponse, 0, len(newApps))
 	for _, newApp := range newApps {
+		s.Trace().Msgf("Applying create app %s", newApp)
 		applyInfo := applyConfig[newApp]
 		res, err := s.CreateAppTx(ctx, tx, newApp.String(), approve, dryRun, applyInfo, repoCache)
 		if err != nil {
@@ -321,6 +333,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	}
 
 	for _, updateApp := range updatedApps {
+		s.Trace().Msgf("Applying update app %s", updateApp)
 		applyInfo := applyConfig[updateApp]
 		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, force, repoCache)
 		if err != nil {

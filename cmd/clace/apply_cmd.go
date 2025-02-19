@@ -85,7 +85,7 @@ Examples:
 				fmt.Fprintf(cCtx.App.Writer, "Created apps:\n")
 				for i, createResult := range applyResponse.CreateResults {
 					if i > 0 {
-						fmt.Fprintf(cCtx.App.Writer, ", ")
+						fmt.Fprintf(cCtx.App.Writer, "\n")
 					}
 					printCreateResult(cCtx, createResult)
 				}

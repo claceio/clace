@@ -164,8 +164,8 @@ export TESTENV=abc
 export c1c2_c3=xyz
 GOCOVERDIR=$GOCOVERDIR ../clace server start &
 sleep 2
-commander test $CL_TEST_VERBOSE  --dir ./commander/
-#commander test $CL_TEST_VERBOSE ./commander/test_misc.yaml
+#commander test $CL_TEST_VERBOSE  --dir ./commander/
+commander test $CL_TEST_VERBOSE ./commander/test_apply_git.yaml
 
 echo $?
 

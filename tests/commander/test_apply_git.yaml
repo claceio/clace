@@ -31,3 +31,10 @@ tests:
   apply_git0052: ## check spec update
     command: ../clace apply --approve ./apply_files/apply_git2.ace /applytest/test3
     stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted"
+  apply_git0053: ## check git apply
+    command: ../clace apply github.com/claceio/clace/tests/apply_files/apply_git.ace /applytest/test2
+    stdout: "0 app(s) created, 0 app(s) updated"
+  apply_git0054: ## check git apply
+    command: ../clace apply github.com/claceio/clace/tests/apply_files/apply_invalid.ace /applytest/test2
+    stderr: "no matching files found in"
+    exit-code: 1
