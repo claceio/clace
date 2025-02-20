@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -33,6 +34,7 @@ const (
 	ACTION                = "action"
 	RESULT                = "result"
 	AUDIT                 = "audit"
+	OUTPUT                = "output"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
@@ -376,6 +378,24 @@ func createAuditBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starl
 	return starlark.None, nil
 }
 
+func createOutputBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var value starlark.Value
+	var errValue starlark.String
+	if err := starlark.UnpackArgs(OUTPUT, args, kwargs, "value?", &value, "error?", &errValue); err != nil {
+		return nil, fmt.Errorf("error unpacking output args: %w", err)
+	}
+
+	if value == nil {
+		value = starlark.None
+	}
+
+	output := starlark_type.Output{
+		Value: value,
+		Err:   errValue.GoString(),
+	}
+	return output, nil
+}
+
 func createProxyBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path starlark.String
 	var config starlark.Value
@@ -440,6 +460,7 @@ func CreateBuiltin() starlark.StringDict {
 					ACTION:     starlark.NewBuiltin(ACTION, createActionBuiltin),
 					RESULT:     starlark.NewBuiltin(RESULT, createResultBuiltin),
 					AUDIT:      starlark.NewBuiltin(AUDIT, createAuditBuiltin),
+					OUTPUT:     starlark.NewBuiltin(OUTPUT, createOutputBuiltin),
 
 					GET:             starlark.String(GET),
 					POST:            starlark.String(POST),

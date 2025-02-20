@@ -572,3 +572,70 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Body.String(), "astring:abc2")
 	testutil.AssertStringContains(t, response.Body.String(), "_created_at:0 _created_by: _id:0 _updated_at:")
 }
+
+func TestOutput(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def f1():
+  return ace.output("abc")
+def f2():
+  return ace.output(error="f2error")
+def f3():
+  return ace.output({"k": "v"})
+def h1(req):
+  v = f1()
+  return v.value
+def h2(req):
+  v = f2()
+  return v.value
+def h22(req):
+  v = f2()
+  return v.error
+def h3(req):
+  v = f3()
+  return v.value["k"]
+
+app = ace.app("testApp", 
+ routes = [
+  ace.api("/api1", handler=h1),
+  ace.api("/api2", handler=h2),
+  ace.api("/api22", handler=h22),
+  ace.api("/api3", handler=h3)
+ ]
+)
+`,
+	}
+	a, _, err := CreateTestAppRoot(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/api1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "abc")
+
+	request = httptest.NewRequest("GET", "/api2", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "output has error: f2error")
+
+	request = httptest.NewRequest("GET", "/api22", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "\"f2error\"")
+
+	request = httptest.NewRequest("GET", "/api3", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "\"v\"")
+}
