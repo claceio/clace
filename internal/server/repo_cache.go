@@ -6,6 +6,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -64,6 +65,10 @@ func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (str
 		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(branch)
 		cloneOptions.SingleBranch = true
 		cloneOptions.Depth = 1
+	}
+
+	if gitAuth == "" && strings.HasPrefix(repo, "git@github.com:") {
+		gitAuth = r.server.config.Security.DefaultGitAuth
 	}
 
 	if gitAuth != "" {

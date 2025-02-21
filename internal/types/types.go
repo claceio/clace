@@ -177,6 +177,7 @@ type SecurityConfig struct {
 	SessionMaxAge       int    `toml:"session_max_age"`
 	SessionHttpsOnly    bool   `toml:"session_https_only"`
 	CallbackUrl         string `toml:"callback_url"`
+	DefaultGitAuth      string `toml:"default_git_auth"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer
