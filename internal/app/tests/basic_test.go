@@ -595,13 +595,20 @@ def h22(req):
 def h3(req):
   v = f3()
   return v.value["k"]
+def h4(req):
+   ret = ace.output(error="h4error")
+   if ret:
+     return "ok"
+   else:
+     return "fail"
 
 app = ace.app("testApp", 
  routes = [
   ace.api("/api1", handler=h1),
   ace.api("/api2", handler=h2),
   ace.api("/api22", handler=h22),
-  ace.api("/api3", handler=h3)
+  ace.api("/api3", handler=h3),
+  ace.api("/api4", handler=h4)
  ]
 )
 `,
@@ -638,4 +645,11 @@ app = ace.app("testApp",
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringContains(t, response.Body.String(), "\"v\"")
+
+	request = httptest.NewRequest("GET", "/api4", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "\"fail\"")
 }

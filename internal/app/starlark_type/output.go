@@ -45,7 +45,7 @@ func (o Output) Freeze() {
 }
 
 func (o Output) Truth() starlark.Bool {
-	return o.Err != ""
+	return o.Err == ""
 }
 
 func (o Output) Hash() (uint32, error) {
