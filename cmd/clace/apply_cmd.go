@@ -24,7 +24,7 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 	flags = append(flags, newStringFlag("reload", "r", "Which apps to reload: none, updated, matched", ""))
 	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
-	flags = append(flags, newBoolFlag("force", "f", "Force update app config, removing non-declarative changes", false))
+	flags = append(flags, newBoolFlag("force", "f", "Force update app config, overwriting non-declarative changes", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
