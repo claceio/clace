@@ -80,9 +80,9 @@ func (c *clacePlugin) ListApps(thread *starlark.Thread, builtin *starlark.Builti
 }
 
 func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, permCheck bool, apiName string) (starlark.Value, error) {
-	var query starlark.String
+	var query, path starlark.String
 	var include_internal starlark.Bool
-	if err := starlark.UnpackArgs(apiName, args, kwargs, "query?", &query, "include_internal?", &include_internal); err != nil {
+	if err := starlark.UnpackArgs(apiName, args, kwargs, "query?", &query, "path?", &path, "include_internal?", &include_internal); err != nil {
 		return nil, err
 	}
 
@@ -132,10 +132,56 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 			}
 		}
 
+		if path != "" {
+			// If path glob is specified, check if app matches. If internal apps are to be included,
+			// check if main app matches
+			appPath := app.Path
+			if include_internal && app.MainApp != "" {
+				appPath = strings.TrimSuffix(appPath, types.STAGE_SUFFIX)
+				appPath = strings.TrimSuffix(appPath, types.PREVIEW_SUFFIX)
+			}
+			tmpPath := types.AppPathDomain{
+				Domain: app.Domain,
+				Path:   appPath,
+			}
+
+			match, err := MatchGlob(path.GoString(), tmpPath)
+			if err != nil {
+				return nil, err
+			}
+			if !match {
+				continue
+			}
+		}
+
 		v := starlark.Dict{}
 		v.SetKey(starlark.String("name"), starlark.String(app.Name))
 		v.SetKey(starlark.String("url"), starlark.String(getAppUrl(app, c.server)))
 		v.SetKey(starlark.String("path"), starlark.String(app.AppPathDomain.String()))
+		pathSplit := starlark.List{}
+		pathSplitGlob := starlark.List{}
+		appDomain := ""
+		if app.Domain != "" {
+			pathSplit.Append(starlark.String(app.Domain))
+			pathSplitGlob.Append(starlark.String(app.Domain + ":**"))
+			appDomain = app.Domain + ":"
+		}
+		appPath := ""
+		splitPath := strings.Split(app.Path, "/")
+		for i, path := range splitPath {
+			if path != "" {
+				pathSplit.Append(starlark.String("/" + path))
+				appPath += "/" + path
+				if i == len(splitPath)-1 {
+					// Last path, no glob
+					pathSplitGlob.Append(starlark.String(appDomain + appPath))
+				} else {
+					pathSplitGlob.Append(starlark.String(appDomain + appPath + "/**"))
+				}
+			}
+		}
+		v.SetKey(starlark.String("path_split"), &pathSplit)
+		v.SetKey(starlark.String("path_split_glob"), &pathSplitGlob)
 		v.SetKey(starlark.String("id"), starlark.String(app.Id))
 		v.SetKey(starlark.String("is_dev"), starlark.Bool(app.IsDev))
 		v.SetKey(starlark.String("main_app"), starlark.String(app.MainApp))
