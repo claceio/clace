@@ -173,6 +173,8 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 				pathSplit.Append(starlark.String("/" + path))
 				appPath += "/" + path
 				if i == len(splitPath)-1 {
+					appPath = strings.TrimSuffix(appPath, types.STAGE_SUFFIX)
+					appPath = strings.TrimSuffix(appPath, types.PREVIEW_SUFFIX)
 					// Last path, no glob
 					pathSplitGlob.Append(starlark.String(appDomain + appPath))
 				} else {
