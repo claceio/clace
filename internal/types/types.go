@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	CL_HOME                 = "CL_HOME"
 	ID_PREFIX_APP_PROD      = "app_prd_"
 	ID_PREFIX_APP_DEV       = "app_dev_"
 	ID_PREFIX_APP_STAGE     = "app_stg_"

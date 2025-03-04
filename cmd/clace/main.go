@@ -8,6 +8,9 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 
@@ -67,13 +70,80 @@ func globalFlags(globalConfig *types.GlobalConfig) ([]cli.Flag, error) {
 	}, nil
 }
 
-func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
-	filePath := path.Clean(os.ExpandEnv("$CL_HOME/clace.toml"))
-	if cCtx.IsSet(configFileFlagName) {
-		filePath = cCtx.String(configFileFlagName)
+// getConfigPath returns the path to the config file and the home directory
+// Uses CL_HOME env if set. Otherwise uses binaries parent path. Setting CL_HOME is
+// the easiest way to configure. Uses some extra heuristics to help avoid having to setup
+// CL_HOME in the env, by using the binaries parent folder as the default.
+// On mac, looks for brew install locations also.
+func getConfigPath(cCtx *cli.Context) (string, string, error) {
+	configFile := cCtx.String(configFileFlagName)
+	clHome := os.Getenv(types.CL_HOME)
+	if configFile == "" {
+		configFile = os.Getenv("CL_CONFIG_FILE")
+		if configFile == "" && clHome != "" {
+			configFile = path.Join(clHome, "clace.toml")
+		}
+	}
+	if clHome != "" {
+		// Found CL_HOME
+		return clHome, configFile, nil
+	}
+	if configFile != "" {
+		// CL_HOME not set and config file is set, use config dir path as CL_HOME
+		clHome = filepath.Dir(configFile)
+		return clHome, configFile, nil
 	}
 
-	//fmt.Fprintf(os.Stderr, "Loading config file: %s\n", filePath)
+	binFile, err := os.Executable()
+	if err != nil {
+		return "", "", fmt.Errorf("unable to find executable path: %w", err)
+	}
+	binAbsolute, err := filepath.EvalSymlinks(binFile)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to resolve symlink: %w", err)
+	}
+
+	binParent := filepath.Dir(binAbsolute)
+	if filepath.Base(binParent) == "bin" {
+		// Found bin directory, use its parent
+		binParent = filepath.Dir(binParent)
+	}
+	binParentConfig := path.Join(binParent, "clace.toml")
+	if fileExists(binParentConfig) && strings.Contains(binParent, "clace") {
+		// Config file found in parent directory of the executable, use that as path
+		// To avoid clobbering /usr, check if the path contains the string "clace"
+		return binParent, binParentConfig, nil
+	}
+
+	if runtime.GOOS == "darwin" {
+		// brew on macOS specific checks
+		if fileExists("/opt/homebrew/etc/clace.toml") {
+			return "/opt/homebrew/var/clace", "/opt/homebrew/etc/clace.toml", nil
+		} else if fileExists("/usr/local/etc/clace.toml") {
+			return "/usr/local/var/clace", "/usr/local/etc/clace.toml", nil
+		}
+	}
+	return "", "", fmt.Errorf("unable to find CL_HOME or config file")
+}
+
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil // any error is treated as not exists
+}
+
+func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
+	// Find CL_HOME and config file, update CL_HOME in env
+	clHome, filePath, err := getConfigPath(cCtx)
+	if err != nil {
+		return err
+	}
+	clHome, err = filepath.Abs(clHome)
+	if err != nil {
+		return fmt.Errorf("unable to resolve CL_HOME: %w", err)
+	}
+	os.Setenv(types.CL_HOME, clHome)
+
+	//fmt.Fprintf(os.Stderr, "Loading config file: %s, clHome %s\n", filePath, clHome)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -82,7 +152,6 @@ func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConf
 	if err := system.LoadGlobalConfig(string(buf), globalConfig); err != nil {
 		return err
 	}
-
 	if err := system.LoadClientConfig(string(buf), clientConfig); err != nil {
 		return err
 	}
@@ -117,10 +186,10 @@ func main() {
 			err := parseConfig(ctx, globalConfig, clientConfig, serverConfig)
 			if ctx.Command != nil && ctx.Command.Name == "password" {
 				// For password command, ignore error parsing config
-				return err
+				return nil
 			}
 
-			return nil
+			return err
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {

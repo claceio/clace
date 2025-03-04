@@ -43,21 +43,12 @@ const (
 	APPSPECS          = "appspecs"
 )
 
-// CL_HOME is the root directory for Clace logs and temp files
-var CL_HOME = os.ExpandEnv("$CL_HOME")
-
 //go:embed appspecs
 var embedAppTypes embed.FS
 
 var appTypes map[string]types.SpecFiles
 
 func init() {
-	if len(CL_HOME) == 0 {
-		// Default to current directory if CL_HOME is not set
-		CL_HOME = "."
-		os.Setenv("CL_HOME", CL_HOME)
-	}
-
 	// Read app type config embedded in the binary
 	appTypes = make(map[string]types.SpecFiles)
 	entries, err := embedAppTypes.ReadDir(APPSPECS)
