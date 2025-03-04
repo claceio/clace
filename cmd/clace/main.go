@@ -188,8 +188,10 @@ func main() {
 				// For password command, ignore error parsing config
 				return nil
 			}
-
-			return fmt.Errorf("error parsing config %w", err)
+			if err != nil {
+				return fmt.Errorf("error parsing config %w", err)
+			}
+			return nil
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {
