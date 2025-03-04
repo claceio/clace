@@ -184,12 +184,12 @@ func main() {
 		Flags:                globalFlags,
 		Before: func(ctx *cli.Context) error {
 			err := parseConfig(ctx, globalConfig, clientConfig, serverConfig)
-			if ctx.Command != nil && ctx.Command.Name == "password" {
+			if ctx.Command != nil && ctx.Args().Len() > 0 && ctx.Args().Get(0) == "password" {
 				// For password command, ignore error parsing config
 				return nil
 			}
 
-			return err
+			return fmt.Errorf("error parsing config %w", err)
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {
