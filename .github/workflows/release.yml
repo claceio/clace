@@ -21,6 +21,12 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.23.1"
+      - name: Set up SSH key for homebrew deploy
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HOMEBREW_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:

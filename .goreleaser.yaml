@@ -107,7 +107,8 @@ brews:
     homepage: https://clace.io
     repository:
       owner: claceio
-      name: homebrew-tap
+      name: homebrew-clace
+      url: git@github.com:claceio/homebrew-clace.git
     service: |
       run [ opt_bin/"clace" ]
       keep_alive true
