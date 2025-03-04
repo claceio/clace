@@ -101,3 +101,25 @@ changelog:
       order: 30
     - title: Other
       order: 999
+
+brews:
+  - name: clace
+    homepage: https://clace.io
+    repository:
+      owner: claceio
+      name: homebrew-tap
+    service: |
+      run [ opt_bin/"clace" ]
+      keep_alive true
+      working_dir HOMEBREW_PREFIX
+      log_path var/"log/clace.log"
+      error_log_path var/"log/clace.log"
+    skip_upload: auto
+    install: |-
+      bin.install "clace"
+    postinstall: |-
+      # Create config directory if it doesn't exist
+      if [ ! -f "#{etc}/clace.toml" ]; then
+        echo "Initializing Clace..."
+        "#{opt_bin}/clace" password > "#{etc}/clace.toml"
+      fi
