@@ -120,5 +120,6 @@ brews:
       bin.install "clace"
     post_install: |-
       unless File.exist?("#{etc}/clace.toml")
-        system "#{opt_bin}/clace password > #{etc}/clace.toml"
+        stderr = Utils.popen_read("#{opt_bin}/clace password 1>#{etc}/clace.toml 2>&1")
+        puts stderr
       end
