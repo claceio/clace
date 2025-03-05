@@ -109,8 +109,10 @@ brews:
     repository:
       owner: claceio
       name: homebrew-clace
+    dependencies:
+      - name: "mkcert"
     service: |
-      run [ opt_bin/"clace" ]
+      run [ opt_bin/"clace", "server", "start" ]
       keep_alive true
       working_dir HOMEBREW_PREFIX
       log_path var/"log/clace.log"
@@ -120,6 +122,15 @@ brews:
       bin.install "clace"
     post_install: |-
       unless File.exist?("#{etc}/clace.toml")
-        stderr = Utils.popen_read("#{opt_bin}/clace password 1>#{etc}/clace.toml 2>&1")
-        puts stderr
+        pid = spawn("#{opt_bin}/clace password", out: "#{etc}/clace.toml")
+        puts "********** Initializing \"admin\" user **********"
+        Process.wait(pid)
+        puts "***********************************************"
+
+        mkcert_path = `which mkcert`.chomp
+        unless mkcert_path.empty?
+          system("mkdir -p #{HOMEBREW_PREFIX}/var/clace/config/certificates")
+          system("#{mkcert_path} -cert-file #{HOMEBREW_PREFIX}/var/clace/config/certificates/default.crt -key-file #{HOMEBREW_PREFIX}/var/clace/config/certificates/default.key localhost 127.0.0.1 \"*.localhost\"")
+          puts "Created localhost TLS certificates"
+        end
       end
