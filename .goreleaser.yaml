@@ -120,7 +120,7 @@ brews:
       bin.install "clace"
     post_install: |-
       # Create config directory if it doesn't exist
-      if [ ! -f "#{etc}/clace.toml" ]; then
+      if [ ! -f "\#{etc}/clace.toml" ]; then
         echo "Initializing Clace..."
-        "#{opt_bin}/clace" password > "#{etc}/clace.toml"
+        "\#{opt_bin}/clace" password > "\#{etc}/clace.toml"
       fi
