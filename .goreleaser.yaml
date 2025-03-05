@@ -105,6 +105,7 @@ changelog:
 brews:
   - name: clace
     homepage: https://clace.io
+    ids: [targz-archives]
     repository:
       owner: claceio
       name: homebrew-clace
