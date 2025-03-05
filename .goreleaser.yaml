@@ -108,7 +108,6 @@ brews:
     repository:
       owner: claceio
       name: homebrew-clace
-      url: git@github.com:claceio/homebrew-clace.git
     service: |
       run [ opt_bin/"clace" ]
       keep_alive true
@@ -118,7 +117,7 @@ brews:
     skip_upload: auto
     install: |-
       bin.install "clace"
-    postinstall: |-
+    post_install: |-
       # Create config directory if it doesn't exist
       if [ ! -f "#{etc}/clace.toml" ]; then
         echo "Initializing Clace..."
