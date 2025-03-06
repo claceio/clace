@@ -439,6 +439,10 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 		mkcertPath = ""
 	}
 	var mkcertsLock sync.Mutex
+	if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
+		return nil, fmt.Errorf("error creating cert directory %s : %s",
+			os.ExpandEnv(s.config.Https.CertLocation), err)
+	}
 
 	if s.config.Https.ServiceEmail != "" {
 		// Certmagic is enabled
@@ -522,12 +526,6 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 				_, keyErr := os.Stat(certKeyPath)
 				if certErr != nil || keyErr != nil {
 					s.Info().Msgf("Generating default self signed certificate")
-
-					if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
-						return nil, fmt.Errorf("error creating cert directory %s : %s",
-							os.ExpandEnv(s.config.Https.CertLocation), err)
-					}
-
 					err := GenerateSelfSignedCertificate(certFilePath, certKeyPath, 365*24*time.Hour)
 					if err != nil {
 						return nil, fmt.Errorf("error generating self signed certificate: %w", err)
