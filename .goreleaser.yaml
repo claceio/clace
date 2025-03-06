@@ -125,11 +125,12 @@ brews:
         pid = spawn("#{opt_bin}/clace password", out: "#{etc}/clace.toml")
         puts "********** Initializing \"admin\" user **********"
         Process.wait(pid)
-        puts "***********************************************"
+        puts "************* Save this password ****************"
 
         mkcert_path = `which mkcert`.chomp
         unless mkcert_path.empty?
           system("mkdir -p #{HOMEBREW_PREFIX}/var/clace/config/certificates")
+          system("#{mkcert_path} -install")
           system("#{mkcert_path} -cert-file #{HOMEBREW_PREFIX}/var/clace/config/certificates/default.crt -key-file #{HOMEBREW_PREFIX}/var/clace/config/certificates/default.key localhost 127.0.0.1 \"*.localhost\"")
           puts "Created localhost TLS certificates"
         end
