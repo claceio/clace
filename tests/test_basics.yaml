@@ -28,9 +28,7 @@ tests:
 
   basic040:
     command: CL_CONFIG_FILE=config_basic_client_https.toml ../clace app list /invalid # Test TLS
-    stderr: "tls: failed to verify certificate"
-    stdout:
-      line-count: 0
+    stderr: "error: 404 page not found"
     exit-code: 1
 
   basic050:

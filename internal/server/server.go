@@ -434,6 +434,12 @@ func (s *Server) Start() error {
 
 func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	var tlsConfig *tls.Config
+	mkcertPath, err := exec.LookPath("mkcert")
+	if err != nil {
+		mkcertPath = ""
+	}
+	var mkcertsLock sync.Mutex
+
 	if s.config.Https.ServiceEmail != "" {
 		// Certmagic is enabled
 		if s.config.Https.UseStaging {
@@ -483,6 +489,24 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 					// Check if certificate and key files exist on disk for the domain
 					_, certErr := os.Stat(certFilePath)
 					_, keyErr := os.Stat(certKeyPath)
+
+					if s.config.Https.EnableMkcert && mkcertPath != "" && (certErr != nil || keyErr != nil) {
+						// If mkcerts is enabled and certificate or key files do not exist, generate them
+						// Locking is global, not per domain
+						mkcertsLock.Lock()
+						defer mkcertsLock.Unlock()
+						_, certErr = os.Stat(certFilePath)
+						_, keyErr = os.Stat(certKeyPath)
+						if certErr != nil || keyErr != nil {
+							s.Info().Msgf("Generating mkcert certificate for domain %s", domain)
+							cmd := exec.Command(mkcertPath, "-cert-file", certFilePath, "-key-file", certKeyPath, domain)
+							if err := cmd.Run(); err != nil {
+								return nil, fmt.Errorf("error generating certificate using mkcert: %w", err)
+							}
+							_, certErr = os.Stat(certFilePath)
+							_, keyErr = os.Stat(certKeyPath)
+						}
+					}
 
 					// If certificate and key files exist, load them
 					if certErr == nil && keyErr == nil {

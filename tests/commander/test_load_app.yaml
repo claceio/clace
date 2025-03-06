@@ -2,6 +2,7 @@ config:
   env:
     CL_CONFIG_FILE: clace.toml
     GOCOVERDIR: ${GOCOVERDIR}/../client
+    CL_HOME: ${CL_HOME}
 tests:
   load0010: # copy sample app
     command: cp -r ../examples/disk_usage .
@@ -145,6 +146,17 @@ tests:
   load0290: # Create app, valid commit id
     command: ../clace app create --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 https://github.com/claceio/clace/examples/disk_usage /ghload5
     stdout: "HTTP Url: http://localhost:25222/ghload5"
+    exit-code: 0
+  load0300: # Create app with custom domain
+    command: ../clace app create --approve github.com/claceio/clace/examples/disk_usage ghload3.localhost
+    stdout: "App created. Permissions have been approved"
+    exit-code: 0
+  load0310: # test calling app
+    command: curl -su "admin:qwerty" https://ghload3.localhost:25223/
+    stderr:
+      line-count: 0
+  load0320: # check certificates
+    command: ls -l ${CL_HOME}/config/certificates/ghload3.localhost*
     exit-code: 0
 
   load0900: # cleanup
