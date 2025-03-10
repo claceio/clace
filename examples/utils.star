@@ -1,6 +1,6 @@
 
 # Declarative app config, install by running
-#    clace apply --approve github.com/claceio/clace/examples/utils.ace
+#    clace apply --approve github.com/claceio/clace/examples/utils.star
 
 # Install couple of Hypermedia based apps
 app("/utils/bookmarks", "github.com/claceio/apps/utils/bookmarks")
