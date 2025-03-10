@@ -67,6 +67,12 @@ func TestParseAppPathGlob(t *testing.T) {
 			want:      []types.AppPathDomain{{Domain: "", Path: "/app1"}},
 			wantError: nil,
 		},
+		"Match *:": {
+			spec:      "*:",
+			apps:      []types.AppPathDomain{{Domain: "", Path: "/"}, {Domain: "mydomain", Path: "/app2/def"}},
+			want:      []types.AppPathDomain{{Domain: "", Path: "/"}},
+			wantError: nil,
+		},
 		"Match *:**": {
 			spec:      "*:**",
 			apps:      []types.AppPathDomain{{Domain: "", Path: "/app1"}, {Domain: "mydomain", Path: "/app2/def"}},

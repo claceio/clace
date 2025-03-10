@@ -72,6 +72,8 @@ func ParseGlob(appPathGlob string, apps []types.AppPathDomain) ([]types.AppPathD
 
 	if app == "*" {
 		app = "/*"
+	} else if app == "" {
+		app = "/"
 	}
 
 	ret := make([]types.AppPathDomain, 0)
