@@ -74,7 +74,7 @@ tests:
     exit-code: 1
   createerror0200:
     command: ../clace app create --approve ./env_app  ../test1
-    stderr: path cannot contain
+    stderr: 'expected path to start with "/"'
     exit-code: 1
   createerror0300:
     command: ../clace app create --approve ./env_app  /test/./test1

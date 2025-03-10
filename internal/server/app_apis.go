@@ -40,15 +40,17 @@ func parseAppPath(inp string) (types.AppPathDomain, error) {
 	}
 
 	path = normalizePath(path)
+	if path[0] != '/' {
+		return types.AppPathDomain{}, fmt.Errorf("invalid app path %s, expected path to start with \"/\"", inp)
+	}
 	return types.AppPathDomain{Domain: domain, Path: path}, nil
 }
 
 func normalizePath(inp string) string {
-	if len(inp) == 0 || inp[0] != '/' {
-		inp = "/" + inp
-	}
-	if len(inp) > 1 {
-		inp = strings.TrimRight(inp, "/")
+	// remove trailing slash
+	inp = strings.TrimRight(inp, "/")
+	if len(inp) == 0 {
+		return "/"
 	}
 	return inp
 }
