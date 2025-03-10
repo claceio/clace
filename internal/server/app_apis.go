@@ -97,6 +97,14 @@ func (s *Server) CreateAppTx(ctx context.Context, currentTx types.Transaction, a
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
+	if appPathDomain.Domain != "" && appPathDomain.Domain[len(appPathDomain.Domain)-1] == '.' {
+		// If domain ends with a dot, append the default domain
+		if s.config.System.DefaultDomain == "" {
+			return nil, types.CreateRequestError("Domain cannot end with a dot since default_domain is not configured", http.StatusBadRequest)
+		}
+		appPathDomain.Domain += s.config.System.DefaultDomain
+	}
+
 	matchedApp, err := s.CheckAppValid(appPathDomain.Domain, appPathDomain.Path)
 	if err != nil {
 		return nil, types.CreateRequestError(
@@ -578,7 +586,6 @@ func (s *Server) CheckAppValid(domain, matchPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	matchPath = normalizePath(matchPath)
 	matchedApp := ""
 	for _, path := range paths {
 		// If /test is in use, do not allow /test/other

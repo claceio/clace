@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -261,10 +262,16 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		}
 
 		for _, config := range fileConfig {
-
 			appPathDomain, err := parseAppPath(config.Path)
 			if err != nil {
 				return nil, err
+			}
+			if appPathDomain.Domain != "" && appPathDomain.Domain[len(appPathDomain.Domain)-1] == '.' {
+				// If domain ends with a dot, append the default domain
+				if s.config.System.DefaultDomain == "" {
+					return nil, types.CreateRequestError("Domain cannot end with a dot since default_domain is not configured", http.StatusBadRequest)
+				}
+				appPathDomain.Domain += s.config.System.DefaultDomain
 			}
 			if _, ok := applyConfig[appPathDomain]; ok {
 				return nil, fmt.Errorf("duplicate app %s defined in file %s", config.Path, f)

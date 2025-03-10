@@ -147,8 +147,8 @@ tests:
     command: ../clace app create --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 https://github.com/claceio/clace/examples/disk_usage /ghload5
     stdout: "HTTP Url: http://localhost:25222/ghload5"
     exit-code: 0
-  load0300: # Create app with custom domain
-    command: "../clace app create --approve github.com/claceio/clace/examples/disk_usage ghload3.localhost:"
+  load0300: # Create app with custom domain (domain ending in . becomes .localhost)
+    command: "../clace app create --approve github.com/claceio/clace/examples/disk_usage ghload3.:"
     stdout: "App created. Permissions have been approved"
     exit-code: 0
   load0310: # test calling app
