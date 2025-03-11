@@ -289,7 +289,7 @@ func (s *Server) getAppHttpUrl(appEntry *types.AppEntry) string {
 	if s.config.Http.Port <= 0 {
 		return ""
 	}
-	domain := cmp.Or(appEntry.Domain, "localhost")
+	domain := cmp.Or(appEntry.Domain, s.config.System.DefaultDomain)
 	return fmt.Sprintf("%s://%s:%d%s", "http", domain, s.config.Http.Port, appEntry.Path)
 }
 
@@ -298,7 +298,7 @@ func (s *Server) getAppHttpsUrl(appEntry *types.AppEntry) string {
 	if s.config.Https.Port <= 0 {
 		return ""
 	}
-	domain := cmp.Or(appEntry.Domain, "localhost")
+	domain := cmp.Or(appEntry.Domain, s.config.System.DefaultDomain)
 	return fmt.Sprintf("%s://%s:%d%s", "https", domain, s.config.Https.Port, appEntry.Path)
 }
 
@@ -534,12 +534,15 @@ func (s *Server) verifyClientCerts(r *http.Request, authName string) error {
 }
 
 func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
-	//s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
+	s.Trace().Msgf("MatchApp %s %s", hostHeader, matchPath)
 	apps, domainMap, err := s.apps.GetAppsFullInfo()
 	if err != nil {
 		return types.AppInfo{}, err
 	}
 	matchPath = normalizePath(matchPath)
+	if hostHeader == "127.0.0.1" {
+		hostHeader = "localhost"
+	}
 
 	// Check if host header matches a known domain
 	checkDomain := false

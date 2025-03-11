@@ -465,6 +465,10 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 					return nil
 				}
 
+				if name == s.config.System.DefaultDomain || name == "localhost" || name == "127.0.0.1" {
+					return nil
+				}
+
 				allDomains, err := s.apps.GetAllDomains()
 				if err != nil {
 					return err
@@ -487,7 +491,7 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				domain := hello.ServerName
 
-				if s.config.Https.EnableCertLookup {
+				if domain != "" && s.config.Https.EnableCertLookup {
 					certFilePath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), domain+".crt")
 					certKeyPath := path.Join(os.ExpandEnv(s.config.Https.CertLocation), domain+".key")
 					// Check if certificate and key files exist on disk for the domain
