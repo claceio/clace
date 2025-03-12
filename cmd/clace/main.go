@@ -115,10 +115,18 @@ func getConfigPath(cCtx *cli.Context) (string, string, error) {
 		return binParent, binParentConfig, nil
 	}
 
+	// Running `brew --prefix` would be another option
 	if runtime.GOOS == "darwin" {
-		// brew on macOS specific checks
+		// brew OSX specific checks
 		if fileExists("/opt/homebrew/etc/clace.toml") {
 			return "/opt/homebrew/var/clace", "/opt/homebrew/etc/clace.toml", nil
+		} else if fileExists("/usr/local/etc/clace.toml") {
+			return "/usr/local/var/clace", "/usr/local/etc/clace.toml", nil
+		}
+	} else if runtime.GOOS == "linux" {
+		// brew linux specific checks
+		if fileExists("/home/linuxbrew/.linuxbrew/etc/clace.toml") {
+			return "/home/linuxbrew/.linuxbrew/var/clace", "/home/linuxbrew/.linuxbrew/etc/clace.toml", nil
 		} else if fileExists("/usr/local/etc/clace.toml") {
 			return "/usr/local/var/clace", "/usr/local/etc/clace.toml", nil
 		}
