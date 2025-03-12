@@ -108,10 +108,11 @@ func getConfigPath(cCtx *cli.Context) (string, string, error) {
 		// Found bin directory, use its parent
 		binParent = filepath.Dir(binParent)
 	}
+	fmt.Printf("bin %s binAbsolute: %s parent %s\n", binFile, binAbsolute, binParent)
 	binParentConfig := path.Join(binParent, "clace.toml")
-	if fileExists(binParentConfig) && strings.Contains(binParent, "clace") {
+	if fileExists(binParentConfig) && (strings.Contains(binParent, "clace") || strings.Contains(binParent, "clhome")) {
 		// Config file found in parent directory of the executable, use that as path
-		// To avoid clobbering /usr, check if the path contains the string "clace"
+		// To avoid clobbering /usr, check if the path contains the string clace/clhome
 		return binParent, binParentConfig, nil
 	}
 
@@ -197,7 +198,7 @@ func main() {
 				return nil
 			}
 			if err != nil {
-				return fmt.Errorf("error parsing config %w", err)
+				return fmt.Errorf("error parsing config: %w", err)
 			}
 			return nil
 		},
