@@ -108,7 +108,6 @@ func getConfigPath(cCtx *cli.Context) (string, string, error) {
 		// Found bin directory, use its parent
 		binParent = filepath.Dir(binParent)
 	}
-	fmt.Printf("bin %s binAbsolute: %s parent %s\n", binFile, binAbsolute, binParent)
 	binParentConfig := path.Join(binParent, "clace.toml")
 	if fileExists(binParentConfig) && (strings.Contains(binParent, "clace") || strings.Contains(binParent, "clhome")) {
 		// Config file found in parent directory of the executable, use that as path
