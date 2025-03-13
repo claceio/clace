@@ -32,9 +32,9 @@
 
 ## Overview
 
-Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows you to build and deploy Hypermedia based web apps. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
+Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows you to deploy containerized apps and develop Hypermedia based web apps. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
-Clace can also be used to develop any containerized web app on a shared server. Apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit/Gradio apps, adding OAuth authentication for access control across a team.
+Clace apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit/Gradio apps, adding OAuth authentication for access control across a team.
 
 This repo hosts the source code for Clace. The source for the documentation site [clace.io](https://clace.io) is in the [docs](https://github.com/claceio/docs) repo. App specifications, which are templates to create apps, are defined in the [appspecs](https://github.com/claceio/appspecs) repo. Sample apps are in the [apps](https://github.com/claceio/apps) repo.
 
@@ -44,12 +44,13 @@ This repo hosts the source code for Clace. The source for the documentation site
 
 Clace can be used to:
 
-- Automatically generate a form based UI for backend actions
-- Deploy containerized applications, Clace will build and manage the container lifecycle
-- Build custom Hypermedia based applications using Starlark (no containers required)
+- Automatically generate a form based UI for backend [actions](https://clace.io/docs/actions/)
+- Deploy [containerized applications](https://clace.io/docs/container/overview/), Clace will build and manage the container lifecycle
+- Build and deploy custom [Hypermedia based applications](https://clace.io/docs/app/overview/) using Starlark (no containers required)
 
 Clace supports the following for all apps:
 
+- [Declarative](https://clace.io/docs/applications/overview/#declarative-app-management) app deployment
 - Atomic updates (all or none) across [multiple apps](https://clace.io/docs/applications/overview/#glob-pattern)
 - [Staging mode](https://clace.io/docs/applications/lifecycle/#staging-apps) for app updates, to verify whether code and config changes work on prod before making them live.
 - [Preview app](https://clace.io/docs/applications/lifecycle/#preview-apps) creation support, for trying out code changes.
@@ -85,39 +86,71 @@ The feature roadmap for Clace is:
 
 ## Setup
 
-### Install
+
+### Certs and Default password
+
+Clace manages TLS cert using LetsEncrypt for prod environments. For dev environment, it is recommended to install [mkcert](https://github.com/FiloSottile/mkcert). Clace will automatically create local certs using mkcert if it is present. Install mkcert and run `mkcert -install` before starting Clace server. Installing Clace using brew will automatically install mkcert.
+
+For container based apps, Docker or Podman or Orbstack should be installed and running on the machine. Clace automatically detects the container manager to use.
+
+Clace uses an `admin` user account as the default authentication for accessing apps. A random password is generated for this account during initial Clace server installation. Note down this password for accessing apps.
+
+### Install Clace On OSX/Linux
 
 To install on OSX/Linux, run
 
 ```shell
-curl -L https://clace.io/install.sh | sh
-source $HOME/clhome/bin/clace.env
-clace server start &
+curl -sSLo /tmp/install.sh https://clace.io/install.sh && source /tmp/install.sh
+clace server start
 ```
+
+### Brew Install
+
+To install using brew, run
+
+```
+brew tap claceio/homebrew-clace
+brew install clace
+brew services start clace
+```
+
+### Install On Windows
 
 To install on Windows, run
 
 ```
-pwsh -Command "iwr https://clace.io/install.ps1 -useb | iex"
+powershell -Command "iwr https://clace.io/install.ps1 -useb | iex"
 ```
 
-Use powershell if pwsh is not available. Start a new command window (to get the updated ENV values) and run
-`clace server start` to start the service.
+Start a new command window (to get the updated env) and run `clace server start` to start the Clace service.
 
-To install apps, run
+### Install Apps
+
+Once Clace server is running, to install apps declaratively, open a new window and run
 
 ```
+clace apply --approve github.com/claceio/clace/examples/utils.star all
+```
+
+To install apps using the CLI, run
+
+```
+clace app create --approve github.com/claceio/apps/system/list_files /files
 clace app create --approve github.com/claceio/apps/system/disk_usage /disk_usage
 clace app create --approve github.com/claceio/apps/utils/bookmarks /book
 ```
 
-The disk usage app is available at https://localhost:25223/disk_usage (use port 25222 for HTTP). admin is the username, use the password printed by the install script. The bookmark manager is available at https://localhost:25223/book. Add `--auth none` to the `app create` command to disable auth.
+Open https://localhost:25223 to see the app listing. The disk usage app is available at https://localhost:25223/disk_usage (port 25222 for HTTP). admin is the username, use the password printed by the install script. The bookmark manager is available at https://localhost:25223/book, the list files app is available at https://localhost:25223/files. Add the `--auth none` flag to the `app create` command to disable authentication.
+
+See [installation]({{< ref "installation" >}}) for details. See [config options]({{< ref "configuration" >}}) for configuration options. To enable Let's Encrypt certificates, see [Automatic SSL]({{< ref "configuration/networking/#enable-automatic-signed-certificate" >}}).
+
+The release binaries are also available at [releases](https://github.com/claceio/clace/releases). See [install from source]({{< ref "installation/#install-from-source" >}}) to build from source.
+
 
 To install a containerized app, ensure either Docker or Podman is running and run
 
 ```
-clace app create --spec image --approve --param image=nginx --param port=80 - nginxapp.localhost:/
-clace app create --spec python-streamlit --param app_file=hello --branch master --approve github.com/streamlit/streamlit-example /streamlit_hello
+clace app create --spec python-streamlit --branch master --approve github.com/streamlit/streamlit-example /streamlit
 ```
 
 If the source repo has a `Dockerfile` or `Containerfile`, run
@@ -153,26 +186,15 @@ To use the clace service, you need an initial config file with the service passw
 - Create the clace.toml file, and create a randomly generate password for the **admin** user account
 
 ```shell
-export CL_HOME=$HOME/clhome && mkdir $CL_HOME
+export CL_HOME=$HOME/clhome && mkdir -p $CL_HOME/config
 cd $CL_HOME
-mkdir config
 git clone -C config https://github.com/claceio/appspecs
-$HOME/clace password > $CL_HOME/clace.toml
+go build ./cmd/clace/
+$CL_HOME/clace password > $CL_HOME/clace.toml
+$CL_HOME/clace server start
 ```
 
 This will print a random password on the screen, note that down as the password to use for accessing the applications.
-
-### Start Service
-
-To start the service, the CL_HOME environment variable has to point to the work directory location.
-
-```shell
-export CL_HOME=$HOME/clhome
-$HOME/clace server start
-```
-
-Add the exports to your shell profile file. The service logs will be going to $CL_HOME/logs.
-
 The service will be started on [https://localhost:25223](https://127.0.0.1:25223) by default (HTTP port 25222).
 
 ### Loading Apps
