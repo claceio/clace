@@ -247,10 +247,13 @@ func (s *Server) handleAppClose() {
 }
 
 func (s *Server) lookupContainerCommand() string {
-	if _, err := exec.LookPath(PODMAN_COMMAND); err == nil {
-		return PODMAN_COMMAND
-	} else if _, err := exec.LookPath(DOCKER_COMMAND); err == nil {
-		return DOCKER_COMMAND
+	podmanExec := system.FindExec(PODMAN_COMMAND)
+	if podmanExec != "" {
+		return podmanExec
+	}
+	dockerExec := system.FindExec(DOCKER_COMMAND)
+	if dockerExec != "" {
+		return dockerExec
 	}
 	return ""
 }
@@ -437,15 +440,7 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	var mkcertPath string
 	if s.config.Https.MkcertPath != "disable" {
 		if s.config.Https.MkcertPath == "" {
-			var err error
-			mkcertPath, err = exec.LookPath("mkcert")
-			if err != nil {
-				if system.FileExists("/opt/homebrew/bin/mkcert") {
-					mkcertPath = "/opt/homebrew/bin/mkcert"
-				} else if system.FileExists("/usr/local/bin/mkcert") {
-					mkcertPath = "/usr/local/bin/mkcert"
-				}
-			}
+			mkcertPath = system.FindExec("mkcert")
 		} else {
 			mkcertPath = s.config.Https.MkcertPath
 		}

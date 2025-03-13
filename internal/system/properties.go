@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -77,4 +79,28 @@ var _ secretProvider = &propertiesSecretProvider{}
 func FileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil // any error is treated as not exists
+}
+
+// FindExec looks for the executable in the system PATH and returns its full path.
+// If not found, it checks common Homebrew locations for the executable.
+func FindExec(name string) string {
+	path, err := exec.LookPath(name)
+	if err == nil {
+		return path
+	}
+
+	// Homebrew services do not have the path set, lookup common paths
+	paths := []string{
+		"/usr/local/bin",
+		"/opt/homebrew/bin",
+		"/home/linuxbrew/.linuxbrew",
+	}
+
+	for _, p := range paths {
+		fullPath := filepath.Join(p, name)
+		if FileExists(fullPath) {
+			return fullPath
+		}
+	}
+	return ""
 }
