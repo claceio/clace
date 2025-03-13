@@ -262,12 +262,9 @@ Please use [Github Discussions](https://github.com/claceio/clace/discussions) fo
 
 ## Contributing
 
-PRs welcome for bug fixes. Commit messages should [reference
-bugs](https://docs.github.com/en/github/writing-on-github/autolinked-references-and-urls).
+PRs welcome for bug fixes. For feature enhancements, please first file a ticket with the `feature` label and discuss the change before working on the code changes.
 
-For feature enhancements, please first file a ticket with the `feature` label and discuss the change before working on the code changes.
-
-The Google [go style guide](https://google.github.io/styleguide/go/guide) is used for Clace. For application behavior related fixes, refer the [app unit test cases](https://github.com/claceio/clace/tree/main/internal/app/tests). Those test run as part of regular unit tests `go test ./...`. For API related changes, Clace uses the [commander-cli](https://github.com/commander-cli/commander) library for [automated CLI tests](https://github.com/claceio/clace/tree/main/tests). To run the CLI test, run `CL_HOME=. tests/run_cli_tests.sh` from the clace home directory.
+The Google [go style guide](https://google.github.io/styleguide/go/guide) is used for Clace. For application behavior related fixes, refer the [app unit test cases](https://github.com/claceio/clace/tree/main/internal/app/tests). Those test run as part of regular unit tests `go test ./...`. For API related changes, Clace uses the [commander-cli](https://github.com/commander-cli/commander) library for [automated CLI tests](https://github.com/claceio/clace/tree/main/tests). To run the CLI test, run `gmake test` from the clace home directory.
 
 Thanks for all contributions!
 
