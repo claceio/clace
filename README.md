@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">Hypermedia based internal tools for teams</p>
+  <p align="center">App deployment simplified, GitOps without the hassles.</p>
 </p>
 
 <p>
@@ -175,7 +175,8 @@ To install from source:
 # Ensure go is in the $PATH
 mkdir $HOME/clace_source && cd $HOME/clace_source
 git clone -b main https://github.com/claceio/clace && cd clace
-go build -o $HOME/clace ./cmd/clace/
+export CL_HOME=$HOME/clhome && mkdir -p $CL_HOME/config
+go build -o $CL_HOME/clace ./cmd/clace/
 ```
 
 ### Initial Configuration For Source Install
@@ -186,10 +187,8 @@ To use the clace service, you need an initial config file with the service passw
 - Create the clace.toml file, and create a randomly generate password for the **admin** user account
 
 ```shell
-export CL_HOME=$HOME/clhome && mkdir -p $CL_HOME/config
 cd $CL_HOME
 git clone -C config https://github.com/claceio/appspecs
-go build ./cmd/clace/
 $CL_HOME/clace password > $CL_HOME/clace.toml
 $CL_HOME/clace server start
 ```
