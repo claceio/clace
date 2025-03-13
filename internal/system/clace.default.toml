@@ -20,7 +20,7 @@ redirect_to_https = false # redirect HTTP to HTTPS
 host = "0.0.0.0"                               # bind to all interfaces (if port is >= 0)
 port = 25223                                   # port for HTTPS
 enable_cert_lookup = true                      # enable looking for certificate files on disk before using Let's Encrypt
-enable_mkcert = true                           # enable creating certs with mkcert for local env
+mkcert_path = ""                               # mkcert binary path, set to disable to disable mkcert
 service_email = ""                             # email address for registering with Let's Encrypt. Set a value to enable automatic certs
 use_staging = true                             # use Let's Encrypt staging server
 cert_location = "$CL_HOME/config/certificates" # where to look for existing certificate files

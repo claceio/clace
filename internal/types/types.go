@@ -161,7 +161,7 @@ type HttpsConfig struct {
 	Host               string `toml:"host"`
 	Port               int    `toml:"port"`
 	EnableCertLookup   bool   `toml:"enable_cert_lookup"`
-	EnableMkcert       bool   `toml:"enable_mkcert"`
+	MkcertPath         string `toml:"mkcert_path"`
 	ServiceEmail       string `toml:"service_email"`
 	UseStaging         bool   `toml:"use_staging"`
 	StorageLocation    string `toml:"storage_location"`

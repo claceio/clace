@@ -434,10 +434,24 @@ func (s *Server) Start() error {
 
 func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	var tlsConfig *tls.Config
-	mkcertPath, err := exec.LookPath("mkcert")
-	if err != nil {
-		mkcertPath = ""
+	var mkcertPath string
+	if s.config.Https.MkcertPath != "disable" {
+		if s.config.Https.MkcertPath == "" {
+			var err error
+			mkcertPath, err = exec.LookPath("mkcert")
+			if err != nil {
+				if system.FileExists("/opt/homebrew/bin/mkcert") {
+					mkcertPath = "/opt/homebrew/bin/mkcert"
+				} else if system.FileExists("/usr/local/bin/mkcert") {
+					mkcertPath = "/usr/local/bin/mkcert"
+				}
+			}
+		} else {
+			mkcertPath = s.config.Https.MkcertPath
+		}
 	}
+
+	s.Info().Msgf("mkcert path %s", mkcertPath)
 	var mkcertsLock sync.Mutex
 	if err := os.MkdirAll(os.ExpandEnv(s.config.Https.CertLocation), 0700); err != nil {
 		return nil, fmt.Errorf("error creating cert directory %s : %s",
@@ -498,7 +512,7 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 					_, certErr := os.Stat(certFilePath)
 					_, keyErr := os.Stat(certKeyPath)
 
-					if s.config.Https.EnableMkcert && mkcertPath != "" && (certErr != nil || keyErr != nil) {
+					if mkcertPath != "" && (certErr != nil || keyErr != nil) {
 						// If mkcerts is enabled and certificate or key files do not exist, generate them
 						// Locking is global, not per domain
 						mkcertsLock.Lock()

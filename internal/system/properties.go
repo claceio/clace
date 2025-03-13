@@ -73,3 +73,8 @@ func (e *propertiesSecretProvider) GetJoinDelimiter() string {
 }
 
 var _ secretProvider = &propertiesSecretProvider{}
+
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil // any error is treated as not exists
+}

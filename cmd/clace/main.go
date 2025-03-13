@@ -109,7 +109,7 @@ func getConfigPath(cCtx *cli.Context) (string, string, error) {
 		binParent = filepath.Dir(binParent)
 	}
 	binParentConfig := path.Join(binParent, "clace.toml")
-	if fileExists(binParentConfig) && (strings.Contains(binParent, "clace") || strings.Contains(binParent, "clhome")) {
+	if system.FileExists(binParentConfig) && (strings.Contains(binParent, "clace") || strings.Contains(binParent, "clhome")) {
 		// Config file found in parent directory of the executable, use that as path
 		// To avoid clobbering /usr, check if the path contains the string clace/clhome
 		return binParent, binParentConfig, nil
@@ -118,25 +118,20 @@ func getConfigPath(cCtx *cli.Context) (string, string, error) {
 	// Running `brew --prefix` would be another option
 	if runtime.GOOS == "darwin" {
 		// brew OSX specific checks
-		if fileExists("/opt/homebrew/etc/clace.toml") {
+		if system.FileExists("/opt/homebrew/etc/clace.toml") {
 			return "/opt/homebrew/var/clace", "/opt/homebrew/etc/clace.toml", nil
-		} else if fileExists("/usr/local/etc/clace.toml") {
+		} else if system.FileExists("/usr/local/etc/clace.toml") {
 			return "/usr/local/var/clace", "/usr/local/etc/clace.toml", nil
 		}
 	} else if runtime.GOOS == "linux" {
 		// brew linux specific checks
-		if fileExists("/home/linuxbrew/.linuxbrew/etc/clace.toml") {
+		if system.FileExists("/home/linuxbrew/.linuxbrew/etc/clace.toml") {
 			return "/home/linuxbrew/.linuxbrew/var/clace", "/home/linuxbrew/.linuxbrew/etc/clace.toml", nil
-		} else if fileExists("/usr/local/etc/clace.toml") {
+		} else if system.FileExists("/usr/local/etc/clace.toml") {
 			return "/usr/local/var/clace", "/usr/local/etc/clace.toml", nil
 		}
 	}
 	return "", "", fmt.Errorf("unable to find CL_HOME or config file")
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil // any error is treated as not exists
 }
 
 func parseConfig(cCtx *cli.Context, globalConfig *types.GlobalConfig, clientConfig *types.ClientConfig, serverConfig *types.ServerConfig) error {
