@@ -154,3 +154,10 @@ func (h *HttpClient) request(method, apiPath string, params url.Values, input an
 	}
 	return nil
 }
+
+func MapServerHost(host string) string {
+	if host == "0.0.0.0" {
+		return ""
+	}
+	return host
+}

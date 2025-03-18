@@ -387,13 +387,13 @@ func (s *Server) Start() error {
 	}
 
 	if s.httpServer != nil {
-		addr := fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
+		addr := fmt.Sprintf("%s:%d", system.MapServerHost(s.config.Http.Host), s.config.Http.Port)
 		listener, err := net.Listen("tcp", addr)
 		if err != nil {
 			return err
 		}
 		s.config.Http.Port = listener.Addr().(*net.TCPAddr).Port
-		addr = fmt.Sprintf("%s:%d", s.config.Http.Host, s.config.Http.Port)
+		addr = fmt.Sprintf("%s:%d", system.MapServerHost(s.config.Http.Host), s.config.Http.Port)
 		s.Info().Str("address", addr).Msg("Starting HTTP server")
 
 		go func() {
@@ -411,13 +411,13 @@ func (s *Server) Start() error {
 	}
 
 	if s.httpsServer != nil {
-		addr := fmt.Sprintf("%s:%d", s.config.Https.Host, s.config.Https.Port)
+		addr := fmt.Sprintf("%s:%d", system.MapServerHost(s.config.Https.Host), s.config.Https.Port)
 		listener, err := tls.Listen("tcp", addr, s.httpsServer.TLSConfig)
 		if err != nil {
 			return err
 		}
 		s.config.Https.Port = listener.Addr().(*net.TCPAddr).Port
-		addr = fmt.Sprintf("%s:%d", s.config.Https.Host, s.config.Https.Port)
+		addr = fmt.Sprintf("%s:%d", system.MapServerHost(s.config.Https.Host), s.config.Https.Port)
 		s.Info().Str("address", addr).Msg("Starting HTTPS server")
 		go func() {
 			if err := s.httpsServer.Serve(listener); err != nil {
