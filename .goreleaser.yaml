@@ -5,7 +5,7 @@ release:
     owner: claceio
     name: clace
   name_template: "Release {{.Tag}}"
-  draft: true
+  draft: false
   prerelease: "auto"
 
 before:
