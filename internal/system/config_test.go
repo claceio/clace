@@ -23,8 +23,8 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsInt(t, "http port", 25222, c.Http.Port)
 
 	// Logging related settings
-	testutil.AssertEqualsString(t, "log level", "INFO", c.Log.Level)
-	testutil.AssertEqualsBool(t, "console logging", false, c.Log.Console)
+	testutil.AssertEqualsString(t, "log level", "TRACE", c.Log.Level)
+	testutil.AssertEqualsBool(t, "console logging", true, c.Log.Console)
 	testutil.AssertEqualsBool(t, "file logging", true, c.Log.File)
 	testutil.AssertEqualsInt(t, "max backups", 10, c.Log.MaxBackups)
 	testutil.AssertEqualsInt(t, "max size MB", 50, c.Log.MaxSizeMB)
