@@ -39,10 +39,10 @@ default_git_auth = ""            # default git auth entry to use
 
 # Logging related Config
 [logging]
-level = "TRACE"
+level = "INFO"
 max_backups = 10
 max_size_mb = 50
-console2 = true
+console = false
 file = true
 access_logging = true
 
