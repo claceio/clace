@@ -42,7 +42,7 @@ default_git_auth = ""            # default git auth entry to use
 level = "TRACE"
 max_backups = 10
 max_size_mb = 50
-console = true
+console2 = true
 file = true
 access_logging = true
 

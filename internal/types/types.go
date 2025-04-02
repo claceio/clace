@@ -194,7 +194,7 @@ type LogConfig struct {
 	Level         string `toml:"level"`
 	MaxBackups    int    `toml:"max_backups"`
 	MaxSizeMB     int    `toml:"max_size_mb"`
-	Console       bool   `toml:"console"`
+	Console       bool   `toml:"console2"`
 	File          bool   `toml:"file"`
 	AccessLogging bool   `toml:"access_logging"`
 }
