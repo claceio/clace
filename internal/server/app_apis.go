@@ -544,29 +544,16 @@ func (s *Server) MatchApp(hostHeader, matchPath string) (types.AppInfo, error) {
 		hostHeader = "localhost"
 	}
 
-	// Check if host header matches a known domain
-	checkDomain := false
-	if hostHeader != "" && domainMap[hostHeader] {
-		checkDomain = true
+	if !domainMap[hostHeader] {
+		// Request to unknown domain, match against default domain
+		hostHeader = s.config.System.DefaultDomain
 	}
 
 	for _, appInfo := range apps {
-		if s.config.System.DisableUnknownDomains {
-			appDomain := cmp.Or(appInfo.Domain, s.config.System.DefaultDomain)
-			if hostHeader != appDomain {
-				// Host header does not match
-				continue
-			}
-		} else {
-			if checkDomain && appInfo.Domain != hostHeader {
-				// Request uses known domain, but app is not for this domain
-				continue
-			}
-
-			if !checkDomain && appInfo.Domain != "" {
-				// Request does not use known domain, but app is for a domain
-				continue
-			}
+		appDomain := cmp.Or(appInfo.Domain, s.config.System.DefaultDomain)
+		if hostHeader != appDomain {
+			// Host header does not match
+			continue
 		}
 
 		if strings.HasPrefix(matchPath, appInfo.Path) {

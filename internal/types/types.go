@@ -206,7 +206,6 @@ type SystemConfig struct {
 	NodePath                  string `toml:"node_path"`
 	ContainerCommand          string `toml:"container_command"`
 	DefaultDomain             string `toml:"default_domain"`
-	DisableUnknownDomains     bool   `toml:"disable_unknown_domains"`
 	RootServeListApps         string `toml:"root_serve_list_apps"`
 
 	HttpEventRetentionDays    int `toml:"http_event_retention_days"`

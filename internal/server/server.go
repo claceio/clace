@@ -469,11 +469,6 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 		magicConfig := certmagic.NewDefault()
 		magicConfig.OnDemand = &certmagic.OnDemandConfig{
 			DecisionFunc: func(ctx context.Context, name string) error {
-				if !s.config.System.DisableUnknownDomains {
-					// Allow on-demand certificates for unknown domains
-					return nil
-				}
-
 				if name == s.config.System.DefaultDomain || name == "localhost" || name == "127.0.0.1" {
 					return nil
 				}
