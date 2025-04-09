@@ -36,6 +36,7 @@ builds:
     env:
       - GO111MODULE=on
       - CGO_ENABLED=0
+      - GOAMD64=v3
     goos:
       - darwin
       - linux

@@ -45,9 +45,9 @@ func (a *App) earlyHints(w http.ResponseWriter, r *http.Request) {
 
 func getRequestUrl(r *http.Request) string {
 	if r.TLS != nil {
-		return fmt.Sprintf("https://%s", r.Host)
+		return "https://" + r.Host
 	} else {
-		return fmt.Sprintf("http://%s", r.Host)
+		return "http://" + r.Host
 	}
 }
 

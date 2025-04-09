@@ -35,6 +35,7 @@ jobs:
           CL_GITHUB_SECRET: ${{ secrets.CL_GITHUB_SECRET }}
         run: |
           export CL_HOME=`pwd`
+          export GOAMD64=v3
           rm -rf internal/server/appspecs && cd internal/server
           git clone --single-branch --depth 1 https://github.com/claceio/appspecs.git
           rm -rf appspecs/.git
