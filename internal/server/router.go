@@ -132,7 +132,9 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 	router.Use(middleware.Logger)
 	router.Use(AddVaryHeader)
 	router.Use(middleware.CleanPath)
-	router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
+	if config.System.EnableCompression {
+		router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
+	}
 
 	if config.Security.AdminOverTCP {
 		// Mount the internal API's only if admin over TCP is enabled

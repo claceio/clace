@@ -207,9 +207,9 @@ type SystemConfig struct {
 	ContainerCommand          string `toml:"container_command"`
 	DefaultDomain             string `toml:"default_domain"`
 	RootServeListApps         string `toml:"root_serve_list_apps"`
-
-	HttpEventRetentionDays    int `toml:"http_event_retention_days"`
-	NonHttpEventRetentionDays int `toml:"non_http_event_retention_days"`
+	EnableCompression         bool   `toml:"enable_compression"`
+	HttpEventRetentionDays    int    `toml:"http_event_retention_days"`
+	NonHttpEventRetentionDays int    `toml:"non_http_event_retention_days"`
 }
 
 // GitAuth is a github auth config entry

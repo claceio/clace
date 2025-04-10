@@ -65,6 +65,9 @@ admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DU
 port = 9154
 [https]
 port = 9155
+
+[system]
+enable_compression = true
 EOF
 
 CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
@@ -158,6 +161,9 @@ ca_cert_file="certs/testcerts1/ca.crt"
 
 [client_auth.cert_test2]
 ca_cert_file="certs/testcerts2/ca.crt"
+
+[system]
+enable_compression = true
 EOF
 
 export TESTENV=abc
