@@ -21,6 +21,16 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+var (
+	REAL_IP_HEADER   = "X-Real-IP"
+	FORWARDED_HEADER = "X-Forwarded-For"
+)
+
+func init() {
+	REAL_IP_HEADER = http.CanonicalHeaderKey(REAL_IP_HEADER)
+	FORWARDED_HEADER = http.CanonicalHeaderKey(FORWARDED_HEADER)
+}
+
 func (a *App) earlyHints(w http.ResponseWriter, r *http.Request) {
 	sendHint := false
 	for _, f := range a.sourceFS.StaticFiles() {
@@ -436,10 +446,16 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 }
 
 func getRemoteIP(r *http.Request) string {
-	remoteIP := r.Header.Get("X-Real-IP")
-	if remoteIP == "" {
-		remoteIP = r.Header.Get("X-Forwarded-For")
+	remoteIPs := r.Header[REAL_IP_HEADER]
+	if len(remoteIPs) == 0 {
+		remoteIPs = r.Header[FORWARDED_HEADER]
 	}
+
+	remoteIP := ""
+	if len(remoteIPs) > 0 {
+		remoteIP = remoteIPs[0]
+	}
+
 	if remoteIP == "" && r.RemoteAddr != "" {
 		if r.RemoteAddr[0] == '[' {
 			// IPv6

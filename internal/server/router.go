@@ -26,10 +26,8 @@ import (
 )
 
 const (
-	VARY_HEADER = "Vary"
 	DRY_RUN_ARG = "dryRun"
 	PROMOTE_ARG = "promote"
-	SERVER_NAME = "Clace"
 )
 
 var (
@@ -61,6 +59,8 @@ var (
 		"font/otf",
 		"font/opentype",
 	}
+	SERVER_NAME       = []string{"Clace"}
+	VARY_HEADER_VALUE = []string{"HX-Request"}
 )
 
 const (
@@ -169,7 +169,7 @@ func (h *Handler) httpsRedirectMiddleware(next http.Handler) http.Handler {
 			}
 
 			// Redirect to the HTTPS version of the URL
-			w.Header().Add("Server", SERVER_NAME)
+			w.Header()["Server"] = SERVER_NAME
 			http.Redirect(w, r, u.String(), http.StatusPermanentRedirect) // 308 (301 does not keep method)
 			return
 		}
@@ -677,15 +677,8 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 
 func AddVaryHeader(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		value := w.Header().Get(VARY_HEADER)
-		if value != "" {
-			value += ", HX-Request"
-		} else {
-			value = "HX-Request"
-		}
-
-		w.Header().Add(VARY_HEADER, value)
-		w.Header().Add("Server", SERVER_NAME)
+		w.Header()["Vary"] = VARY_HEADER_VALUE
+		w.Header()["Server"] = SERVER_NAME
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)

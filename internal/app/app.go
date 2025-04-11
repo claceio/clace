@@ -559,7 +559,9 @@ func (a *App) loadParamsInfo(sourceFS *appfs.SourceFs) error {
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.Info().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
+	if a.Info().Enabled() {
+		a.Info().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
+	}
 	if a.reloadError != nil {
 		a.Warn().Err(a.reloadError).Msg("Last reload had failed")
 		http.Error(w, a.reloadError.Error(), http.StatusInternalServerError)
