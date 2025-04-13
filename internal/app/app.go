@@ -397,43 +397,47 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 		return err
 	}
 
-	if config.Type() != "ContainerConfig" {
-		return fmt.Errorf("container config is not valid type: expected ContainerConfig, got %s", config.Type())
-	}
-
 	var configAttr starlark.HasAttrs
 	if configAttr, ok = config.(starlark.HasAttrs); !ok {
 		return fmt.Errorf("container config is not valid type")
 	}
 
-	src, err := apptype.GetStringAttr(configAttr, "Source")
+	src, err := apptype.GetStringAttr(configAttr, "source")
 	if err != nil {
 		return fmt.Errorf("error reading source: %w", err)
 	}
 
-	port, err := apptype.GetIntAttr(configAttr, "Port")
+	port, err := apptype.GetIntAttr(configAttr, "port")
 	if err != nil {
 		return fmt.Errorf("error reading port: %w", err)
 	}
-	lifetime, err := apptype.GetStringAttr(configAttr, "Lifetime")
+	lifetime, err := apptype.GetStringAttr(configAttr, "lifetime")
 	if err != nil {
 		return fmt.Errorf("error reading lifetime: %w", err)
 	}
 
-	scheme, err := apptype.GetStringAttr(configAttr, "Scheme")
+	scheme, err := apptype.GetStringAttr(configAttr, "scheme")
 	if err != nil {
 		return fmt.Errorf("error reading scheme: %w", err)
 	}
 
-	health, err := apptype.GetStringAttr(configAttr, "Health")
+	health, err := apptype.GetStringAttr(configAttr, "health")
 	if err != nil {
 		return fmt.Errorf("error reading health: %w", err)
 	}
 
-	buildDir, err := apptype.GetStringAttr(configAttr, "BuildDir")
+	buildDir, err := apptype.GetStringAttr(configAttr, "build_dir")
 	if err != nil {
 		return fmt.Errorf("error reading build_dir: %w", err)
 	}
+
+	volumesConfig, err := apptype.GetListStringAttr(configAttr, "volumes", true)
+	if err != nil {
+		return fmt.Errorf("error reading volumes: %w", err)
+	}
+
+	volumes := a.Metadata.ContainerVolumes
+	volumes = append(volumes, volumesConfig...)
 
 	// Parse the source file specification
 	var fileName string
@@ -478,7 +482,7 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 
 	a.containerManager, err = NewContainerManager(a.Logger, a,
 		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
-		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, a.Metadata.ContainerVolumes,
+		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, volumes,
 		a.getSecretsAllowed("container.in", "config"))
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)

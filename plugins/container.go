@@ -12,6 +12,7 @@ import (
 	"github.com/claceio/clace/internal/plugin"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 func init() {
@@ -36,7 +37,9 @@ func NewContainerPlugin(pluginContext *types.PluginContext) (any, error) {
 func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var src, lifetime, scheme, health, buildDir starlark.String
 	var port starlark.Int
-	if err := starlark.UnpackArgs("config", args, kwargs, "src?", &src, "port?", &port, "scheme?", &scheme, "health?", &health, "lifetime?", &lifetime, "build_dir?", &buildDir); err != nil {
+	var volumes *starlark.List
+	if err := starlark.UnpackArgs("config", args, kwargs, "src?", &src, "port?", &port, "scheme?", &scheme,
+		"health?", &health, "lifetime?", &lifetime, "build_dir?", &buildDir, "volumes?", &volumes); err != nil {
 		return nil, err
 	}
 	portInt, ok := port.Int64()
@@ -44,68 +47,17 @@ func (h *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Buil
 		return nil, fmt.Errorf("port must be an integer higher than or equal to zero")
 	}
 
-	return ContainerConfig{
-		Source:   cmp.Or(string(src), "auto"),
-		Lifetime: cmp.Or(string(lifetime), "app"),
-		Port:     int(portInt),
-		Schema:   cmp.Or(string(scheme), "http"),
-		Health:   cmp.Or(string(health), "/"),
-		BuildDir: string(buildDir),
-	}, nil
-}
+	volumes = cmp.Or(volumes, starlark.NewList([]starlark.Value{}))
 
-type ContainerConfig struct {
-	// Source of the container info. auto means look for Dockerfile/Containerfile. nixpacks means build with nixpacks.
-	// string starting with "image:" means use that image. Any other value is the name of the file to use as containerfile
-	Source   string
-	Lifetime string
-	Port     int
-	Schema   string
-	Health   string
-	BuildDir string // directory to use for build context
-}
-
-func (p ContainerConfig) Attr(name string) (starlark.Value, error) {
-	switch name {
-	case "Source":
-		return starlark.String(p.Source), nil
-	case "Lifetime":
-		return starlark.String(p.Lifetime), nil
-	case "Port":
-		return starlark.MakeInt(p.Port), nil
-	case "Scheme":
-		return starlark.String(p.Schema), nil
-	case "Health":
-		return starlark.String(p.Health), nil
-	case "BuildDir":
-		return starlark.String(p.BuildDir), nil
-	default:
-		return starlark.None, fmt.Errorf("container config has no attribute '%s'", name)
+	fields := starlark.StringDict{
+		"source":    starlark.String(cmp.Or(string(src), "auto")),
+		"lifetime":  starlark.String(cmp.Or(string(lifetime), "app")),
+		"port":      port,
+		"scheme":    starlark.String(cmp.Or(string(scheme), "http")),
+		"health":    starlark.String(cmp.Or(string(health), "/")),
+		"build_dir": buildDir,
+		"volumes":   volumes,
 	}
-}
 
-func (p ContainerConfig) AttrNames() []string {
-	return []string{"Source", "Lifetime", "Port", "Scheme", "Health", "BuildDir"}
+	return starlarkstruct.FromStringDict(starlark.String("container_config"), fields), nil
 }
-
-func (p ContainerConfig) String() string {
-	return fmt.Sprintf("%s %d %s %s", p.Source, p.Port, p.Lifetime, p.BuildDir)
-}
-
-func (p ContainerConfig) Type() string {
-	return "ContainerConfig"
-}
-
-func (p ContainerConfig) Freeze() {
-}
-
-func (p ContainerConfig) Truth() starlark.Bool {
-	return p.Source != ""
-}
-
-func (p ContainerConfig) Hash() (uint32, error) {
-	return starlark.Tuple{starlark.String(p.Source), starlark.String(p.Lifetime), starlark.MakeInt(p.Port),
-		starlark.String(p.Schema), starlark.String(p.Health), starlark.String(p.BuildDir)}.Hash()
-}
-
-var _ starlark.Value = (*ContainerConfig)(nil)

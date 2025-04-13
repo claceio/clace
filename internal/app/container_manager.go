@@ -50,8 +50,7 @@ type ContainerManager struct {
 	buildDir        string
 	sourceFS        appfs.ReadableFS
 	paramMap        map[string]string
-	volumes         []string // Volumes to be mounted, read from the container file
-	extraVolumes    []string // Extra volumes, from the app config
+	volumes         []string // Volumes to be mounted
 	containerConfig types.Container
 	excludeGlob     []string
 
@@ -112,6 +111,8 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		}
 	}
 
+	volumes = dedupVolumes(append(volumes, containerVolumes...))
+
 	if configPort == 0 {
 		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
 			"add a EXPOSE directive in %s or add port number in app config", containerFile, containerFile)
@@ -140,7 +141,6 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		command:         container.ContainerCommand{Logger: logger},
 		paramMap:        paramMap,
 		volumes:         volumes,
-		extraVolumes:    containerVolumes,
 		containerConfig: containerConfig,
 		stateLock:       sync.RWMutex{},
 		currentState:    ContainerStateUnknown,
@@ -172,6 +172,37 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	m.excludeGlob = excludeGlob
 
 	return m, nil
+}
+
+const (
+	VOL_PREFIX_SECRET = "cl_secret:"
+)
+
+func dedupVolumes(volumes []string) []string {
+	seenStripped := map[string]bool{}
+	for _, v := range volumes {
+		if strings.HasPrefix(v, VOL_PREFIX_SECRET) {
+			stripped := v[len(VOL_PREFIX_SECRET):]
+			seenStripped[stripped] = true
+		}
+	}
+
+	ret := []string{}
+	seen := map[string]bool{}
+	for _, v := range volumes {
+		if seenStripped[v] {
+			// skip the stripped string, keep only the unstripped version
+			continue
+		}
+		if seen[v] {
+			// already seen, skip
+			continue
+		}
+		seen[v] = true
+		ret = append(ret, v)
+	}
+
+	return ret
 }
 
 func (m *ContainerManager) idleAppShutdown() {
@@ -370,23 +401,25 @@ func (m *ContainerManager) createSpecFiles() ([]string, error) {
 	return created, nil
 }
 
-func (m *ContainerManager) createVolumes() error {
-	for _, v := range m.volumes {
-		volumeName := container.GenVolumeName(m.app.Id, v)
-		if !m.command.VolumeExists(m.systemConfig, volumeName) {
-			err := m.command.VolumeCreate(m.systemConfig, volumeName)
-			if err != nil {
-				return fmt.Errorf("error creating volume %s: %w", volumeName, err)
-			}
-		}
-	}
+const UNNAMED_VOLUME = "<UNNAMED>"
 
-	for _, volArg := range m.extraVolumes {
-		parsedName := m.parseVolumeName(volArg)
-		if parsedName == "" {
+func (m *ContainerManager) createVolumes() error {
+	for _, vol := range m.volumes {
+		_, volName, volStr, err := m.parseVolumeString(vol)
+		if err != nil {
+			return fmt.Errorf("error parsing volume %s: %w", vol, err)
+		}
+		if volName == "" {
 			continue
 		}
-		genVolumeName := container.GenVolumeName(m.app.Id, parsedName)
+		dir := volName
+		if volName == UNNAMED_VOLUME {
+			// unnamed volume, use the path for generating the volume name
+			dir = volStr
+		}
+
+		genVolumeName := container.GenVolumeName(m.app.Id, dir)
+		m.Info().Msgf("Applying volume %s for app %s dir %s", genVolumeName, m.app.Id, dir)
 		if !m.command.VolumeExists(m.systemConfig, genVolumeName) {
 			err := m.command.VolumeCreate(m.systemConfig, genVolumeName)
 			if err != nil {
@@ -397,43 +430,65 @@ func (m *ContainerManager) createVolumes() error {
 	return nil
 }
 
-func (m *ContainerManager) getMountArgs() []string {
+func (m *ContainerManager) getMountArgs() ([]string, error) {
 	args := []string{}
-	for _, v := range m.volumes {
-		volumeName := container.GenVolumeName(m.app.Id, v)
-		args = append(args, fmt.Sprintf("--mount=type=volume,source=%s,target=%s", volumeName, v))
-	}
 
-	for _, volArg := range m.extraVolumes {
-		parsedName := m.parseVolumeName(volArg)
-		if parsedName == "" {
-			args = append(args, fmt.Sprintf("--volume=%s", volArg))
+	for _, vol := range m.volumes {
+		_, volName, volStr, err := m.parseVolumeString(vol)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing volume %s: %w", vol, err)
+		}
+		if volName == "" {
+			// bind mount
+			args = append(args, fmt.Sprintf("--volume=%s", volStr))
 		} else {
-			genVolumeName := container.GenVolumeName(m.app.Id, parsedName)
-			split := strings.Split(volArg, ":")
-			var volString string
+			dir := volName
+			if volName == UNNAMED_VOLUME {
+				// unnamed volume, use the path for generating the volume name
+				dir = volStr
+			}
+
+			genVolumeName := container.GenVolumeName(m.app.Id, dir)
+			split := strings.Split(volStr, ":")
+			var volCliStr string
 			if len(split) > 1 {
 				split[0] = string(genVolumeName)
-				volString = strings.Join(split, ":")
+				volCliStr = strings.Join(split, ":")
 			} else {
-				volString = string(genVolumeName) + ":" + volArg
+				volCliStr = string(genVolumeName) + ":" + volStr
 			}
-			args = append(args, fmt.Sprintf("--volume=%s", volString))
+			m.Info().Msgf("Mounting volume %s for app %s dir %s, mount arg %s", genVolumeName, m.app.Id, dir, volCliStr)
+			args = append(args, fmt.Sprintf("--volume=%s", volCliStr))
 		}
 	}
-	return args
+	return args, nil
 }
 
-// parseVolumeName gets the first part of the volume definition. It returns "" for a bind
-// mount. Otherwise it returns the volume name
-func (m *ContainerManager) parseVolumeName(arg string) string {
-	split := strings.Split(arg, ":")
-	firstPart := split[0]
-	if len(split) > 1 && len(firstPart) > 0 && firstPart[:1] == "/" {
-		return ""
+// parseVolumeString parses the volume string. It returns four values
+// 1. clace prefix, if present
+// 2. volume name, UNNAMED_VOLUME if unnamed, "" for bind
+// 3. the rest of the volume string
+// 4. error
+func (m *ContainerManager) parseVolumeString(vol string) (string, string, string, error) {
+	if strings.HasPrefix(vol, VOL_PREFIX_SECRET) {
+		split := strings.Split(vol[len(VOL_PREFIX_SECRET):], ":")
+		if len(split) == 1 {
+			return "", "", "", fmt.Errorf("expected bind mount (source:target) for cl_secret volume %s", vol)
+		}
+		return VOL_PREFIX_SECRET, "", vol[len(VOL_PREFIX_SECRET):], nil
 	}
 
-	return firstPart
+	split := strings.Split(vol, ":")
+	firstPart := split[0]
+	if len(split) > 1 && strings.HasPrefix(firstPart, "/") {
+		return "", "", vol, nil // bind mount
+	}
+
+	if len(split) == 1 {
+		return "", UNNAMED_VOLUME, vol, nil // unnamed volume
+	}
+
+	return "", firstPart, vol, nil // named volume
 }
 
 func (m *ContainerManager) DevReload(dryRun bool) error {
@@ -490,8 +545,12 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 
 	envMap, _ := m.GetEnvMap()
+	mountArgs, err := m.getMountArgs()
+	if err != nil {
+		return err
+	}
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
-		imageName, m.port, envMap, m.getMountArgs(), m.app.Metadata.ContainerOptions)
+		imageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error running container: %w", err)
 	}
@@ -691,8 +750,14 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 	// Start the container with newly built image
+
+	mountArgs, err := m.getMountArgs()
+	if err != nil {
+		return err
+	}
+
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
-		imageName, m.port, envMap, m.getMountArgs(), m.app.Metadata.ContainerOptions)
+		imageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}
