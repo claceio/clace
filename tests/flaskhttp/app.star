@@ -10,7 +10,9 @@ app = ace.app("Flask Http Test",
               routes=[
                   ace.api("/")
               ],
-              container=container.config(container.AUTO, port=param.port),
+              container=container.config(container.AUTO, port=param.port, volumes=[
+                "cl_secret:data.ini:/var/data.ini",
+              ]),
               permissions=[
                   ace.permission("container.in", "config", [container.AUTO]),
                   ace.permission("http.in", "get")

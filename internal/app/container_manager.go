@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -430,14 +431,34 @@ func (m *ContainerManager) createVolumes() error {
 	return nil
 }
 
-func (m *ContainerManager) getMountArgs() ([]string, error) {
+func (m *ContainerManager) genMountArgs(dir string) ([]string, error) {
 	args := []string{}
 
 	for _, vol := range m.volumes {
-		_, volName, volStr, err := m.parseVolumeString(vol)
+		clPrefix, volName, volStr, err := m.parseVolumeString(vol)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing volume %s: %w", vol, err)
 		}
+
+		if clPrefix == VOL_PREFIX_SECRET {
+			// For cl_secret:file.prop:/data/file.prop, pass file.prop through the template
+			// processor, write output to file.prop.gen and then bind mount it as
+			// /source_dir/file.prop.gen:/data/file.prop
+			split := strings.Split(volStr, ":")
+			if len(split) < 2 {
+				return nil, fmt.Errorf("expected bind mount (source:target) for cl_secret volume %s", vol)
+			}
+			srcFile := path.Join(dir, split[0])
+			destFile := srcFile + ".gen"
+			data := map[string]any{"params": m.paramMap}
+			err = m.renderTemplate(srcFile, destFile, data)
+			if err != nil {
+				return nil, fmt.Errorf("error rendering template %s: %w", srcFile, err)
+			}
+			volStr = fmt.Sprintf("%s:%s", destFile, strings.Join(split[1:], ":"))
+			m.Info().Msgf("Mounting secret %s for app %s src %s dest %s", volStr, m.app.Id, srcFile, destFile)
+		}
+
 		if volName == "" {
 			// bind mount
 			args = append(args, fmt.Sprintf("--volume=%s", volStr))
@@ -462,6 +483,30 @@ func (m *ContainerManager) getMountArgs() ([]string, error) {
 		}
 	}
 	return args, nil
+}
+
+// renderTemplate reads the source template file, executes it with the given data,
+// and writes the output to the target file.
+func (m *ContainerManager) renderTemplate(srcFilename, targetFilename string, data map[string]any) error {
+	// Parse the source file as a template
+	tmpl, err := template.ParseFiles(srcFilename)
+	if err != nil {
+		return fmt.Errorf("failed to parse template file: %w", err)
+	}
+
+	// Create the target file (overwrite if it exists)
+	targetFile, err := os.Create(targetFilename)
+	if err != nil {
+		return fmt.Errorf("failed to create target file: %w", err)
+	}
+	defer targetFile.Close()
+
+	// Execute the template with data, writing output to the target file
+	if err := tmpl.Execute(targetFile, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return nil
 }
 
 // parseVolumeString parses the volume string. It returns four values
@@ -545,7 +590,7 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 
 	envMap, _ := m.GetEnvMap()
-	mountArgs, err := m.getMountArgs()
+	mountArgs, err := m.genMountArgs(path.Join(m.app.SourceUrl, m.buildDir))
 	if err != nil {
 		return err
 	}
@@ -751,7 +796,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 	// Start the container with newly built image
 
-	mountArgs, err := m.getMountArgs()
+	mountArgs, err := m.genMountArgs(path.Join(m.app.SourceUrl, m.buildDir))
 	if err != nil {
 		return err
 	}

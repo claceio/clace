@@ -150,6 +150,10 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 	server.ssoAuth.RegisterRoutes(router) // register SSO routes
 
 	router.HandleFunc("/*", handler.callApp)
+	router.HandleFunc("/testperf", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 	return handler
 }
 
