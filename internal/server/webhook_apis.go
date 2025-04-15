@@ -94,7 +94,7 @@ func (s *Server) TokenCreate(ctx context.Context, appPath string, webhookType ty
 		return nil, err
 	}
 
-	secret, err := passwd.GenerateRandomPassword()
+	secret, err := passwd.GeneratePassword()
 	if err != nil {
 		return nil, err
 	}

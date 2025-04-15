@@ -55,7 +55,7 @@ func generatePassword(cCtx *cli.Context) error {
 			return cli.Exit(err, 1)
 		}
 	} else if cCtx.Bool("random") || !cCtx.IsSet("value") {
-		password, err = passwd.GenerateRandomPassword()
+		password, err = passwd.GeneratePassword()
 		if err != nil {
 			return cli.Exit(err, 1)
 		}

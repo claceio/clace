@@ -275,7 +275,7 @@ func (s *Server) setupAdminAccount() (string, error) {
 
 	s.Debug().Msg("Generating admin password")
 	var err error
-	password, err := passwd.GenerateRandomPassword()
+	password, err := passwd.GeneratePassword()
 	if err != nil {
 		return "", err
 	}

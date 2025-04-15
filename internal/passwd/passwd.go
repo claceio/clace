@@ -9,23 +9,27 @@ import (
 )
 
 const (
-	PASSWORD_CHARS  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^&*()_-+=<>?/|"
-	PASSWORD_LENGTH = 16
-	BCRYPT_COST     = 10
+	PASSWORD_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#%^&*()_-+=<>?/|"
+	BCRYPT_COST    = 10
 )
 
 // GenerateRandomPassword generates a random password
-func GenerateRandomPassword() (string, error) {
-	charsetLength := len(PASSWORD_CHARS)
-	password := make([]byte, PASSWORD_LENGTH)
+func generateRandString(length int, charsAllowed string) (string, error) {
+	charsetLength := len(charsAllowed)
+	password := make([]byte, length)
 
-	for i := 0; i < PASSWORD_LENGTH; i++ {
+	for i := 0; i < length; i++ {
 		randomIndex, err := rand.Int(rand.Reader, big.NewInt(int64(charsetLength)))
 		if err != nil {
 			return "", err
 		}
-		password[i] = PASSWORD_CHARS[randomIndex.Int64()]
+		password[i] = charsAllowed[randomIndex.Int64()]
 	}
 
 	return string(password), nil
+}
+
+// GeneratePassword generates a random password
+func GeneratePassword() (string, error) {
+	return generateRandString(16, PASSWORD_CHARS)
 }

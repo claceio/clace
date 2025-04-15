@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/claceio/clace/internal/system"
@@ -16,6 +18,16 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/segmentio/ksuid"
 )
+
+var ridPrefix string
+
+func init() {
+	id, err := ksuid.NewRandom()
+	if err != nil {
+		panic(err)
+	}
+	ridPrefix = "rid_" + id.String() + "_"
+}
 
 func (s *Server) initAuditDB(connectString string) error {
 	var err error
@@ -160,21 +172,16 @@ func updateOperationInContext(r *http.Request, operation string) {
 	}
 }
 
+var requestCounter uint64
+
 func (server *Server) handleStatus(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		// Add a request id to the context
-		id, err := ksuid.NewRandom()
-		if err != nil {
-			http.Error(w, "Error generating id"+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
+		rid := ridPrefix + strconv.FormatUint(atomic.AddUint64(&requestCounter, 1), 10)
 		contextShared := ContextShared{
 			UserId: types.ADMIN_USER,
 		}
 
-		rid := "rid_" + id.String()
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, types.REQUEST_ID, rid)
 		ctx = context.WithValue(ctx, types.USER_ID, types.ADMIN_USER)
