@@ -78,13 +78,13 @@ tests:
 
   # Test http plugin call without proxy
   container0500: # setup app
-    command: ../clace app create --spec python-flask --approve ./flaskhttp /cont_fh
+    command: ../clace app create --spec python-flask --approve --param PASSWD=xyz ./flaskhttp /cont_fh
   container0510: # check curl
     command: curl -sS localhost:${HTTP_PORT}/cont_fh
     stdout: '"v1":"hello"'
   container0520: # check curl
     command: curl -sS localhost:${HTTP_PORT}/cont_fh
-    stdout: '"v2":"testworld"'
+    stdout: '"v2":"xyz"'
 
   # Test go spec
   container0600: # setup app
