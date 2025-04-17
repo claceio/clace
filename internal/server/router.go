@@ -184,13 +184,11 @@ func (h *Handler) httpsRedirectMiddleware(next http.Handler) http.Handler {
 }
 
 func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
-	h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
-
-	requestDomain := r.Host
-	if strings.Contains(requestDomain, ":") {
-		requestDomain = strings.Split(requestDomain, ":")[0]
+	if h.Debug().Enabled() {
+		h.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("App Received request")
 	}
 
+	requestDomain, _, _ := strings.Cut(r.Host, ":")
 	var serveListApps = false
 	matchedApp, matchErr := h.server.MatchApp(requestDomain, r.URL.Path)
 	if matchErr != nil {
