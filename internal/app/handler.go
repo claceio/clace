@@ -93,10 +93,11 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			thread.SetLocal(types.TL_CONTAINER_URL, a.containerManager.GetProxyUrl())
 		}
 
-		isHtmxRequest := r.Header.Get("HX-Request") == "true" && !(r.Header.Get("HX-Boosted") == "true")
+		header := r.Header
+		isHtmxRequest := types.GetHTTPHeader(header, "Hx-Request") == "true" && !(types.GetHTTPHeader(header, "Hx-Boosted") == "true")
 
 		if a.codeConfig.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
-			r.Header.Get("sec-fetch-mode") == "navigate" &&
+			types.GetHTTPHeader(header, "Sec-Fetch-Mode") == "navigate" &&
 			rtype == apptype.HTML_TYPE && !(isHtmxRequest && fragment != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
@@ -122,7 +123,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			IsPartial:   isHtmxRequest,
 			PushEvents:  a.codeConfig.Routing.PushEvents,
 			HtmxVersion: a.codeConfig.Htmx.Version,
-			Headers:     r.Header,
+			Headers:     header,
 			RemoteIP:    getRemoteIP(r),
 		}
 
@@ -307,7 +308,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			a.Trace().Msgf("Rendering block %s", fragment)
 			err = a.executeTemplate(w, fullHtml, fragment, requestData)
 		} else {
-			referrer := r.Header.Get("Referer")
+			referrer := types.GetHTTPHeader(header, "Referer")
 			isUpdateRequest := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
 			if !isHtmxRequest && isUpdateRequest && fragment != "" && referrer != "" {
 				// If block is defined, and this is a non-GET request, then redirect to the referrer page
@@ -468,17 +469,17 @@ func (a *App) handleResponse(retStruct *starlarkstruct.Struct, r *http.Request, 
 }
 
 func getRemoteIP(r *http.Request) string {
-	remoteIPs := r.Header[REAL_IP_HEADER]
-	if len(remoteIPs) == 0 {
-		remoteIPs = r.Header[FORWARDED_HEADER]
+	header := r.Header
+	remoteIP := types.GetHTTPHeader(header, REAL_IP_HEADER)
+	if remoteIP == "" {
+		remoteIP = types.GetHTTPHeader(header, FORWARDED_HEADER)
 	}
 
-	remoteIP := ""
-	if len(remoteIPs) > 0 {
-		remoteIP = remoteIPs[0]
+	if remoteIP != "" {
+		return remoteIP
 	}
 
-	if remoteIP == "" && r.RemoteAddr != "" {
+	if r.RemoteAddr != "" {
 		if r.RemoteAddr[0] == '[' {
 			// IPv6
 			remoteIP = strings.Split(r.RemoteAddr, "]")[0][1:]

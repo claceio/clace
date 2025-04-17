@@ -5,6 +5,7 @@ package types
 
 import (
 	"fmt"
+	"net/http"
 )
 
 // RequestError is the error returned by the API
@@ -231,3 +232,13 @@ const (
 	AppReloadOptionUpdated AppReloadOption = "updated"
 	AppReloadOptionMatched AppReloadOption = "matched"
 )
+
+// GetHTTPHeader returns the first value of the header with the given key.
+// The key has to be a HTTP Canonical Header Key (case is important)
+func GetHTTPHeader(header http.Header, key string) string {
+	val := header[key]
+	if len(val) > 0 {
+		return val[0]
+	}
+	return ""
+}
