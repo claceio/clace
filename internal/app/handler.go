@@ -4,11 +4,14 @@
 package app
 
 import (
+	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/claceio/clace/internal/app/action"
@@ -59,6 +62,22 @@ func getRequestUrl(r *http.Request) string {
 	} else {
 		return "http://" + r.Host
 	}
+}
+
+// pooled holds one encoder and its buffer.
+type pooled struct {
+	enc *json.Encoder
+	buf *bytes.Buffer
+}
+
+var encoderPool = sync.Pool{
+	New: func() interface{} {
+		buf := bytes.NewBuffer(make([]byte, 0, 512))
+		return &pooled{
+			enc: json.NewEncoder(buf),
+			buf: buf,
+		}
+	},
 }
 
 func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Callable, rtype string) http.HandlerFunc {
@@ -257,17 +276,21 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			}
 		}
 
-		rtype = strings.ToUpper(rtype)
-		if rtype == apptype.JSON {
+		if rtype == apptype.JSON || rtype == "json" {
 			// If the route type is JSON, then return the handler response as JSON
 			w.Header().Set("Content-Type", "application/json")
-			err := json.NewEncoder(w).Encode(handlerResponse)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			encoder := encoderPool.Get().(*pooled)
+			encoder.buf.Reset()
+			err := encoder.enc.Encode(handlerResponse)
+			_, err2 := w.Write(encoder.buf.Bytes())
+			encoderPool.Put(encoder)
+			if cmp.Or(err, err2) != nil {
+				http.Error(w, cmp.Or(err, err2).Error(), http.StatusInternalServerError)
 				return
 			}
 			return
-		} else if rtype == apptype.TEXT {
+		} else if rtype == apptype.TEXT || rtype == "text" {
 			// If the route type is TEXT, then return the handler response as text
 			w.Header().Set("Content-Type", "text/plain")
 			_, err := fmt.Fprint(w, handlerResponse)
