@@ -79,6 +79,8 @@ func startServer(cCtx *cli.Context, serverConfig *types.ServerConfig) error {
 		defer profile.Start(profile.MemProfile, profile.ProfilePath(clHome)).Stop()
 	case "allocs":
 		defer profile.Start(profile.MemProfileAllocs, profile.ProfilePath(clHome)).Stop()
+	case "heap":
+		defer profile.Start(profile.MemProfileHeap, profile.ProfilePath(clHome)).Stop()
 	case "mutex":
 		defer profile.Start(profile.MutexProfile, profile.ProfilePath(clHome)).Stop()
 	case "block":
@@ -90,7 +92,7 @@ func startServer(cCtx *cli.Context, serverConfig *types.ServerConfig) error {
 	case "":
 		// no profiling
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown profile mode: %s. Supported modes cpu,memory,allocs,mutex,block,goroutine,clock\n", serverConfig.ProfileMode)
+		fmt.Fprintf(os.Stderr, "Unknown profile mode: %s. Supported modes cpu,memory,allocs,heap,mutex,block,goroutine,clock\n", serverConfig.ProfileMode)
 		os.Exit(1)
 	}
 	if serverConfig.ProfileMode != "" {
