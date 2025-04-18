@@ -27,6 +27,12 @@ import (
 var (
 	REAL_IP_HEADER   = "X-Real-IP"
 	FORWARDED_HEADER = "X-Forwarded-For"
+
+	CONTENT_TYPE_JSON = []string{"application/json"}
+	CONTENT_TYPE_TEXT = []string{"text/plain"}
+
+	SERVER_NAME       = []string{"Clace"}
+	VARY_HEADER_VALUE = []string{"HX-Request"}
 )
 
 func init() {
@@ -277,9 +283,13 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			}
 		}
 
+		respHeader := w.Header()
+		respHeader["Vary"] = VARY_HEADER_VALUE
+		respHeader["Server"] = SERVER_NAME
+
 		if rtype == apptype.JSON || rtype == "json" {
 			// If the route type is JSON, then return the handler response as JSON
-			w.Header().Set("Content-Type", "application/json")
+			respHeader["Content-Type"] = CONTENT_TYPE_JSON
 
 			encoder := encoderPool.Get().(*pooled)
 			encoder.buf.Reset()
@@ -293,7 +303,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			return
 		} else if rtype == apptype.TEXT || rtype == "text" {
 			// If the route type is TEXT, then return the handler response as text
-			w.Header().Set("Content-Type", "text/plain")
+			respHeader["Content-Type"] = CONTENT_TYPE_TEXT
 			_, err := fmt.Fprint(w, handlerResponse)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -480,11 +490,13 @@ func getRemoteIP(r *http.Request) string {
 	}
 
 	if r.RemoteAddr != "" {
-		if r.RemoteAddr[0] == '[' {
+		var ok bool
+		remoteIP, _, ok = strings.Cut(r.RemoteAddr, "]")
+		if ok {
 			// IPv6
-			remoteIP = strings.Split(r.RemoteAddr, "]")[0][1:]
+			remoteIP = remoteIP[1:]
 		} else {
-			remoteIP = strings.Split(r.RemoteAddr, ":")[0]
+			remoteIP, _, _ = strings.Cut(r.RemoteAddr, ":")
 		}
 	}
 	return remoteIP

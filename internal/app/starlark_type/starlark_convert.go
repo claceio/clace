@@ -51,21 +51,17 @@ func UnmarshalStarlark(x starlark.Value) (val interface{}, err error) {
 		val = time.Time(v)
 	case *starlark.Dict:
 		var (
-			dictVal starlark.Value
-			pval    interface{}
-			kval    interface{}
-			keys    []interface{}
-			vals    []interface{}
+			pval interface{}
+			kval interface{}
+			keys = make([]any, 0, v.Len())
+			vals = make([]any, 0, v.Len())
 			// key as interface if found one key is not a string
 			ki bool
 		)
 
-		for _, k := range v.Keys() {
-			dictVal, _, err = v.Get(k)
-			if err != nil {
-				return
-			}
-
+		for _, item := range v.Items() {
+			k := item[0]
+			dictVal := item[1]
 			pval, err = UnmarshalStarlark(dictVal)
 			if err != nil {
 				err = fmt.Errorf("unmarshaling starlark value: %w", err)

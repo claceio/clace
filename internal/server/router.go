@@ -59,8 +59,6 @@ var (
 		"font/otf",
 		"font/opentype",
 	}
-	SERVER_NAME       = []string{"Clace"}
-	VARY_HEADER_VALUE = []string{"HX-Request"}
 )
 
 const (
@@ -130,7 +128,6 @@ func NewTCPHandler(logger *types.Logger, config *types.ServerConfig, server *Ser
 	router.Use(server.handleStatus)
 	router.Use(panicRecovery)
 	router.Use(middleware.Logger)
-	router.Use(AddVaryHeader)
 	router.Use(middleware.CleanPath)
 	if config.System.EnableCompression {
 		router.Use(middleware.Compress(5, COMPRESSION_ENABLED_MIME_TYPES...))
@@ -173,7 +170,6 @@ func (h *Handler) httpsRedirectMiddleware(next http.Handler) http.Handler {
 			}
 
 			// Redirect to the HTTPS version of the URL
-			w.Header()["Server"] = SERVER_NAME
 			http.Redirect(w, r, u.String(), http.StatusPermanentRedirect) // 308 (301 does not keep method)
 			return
 		}
@@ -675,15 +671,6 @@ func (h *Handler) updateParam(r *http.Request) (any, error) {
 
 	updateResult, err := h.server.StagedUpdate(r.Context(), appPathGlob, dryRun, promote, h.server.updateParamHandler, args, "update-param")
 	return updateResult, err
-}
-
-func AddVaryHeader(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		w.Header()["Vary"] = VARY_HEADER_VALUE
-		w.Header()["Server"] = SERVER_NAME
-		next.ServeHTTP(w, r)
-	}
-	return http.HandlerFunc(fn)
 }
 
 func (h *Handler) reloadApps(r *http.Request) (any, error) {
