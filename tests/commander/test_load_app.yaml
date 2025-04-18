@@ -58,7 +58,7 @@ tests:
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev/
     stdout: "Disk Usage"
   load0054: # check Vary header
-    command: curl -vsu "admin:qwerty" localhost:25222/disk_usage_dev/static/gen/css/style.css 2>&1 | grep Vary
+    command: curl -vsu "admin:qwerty" localhost:25222/disk_usage_dev 2>&1 | grep Vary
     stdout: "Vary: HX-Request"
     exit-code: 0
   load0055: # check static root
