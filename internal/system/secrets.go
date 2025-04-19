@@ -60,12 +60,19 @@ func NewSecretManager(ctx context.Context, secretConfig map[string]types.SecretC
 		defaultProvider: defaultProvider,
 	}
 	s.funcMap["secret"] = s.templateSecretFunc
+	s.funcMap["secret_from"] = s.templateSecretFromFunc
 	return s, nil
 }
 
-// templateSecretFunc is a template function that retrieves a secret from the secret manager.
+// templateSecretFunc is a template function that retrieves a secret from the default secret manager.
 // Since the template function does not support errors, it panics if there is an error
-func (s *SecretManager) templateSecretFunc(providerName string, secretKeys ...string) string {
+func (s *SecretManager) templateSecretFunc(secretKeys ...string) string {
+	return s.appTemplateSecretFunc(nil, s.defaultProvider, "", secretKeys...)
+}
+
+// templateSecretFromFunc is a template function that retrieves a secret from the secret manager.
+// Since the template function does not support errors, it panics if there is an error
+func (s *SecretManager) templateSecretFromFunc(providerName string, secretKeys ...string) string {
 	return s.appTemplateSecretFunc(nil, s.defaultProvider, providerName, secretKeys...)
 }
 
@@ -175,10 +182,16 @@ func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, 
 		funcMap[name] = fn
 	}
 
-	secretFunc := func(providerName string, secretKeys ...string) string {
+	secretFunc := func(secretKeys ...string) string {
+		return s.appTemplateSecretFunc(appSecrets, defaultProvider, "", secretKeys...)
+	}
+
+	secretFromFunc := func(providerName string, secretKeys ...string) string {
 		return s.appTemplateSecretFunc(appSecrets, defaultProvider, providerName, secretKeys...)
 	}
+
 	funcMap["secret"] = secretFunc
+	funcMap["secret_from"] = secretFromFunc
 
 	tmpl, err := template.New("secret template").Funcs(funcMap).Parse(input)
 	if err != nil {

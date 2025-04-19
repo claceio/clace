@@ -145,11 +145,11 @@ load ("http.in", "http")
 
 
 def test1(req):
-	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret "env" "abc"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret_from "env" "abc"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
 	return resp.value.body()
 
 def test2(req):
-	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret "env" "abc2"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret_from "env" "abc2"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
 	return resp.value.body()
 
 app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler=test1, type=ace.TEXT), ace.api("/api2", handler=test2, type=ace.TEXT)],
@@ -182,5 +182,5 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
-	testutil.AssertStringContains(t, response.Body.String(), "error calling secret: plugin does not have access to secret abc")
+	testutil.AssertStringContains(t, response.Body.String(), "error calling secret_from: plugin does not have access to secret abc")
 }

@@ -27,11 +27,11 @@ func TestUpdateAuth(t *testing.T) {
 		Auth: map[string]types.AuthConfig{
 			"auth0": {
 				Key:    "myclientID",
-				Secret: `a{{ secret("asm", "mysecret")}}b`,
+				Secret: `a{{ secret_from ("asm", "mysecret")}}b`,
 			},
 			"auth2": {
 				Key:    "myclientID2",
-				Secret: `{{ secret "env" "TEST"} }}`,
+				Secret: `{{ secret_from "env" "TEST"} }}`,
 			},
 		},
 	}
