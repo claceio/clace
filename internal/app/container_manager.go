@@ -128,6 +128,8 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		paramMap[k] = val
 	}
 
+	delete(paramMap, "secrets") // remove the secrets entry, which is a list of secrets the container is allowed to use
+
 	m := &ContainerManager{
 		Logger:          logger,
 		app:             app,
@@ -431,7 +433,7 @@ func (m *ContainerManager) createVolumes() error {
 	return nil
 }
 
-func (m *ContainerManager) genMountArgs(dir string) ([]string, error) {
+func (m *ContainerManager) genMountArgs(sourceDir string) ([]string, error) {
 	args := []string{}
 
 	for _, vol := range m.volumes {
@@ -448,12 +450,15 @@ func (m *ContainerManager) genMountArgs(dir string) ([]string, error) {
 			if len(split) < 2 {
 				return nil, fmt.Errorf("expected bind mount (source:target) for cl_secret volume %s", vol)
 			}
-			srcFile := path.Join(dir, split[0])
-			destFile := srcFile + ".gen"
+			tmplFileName := split[0]
+			srcFile := path.Join(sourceDir, tmplFileName)
+			destFile := path.Join(m.app.AppRunPath, path.Base(tmplFileName)+".gen")
 			data := map[string]any{"params": m.paramMap}
-			err = m.renderTemplate(srcFile, destFile, data)
-			if err != nil {
-				return nil, fmt.Errorf("error rendering template %s: %w", srcFile, err)
+			if sourceDir != "" {
+				err = m.renderTemplate(srcFile, destFile, data)
+				if err != nil {
+					return nil, fmt.Errorf("error rendering template %s: %w", srcFile, err)
+				}
 			}
 			volStr = fmt.Sprintf("%s:%s", destFile, strings.Join(split[1:], ":"))
 			m.Info().Msgf("Mounting secret %s for app %s src %s dest %s", volStr, m.app.Id, srcFile, destFile)
@@ -590,7 +595,7 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 
 	envMap, _ := m.GetEnvMap()
-	mountArgs, err := m.genMountArgs(path.Join(m.app.SourceUrl, m.buildDir))
+	mountArgs, err := m.genMountArgs(m.app.SourceUrl)
 	if err != nil {
 		return err
 	}
@@ -759,6 +764,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 		return nil
 	}
 
+	sourceDir := ""
 	if m.image == "" {
 		// Using a container file, build the image if required
 		images, err := m.command.GetImages(m.systemConfig, imageName)
@@ -767,17 +773,12 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 		}
 
 		if len(images) == 0 {
-			tempDir, err := m.sourceFS.CreateTempSourceDir()
+			sourceDir, err = m.sourceFS.CreateTempSourceDir()
 			if err != nil {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
-			buildDir := path.Join(tempDir, m.buildDir)
+			buildDir := path.Join(sourceDir, m.buildDir)
 			buildErr := m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
-
-			// Cleanup temp dir after image has been built (even if build failed)
-			if err = os.RemoveAll(tempDir); err != nil {
-				return fmt.Errorf("error removing temp source dir: %w", err)
-			}
 
 			if buildErr != nil {
 				return fmt.Errorf("error building image: %w", buildErr)
@@ -796,9 +797,15 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 	// Start the container with newly built image
 
-	mountArgs, err := m.genMountArgs(path.Join(m.app.SourceUrl, m.buildDir))
+	mountArgs, err := m.genMountArgs(sourceDir)
 	if err != nil {
 		return err
+	}
+	if sourceDir != "" {
+		// Cleanup temp dir after image has been built and mount template file has been generated
+		if err = os.RemoveAll(sourceDir); err != nil {
+			return fmt.Errorf("error removing temp source dir: %w", err)
+		}
 	}
 
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,

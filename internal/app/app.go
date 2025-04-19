@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -81,6 +82,7 @@ type App struct {
 	lastRequestTime atomic.Int64
 	secretEvalFunc  func([][]string, string, string) (string, error)
 	auditInsert     func(*types.AuditEvent) error
+	AppRunPath      string // path to the app run directory
 }
 
 type starlarkCacheEntry struct {
@@ -135,6 +137,11 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	}
 
 	newApp.funcMap = funcMap
+
+	newApp.AppRunPath = fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
+	if err := os.MkdirAll(newApp.AppRunPath, 0700); err != nil {
+		return nil, err
+	}
 	return newApp, nil
 }
 
