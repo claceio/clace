@@ -655,12 +655,12 @@ func (s *Server) getStageApp(ctx context.Context, tx types.Transaction, appEntry
 	return stageAppEntry, nil
 }
 
-func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
+func parseGithubUrl(sourceUrl string, gitAuth string) (repo, folder string, err error) {
 	if !strings.HasSuffix(sourceUrl, "/") {
 		sourceUrl = sourceUrl + "/"
 	}
 
-	if strings.HasPrefix(sourceUrl, "git@github.com:") {
+	if strings.HasPrefix(sourceUrl, "git@") {
 		// Using git url format
 		split := strings.SplitN(sourceUrl, "/", 3)
 		if len(split) != 3 {
@@ -670,7 +670,7 @@ func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
 		return fmt.Sprintf("%s/%s", split[0], split[1]), split[2], nil
 	}
 
-	if strings.HasPrefix(sourceUrl, "github.com") {
+	if !strings.HasPrefix(sourceUrl, "http://") && !strings.HasPrefix(sourceUrl, "https://") {
 		sourceUrl = "https://" + sourceUrl
 	}
 
@@ -681,6 +681,11 @@ func parseGithubUrl(sourceUrl string) (repo string, folder string, err error) {
 
 	split := strings.SplitN(url.Path, "/", 4)
 	if len(split) == 4 {
+		if gitAuth != "" {
+			// If gitAuth is provided, use git url like git@github.com:claceio/clace.git
+			gitUrl := fmt.Sprintf("git@%s:%s/%s.git", url.Host, split[1], split[2])
+			return gitUrl, split[3], nil
+		}
 		return fmt.Sprintf("%s://%s/%s/%s", url.Scheme, url.Host, split[1], split[2]), split[3], nil
 	}
 

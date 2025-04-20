@@ -605,8 +605,21 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // isGit returns true if the sourceURL is a git URL
 func isGit(url string) bool {
-	return strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "git@github.com") ||
-		strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
+	if url == "" {
+		return false
+	}
+	if url[0] == '/' || url[0] == '.' || url[0] == '~' {
+		return false
+	}
+	if strings.HasPrefix(url, "git@") ||
+		strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
+		return true // Git URL
+	}
+	split := strings.Split(url, "/")
+	if strings.Index(split[0], ".") == -1 {
+		return false // No dot in the first part, assume not a git URL
+	}
+	return true
 }
 
 func (s *Server) GetListAppsApp() (*app.App, error) {

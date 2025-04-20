@@ -46,7 +46,7 @@ func NewRepoCache(server *Server) (*RepoCache, error) {
 
 func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (string, string, string, string, error) {
 	// Figure on which repo to clone
-	repo, folder, err := parseGithubUrl(sourceUrl)
+	repo, folder, err := parseGithubUrl(sourceUrl, gitAuth)
 	if err != nil {
 		return "", "", "", "", err
 	}
@@ -67,7 +67,7 @@ func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (str
 		cloneOptions.Depth = 1
 	}
 
-	if gitAuth == "" && strings.HasPrefix(repo, "git@github.com:") {
+	if gitAuth == "" && strings.HasPrefix(repo, "git@") {
 		gitAuth = r.server.config.Security.DefaultGitAuth
 	}
 
