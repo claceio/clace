@@ -4,9 +4,9 @@
 package server
 
 import (
+	"cmp"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -45,6 +45,8 @@ func NewRepoCache(server *Server) (*RepoCache, error) {
 }
 
 func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (string, string, string, string, error) {
+	gitAuth = cmp.Or(gitAuth, r.server.config.Security.DefaultGitAuth)
+
 	// Figure on which repo to clone
 	repo, folder, err := parseGithubUrl(sourceUrl, gitAuth)
 	if err != nil {
@@ -65,10 +67,6 @@ func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (str
 		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(branch)
 		cloneOptions.SingleBranch = true
 		cloneOptions.Depth = 1
-	}
-
-	if gitAuth == "" && strings.HasPrefix(repo, "git@") {
-		gitAuth = r.server.config.Security.DefaultGitAuth
 	}
 
 	if gitAuth != "" {
