@@ -16,7 +16,7 @@ tests:
     stderr: ""
     exit-code: 0
   github0031: # Create app, http url, with auth
-    command: ../clace app create --git-auth infoclace --approve github.com/claceio/clace/examples/disk_usage /ghauth3
+    command: ../clace app create --git-auth infoclace --approve github.com/claceio/clace/examples/disk_usage /ghauth22
     stderr: ""
     exit-code: 0
   github0040: # Create app, git url with commit id, with auth
