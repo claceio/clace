@@ -100,8 +100,8 @@ Clace uses an `admin` user account as the default authentication for accessing a
 To install on OSX/Linux, run
 
 ```shell
-curl -sSLo /tmp/install.sh https://clace.io/install.sh && source /tmp/install.sh
-clace server start
+curl -sSL https://clace.io/install.sh | sh
+Start a new terminal (to get the updated env) and run `clace server start` to start the Clace service.
 ```
 
 ### Brew Install
