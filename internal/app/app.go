@@ -138,7 +138,8 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 
 	newApp.funcMap = funcMap
 
-	newApp.AppRunPath = fmt.Sprintf(os.ExpandEnv("$CL_HOME/run/app/%s"), appEntry.Id)
+	clHome := cmp.Or(os.Getenv("CL_HOME"), "./")
+	newApp.AppRunPath = fmt.Sprintf("%s/run/app/%s", clHome, appEntry.Id)
 	if err := os.MkdirAll(newApp.AppRunPath, 0700); err != nil {
 		return nil, err
 	}
