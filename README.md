@@ -101,8 +101,8 @@ To install on OSX/Linux, run
 
 ```shell
 curl -sSL https://clace.io/install.sh | sh
-Start a new terminal (to get the updated env) and run `clace server start` to start the Clace service.
 ```
+Start a new terminal (to get the updated env) and run `clace server start` to start the Clace service.
 
 ### Brew Install
 
