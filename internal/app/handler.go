@@ -87,6 +87,11 @@ var encoderPool = sync.Pool{
 }
 
 func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Callable, rtype string) http.HandlerFunc {
+	hasArgs := false
+	if handler != nil && !strings.HasSuffix(handler.Name(), "_no_args") {
+		hasArgs = true
+	}
+	rtype = strings.ToUpper(rtype)
 	goHandler := func(w http.ResponseWriter, r *http.Request) {
 		thread := &starlark.Thread{
 			Name:  a.Path,
@@ -102,50 +107,53 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 		header := r.Header
 		isHtmxRequest := types.GetHTTPHeader(header, "Hx-Request") == "true" && !(types.GetHTTPHeader(header, "Hx-Boosted") == "true")
 
-		if a.codeConfig.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
+		if rtype == apptype.HTML_TYPE && a.codeConfig.Routing.EarlyHints && !a.IsDev && r.Method == http.MethodGet &&
 			types.GetHTTPHeader(header, "Sec-Fetch-Mode") == "navigate" &&
-			rtype == apptype.HTML_TYPE && !(isHtmxRequest && fragment != "") {
+			!(isHtmxRequest && fragment != "") {
 			// Prod mode, for a GET request from newer browsers on a top level HTML page, send http early hints
 			a.earlyHints(w, r)
 		}
 
-		appPath := a.Path
-		if appPath == "/" {
-			appPath = ""
-		}
-		pagePath := r.URL.Path
-		if pagePath == "/" {
-			pagePath = ""
-		}
-		appUrl := getRequestUrl(r) + appPath
-		requestData := starlark_type.Request{
-			AppName:     a.Name,
-			AppPath:     appPath,
-			AppUrl:      appUrl,
-			PagePath:    pagePath,
-			PageUrl:     appUrl + pagePath,
-			Method:      r.Method,
-			IsDev:       a.IsDev,
-			IsPartial:   isHtmxRequest,
-			PushEvents:  a.codeConfig.Routing.PushEvents,
-			HtmxVersion: a.codeConfig.Htmx.Version,
-			Headers:     header,
-			RemoteIP:    getRemoteIP(r),
-		}
-
-		chiContext := chi.RouteContext(r.Context())
-		params := map[string]string{}
-		if chiContext != nil && chiContext.URLParams.Keys != nil {
-			for i, k := range chiContext.URLParams.Keys {
-				params[k] = chiContext.URLParams.Values[i]
+		var requestData starlark_type.Request
+		if hasArgs || rtype == apptype.HTML_TYPE {
+			appPath := a.Path
+			if appPath == "/" {
+				appPath = ""
 			}
-		}
-		requestData.UrlParams = params
+			pagePath := r.URL.Path
+			if pagePath == "/" {
+				pagePath = ""
+			}
+			appUrl := getRequestUrl(r) + appPath
+			requestData = starlark_type.Request{
+				AppName:     a.Name,
+				AppPath:     appPath,
+				AppUrl:      appUrl,
+				PagePath:    pagePath,
+				PageUrl:     appUrl + pagePath,
+				Method:      r.Method,
+				IsDev:       a.IsDev,
+				IsPartial:   isHtmxRequest,
+				PushEvents:  a.codeConfig.Routing.PushEvents,
+				HtmxVersion: a.codeConfig.Htmx.Version,
+				Headers:     header,
+				RemoteIP:    getRemoteIP(r),
+			}
 
-		r.ParseForm()
-		requestData.Form = r.Form
-		requestData.Query = r.URL.Query()
-		requestData.PostForm = r.PostForm
+			chiContext := chi.RouteContext(r.Context())
+			params := map[string]string{}
+			if chiContext != nil && chiContext.URLParams.Keys != nil {
+				for i, k := range chiContext.URLParams.Keys {
+					params[k] = chiContext.URLParams.Values[i]
+				}
+			}
+			requestData.UrlParams = params
+
+			r.ParseForm()
+			requestData.Form = r.Form
+			requestData.Query = r.URL.Query()
+			requestData.PostForm = r.PostForm
+		}
 
 		var deferredCleanup func() error
 		var handlerResponse any = map[string]any{} // no handler means empty Data map is passed into template
@@ -190,7 +198,13 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 			defer deferredCleanup()
 
 			// Call the handler function
-			ret, err := starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
+			var ret starlark.Value
+			var err error
+			if hasArgs {
+				ret, err = starlark.Call(thread, handler, starlark.Tuple{requestData}, nil)
+			} else {
+				ret, err = starlark.Call(thread, handler, nil, nil)
+			}
 
 			if err == nil {
 				pluginErrLocal := thread.Local(types.TL_PLUGIN_API_FAILED_ERROR)
@@ -287,7 +301,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 		respHeader["Vary"] = VARY_HEADER_VALUE
 		respHeader["Server"] = SERVER_NAME
 
-		if rtype == apptype.JSON || rtype == "json" {
+		if rtype == apptype.JSON {
 			// If the route type is JSON, then return the handler response as JSON
 			respHeader["Content-Type"] = CONTENT_TYPE_JSON
 
@@ -301,7 +315,7 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 				return
 			}
 			return
-		} else if rtype == apptype.TEXT || rtype == "text" {
+		} else if rtype == apptype.TEXT {
 			// If the route type is TEXT, then return the handler response as text
 			respHeader["Content-Type"] = CONTENT_TYPE_TEXT
 			_, err := fmt.Fprint(w, handlerResponse)

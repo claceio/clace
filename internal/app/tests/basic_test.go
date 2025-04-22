@@ -118,6 +118,29 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Body.String(), `{"key":"myvalue"}`)
 }
 
+func TestAppNoArgs(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler_no_args():
+	return {"key": "myvalue"}
+app = ace.app("testApp", routes = [ace.api("/", type="json", handler=handler_no_args)])
+		`,
+	}
+	a, _, err := CreateDevModeTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), `{"key":"myvalue"}`)
+}
+
 func TestAppLoadNoHtmlCustomLayout(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
