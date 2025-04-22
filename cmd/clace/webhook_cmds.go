@@ -116,7 +116,7 @@ func webhookCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 		UsageText: `args: <webhookType> appPath>
 
     <webhookType> is the required first argument. Supported types are: reload, reload_promote and promote.
-    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are listed.
+    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are created.
 
 	Examples:
 		clace app-webhook create reload example.com:/myapp`,
@@ -163,7 +163,7 @@ func webhookDeleteCommand(commonFlags []cli.Flag, clientConfig *types.ClientConf
 		UsageText: `args: <webhookType> appPath>
 
     <webhookType> is the required first argument. Supported types are: reload, reload_promote and promote.
-    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are listed.
+    <app_path> is the required second argument. The optional domain and path are separated by a ":". This is the app for which webhooks are deleted.
 
 	Examples:
 		clace app-webhook delete reload example.com:/myapp`,
