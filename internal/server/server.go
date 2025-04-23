@@ -619,6 +619,10 @@ func isGit(url string) bool {
 	if strings.Index(split[0], ".") == -1 {
 		return false // No dot in the first part, assume not a git URL
 	}
+
+	if len(split) < 3 {
+		return false // Not enough parts to be a git URL
+	}
 	return true
 }
 
