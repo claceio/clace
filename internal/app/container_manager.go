@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"slices"
 	"strconv"
@@ -42,9 +43,10 @@ type ContainerManager struct {
 	app             *App
 	systemConfig    *types.SystemConfig
 	containerFile   string
-	image           string
-	port            int64 // Port number within the container
-	hostPort        int   // Port number on the host
+	image           string              // image name as specified
+	GenImageName    container.ImageName // generated image name
+	port            int64               // Port number within the container
+	hostPort        int                 // Port number on the host
 	lifetime        string
 	scheme          string
 	health          string
@@ -63,6 +65,7 @@ type ContainerManager struct {
 	// Health check related fields
 	healthCheckTicker *time.Ticker
 	stripAppPath      bool
+	mountArgs         []string
 }
 
 func NewContainerManager(logger *types.Logger, app *App, containerFile string,
@@ -114,7 +117,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 
 	volumes = dedupVolumes(append(volumes, containerVolumes...))
 
-	if configPort == 0 {
+	if configPort == 0 && lifetime != types.CONTAINER_LIFETIME_COMMAND {
 		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
 			"add a EXPOSE directive in %s or add port number in app config", containerFile, containerFile)
 	}
@@ -157,7 +160,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	}
 
 	m.health = m.GetHealthUrl(health)
-	if containerConfig.StatusCheckIntervalSecs > 0 {
+	if containerConfig.StatusCheckIntervalSecs > 0 && m.lifetime != types.CONTAINER_LIFETIME_COMMAND {
 		// Start the health check goroutine
 		m.healthCheckTicker = time.NewTicker(time.Duration(containerConfig.StatusCheckIntervalSecs) * time.Second)
 		go m.healthChecker()
@@ -542,9 +545,9 @@ func (m *ContainerManager) parseVolumeString(vol string) (string, string, string
 }
 
 func (m *ContainerManager) DevReload(dryRun bool) error {
-	var imageName container.ImageName = container.ImageName(m.image)
-	if imageName == "" {
-		imageName = container.GenImageName(m.app.Id, "")
+	m.GenImageName = container.ImageName(m.image)
+	if m.GenImageName == "" {
+		m.GenImageName = container.GenImageName(m.app.Id, "")
 	}
 	containerName := container.GenContainerName(m.app.Id, "")
 
@@ -569,14 +572,14 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 
 	if m.image == "" {
 		// Using a container file, rebuild the image
-		_ = m.command.RemoveImage(m.systemConfig, imageName)
+		_ = m.command.RemoveImage(m.systemConfig, m.GenImageName)
 
 		_, err := m.createSpecFiles()
 		if err != nil {
 			return err
 		}
 		buildDir := path.Join(m.app.SourceUrl, m.buildDir)
-		err = m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
+		err = m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
 		if err != nil {
 			return err
 		}
@@ -594,13 +597,18 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 
-	envMap, _ := m.GetEnvMap()
-	mountArgs, err := m.genMountArgs(m.app.SourceUrl)
+	m.mountArgs, err = m.genMountArgs(m.app.SourceUrl)
 	if err != nil {
 		return err
 	}
+
+	if m.lifetime == types.CONTAINER_LIFETIME_COMMAND {
+		// Command lifetime, service is not started, commands will be run with the image
+		return nil
+	}
+	envMap, _ := m.GetEnvMap()
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
-		imageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
+		m.GenImageName, m.port, envMap, m.mountArgs, m.app.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error running container: %w", err)
 	}
@@ -709,65 +717,67 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 		return err
 	}
 
-	var imageName container.ImageName = container.ImageName(m.image)
-	if imageName == "" {
-		imageName = container.GenImageName(m.app.Id, fullHash)
+	m.GenImageName = container.ImageName(m.image)
+	if m.GenImageName == "" {
+		m.GenImageName = container.GenImageName(m.app.Id, fullHash)
 	}
 
 	containerName := container.GenContainerName(m.app.Id, fullHash)
 
-	containers, err := m.command.GetContainers(m.systemConfig, containerName, true)
-	if err != nil {
-		return fmt.Errorf("error getting running containers: %w", err)
-	}
-
-	if dryRun {
-		// The image could be rebuild in case of a dry run, without touching the container.
-		// But a temp image id will have to be used to avoid conflict with the existing image.
-		// Dryrun is a no-op for now for containers
-		return nil
-	}
-
-	if len(containers) != 0 {
-		m.stateLock.Lock()
-		defer m.stateLock.Unlock()
-
-		if containers[0].State != "running" {
-			// This does not handle the case where volume list has changed
-			m.Debug().Msgf("container state %s, starting", containers[0].State)
-			err = m.command.StartContainer(m.systemConfig, containerName)
-			if err != nil {
-				return fmt.Errorf("error starting container: %w", err)
-			}
-
-			// Fetch port number after starting the container
-			containers, err = m.command.GetContainers(m.systemConfig, containerName, true)
-			if err != nil {
-				return fmt.Errorf("error getting running containers: %w", err)
-			}
-			m.hostPort = containers[0].Port
-
-			if m.health != "" {
-				err = m.WaitForHealth(m.containerConfig.HealthAttemptsAfterStartup)
-				if err != nil {
-					return fmt.Errorf("error waiting for health: %w", err)
-				}
-			}
-		} else {
-			// TODO handle case where image name is specified and param values change, need to restart container in that case
-			m.hostPort = containers[0].Port
-			m.Debug().Msg("container already running")
+	if m.lifetime != types.CONTAINER_LIFETIME_COMMAND {
+		containers, err := m.command.GetContainers(m.systemConfig, containerName, true)
+		if err != nil {
+			return fmt.Errorf("error getting running containers: %w", err)
 		}
 
-		m.currentState = ContainerStateRunning
-		m.Debug().Msgf("updating port to %d", m.hostPort)
-		return nil
+		if dryRun {
+			// The image could be rebuild in case of a dry run, without touching the container.
+			// But a temp image id will have to be used to avoid conflict with the existing image.
+			// Dryrun is a no-op for now for containers
+			return nil
+		}
+
+		if len(containers) != 0 {
+			m.stateLock.Lock()
+			defer m.stateLock.Unlock()
+
+			if containers[0].State != "running" {
+				// This does not handle the case where volume list has changed
+				m.Debug().Msgf("container state %s, starting", containers[0].State)
+				err = m.command.StartContainer(m.systemConfig, containerName)
+				if err != nil {
+					return fmt.Errorf("error starting container: %w", err)
+				}
+
+				// Fetch port number after starting the container
+				containers, err = m.command.GetContainers(m.systemConfig, containerName, true)
+				if err != nil {
+					return fmt.Errorf("error getting running containers: %w", err)
+				}
+				m.hostPort = containers[0].Port
+
+				if m.health != "" {
+					err = m.WaitForHealth(m.containerConfig.HealthAttemptsAfterStartup)
+					if err != nil {
+						return fmt.Errorf("error waiting for health: %w", err)
+					}
+				}
+			} else {
+				// TODO handle case where image name is specified and param values change, need to restart container in that case
+				m.hostPort = containers[0].Port
+				m.Debug().Msg("container already running")
+			}
+
+			m.currentState = ContainerStateRunning
+			m.Debug().Msgf("updating port to %d", m.hostPort)
+			return nil
+		}
 	}
 
 	sourceDir := ""
 	if m.image == "" {
 		// Using a container file, build the image if required
-		images, err := m.command.GetImages(m.systemConfig, imageName)
+		images, err := m.command.GetImages(m.systemConfig, m.GenImageName)
 		if err != nil {
 			return fmt.Errorf("error getting images: %w", err)
 		}
@@ -778,7 +788,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
 			buildDir := path.Join(sourceDir, m.buildDir)
-			buildErr := m.command.BuildImage(m.systemConfig, imageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
+			buildErr := m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
 
 			if buildErr != nil {
 				return fmt.Errorf("error building image: %w", buildErr)
@@ -790,8 +800,6 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 		// Create named volumes for the container
 		return err
 	}
-
-	envMap, _ := m.GetEnvMap()
 
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
@@ -808,13 +816,19 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 		}
 	}
 
+	if m.lifetime == types.CONTAINER_LIFETIME_COMMAND {
+		// Command lifetime, service is not started, commands will be run with the image
+		return nil
+	}
+	envMap, _ := m.GetEnvMap()
+
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
-		imageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
+		m.GenImageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}
 
-	containers, err = m.command.GetContainers(m.systemConfig, containerName, false)
+	containers, err := m.command.GetContainers(m.systemConfig, containerName, false)
 	if err != nil {
 		return fmt.Errorf("error getting running containers: %w", err)
 	}
@@ -844,4 +858,34 @@ func (m *ContainerManager) Close() error {
 		m.healthCheckTicker.Stop()
 	}
 	return nil
+}
+
+func (m *ContainerManager) Run(path string, cmdArgs []string, env []string) (*exec.Cmd, error) {
+	args := []string{"run", "--rm"}
+	envMap, _ := m.GetEnvMap()
+
+	// Add env args
+	for k, v := range envMap {
+		args = append(args, "--env", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	// Add container related args
+	for k, v := range m.app.Metadata.ContainerOptions {
+		if v == "" {
+			args = append(args, fmt.Sprintf("--%s", k))
+		} else {
+			args = append(args, fmt.Sprintf("--%s=%s", k, v))
+		}
+	}
+
+	if len(m.mountArgs) > 0 {
+		args = append(args, m.mountArgs...)
+	}
+
+	args = append(args, string(m.GenImageName), path)
+	args = append(args, cmdArgs...)
+	m.Debug().Msgf("Running command with args: %v", args)
+
+	cmd := exec.Command(m.systemConfig.ContainerCommand, args...)
+	return cmd, nil
 }

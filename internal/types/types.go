@@ -48,12 +48,14 @@ const (
 	TL_AUDIT_OPERATION          = "TL_audit_operation"
 	TL_AUDIT_TARGET             = "TL_audit_target"
 	TL_AUDIT_DETAIL             = "TL_audit_detail"
+	TL_CONTAINER_MANAGER        = "TL_container_manager"
 )
 
 const (
 	CONTAINER_SOURCE_AUTO         = "auto"
 	CONTAINER_SOURCE_NIXPACKS     = "nixpacks"
 	CONTAINER_SOURCE_IMAGE_PREFIX = "image:"
+	CONTAINER_LIFETIME_COMMAND    = "command"
 )
 
 const (
