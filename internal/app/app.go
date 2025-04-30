@@ -535,7 +535,7 @@ func (a *App) executeTemplate(w io.Writer, template, partial string, data any) e
 
 func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 	// Load the schema info
-	schemaInfoData, err := sourceFS.ReadFile(apptype.SCHEMA_FILE_NAME)
+	schemaInfoData, err := sourceFS.ReadFile(a.getStarPath(apptype.SCHEMA_FILE_NAME))
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return err
@@ -543,7 +543,7 @@ func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 		return nil // Ignore absence of schema file
 	}
 
-	a.storeInfo, err = apptype.ReadStoreInfo(apptype.SCHEMA_FILE_NAME, schemaInfoData)
+	a.storeInfo, err = apptype.ReadStoreInfo(a.getStarPath(apptype.SCHEMA_FILE_NAME), schemaInfoData)
 	if err != nil {
 		return fmt.Errorf("error reading schema info: %w", err)
 	}
@@ -554,7 +554,7 @@ func (a *App) loadSchemaInfo(sourceFS *appfs.SourceFs) error {
 
 func (a *App) loadParamsInfo(sourceFS *appfs.SourceFs) error {
 	// Load the params info
-	paramsInfoData, err := sourceFS.ReadFile(apptype.PARAMS_FILE_NAME)
+	paramsInfoData, err := sourceFS.ReadFile(a.getStarPath(apptype.PARAMS_FILE_NAME))
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return err
@@ -562,7 +562,7 @@ func (a *App) loadParamsInfo(sourceFS *appfs.SourceFs) error {
 		return nil // Ignore absence of params file
 	}
 
-	a.paramInfo, err = apptype.ReadParamInfo(apptype.PARAMS_FILE_NAME, paramsInfoData)
+	a.paramInfo, err = apptype.ReadParamInfo(a.getStarPath(apptype.PARAMS_FILE_NAME), paramsInfoData)
 	if err != nil {
 		return fmt.Errorf("error reading params info: %w", err)
 	}
@@ -779,7 +779,7 @@ func (a *App) loadStarlark(thread *starlark.Thread, module string, cache map[str
 		// Add a placeholder to indicate "load in progress".
 		cache[module] = nil
 
-		buf, err := a.sourceFS.ReadFile(module)
+		buf, err := a.sourceFS.ReadFile(a.getStarPath(module))
 		if err != nil {
 			return nil, err
 		}
@@ -821,4 +821,11 @@ func (a *App) getSecretsAllowed(plugin, function string) [][]string {
 	}
 
 	return ret
+}
+
+func (a *App) getStarPath(name string) string {
+	if a.AppConfig.StarBase == "" {
+		return name
+	}
+	return path.Join(a.AppConfig.StarBase, name)
 }

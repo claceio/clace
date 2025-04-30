@@ -19,7 +19,7 @@ func TestStoreBasics(t *testing.T) {
 		"app.star": `
 load("store.in", "store")
 
-app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")],
+app = ace.app("testApp", custom_layout=True, routes  = [ace.api("/")],
 permissions=[
 	ace.permission("store.in", "insert"),
 	ace.permission("store.in", "select_by_id"),

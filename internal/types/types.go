@@ -98,6 +98,7 @@ type AppConfig struct {
 	FS        FS        `toml:"fs"`
 	Audit     Audit     `toml:"audit"`
 	Security  Security  `toml:"security"`
+	StarBase  string    `toml:"star_base"` // The base directory for starlark config files
 }
 type Security struct {
 	DefaultSecretsProvider string `toml:"default_secrets_provider"`

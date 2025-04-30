@@ -39,9 +39,9 @@ func init() {
 func (a *App) loadStarlarkConfig(dryRun types.DryRun) error {
 	a.Info().Str("path", a.Path).Str("domain", a.Domain).Msg("Loading app")
 
-	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(a.getStarPath(apptype.APP_FILE_NAME))
 	if err != nil {
-		return fmt.Errorf("error reading %s: %w", apptype.APP_FILE_NAME, err)
+		return fmt.Errorf("error reading %s: %w", a.getStarPath(apptype.APP_FILE_NAME), err)
 	}
 
 	thread := &starlark.Thread{
@@ -55,7 +55,7 @@ func (a *App) loadStarlarkConfig(dryRun types.DryRun) error {
 		return err
 	}
 
-	a.globals, err = starlark.ExecFile(thread, apptype.APP_FILE_NAME, buf, builtin)
+	a.globals, err = starlark.ExecFile(thread, a.getStarPath(apptype.APP_FILE_NAME), buf, builtin)
 	if err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			a.Error().Err(err).Str("trace", evalErr.Backtrace()).Msg("Error loading app")

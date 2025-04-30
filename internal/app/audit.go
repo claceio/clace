@@ -16,9 +16,9 @@ import (
 )
 
 func (a *App) Audit() (*types.ApproveResult, error) {
-	buf, err := a.sourceFS.ReadFile(apptype.APP_FILE_NAME)
+	buf, err := a.sourceFS.ReadFile(a.getStarPath(apptype.APP_FILE_NAME))
 	if err != nil {
-		return nil, fmt.Errorf("error reading %s file: %w", apptype.APP_FILE_NAME, err)
+		return nil, fmt.Errorf("error reading %s file: %w", a.getStarPath(apptype.APP_FILE_NAME), err)
 	}
 
 	starlarkCache := map[string]*starlarkCacheEntry{}
@@ -80,7 +80,7 @@ func (a *App) Audit() (*types.ApproveResult, error) {
 		return nil, err
 	}
 
-	_, prog, err := starlark.SourceProgram(apptype.APP_FILE_NAME, buf, builtin.Has)
+	_, prog, err := starlark.SourceProgram(a.getStarPath(apptype.APP_FILE_NAME), buf, builtin.Has)
 	if err != nil {
 		return nil, fmt.Errorf("parsing source failed %v", err)
 	}

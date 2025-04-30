@@ -9,6 +9,7 @@ import (
 
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/types"
 )
 
 func actionTester(t *testing.T, rootPath bool, actionPath string) {
@@ -1145,4 +1146,32 @@ param("param2", description="param2 description", type=BOOLEAN, default=False)`,
 			<div role="alert">
 			</div>
   		 </div>`, response.Body.String())
+}
+
+func TestStarBase(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"mydir/test/app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=["a", "b"], param_errors={"param1": "param1error", "param3": "param3error"})
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler, hidden=["param2"])])
+
+		`,
+		"mydir/test/params.star": `param("param1", description="param1 description", type=STRING, default="myvalue")
+param("options-param1", description="param1 options", type=LIST, default=["a", "b", "c"])
+param("param2", description="param2 description", type=STRING, default="myvalue2")`,
+	}
+	a, _, err := CreateTestAppConfig(logger, fileData, types.AppConfig{StarBase: "mydir/test/"})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
 }
