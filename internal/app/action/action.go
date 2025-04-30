@@ -65,13 +65,14 @@ type Action struct {
 	Links             []ActionLink    // links to other actions
 	showValidate      bool
 	auditInsert       func(*types.AuditEvent) error
+	containerManager  any // Container manager, if available, used to run commands in the container
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
 	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string, showValidate bool,
-	auditInsert func(*types.AuditEvent) error) (*Action, error) {
+	auditInsert func(*types.AuditEvent) error, containerManager any) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
@@ -133,6 +134,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		hidden:            hiddenParams,
 		showValidate:      showValidate,
 		auditInsert:       auditInsert,
+		containerManager:  containerManager,
 		// Links, AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -237,9 +239,13 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 	}
 
 	// Save the request context in the starlark thread local
+	// Same code as createHandlerFunc
 	thread.SetLocal(types.TL_CONTEXT, r.Context())
 	if a.containerProxyUrl != "" {
 		thread.SetLocal(types.TL_CONTAINER_URL, a.containerProxyUrl)
+	}
+	if a.containerManager != nil {
+		thread.SetLocal(types.TL_CONTAINER_MANAGER, a.containerManager)
 	}
 	isHtmxRequest := r.Header.Get("HX-Request") == "true"
 
@@ -735,12 +741,12 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		}
 
 		value, ok := a.paramValuesStr[p.Name]
-		if !ok {
+		qValue := queryParams.Get(p.Name)
+		if !ok && qValue == "" {
 			http.Error(w, fmt.Sprintf("missing param value for %s", p.Name), http.StatusInternalServerError)
 			return
 		}
 
-		qValue := queryParams.Get(p.Name)
 		if qValue != "" {
 			// Prefer value from query params
 			value = qValue
