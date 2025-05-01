@@ -86,10 +86,12 @@ type ServerConfig struct {
 	Secret      map[string]SecretConfig     `toml:"secret"`
 	ProfileMode string                      `toml:"profile_mode"`
 	AppConfig   AppConfig                   `toml:"app_config"`
+	NodeConfig  NodeConfig                  `toml:"node_config"`
 }
 
 type PluginSettings map[string]any
 type SecretConfig map[string]any
+type NodeConfig map[string]any
 
 type AppConfig struct {
 	CORS      CORS      `toml:"cors"`
@@ -204,15 +206,16 @@ type LogConfig struct {
 
 // SystemConfig is the system level configuration
 type SystemConfig struct {
-	TailwindCSSCommand        string `toml:"tailwindcss_command"`
-	FileWatcherDebounceMillis int    `toml:"file_watcher_debounce_millis"`
-	NodePath                  string `toml:"node_path"`
-	ContainerCommand          string `toml:"container_command"`
-	DefaultDomain             string `toml:"default_domain"`
-	RootServeListApps         string `toml:"root_serve_list_apps"`
-	EnableCompression         bool   `toml:"enable_compression"`
-	HttpEventRetentionDays    int    `toml:"http_event_retention_days"`
-	NonHttpEventRetentionDays int    `toml:"non_http_event_retention_days"`
+	TailwindCSSCommand        string   `toml:"tailwindcss_command"`
+	FileWatcherDebounceMillis int      `toml:"file_watcher_debounce_millis"`
+	NodePath                  string   `toml:"node_path"`
+	ContainerCommand          string   `toml:"container_command"`
+	DefaultDomain             string   `toml:"default_domain"`
+	RootServeListApps         string   `toml:"root_serve_list_apps"`
+	EnableCompression         bool     `toml:"enable_compression"`
+	HttpEventRetentionDays    int      `toml:"http_event_retention_days"`
+	NonHttpEventRetentionDays int      `toml:"non_http_event_retention_days"`
+	AllowedEnv                []string `toml:"allowed_env"` // List of environment variables that are allowed to be used in the node config
 }
 
 // GitAuth is a github auth config entry

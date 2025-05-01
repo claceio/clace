@@ -71,7 +71,8 @@ func (s *Server) loadApplyInfo(fileName string, data []byte) ([]*types.CreateApp
 	}
 
 	builtins := starlark.StringDict{
-		APP: starlark.NewBuiltin(APP, createAppBuiltin),
+		APP:            starlark.NewBuiltin(APP, createAppBuiltin),
+		apptype.CONFIG: starlark.NewBuiltin(apptype.CONFIG, apptype.CreateConfigBuiltin(s.config.NodeConfig, s.config.System.AllowedEnv)),
 	}
 
 	thread := &starlark.Thread{

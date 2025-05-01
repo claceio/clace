@@ -152,7 +152,7 @@ func (a *App) loadStarlarkConfig(dryRun types.DryRun) error {
 }
 
 func (a *App) createBuiltin() (starlark.StringDict, error) {
-	builtin := apptype.CreateBuiltin()
+	builtin := apptype.CreateBuiltin(a.nodeConfig, a.systemConfig.AllowedEnv)
 	if builtin == nil {
 		return nil, errors.New("error creating builtin")
 	}

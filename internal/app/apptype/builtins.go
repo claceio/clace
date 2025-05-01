@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -30,6 +31,7 @@ const (
 	REDIRECT              = "redirect"
 	PERMISSION            = "permission"
 	RESPONSE              = "response"
+	CONFIG                = "config"
 	LIBRARY               = "library"
 	ACTION                = "action"
 	RESULT                = "result"
@@ -441,7 +443,27 @@ func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 	return starlarkstruct.FromStringDict(starlark.String(API), fields), nil
 }
 
-func CreateBuiltin() starlark.StringDict {
+func CreateConfigBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		var input, defaultVal starlark.String
+		if err := starlark.UnpackArgs(CONFIG, args, kwargs, "input", &input, "default?", &defaultVal); err != nil {
+			return nil, fmt.Errorf("error unpacking config args: %w", err)
+		}
+		val, ok := nodeConfig[string(input)]
+		if !ok {
+			val = defaultVal
+		}
+		valStr := fmt.Sprintf("%v", val)
+		for _, env := range allowedEnv {
+			envVal := os.Getenv(env)
+			valStr = strings.ReplaceAll(valStr, fmt.Sprintf("$%s", env), envVal)
+		}
+
+		return starlark.String(valStr), nil
+	}
+}
+
+func CreateBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) starlark.StringDict {
 	once.Do(func() {
 		builtin = starlark.StringDict{
 			DEFAULT_MODULE: &starlarkstruct.Module{
@@ -461,6 +483,7 @@ func CreateBuiltin() starlark.StringDict {
 					RESULT:     starlark.NewBuiltin(RESULT, createResultBuiltin),
 					AUDIT:      starlark.NewBuiltin(AUDIT, createAuditBuiltin),
 					OUTPUT:     starlark.NewBuiltin(OUTPUT, createOutputBuiltin),
+					CONFIG:     starlark.NewBuiltin(CONFIG, CreateConfigBuiltin(nodeConfig, allowedEnv)),
 
 					GET:             starlark.String(GET),
 					POST:            starlark.String(POST),

@@ -64,7 +64,7 @@ func CreateTestAppPluginId(logger *types.Logger, fileData map[string]string,
 func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]string, isDev bool,
 	plugins []string, permissions []types.Permission, pluginConfig map[string]types.PluginSettings,
 	id string, settings types.AppSettings, params map[string]string, appConfig *types.AppConfig) (*app.App, *appfs.WorkFs, error) {
-	systemConfig := types.SystemConfig{TailwindCSSCommand: ""}
+	systemConfig := types.SystemConfig{TailwindCSSCommand: "", AllowedEnv: []string{"HOME"}}
 	var fs appfs.ReadableFS
 	if isDev {
 		fs = &TestWriteFS{TestReadFS: &TestReadFS{fileData: fileData}}
@@ -106,7 +106,8 @@ func CreateTestAppInt(logger *types.Logger, path string, fileData map[string]str
 	}
 	workFS := appfs.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a, err := app.NewApp(sourceFS, workFS, logger,
-		createTestAppEntry(id, path, isDev, metadata), &systemConfig, pluginConfig, *appConfig, nil, secretManager.AppEvalTemplate, nil)
+		createTestAppEntry(id, path, isDev, metadata), &systemConfig, pluginConfig, *appConfig,
+		nil, secretManager.AppEvalTemplate, nil, types.NodeConfig{})
 	if err != nil {
 		return nil, nil, err
 	}

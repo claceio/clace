@@ -64,6 +64,7 @@ enable_compression = false          # enable compression for HTTP responses
 
 http_event_retention_days = 90      # number of days to retain http events
 non_http_event_retention_days = 180 # number of days to retain non-http (system, action, custom) events
+allowed_env = ["HOME", "CL_HOME", "PATH"] # env values allowed for use in node config
 
 [plugin."store.in"]
 db_connection = "sqlite:$CL_HOME/metadata/clace_app_store.db"

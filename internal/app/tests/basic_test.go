@@ -676,3 +676,42 @@ app = ace.app("testApp",
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringContains(t, response.Body.String(), "\"fail\"")
 }
+
+func TestAppConfigRead(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def t1(req):
+	return ace.config("AAA", "DEF")
+def t2(req):
+	return ace.config("AAA", "$HOME/ss")
+def t3(req):
+	return ace.config("AAA", "$SHELL")
+app = ace.app("testApp", routes = [ace.api("/t1", t1, type=ace.TEXT), ace.api("/t2", t2, type=ace.TEXT), ace.api("/t3", t3, type=ace.TEXT)])
+		`,
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/t1", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "\"DEF\"", response.Body.String())
+
+	request = httptest.NewRequest("GET", "/test/t2", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	if strings.Index(response.Body.String(), "$HOME") != -1 {
+		t.Errorf("Expected $HOME to be replaced, got %s", response.Body.String())
+	}
+
+	request = httptest.NewRequest("GET", "/test/t3", nil)
+	response = httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "\"$SHELL\"", response.Body.String())
+}

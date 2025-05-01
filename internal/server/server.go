@@ -229,6 +229,16 @@ func updateConfigSecrets(config *types.ServerConfig, evalSecret func(string) (st
 		config.Plugins[name] = pluginConfig
 	}
 
+	for key, value := range config.NodeConfig {
+		valString, ok := value.(string)
+		if ok {
+			if valString, err = evalSecret(valString); err != nil {
+				return err
+			}
+			config.NodeConfig[key] = valString
+		}
+	}
+
 	return nil
 }
 
@@ -674,7 +684,8 @@ func (s *Server) GetListAppsApp() (*app.App, error) {
 	subLogger := s.Logger.With().Str("id", string(appEntry.Id)).Logger()
 	appLogger := types.Logger{Logger: &subLogger}
 	s.listAppsApp, err = app.NewApp(sourceFS, nil, &appLogger, &appEntry, &s.config.System,
-		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.AppEvalTemplate, s.InsertAuditEvent)
+		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.AppEvalTemplate,
+		s.InsertAuditEvent, s.config.NodeConfig)
 	if err != nil {
 		return nil, err
 	}

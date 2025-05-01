@@ -82,7 +82,8 @@ type App struct {
 	lastRequestTime atomic.Int64
 	secretEvalFunc  func([][]string, string, string) (string, error)
 	auditInsert     func(*types.AuditEvent) error
-	AppRunPath      string // path to the app run directory
+	AppRunPath      string           // path to the app run directory
+	nodeConfig      types.NodeConfig // Node level configuration
 }
 
 type starlarkCacheEntry struct {
@@ -99,7 +100,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
 	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
 	secretEvalFunc func([][]string, string, string) (string, error),
-	auditInsert func(*types.AuditEvent) error) (*App, error) {
+	auditInsert func(*types.AuditEvent) error, nodeConfig types.NodeConfig) (*App, error) {
 	newApp := &App{
 		sourceFS:       sourceFS,
 		Logger:         logger,
@@ -110,6 +111,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		secretEvalFunc: secretEvalFunc,
 		appStyle:       &dev.AppStyle{},
 		auditInsert:    auditInsert,
+		nodeConfig:     nodeConfig,
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.AppConfig = appConfig
