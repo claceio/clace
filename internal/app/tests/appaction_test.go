@@ -1175,3 +1175,19 @@ param("param2", description="param2 description", type=STRING, default="myvalue2
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertStringContains(t, response.Body.String(), "<title>testAction</title>")
 }
+
+func TestActionMountError(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}])
+
+app = ace.app("testApp",
+	actions=[ace.action("test1Action", "/test1", handler), ace.action("test1Action", "/test1", handler)])
+		`,
+		"params.star": `param("param1", description="param1 description", type=BOOLEAN, default=False)`,
+	}
+	_, _, err := CreateTestApp(logger, fileData)
+	testutil.AssertErrorContains(t, err, "error adding action at path /test1")
+}

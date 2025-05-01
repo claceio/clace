@@ -509,7 +509,7 @@ func (a *App) initActions(router *chi.Mux) error {
 	return nil
 }
 
-func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
+func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) (err error) {
 	var ok bool
 	var actionDef *starlarkstruct.Struct
 
@@ -521,7 +521,6 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	var run, suggest starlark.Callable
 	var hidden []string
 	var showValidate bool
-	var err error
 	if name, err = apptype.GetStringAttr(actionDef, "name"); err != nil {
 		return err
 	}
@@ -565,6 +564,12 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) error {
 	if err != nil {
 		return fmt.Errorf("error building router for action %s: %w", name, err)
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("error adding action at path %s: %v", path, r)
+		}
+	}()
 	router.Mount(path, r)
 	a.actions = append(a.actions, action)
 	return nil

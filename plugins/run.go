@@ -13,18 +13,19 @@ import (
 	"os/exec"
 
 	"github.com/claceio/clace/internal/app"
+	"github.com/claceio/clace/internal/app/starlark_type"
 	"go.starlark.net/starlark"
 )
 
 func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
-		path                                    starlark.String
-		cmdArgs                                 *starlark.List
-		env                                     *starlark.List
-		processPartial, stdoutToFile, parseJson starlark.Bool
+		path, parse                  starlark.String
+		cmdArgs                      *starlark.List
+		env                          *starlark.List
+		processPartial, stdoutToFile starlark.Bool
 	)
 	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env,
-		"process_partial?", &processPartial, "stdout_file", &stdoutToFile, "parse_json", &parseJson); err != nil {
+		"process_partial?", &processPartial, "stdout_file", &stdoutToFile, "parse", &parse); err != nil {
 		return nil, err
 	}
 	if cmdArgs == nil {
@@ -108,7 +109,7 @@ func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread
 		return app.NewResponse(starlark.String(tempFile.Name())), nil
 	}
 
-	if parseJson {
+	if parse == "json" {
 		var result map[string]any
 		err := json.NewDecoder(&buf).Decode(&result)
 		if err != nil {
@@ -116,11 +117,28 @@ func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread
 		}
 		return app.NewResponse([]map[string]any{result}), nil
 	}
+	if parse != "" && parse != "jsonlines" {
+		return nil, fmt.Errorf("unsupported format: %s", parse)
+	}
 
 	lines := starlark.NewList([]starlark.Value{})
 	scanner := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
 	for scanner.Scan() {
-		lines.Append(starlark.String(scanner.Text()))
+		line := scanner.Bytes()
+		if parse == "jsonlines" {
+			var result map[string]any
+			err := json.NewDecoder(bytes.NewReader(line)).Decode(&result)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing JSON output: %w", err)
+			}
+			val, err := starlark_type.MarshalStarlark(result)
+			if err != nil {
+				return nil, fmt.Errorf("error converting JSON output to starlark: %w", err)
+			}
+			lines.Append(val)
+		} else {
+			lines.Append(starlark.String(line))
+		}
 	}
 
 	if lines.Len() == 0 && runErr != nil {
