@@ -229,14 +229,11 @@ func updateConfigSecrets(config *types.ServerConfig, evalSecret func(string) (st
 		config.Plugins[name] = pluginConfig
 	}
 
-	for key, value := range config.NodeConfig {
-		valString, ok := value.(string)
-		if ok {
-			if valString, err = evalSecret(valString); err != nil {
-				return err
-			}
-			config.NodeConfig[key] = valString
+	for key, val := range config.NodeConfig {
+		if val, err = evalSecret(val); err != nil {
+			return err
 		}
+		config.NodeConfig[key] = val
 	}
 
 	return nil

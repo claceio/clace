@@ -451,15 +451,15 @@ func CreateConfigBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) func(
 		}
 		val, ok := nodeConfig[string(input)]
 		if !ok {
-			val = defaultVal
-		}
-		valStr := fmt.Sprintf("%v", val)
-		for _, env := range allowedEnv {
-			envVal := os.Getenv(env)
-			valStr = strings.ReplaceAll(valStr, fmt.Sprintf("$%s", env), envVal)
+			val = string(defaultVal)
 		}
 
-		return starlark.String(valStr), nil
+		for _, env := range allowedEnv {
+			envVal := os.Getenv(env)
+			val = strings.ReplaceAll(val, fmt.Sprintf("$%s", env), envVal)
+		}
+
+		return starlark.String(val), nil
 	}
 }
 

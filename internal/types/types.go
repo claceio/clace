@@ -91,7 +91,7 @@ type ServerConfig struct {
 
 type PluginSettings map[string]any
 type SecretConfig map[string]any
-type NodeConfig map[string]any
+type NodeConfig map[string]string
 
 type AppConfig struct {
 	CORS      CORS      `toml:"cors"`

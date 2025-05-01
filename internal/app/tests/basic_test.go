@@ -699,7 +699,7 @@ app = ace.app("testApp", routes = [ace.api("/t1", t1, type=ace.TEXT), ace.api("/
 	response := httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertEqualsString(t, "body", "\"DEF\"", response.Body.String())
+	testutil.AssertEqualsString(t, "body", "DEF", response.Body.String())
 
 	request = httptest.NewRequest("GET", "/test/t2", nil)
 	response = httptest.NewRecorder()
@@ -713,5 +713,5 @@ app = ace.app("testApp", routes = [ace.api("/t1", t1, type=ace.TEXT), ace.api("/
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertEqualsString(t, "body", "\"$SHELL\"", response.Body.String())
+	testutil.AssertEqualsString(t, "body", "$SHELL", response.Body.String())
 }
