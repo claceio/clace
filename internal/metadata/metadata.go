@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const CURRENT_DB_VERSION = 3
+const CURRENT_DB_VERSION = 4
 
 // Metadata is the metadata persistence layer
 type Metadata struct {
@@ -68,7 +68,7 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 	}
 
 	if !config.Metadata.IgnoreHigherVersion && version > CURRENT_DB_VERSION {
-		return fmt.Errorf("DB version is newer than server version, exiting. Server %d, DB %d", CURRENT_DB_VERSION, version)
+		return fmt.Errorf("DB version is newer than server version, upgrade Clace server version. Server %d, DB %d", CURRENT_DB_VERSION, version)
 	}
 
 	if version == CURRENT_DB_VERSION {
@@ -114,6 +114,17 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 		}
 
 		if _, err := tx.ExecContext(ctx, `update version set version=3, last_upgraded=datetime('now')`); err != nil {
+			return err
+		}
+	}
+
+	if version < 4 {
+		m.Info().Msg("Upgrading to version 4")
+		if _, err := tx.ExecContext(ctx, `create table sync(id text, path text, is_scheduled bool, user_id text, create_time datetime, metadata json, PRIMARY KEY(id))`); err != nil {
+			return err
+		}
+
+		if _, err := tx.ExecContext(ctx, `update version set version=4, last_upgraded=datetime('now')`); err != nil {
 			return err
 		}
 	}
@@ -326,7 +337,7 @@ func (m *Metadata) GetLinkedApps(ctx context.Context, tx types.Transaction, main
 		err = rows.Scan(&app.Id, &app.Path, &app.Domain, &app.MainApp, &app.SourceUrl, &app.IsDev, &app.UserID, &app.CreateTime, &app.UpdateTime, &settings, &metadata)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				return nil, errors.New("app not found")
+				return apps, nil // No linked apps found, return empty slice
 			}
 			m.Error().Err(err).Msgf("query %s", mainAppId)
 			return nil, fmt.Errorf("error querying appy: %w", err)
@@ -390,10 +401,98 @@ func (m *Metadata) UpdateAppSettings(ctx context.Context, tx types.Transaction, 
 	return nil
 }
 
+func (m *Metadata) CreateSync(ctx context.Context, tx types.Transaction, sync *types.SyncEntry) error {
+	metadataJson, err := json.Marshal(sync.Metadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `INSERT into sync(id, path, is_scheduled, user_id, create_time, metadata) values(?, ?, ?, ?, datetime('now'), ?)`,
+		sync.Id, sync.Path, sync.IsScheduled, sync.UserID, metadataJson)
+	if err != nil {
+		return fmt.Errorf("error inserting sync entry: %w", err)
+	}
+	return nil
+}
+
+func (m *Metadata) DeleteSync(ctx context.Context, tx types.Transaction, id string) error {
+	result, err := tx.ExecContext(ctx, `delete from sync where id = ?`, id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("no sync entry found with id for delete: %s", id)
+	}
+	return nil
+}
+
+// GetSyncEntries gets all the sync entries for the given webhook type
+func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]*types.SyncEntry, error) {
+	stmt, err := tx.PrepareContext(ctx, `select id, path, is_scheduled, user_id, create_time, metadata from sync`)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing statement: %w", err)
+	}
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, fmt.Errorf("error querying sync: %w", err)
+	}
+	syncEntries := make([]*types.SyncEntry, 0)
+	defer rows.Close()
+	for rows.Next() {
+		var sync types.SyncEntry
+		var metadata sql.NullString
+		err = rows.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return syncEntries, nil // No entries found, return empty slice
+			}
+			return nil, fmt.Errorf("error querying sync: %w", err)
+		}
+
+		if metadata.Valid && metadata.String != "" {
+			err = json.Unmarshal([]byte(metadata.String), &sync.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+			}
+		}
+
+		syncEntries = append(syncEntries, &sync)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
+	return syncEntries, nil
+}
+func (m *Metadata) GetSyncEntry(ctx context.Context, tx types.Transaction, id string) (*types.SyncEntry, error) {
+	row := m.db.QueryRow("select id, path, is_scheduled, user_id, create_time, metadata from sync where id = ?", id)
+	var sync types.SyncEntry
+	var metadata sql.NullString
+	err := row.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("sync entry not found with id: " + id)
+		}
+		m.Error().Err(err).Msgf("query %s", id)
+		return nil, fmt.Errorf("error querying sync entry: %w", err)
+	}
+	if metadata.Valid && metadata.String != "" {
+		err = json.Unmarshal([]byte(metadata.String), &sync.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
+		}
+	}
+	return &sync, nil
+}
+
 // BeginTransaction starts a new Transaction
 func (m *Metadata) BeginTransaction(ctx context.Context) (types.Transaction, error) {
 	tx, err := m.db.BeginTx(ctx, nil)
-	return types.Transaction{tx}, err
+	return types.Transaction{Tx: tx}, err
 }
 
 // CommitTransaction commits a transaction
@@ -401,7 +500,7 @@ func (m *Metadata) CommitTransaction(tx types.Transaction) error {
 	return tx.Commit()
 }
 
-// Rollbacktypes.Transaction rolls back a transaction
+// RollbackTransaction rolls back a transaction
 func (m *Metadata) RollbackTransaction(tx types.Transaction) error {
 	return tx.Rollback()
 }

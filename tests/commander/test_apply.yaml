@@ -47,7 +47,7 @@ tests:
       exactly: '["v1:/abc","v3","v4"]'
 
   apply0040: ## Force apply new config apply2 for one app (cli updates are overwritten)
-    command: ../clace apply --force ./apply_files/apply2.ace /applytest/app4
+    command: ../clace apply --clobber ./apply_files/apply2.ace /applytest/app4
     stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted."
 
   apply0050: ## verify state
@@ -87,7 +87,7 @@ tests:
     stdout:
       exactly: '"[5,6]"'
   apply0063: ## Force update app3
-    command: ../clace apply --force ./apply_files/apply2.ace /applytest/app3
+    command: ../clace apply --clobber ./apply_files/apply2.ace /applytest/app3
     stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) approved, 0 app(s) promoted."
   apply0064:
     command: ../clace version list /applytest/app3_cl_stage | wc -l
@@ -99,7 +99,7 @@ tests:
       exactly: "2"
 
   apply0066: ## Promote change, with no reload
-    command: ../clace apply --force --promote --reload=none ./apply_files/apply2.ace /applytest/app3
+    command: ../clace apply --clobber --promote --reload=none ./apply_files/apply2.ace /applytest/app3
     stdout: "0 app(s) created, 2 app(s) updated, 0 app(s) reloaded, 0 app(s) approved, 1 app(s) promoted."
   apply0067:
     command: ../clace version list /applytest/app3_cl_stage | wc -l
@@ -110,7 +110,7 @@ tests:
     stdout:
       exactly: "3"
   apply0069: ## Reset state
-    command: ../clace apply --force --promote ./apply_files/apply2.ace all
+    command: ../clace apply --clobber --promote ./apply_files/apply2.ace all
     stdout: "0 app(s) created, 2 app(s) updated, 7 app(s) reloaded, 0 app(s) approved, 3 app(s) promoted."
   apply0070: ## Check reload all with promote
     command: ../clace apply --promote ./apply_files/apply2.ace all

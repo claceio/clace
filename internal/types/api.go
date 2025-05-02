@@ -225,6 +225,23 @@ type TokenDeleteResponse struct {
 	DryRun bool `json:"dry_run"`
 }
 
+type SyncCreateResponse struct {
+	DryRun            bool   `json:"dry_run"`
+	Id                string `json:"id"`
+	WebhookUrl        string `json:"webhook_url"`
+	WebhookSecret     string `json:"webhook_secret"`
+	ScheduleFrequency int    `json:"schedule_minutes"`
+}
+
+type SyncDeleteResponse struct {
+	DryRun bool   `json:"dry_run"`
+	Id     string `json:"id"`
+}
+
+type SyncListResponse struct {
+	Entries []*SyncEntry `json:"entries"`
+}
+
 type AppReloadOption string
 
 const (

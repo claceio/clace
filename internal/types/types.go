@@ -574,3 +574,26 @@ const (
 	DryRunTrue  DryRun = true
 	DryRunFalse DryRun = false
 )
+
+type SyncEntry struct {
+	Id          string       `json:"id"`
+	Path        string       `json:"path"`
+	IsScheduled bool         `json:"is_scheduled"` // whether this is a scheduled sync
+	UserID      string       `json:"user_id"`
+	CreateTime  *time.Time   `json:"create_time"`
+	Metadata    SyncMetadata `json:"metadata"`
+}
+
+type SyncMetadata struct {
+	GitBranch string `json:"git_branch"` // the git branch to sync from
+	GitAuth   string `json:"git_auth"`   // the git auth entry to use for the sync
+
+	Promote bool   `json:"promote"` // whether this sync does a promote
+	Approve bool   `json:"approve"` // whether this sync does an approve
+	Reload  string `json:"reload"`  // which apps to reload after the sync
+	Clobber bool   `json:"clobber"` // whether to force update the sync, overwriting non-declarative changes
+
+	WebhookUrl        string `json:"webhook_url"`        // for webhook : the url to use
+	WebhookSecret     string `json:"webhook_secret"`     // for webhook : the secret to use
+	ScheduleFrequency int    `json:"schedule_frequency"` // for scheduled: the frequency of the sync, every N minutes
+}

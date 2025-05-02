@@ -215,7 +215,7 @@ func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCach
 }
 
 func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
-	reload types.AppReloadOption, branch, commit, gitAuth string, force bool) (*types.AppApplyResponse, error) {
+	reload types.AppReloadOption, branch, commit, gitAuth string, clobber bool) (*types.AppApplyResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -343,7 +343,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	for _, updateApp := range updatedApps {
 		s.Trace().Msgf("Applying update app %s", updateApp)
 		applyInfo := applyConfig[updateApp]
-		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, force, repoCache)
+		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, clobber, repoCache)
 		if err != nil {
 			return nil, err
 		}
@@ -419,7 +419,7 @@ func convertToMapString(input map[string]any, convertToml bool) (map[string]stri
 }
 
 func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPathDomain types.AppPathDomain, newInfo *types.CreateAppRequest,
-	approve, dryRun, promote bool, reload types.AppReloadOption, force bool, repoCache *RepoCache) (*types.AppApplyResult, error) {
+	approve, dryRun, promote bool, reload types.AppReloadOption, clobber bool, repoCache *RepoCache) (*types.AppApplyResult, error) {
 	liveApp, err := s.GetAppEntry(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, fmt.Errorf("app missing during update %w", err)
@@ -446,21 +446,21 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 
 	authChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.AppAuthn
-	}, newInfo.AppAuthn, liveApp.Settings.AuthnType, force)
+	}, newInfo.AppAuthn, liveApp.Settings.AuthnType, clobber)
 	if authChanged {
 		return nil, fmt.Errorf("app %s authentication changed, cannot apply changes. Use \"app update-settings\"", appPathDomain)
 	}
 
 	gitAuthChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.GitAuthName
-	}, newInfo.GitAuthName, liveApp.Settings.GitAuthName, force)
+	}, newInfo.GitAuthName, liveApp.Settings.GitAuthName, clobber)
 	if gitAuthChanged {
 		return nil, fmt.Errorf("app %s git auth changed, cannot apply changes. Use \"app update-settings\"", appPathDomain)
 	}
 
 	specChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.Spec
-	}, newInfo.Spec, liveApp.Metadata.Spec, force)
+	}, newInfo.Spec, liveApp.Metadata.Spec, clobber)
 	if specChanged {
 		if newInfo.Spec == "" {
 			liveApp.Metadata.SpecFiles = nil
@@ -477,7 +477,7 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 
 	gitBranchChanged := checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 		return info.GitBranch
-	}, newInfo.GitBranch, liveApp.Metadata.VersionMetadata.GitBranch, force)
+	}, newInfo.GitBranch, liveApp.Metadata.VersionMetadata.GitBranch, clobber)
 	if gitBranchChanged {
 		liveApp.Metadata.VersionMetadata.GitBranch = newInfo.GitBranch
 	}
@@ -485,7 +485,7 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	if newInfo.GitCommit != "" {
 		gitCommitChanged = checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 			return info.GitCommit
-		}, newInfo.GitCommit, liveApp.Metadata.VersionMetadata.GitCommit, force)
+		}, newInfo.GitCommit, liveApp.Metadata.VersionMetadata.GitCommit, clobber)
 		if gitCommitChanged {
 			liveApp.Metadata.VersionMetadata.GitCommit = newInfo.GitCommit
 		}
@@ -495,31 +495,31 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	if oldInfo != nil {
 		oldParams = oldInfo.ParamValues
 	}
-	paramsChanged := mergeMap(oldParams, newInfo.ParamValues, liveApp.Metadata.ParamValues, force)
+	paramsChanged := mergeMap(oldParams, newInfo.ParamValues, liveApp.Metadata.ParamValues, clobber)
 
 	var oldContOptions map[string]string
 	if oldInfo != nil {
 		oldContOptions = oldInfo.ContainerOptions
 	}
-	contConfigChanged := mergeMap(oldContOptions, newInfo.ContainerOptions, liveApp.Metadata.ContainerOptions, force)
+	contConfigChanged := mergeMap(oldContOptions, newInfo.ContainerOptions, liveApp.Metadata.ContainerOptions, clobber)
 
 	var oldContArgs map[string]string
 	if oldInfo != nil {
 		oldContArgs = oldInfo.ContainerArgs
 	}
-	contArgsChanged := mergeMap(oldContArgs, newInfo.ContainerArgs, liveApp.Metadata.ContainerArgs, force)
+	contArgsChanged := mergeMap(oldContArgs, newInfo.ContainerArgs, liveApp.Metadata.ContainerArgs, clobber)
 
 	var oldContVolumes []string
 	if oldInfo != nil {
 		oldContVolumes = oldInfo.ContainerVolumes
 	}
-	contVolsChanged := mergeSlice(oldContVolumes, newInfo.ContainerVolumes, &liveApp.Metadata.ContainerVolumes, force)
+	contVolsChanged := mergeSlice(oldContVolumes, newInfo.ContainerVolumes, &liveApp.Metadata.ContainerVolumes, clobber)
 
 	var oldAppConfig map[string]string
 	if oldInfo != nil {
 		oldAppConfig = oldInfo.AppConfig
 	}
-	appConfigChanged := mergeMap(oldAppConfig, newInfo.AppConfig, liveApp.Metadata.AppConfig, force)
+	appConfigChanged := mergeMap(oldAppConfig, newInfo.AppConfig, liveApp.Metadata.AppConfig, clobber)
 
 	updated := specChanged || gitBranchChanged || gitCommitChanged || paramsChanged ||
 		contConfigChanged || contArgsChanged || contVolsChanged || appConfigChanged
@@ -574,8 +574,8 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	return ret, nil
 }
 
-func mergeMap(old, new, live map[string]string, force bool) bool {
-	if force {
+func mergeMap(old, new, live map[string]string, clobber bool) bool {
+	if clobber {
 		// Force overwrite the live map
 		if reflect.DeepEqual(live, new) {
 			return false
@@ -629,8 +629,8 @@ func mergeMap(old, new, live map[string]string, force bool) bool {
 	return updated
 }
 
-func mergeSlice(old, new []string, live *[]string, force bool) bool {
-	if force {
+func mergeSlice(old, new []string, live *[]string, clobber bool) bool {
+	if clobber {
 		if reflect.DeepEqual(*live, new) {
 			return false
 		}
@@ -689,8 +689,8 @@ func mergeSlice(old, new []string, live *[]string, force bool) bool {
 	return updated
 }
 
-func checkPropertyChanged(oldInfo *types.CreateAppRequest, fetchVal func(*types.CreateAppRequest) any, newVal, liveVal any, force bool) bool {
-	if force || oldInfo == nil {
+func checkPropertyChanged(oldInfo *types.CreateAppRequest, fetchVal func(*types.CreateAppRequest) any, newVal, liveVal any, clobber bool) bool {
+	if clobber || oldInfo == nil {
 		return !reflect.DeepEqual(liveVal, newVal)
 	}
 	var oldVal = fetchVal(oldInfo)

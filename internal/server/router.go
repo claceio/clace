@@ -959,7 +959,7 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	force, err := parseBoolArg(r.URL.Query().Get("force"), false)
+	clobber, err := parseBoolArg(r.URL.Query().Get("clobber"), false)
 	if err != nil {
 		return nil, err
 	}
@@ -978,12 +978,66 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 
 	ret, err := h.server.Apply(r.Context(), applyPath, appPathGlob, approve, dryRun, promote,
 		types.AppReloadOption(r.URL.Query().Get("reload")),
-		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"), force)
+		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"), clobber)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)
 	}
 
 	return ret, nil
+}
+
+func (h *Handler) createSyncEntry(r *http.Request) (any, error) {
+	path := r.URL.Query().Get("path")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	var sync types.SyncMetadata
+	err = json.NewDecoder(r.Body).Decode(&sync)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+	updateTargetInContext(r, path, dryRun)
+	updateOperationInContext(r, "sync_create")
+
+	results, err := h.server.CreateSyncEntry(r.Context(), path, dryRun, &sync)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return results, nil
+}
+
+func (h *Handler) deleteSyncEntry(r *http.Request) (any, error) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		return nil, types.CreateRequestError("id is required", http.StatusBadRequest)
+	}
+
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	updateTargetInContext(r, id, dryRun)
+	updateOperationInContext(r, "sync_delete")
+
+	results, err := h.server.DeleteSyncEntry(r.Context(), id, dryRun)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return results, nil
+}
+
+func (h *Handler) listSyncEntries(r *http.Request) (any, error) {
+	results, err := h.server.ListSyncEntries(r.Context())
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return results, nil
 }
 
 // serveInternal returns a handler for the internal APIs for app admin and management
@@ -1089,6 +1143,21 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 	// API to apply app config
 	r.Post("/apply", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.apiHandler(w, r, enableBasicAuth, "apply", h.apply)
+	}))
+
+	// API to create sync entry
+	r.Post("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, "apply", h.createSyncEntry)
+	}))
+
+	// API to delete sync entry
+	r.Delete("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, "apply", h.deleteSyncEntry)
+	}))
+
+	// API to get sync entries
+	r.Get("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, "apply", h.listSyncEntries)
 	}))
 
 	return r

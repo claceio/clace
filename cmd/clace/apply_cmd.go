@@ -24,7 +24,7 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 	flags = append(flags, newStringFlag("reload", "r", "Which apps to reload: none, updated, matched", ""))
 	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
-	flags = append(flags, newBoolFlag("force", "f", "Force update app config, overwriting non-declarative changes", false))
+	flags = append(flags, newBoolFlag("clobber", "", "Force update app config, overwriting non-declarative changes", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -44,7 +44,7 @@ Examples:
   Apply app config, reloading all apps: clace apply ./app.ace all
   Apply app config for example.com domain apps: clace apply --reload=updated ./app.ace example.com:**
   Apply app config from git for all apps: clace apply --reload=none --promote --approve github.com/claceio/apps/apps.ace all
-  Apply app config from git for all apps, overwriting changes: clace apply --reload=matched --promote --force github.com/claceio/apps/apps.ace all
+  Apply app config from git for all apps, overwriting changes: clace apply --reload=matched --promote --clobber github.com/claceio/apps/apps.ace all
 `,
 
 		Action: func(cCtx *cli.Context) error {
@@ -65,7 +65,6 @@ Examples:
 			values := url.Values{}
 			values.Add("applyPath", cCtx.Args().Get(0))
 			values.Add("appPathGlob", appPathGlob)
-			values.Add("commitId", cCtx.Args().Get(0))
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add("branch", cCtx.String("branch"))
@@ -73,7 +72,7 @@ Examples:
 			values.Add("gitAuth", cCtx.String("git-auth"))
 			values.Add("reload", string(reloadMode))
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
-			values.Add("force", strconv.FormatBool(cCtx.Bool("force")))
+			values.Add("clobber", strconv.FormatBool(cCtx.Bool("clobber")))
 
 			var applyResponse types.AppApplyResponse
 			err := client.Post("/_clace/apply", values, nil, &applyResponse)
