@@ -91,7 +91,7 @@ type ServerConfig struct {
 
 type PluginSettings map[string]any
 type SecretConfig map[string]any
-type NodeConfig map[string]string
+type NodeConfig map[string]any
 
 type AppConfig struct {
 	CORS      CORS      `toml:"cors"`
@@ -189,9 +189,10 @@ type SecurityConfig struct {
 
 // MetadataConfig is the configuration for the Metadata persistence layer
 type MetadataConfig struct {
-	DBConnection      string `toml:"db_connection"`
-	AutoUpgrade       bool   `toml:"auto_upgrade"`
-	AuditDBConnection string `toml:"audit_db_connection"`
+	DBConnection        string `toml:"db_connection"`
+	AutoUpgrade         bool   `toml:"auto_upgrade"`
+	AuditDBConnection   string `toml:"audit_db_connection"`
+	IgnoreHigherVersion bool   `toml:"ignore_higher_version"` // If true, ignore higher version of the metadata schema
 }
 
 // LogConfig is the configuration for the Logger

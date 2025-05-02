@@ -445,21 +445,33 @@ func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 
 func CreateConfigBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	return func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var input, defaultVal starlark.String
+		var input starlark.String
+		var defaultVal starlark.Value
 		if err := starlark.UnpackArgs(CONFIG, args, kwargs, "input", &input, "default?", &defaultVal); err != nil {
 			return nil, fmt.Errorf("error unpacking config args: %w", err)
 		}
-		val, ok := nodeConfig[string(input)]
-		if !ok {
-			val = string(defaultVal)
+		var err error
+		var outVal starlark.Value = defaultVal
+		localVal, ok := nodeConfig[string(input)]
+		if ok {
+			outVal, err = starlark_type.MarshalStarlark(localVal)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling config value for %s: %w", input, err)
+			}
+		}
+		if strVal, ok := outVal.(starlark.String); ok {
+			for _, env := range allowedEnv {
+				envVal := os.Getenv(env)
+				strVal = starlark.String(strings.ReplaceAll(string(strVal), fmt.Sprintf("$%s", env), envVal))
+			}
+			outVal = strVal
 		}
 
-		for _, env := range allowedEnv {
-			envVal := os.Getenv(env)
-			val = strings.ReplaceAll(val, fmt.Sprintf("$%s", env), envVal)
+		if outVal == nil {
+			outVal = starlark.None
 		}
 
-		return starlark.String(val), nil
+		return outVal, nil
 	}
 }
 

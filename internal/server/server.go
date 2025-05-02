@@ -230,8 +230,11 @@ func updateConfigSecrets(config *types.ServerConfig, evalSecret func(string) (st
 	}
 
 	for key, val := range config.NodeConfig {
-		if val, err = evalSecret(val); err != nil {
-			return err
+		if valStr, ok := val.(string); ok {
+			if valStr, err = evalSecret(valStr); err != nil {
+				return err
+			}
+			val = valStr
 		}
 		config.NodeConfig[key] = val
 	}

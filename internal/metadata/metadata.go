@@ -49,7 +49,7 @@ func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, e
 		db:     db,
 	}
 
-	err = m.VersionUpgrade()
+	err = m.VersionUpgrade(config)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, e
 	return m, nil
 }
 
-func (m *Metadata) VersionUpgrade() error {
+func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 	version := 0
 	row := m.db.QueryRow("SELECT version, last_upgraded FROM version")
 	var dt time.Time
@@ -67,7 +67,7 @@ func (m *Metadata) VersionUpgrade() error {
 		return fmt.Errorf("DB autoupgrade is disabled, exiting. Server %d, DB %d", CURRENT_DB_VERSION, version)
 	}
 
-	if version > CURRENT_DB_VERSION {
+	if !config.Metadata.IgnoreHigherVersion && version > CURRENT_DB_VERSION {
 		return fmt.Errorf("DB version is newer than server version, exiting. Server %d, DB %d", CURRENT_DB_VERSION, version)
 	}
 
