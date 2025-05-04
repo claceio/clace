@@ -435,7 +435,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	}
 
 	if reload {
-		resp, err = h.server.ReloadApps(r.Context(), appPath, false, false, promote, "", "", "")
+		resp, err = h.server.ReloadApps(r.Context(), appPath, false, false, promote, "", "", "", true)
 	} else {
 		// promote operation
 		resp, err = h.server.PromoteApps(r.Context(), appPath, false)
@@ -680,6 +680,11 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 		return nil, err
 	}
 
+	forceReload, err := parseBoolArg(r.URL.Query().Get("forceReload"), false)
+	if err != nil {
+		return nil, err
+	}
+
 	if appPathGlob == "" {
 		return nil, types.CreateRequestError("appPathGlob is required", http.StatusBadRequest)
 	}
@@ -695,7 +700,8 @@ func (h *Handler) reloadApps(r *http.Request) (any, error) {
 	}
 	updateOperationInContext(r, genOperationName("reload_apps", promote, approve))
 
-	ret, err := h.server.ReloadApps(r.Context(), appPathGlob, approve, dryRun, promote, r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"))
+	ret, err := h.server.ReloadApps(r.Context(), appPathGlob, approve, dryRun, promote,
+		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"), forceReload)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
@@ -963,6 +969,10 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	forceReload, err := parseBoolArg(r.URL.Query().Get("forceReload"), false)
+	if err != nil {
+		return nil, err
+	}
 
 	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
 	if err != nil {
@@ -978,7 +988,8 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 
 	ret, err := h.server.Apply(r.Context(), applyPath, appPathGlob, approve, dryRun, promote,
 		types.AppReloadOption(r.URL.Query().Get("reload")),
-		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"), clobber)
+		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"),
+		clobber, forceReload)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)
 	}

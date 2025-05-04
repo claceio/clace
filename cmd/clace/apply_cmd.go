@@ -25,6 +25,7 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, newStringFlag("reload", "r", "Which apps to reload: none, updated, matched", ""))
 	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
 	flags = append(flags, newBoolFlag("clobber", "", "Force update app config, overwriting non-declarative changes", false))
+	flags = append(flags, newBoolFlag("force-reload", "f", "Force reload even if there is no new commit", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -40,25 +41,20 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 ` + PATH_SPEC_HELP +
 			`
 Examples:
-  Apply app config, reloading updated apps: clace apply ./app.ace
-  Apply app config, reloading all apps: clace apply ./app.ace all
+  Apply app config, reloading all apps: clace apply ./app.ace
   Apply app config for example.com domain apps: clace apply --reload=updated ./app.ace example.com:**
-  Apply app config from git for all apps: clace apply --reload=none --promote --approve github.com/claceio/apps/apps.ace all
-  Apply app config from git for all apps, overwriting changes: clace apply --reload=matched --promote --clobber github.com/claceio/apps/apps.ace all
+  Apply app config from git for all apps: clace apply --promote --approve github.com/claceio/apps/apps.ace all
+  Apply app config from git for all apps, overwriting changes: clace apply --promote --clobber github.com/claceio/apps/apps.ace all
 `,
 
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() == 0 || cCtx.NArg() > 2 {
 				return fmt.Errorf("expected one or two arguments: <filePath> [<appPathGlob>]")
 			}
-			reloadMode := types.AppReloadOption(cmp.Or(cCtx.String("reload"), string(types.AppReloadOptionUpdated)))
+			reloadMode := types.AppReloadOption(cmp.Or(cCtx.String("reload"), string(types.AppReloadOptionMatched)))
 			appPathGlob := "all"
 			if cCtx.NArg() == 2 {
-				// If glob is specified, use it and set reload to matched (all matched apps are reloaded)
 				appPathGlob = cCtx.Args().Get(1)
-				if cCtx.String("reload") == "" {
-					reloadMode = types.AppReloadOptionMatched
-				}
 			}
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
@@ -73,6 +69,7 @@ Examples:
 			values.Add("reload", string(reloadMode))
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
 			values.Add("clobber", strconv.FormatBool(cCtx.Bool("clobber")))
+			values.Add("forceReload", strconv.FormatBool(cCtx.Bool("force-reload")))
 
 			var applyResponse types.AppApplyResponse
 			err := client.Post("/_clace/apply", values, nil, &applyResponse)
@@ -112,6 +109,17 @@ Examples:
 				fmt.Fprintln(cCtx.App.Writer)
 			}
 
+			if len(applyResponse.SkippedResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Skipped apps: ")
+				for i, skipResult := range applyResponse.SkippedResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", skipResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
 			if len(applyResponse.ApproveResults) > 0 {
 				fmt.Fprintf(cCtx.App.Writer, "Approved apps:\n")
 				for _, approveResult := range applyResponse.ApproveResults {
@@ -136,8 +144,8 @@ Examples:
 				fmt.Fprintln(cCtx.App.Writer)
 			}
 
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) created, %d app(s) updated, %d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
-				len(applyResponse.CreateResults), len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) created, %d app(s) updated, %d app(s) reloaded, %d app(s) skipped, %d app(s) approved, %d app(s) promoted.\n",
+				len(applyResponse.CreateResults), len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.SkippedResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
 
 			if applyResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

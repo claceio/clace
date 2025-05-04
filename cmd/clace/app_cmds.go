@@ -515,6 +515,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 	flags = append(flags, newBoolFlag("promote", "p", "Promote the change from stage to prod", false))
+	flags = append(flags, newBoolFlag("force-reload", "f", "Force reload even if there is no new commit", false))
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", ""))
 	flags = append(flags, newStringFlag("commit", "c", "The commit SHA to checkout if using git source. This takes precedence over branch", ""))
 	flags = append(flags, newStringFlag("git-auth", "g", "The name of the git_auth entry to use", ""))
@@ -553,6 +554,7 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 			values.Add("appPathGlob", cCtx.Args().First())
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add("promote", strconv.FormatBool(cCtx.Bool("promote")))
+			values.Add("forceReload", strconv.FormatBool(cCtx.Bool("force-reload")))
 			values.Add("branch", cCtx.String("branch"))
 			values.Add("commit", cCtx.String("commit"))
 			values.Add("gitAuth", cCtx.String("git-auth"))
@@ -571,6 +573,17 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 						fmt.Fprintf(cCtx.App.Writer, ", ")
 					}
 					fmt.Fprintf(cCtx.App.Writer, "%s", reloadResult)
+				}
+				fmt.Fprintln(cCtx.App.Writer)
+			}
+
+			if len(reloadResponse.SkippedResults) > 0 {
+				fmt.Fprintf(cCtx.App.Writer, "Skipped apps: ")
+				for i, skipResult := range reloadResponse.SkippedResults {
+					if i > 0 {
+						fmt.Fprintf(cCtx.App.Writer, ", ")
+					}
+					fmt.Fprintf(cCtx.App.Writer, "%s", skipResult)
 				}
 				fmt.Fprintln(cCtx.App.Writer)
 			}
@@ -599,8 +612,8 @@ func appReloadCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 				fmt.Fprintln(cCtx.App.Writer)
 			}
 
-			fmt.Fprintf(cCtx.App.Writer, "%d app(s) reloaded, %d app(s) approved, %d app(s) promoted.\n",
-				len(reloadResponse.ReloadResults), len(reloadResponse.ApproveResults), len(reloadResponse.PromoteResults))
+			fmt.Fprintf(cCtx.App.Writer, "%d app(s) reloaded, %d app(s) skipped, %d app(s) approved, %d app(s) promoted.\n",
+				len(reloadResponse.ReloadResults), len(reloadResponse.SkippedResults), len(reloadResponse.ApproveResults), len(reloadResponse.PromoteResults))
 
 			if reloadResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)

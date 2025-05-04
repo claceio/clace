@@ -727,7 +727,7 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 
 func (s *Server) loadSourceFromGit(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache) error {
 	gitAuth = cmp.Or(gitAuth, appEntry.Settings.GitAuthName)
-	branch = cmp.Or(cmp.Or(branch, appEntry.Metadata.VersionMetadata.GitBranch), "main")
+	branch = cmp.Or(branch, appEntry.Metadata.VersionMetadata.GitBranch, "main")
 
 	repo, folder, message, hash, err := repoCache.CheckoutRepo(appEntry.SourceUrl, branch, commit, gitAuth)
 	if err != nil {

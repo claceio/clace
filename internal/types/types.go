@@ -588,10 +588,11 @@ type SyncMetadata struct {
 	GitBranch string `json:"git_branch"` // the git branch to sync from
 	GitAuth   string `json:"git_auth"`   // the git auth entry to use for the sync
 
-	Promote bool   `json:"promote"` // whether this sync does a promote
-	Approve bool   `json:"approve"` // whether this sync does an approve
-	Reload  string `json:"reload"`  // which apps to reload after the sync
-	Clobber bool   `json:"clobber"` // whether to force update the sync, overwriting non-declarative changes
+	Promote     bool   `json:"promote"`      // whether this sync does a promote
+	Approve     bool   `json:"approve"`      // whether this sync does an approve
+	Reload      string `json:"reload"`       // which apps to reload after the sync
+	Clobber     bool   `json:"clobber"`      // whether to force update the sync, overwriting non-declarative changes
+	ForceReload bool   `json:"force_reload"` // whether to force reload even if there is no new commit
 
 	WebhookUrl        string `json:"webhook_url"`        // for webhook : the url to use
 	WebhookSecret     string `json:"webhook_secret"`     // for webhook : the secret to use

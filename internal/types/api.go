@@ -45,6 +45,7 @@ type CreateAppRequest struct {
 	ContainerArgs    map[string]string `json:"container_args"`
 	ContainerVolumes []string          `json:"container_volumes"`
 	AppConfig        map[string]string `json:"appconfig"`
+	// any new fields here will have to be merged in during apply (in applyAppUpdate)
 }
 
 // UpdateAppRequest is the request body for updating an app settings
@@ -128,9 +129,10 @@ type AppApproveResponse struct {
 
 type AppReloadResult struct {
 	DryRun         bool            `json:"dry_run"`
-	ApproveResult  *ApproveResult  `json:"approve_results"`
-	PromoteResults []AppPathDomain `json:"promote_results"`
 	ReloadResults  []AppPathDomain `json:"reload_results"`
+	ApproveResult  *ApproveResult  `json:"approve_result"`
+	PromoteResults []AppPathDomain `json:"promote_results"`
+	SkippedResults []AppPathDomain `json:"skipped_results"`
 }
 
 type AppReloadResponse struct {
@@ -138,6 +140,7 @@ type AppReloadResponse struct {
 	ReloadResults  []AppPathDomain `json:"reload_results"`
 	ApproveResults []ApproveResult `json:"approve_results"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
+	SkippedResults []AppPathDomain `json:"skipped_results"`
 }
 
 type AppApplyResult struct {
@@ -146,6 +149,7 @@ type AppApplyResult struct {
 	ApproveResult *ApproveResult    `json:"approve_result"`
 	Updated       []AppPathDomain   `json:"updated"`
 	Reloaded      []AppPathDomain   `json:"reloaded"`
+	Skipped       []AppPathDomain   `json:"skipped"`
 	Promoted      bool              `json:"promoted"`
 }
 
@@ -156,6 +160,7 @@ type AppApplyResponse struct {
 	ApproveResults []ApproveResult     `json:"approve_results"`
 	PromoteResults []AppPathDomain     `json:"promote_results"`
 	ReloadResults  []AppPathDomain     `json:"reload_results"`
+	SkippedResults []AppPathDomain     `json:"skipped_results"`
 }
 
 type AppPromoteResponse struct {

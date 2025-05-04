@@ -38,6 +38,7 @@ func syncCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
 	flags = append(flags, newIntFlag("schedule", "s", "Schedule sync for every N minutes", 0))
 	flags = append(flags, newBoolFlag("clobber", "", "Force update app config, overwriting non-declarative changes", false))
+	flags = append(flags, newBoolFlag("force-reload", "f", "Force reload even if there is no new commit", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
@@ -76,6 +77,7 @@ Examples:
 				Approve:           cCtx.Bool("approve"),
 				Reload:            string(reloadMode),
 				Clobber:           cCtx.Bool("clobber"),
+				ForceReload:       cCtx.Bool("force-reload"),
 				ScheduleFrequency: schedule,
 			}
 

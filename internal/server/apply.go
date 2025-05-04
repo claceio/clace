@@ -215,7 +215,7 @@ func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCach
 }
 
 func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
-	reload types.AppReloadOption, branch, commit, gitAuth string, clobber bool) (*types.AppApplyResponse, error) {
+	reload types.AppReloadOption, branch, commit, gitAuth string, clobber, forceReload bool) (*types.AppApplyResponse, error) {
 	tx, err := s.db.BeginTransaction(ctx)
 	if err != nil {
 		return nil, err
@@ -297,6 +297,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	reloadResults := make([]types.AppPathDomain, 0, len(filteredApps))
+	skippedResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
 	allApps, err := s.apps.GetAllAppsInfo()
 	if err != nil {
@@ -343,7 +344,8 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	for _, updateApp := range updatedApps {
 		s.Trace().Msgf("Applying update app %s", updateApp)
 		applyInfo := applyConfig[updateApp]
-		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun, promote, reload, clobber, repoCache)
+		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun,
+			promote, reload, clobber, repoCache, forceReload)
 		if err != nil {
 			return nil, err
 		}
@@ -353,6 +355,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 			promoteResults = append(promoteResults, updateApp)
 		}
 		reloadResults = append(reloadResults, applyResult.Reloaded...)
+		skippedResults = append(skippedResults, applyResult.Skipped...)
 		if applyResult.ApproveResult != nil {
 			approveResults = append(approveResults, *applyResult.ApproveResult)
 		}
@@ -387,6 +390,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		ApproveResults: approveResults,
 		PromoteResults: promoteResults,
 		ReloadResults:  reloadResults,
+		SkippedResults: skippedResults,
 	}
 
 	return ret, nil
@@ -419,7 +423,7 @@ func convertToMapString(input map[string]any, convertToml bool) (map[string]stri
 }
 
 func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPathDomain types.AppPathDomain, newInfo *types.CreateAppRequest,
-	approve, dryRun, promote bool, reload types.AppReloadOption, clobber bool, repoCache *RepoCache) (*types.AppApplyResult, error) {
+	approve, dryRun, promote bool, reload types.AppReloadOption, clobber bool, repoCache *RepoCache, forceReload bool) (*types.AppApplyResult, error) {
 	liveApp, err := s.GetAppEntry(ctx, tx, appPathDomain)
 	if err != nil {
 		return nil, fmt.Errorf("app missing during update %w", err)
@@ -544,12 +548,13 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	if reloadApp {
 		// Reload does the version increment and promotion
 		reloadResult, err := s.ReloadApp(ctx, tx, prodApp, liveApp, approve, dryRun, promote,
-			newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName, repoCache)
+			newInfo.GitBranch, newInfo.GitCommit, newInfo.GitAuthName, repoCache, forceReload)
 		if err != nil {
 			return nil, err
 		}
 		ret.ApproveResult = reloadResult.ApproveResult
 		ret.Reloaded = reloadResult.ReloadResults
+		ret.Skipped = reloadResult.SkippedResults
 		promoteApp = len(reloadResult.PromoteResults) > 0
 	} else if updated {
 		// No reload, increment version and promote (if enabled)

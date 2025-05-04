@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
@@ -140,6 +141,11 @@ indexes=[
 	])`,
 		"index.go.html": ``,
 	}
+
+	// Remove old db file if exists
+	os.Remove("/tmp/clace_app.db")
+	os.Remove("/tmp/clace_app.db-wal")
+	os.Remove("/tmp/clace_app.db-shm")
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"store.in"},
 		[]types.Permission{
@@ -280,6 +286,11 @@ type("mytype", fields=[
 ])`,
 		"index.go.html": ``,
 	}
+
+	// Remove old db file if exists
+	os.Remove("/tmp/clace_app.db")
+	os.Remove("/tmp/clace_app.db-wal")
+	os.Remove("/tmp/clace_app.db-shm")
 
 	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"store.in"},
 		[]types.Permission{

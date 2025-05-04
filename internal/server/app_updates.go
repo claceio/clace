@@ -4,6 +4,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 )
 
 func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, stageAppEntry *types.AppEntry,
-	approve, dryRun, promote bool, branch, commit, gitAuth string, repoCache *RepoCache) (*types.AppReloadResult, error) {
+	approve, dryRun, promote bool, branch, commit, gitAuth string, repoCache *RepoCache, forceReload bool) (*types.AppReloadResult, error) {
 	prodAppEntry := appEntry
 	var err error
 	if !appEntry.IsDev {
@@ -28,8 +29,19 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 		}
 	}
 
-	if err := s.loadAppCode(ctx, tx, appEntry, branch, commit, gitAuth, repoCache); err != nil {
+	reloaded := true
+	if reloaded, err = s.loadAppCode(ctx, tx, appEntry, branch, commit, gitAuth, repoCache, forceReload); err != nil {
 		return nil, err
+	}
+	if !reloaded {
+		ret := &types.AppReloadResult{
+			DryRun:         dryRun,
+			ApproveResult:  nil,
+			ReloadResults:  []types.AppPathDomain{},
+			PromoteResults: []types.AppPathDomain{},
+			SkippedResults: []types.AppPathDomain{appEntry.AppPathDomain()},
+		}
+		return ret, nil
 	}
 
 	// Persist the metadata so that any git info is saved
@@ -99,11 +111,13 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 		ApproveResult:  approvalResult,
 		ReloadResults:  reloadResults,
 		PromoteResults: promoteResults,
+		SkippedResults: []types.AppPathDomain{},
 	}
 	return ret, nil
 }
 
-func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dryRun, promote bool, branch, commit, gitAuth string) (*types.AppReloadResponse, error) {
+func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dryRun, promote bool,
+	branch, commit, gitAuth string, forceReload bool) (*types.AppReloadResponse, error) {
 	filteredApps, err := s.FilterApps(appPathGlob, false)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
@@ -124,6 +138,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 	reloadResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
+	skippedResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
 	// Track the staging and prod apps
 	for _, appInfo := range filteredApps {
@@ -131,7 +146,8 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 		if err != nil {
 			return nil, err
 		}
-		ret, err := s.ReloadApp(ctx, tx, appEntry, nil, approve, dryRun, promote, branch, commit, gitAuth, repoCache)
+		ret, err := s.ReloadApp(ctx, tx, appEntry, nil, approve, dryRun, promote,
+			branch, commit, gitAuth, repoCache, forceReload)
 		if err != nil {
 			return nil, err
 		}
@@ -141,6 +157,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 			approveResults = append(approveResults, *ret.ApproveResult)
 		}
 		promoteResults = append(promoteResults, ret.PromoteResults...)
+		skippedResults = append(skippedResults, ret.SkippedResults...)
 	}
 
 	// Commit the transaction if not dry run and update the in memory app store
@@ -153,27 +170,46 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 		ReloadResults:  reloadResults,
 		ApproveResults: approveResults,
 		PromoteResults: promoteResults,
+		SkippedResults: skippedResults,
 	}
 
 	return ret, nil
 }
 
-func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache) error {
+func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache, forceReload bool) (bool, error) {
 	s.Info().Msgf("Reloading app code %v", appEntry)
 
 	if isGit(appEntry.SourceUrl) {
+		currentSha := appEntry.Metadata.VersionMetadata.GitCommit
+		if !forceReload && currentSha != "" && currentSha == commit {
+			// Commit is specified and matches the current version, skip reload
+			s.Info().Msgf("App %s already at requested commit %s, skipping reload", appEntry.AppPathDomain(), currentSha)
+			return false, nil
+		}
+
+		branch = cmp.Or(branch, appEntry.Metadata.VersionMetadata.GitBranch, "main")
+		newSha, err := repoCache.GetSha(appEntry.SourceUrl, branch, gitAuth)
+		if err != nil {
+			return false, fmt.Errorf("error getting git commit sha for %s: %w", appEntry.SourceUrl, err)
+		}
+		if !forceReload && currentSha != "" && newSha == currentSha && (commit == "" || commit == currentSha) {
+			// If no commit is specified, and the current version is the same as the latest commit, skip reload
+			s.Info().Msgf("App %s already at latest commit %s, skipping reload", appEntry.AppPathDomain(), newSha)
+			return false, nil
+		}
+
 		// Checkout the git repo locally and load into database
 		if err := s.loadSourceFromGit(ctx, tx, appEntry, branch, commit, gitAuth, repoCache); err != nil {
-			return err
+			return false, err
 		}
 	} else {
 		// App is loaded from disk (not git), load files into DB
 		if err := s.loadSourceFromDisk(ctx, tx, appEntry); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, dryRun, promote bool, handler stagedUpdateHandler, args map[string]any, op string) (*types.AppStagedUpdateResponse, error) {

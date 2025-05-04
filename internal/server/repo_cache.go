@@ -9,8 +9,11 @@ import (
 	"os"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport" // for AuthMethod
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/storage/memory"
 )
 
 type Repo struct {
@@ -27,9 +30,10 @@ type CacheDir struct {
 }
 
 type RepoCache struct {
-	server  *Server
-	rootDir string
-	cache   map[Repo]CacheDir
+	server   *Server
+	rootDir  string
+	cache    map[Repo]CacheDir
+	shaCache map[Repo]string // Cache for commit hashes
 }
 
 func NewRepoCache(server *Server) (*RepoCache, error) {
@@ -38,10 +42,68 @@ func NewRepoCache(server *Server) (*RepoCache, error) {
 		return nil, err
 	}
 	return &RepoCache{
-		server:  server,
-		rootDir: tmpDir,
-		cache:   make(map[Repo]CacheDir),
+		server:   server,
+		rootDir:  tmpDir,
+		cache:    make(map[Repo]CacheDir),
+		shaCache: make(map[Repo]string),
 	}, nil
+}
+
+func (r *RepoCache) GetSha(sourceUrl, branch, gitAuth string) (string, error) {
+	gitAuth = cmp.Or(gitAuth, r.server.config.Security.DefaultGitAuth)
+
+	// Figure on which repo to clone
+	repo, _, err := parseGithubUrl(sourceUrl, gitAuth)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if we have the commit in cache
+	if sha, ok := r.shaCache[Repo{repo, branch, "", gitAuth}]; ok {
+		return sha, nil
+	}
+
+	var auth transport.AuthMethod
+	if gitAuth != "" {
+		// Auth is specified, load the key
+		authEntry, err := r.server.loadGitKey(gitAuth)
+		if err != nil {
+			return "", err
+		}
+		r.server.Info().Msgf("Using git auth %s", authEntry.user)
+		auth, err = ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	sha, err := latestCommitSHA(repo, branch, auth)
+	r.shaCache[Repo{repo, branch, "", gitAuth}] = sha
+	return sha, nil
+}
+
+func latestCommitSHA(repoURL, branch string, auth transport.AuthMethod) (string, error) {
+	remoteCfg := &config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{repoURL},
+	}
+	remote := git.NewRemote(memory.NewStorage(), remoteCfg)
+
+	refs, err := remote.List(&git.ListOptions{
+		Auth: auth,
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not list remote refs: %w", err)
+	}
+
+	want := plumbing.NewBranchReferenceName(branch) // e.g. "refs/heads/main"
+	for _, ref := range refs {
+		if ref.Name() == want {
+			return ref.Hash().String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("branch %q not found", branch)
 }
 
 func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (string, string, string, string, error) {
