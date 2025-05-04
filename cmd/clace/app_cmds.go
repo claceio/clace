@@ -26,6 +26,7 @@ const (
 In the glob, * matches any number of characters, ** matches any number of characters including /.
 all is a shortcut for "*:**", which matches all apps across all domains, including no domain.
 To prevent shell expansion for *, placing the path in quotes is recommended.
+"all" matches all apps across all domains, same as "*:**".
 `
 	PROMOTE_FLAG = "promote"
 	PROMOTE_ARG  = "promote"
@@ -92,7 +93,13 @@ func appCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		&cli.StringSliceFlag{
 			Name:    "app-config",
 			Aliases: []string{"conf"},
-			Usage:   "Set an default config option for the app. Format is configKey=configValue",
+			Usage:   "Set an default config option for the app. Format is configKey=configValue, where value has to be encoded in toml formal",
+		})
+
+	flags = append(flags,
+		&cli.StringSliceFlag{
+			Name:  "conf-str",
+			Usage: "Set an default config string value for the app. Format is configKey=configValue",
 		})
 
 	flags = append(flags, dryRunFlag())
@@ -167,6 +174,15 @@ Examples:
 					return fmt.Errorf("invalid app config format: %s", def)
 				}
 				confMap[key] = value
+			}
+
+			appConfigStr := cCtx.StringSlice("conf-str")
+			for _, def := range appConfigStr {
+				key, value, ok := strings.Cut(def, "=")
+				if !ok {
+					return fmt.Errorf("invalid app config format: %s", def)
+				}
+				confMap[key] = "\"" + value + "\""
 			}
 
 			body := types.CreateAppRequest{

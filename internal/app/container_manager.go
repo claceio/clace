@@ -107,8 +107,6 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 			}
 		}
 
-		logger.Debug().Msgf("Found volumes %v in container file %s", volumes, containerFile)
-
 		if configPort == 0 {
 			// No port configured in app config, use the one from the container file
 			configPort = filePort
@@ -116,6 +114,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	}
 
 	volumes = dedupVolumes(append(volumes, containerVolumes...))
+	logger.Debug().Msgf("volumes %v %s", volumes, containerFile)
 
 	if configPort == 0 && lifetime != types.CONTAINER_LIFETIME_COMMAND {
 		return nil, fmt.Errorf("port not specified in app config and in container file %s. Either "+
@@ -805,7 +804,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	defer m.stateLock.Unlock()
 	// Start the container with newly built image
 
-	mountArgs, err := m.genMountArgs(sourceDir)
+	m.mountArgs, err = m.genMountArgs(sourceDir)
 	if err != nil {
 		return err
 	}
@@ -823,7 +822,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 	envMap, _ := m.GetEnvMap()
 
 	err = m.command.RunContainer(m.systemConfig, m.app.AppEntry, containerName,
-		m.GenImageName, m.port, envMap, mountArgs, m.app.Metadata.ContainerOptions)
+		m.GenImageName, m.port, envMap, m.mountArgs, m.app.Metadata.ContainerOptions)
 	if err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}

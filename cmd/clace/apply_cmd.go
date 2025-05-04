@@ -37,7 +37,7 @@ func initApplyCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) 
 		UsageText: `args: <filePath> [<appPathGlob>]
 
 <filePath> is the path to the file containing the app configuration.
-<appPathGlob> is an optional second argument.
+<appPathGlob> is an optional second argument, which default to "all".
 ` + PATH_SPEC_HELP +
 			`
 Examples:
