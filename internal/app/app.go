@@ -57,6 +57,7 @@ type App struct {
 	paramDict        starlark.StringDict // the Starlark param values for the app
 	plugins          *AppPlugins
 	containerManager *ContainerManager
+	serverConfig     *types.ServerConfig
 
 	globals      starlark.StringDict    // global variables defined in starlark code
 	appDef       *starlarkstruct.Struct // app starlark definition
@@ -82,8 +83,7 @@ type App struct {
 	lastRequestTime atomic.Int64
 	secretEvalFunc  func([][]string, string, string) (string, error)
 	auditInsert     func(*types.AuditEvent) error
-	AppRunPath      string           // path to the app run directory
-	nodeConfig      types.NodeConfig // Node level configuration
+	AppRunPath      string // path to the app run directory
 }
 
 type starlarkCacheEntry struct {
@@ -100,7 +100,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
 	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
 	secretEvalFunc func([][]string, string, string) (string, error),
-	auditInsert func(*types.AuditEvent) error, nodeConfig types.NodeConfig) (*App, error) {
+	auditInsert func(*types.AuditEvent) error, serverConfig *types.ServerConfig) (*App, error) {
 	newApp := &App{
 		sourceFS:       sourceFS,
 		Logger:         logger,
@@ -111,7 +111,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		secretEvalFunc: secretEvalFunc,
 		appStyle:       &dev.AppStyle{},
 		auditInsert:    auditInsert,
-		nodeConfig:     nodeConfig,
+		serverConfig:   serverConfig,
 	}
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.AppConfig = appConfig
@@ -564,7 +564,7 @@ func (a *App) loadParamsInfo(sourceFS *appfs.SourceFs) error {
 		return nil // Ignore absence of params file
 	}
 
-	a.paramInfo, err = apptype.ReadParamInfo(a.getStarPath(apptype.PARAMS_FILE_NAME), paramsInfoData)
+	a.paramInfo, err = apptype.ReadParamInfo(a.getStarPath(apptype.PARAMS_FILE_NAME), paramsInfoData, a.serverConfig)
 	if err != nil {
 		return fmt.Errorf("error reading params info: %w", err)
 	}

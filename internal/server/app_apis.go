@@ -337,7 +337,7 @@ func (s *Server) setupApp(appEntry *types.AppEntry, tx types.Transaction) (*app.
 		})
 	return app.NewApp(sourceFS, workFS, &appLogger, appEntry, &s.config.System,
 		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.AppEvalTemplate,
-		s.InsertAuditEvent, s.config.NodeConfig)
+		s.InsertAuditEvent, s.config)
 }
 
 func (s *Server) GetAppApi(ctx context.Context, appPath string) (*types.AppGetResponse, error) {

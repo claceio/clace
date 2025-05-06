@@ -158,7 +158,7 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Body.String(), "map[a:20]")
 
 	// Test with list custom value
-	fileData["params.star"] = `param("p1", type=LIST, default=[10])`
+	fileData["params.star"] = `param("p1", type=LIST, default=config("aaa", [10]))`
 	a, _, err = CreateTestAppParams(logger, fileData, map[string]string{"p1": "[20]"})
 	if err != nil {
 		t.Fatalf("Error %s", err)

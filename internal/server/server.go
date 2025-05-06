@@ -685,7 +685,7 @@ func (s *Server) GetListAppsApp() (*app.App, error) {
 	appLogger := types.Logger{Logger: &subLogger}
 	s.listAppsApp, err = app.NewApp(sourceFS, nil, &appLogger, &appEntry, &s.config.System,
 		s.config.Plugins, s.config.AppConfig, s.notifyClose, s.secretsManager.AppEvalTemplate,
-		s.InsertAuditEvent, s.config.NodeConfig)
+		s.InsertAuditEvent, s.config)
 	if err != nil {
 		return nil, err
 	}

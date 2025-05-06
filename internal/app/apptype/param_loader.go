@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
+	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -39,8 +40,8 @@ type AppParam struct {
 	DisplayTypeOptions string
 }
 
-func ReadParamInfo(fileName string, inp []byte) (map[string]AppParam, error) {
-	paramInfo, err := LoadParamInfo(fileName, inp)
+func ReadParamInfo(fileName string, inp []byte, serverConfig *types.ServerConfig) (map[string]AppParam, error) {
+	paramInfo, err := LoadParamInfo(fileName, inp, serverConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,7 @@ func validateParamInfo(paramInfo map[string]AppParam) error {
 	return nil
 }
 
-func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
+func LoadParamInfo(fileName string, data []byte, serverConfig *types.ServerConfig) (map[string]AppParam, error) {
 	definedParams := make(map[string]AppParam)
 	index := 0
 
@@ -173,12 +174,13 @@ func LoadParamInfo(fileName string, data []byte) (map[string]AppParam, error) {
 	}
 
 	builtins := starlark.StringDict{
-		PARAM:                                          starlark.NewBuiltin(PARAM, paramBuiltin),
-		string(starlark_type.INT):                      starlark.String(starlark_type.INT),
-		string(starlark_type.STRING):                   starlark.String(starlark_type.STRING),
-		string(starlark_type.BOOLEAN):                  starlark.String(starlark_type.BOOLEAN),
-		string(starlark_type.DICT):                     starlark.String(starlark_type.DICT),
-		string(starlark_type.LIST):                     starlark.String(starlark_type.LIST),
+		PARAM:                         starlark.NewBuiltin(PARAM, paramBuiltin),
+		CONFIG:                        starlark.NewBuiltin(CONFIG, CreateConfigBuiltin(serverConfig.NodeConfig, serverConfig.System.AllowedEnv)),
+		string(starlark_type.INT):     starlark.String(starlark_type.INT),
+		string(starlark_type.STRING):  starlark.String(starlark_type.STRING),
+		string(starlark_type.BOOLEAN): starlark.String(starlark_type.BOOLEAN),
+		string(starlark_type.DICT):    starlark.String(starlark_type.DICT),
+		string(starlark_type.LIST):    starlark.String(starlark_type.LIST),
 		strings.ToUpper(string(DisplayTypePassword)):   starlark.String(DisplayTypePassword),
 		strings.ToUpper(string(DisplayTypeTextArea)):   starlark.String(DisplayTypeTextArea),
 		strings.ToUpper(string(DisplayTypeFileUpload)): starlark.String(DisplayTypeFileUpload),
