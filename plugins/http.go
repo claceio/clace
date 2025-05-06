@@ -112,9 +112,13 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 			basicAuth    starlark.Tuple
 			body         starlark.String
 			jsonBody     starlark.Value
+			errorOnFail  starlark.Bool = starlark.True
 		)
 
-		if err := starlark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers", &headers, "body", &body, "form_body", &formBody, "form_encoding", &formEncoding, "json_body", &jsonBody, "auth_basic", &basicAuth, "auth_signature", &signAuth); err != nil {
+		if err := starlark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers",
+			&headers, "body", &body, "form_body", &formBody, "form_encoding", &formEncoding,
+			"json_body", &jsonBody, "auth_basic", &basicAuth, "auth_signature", &signAuth,
+			"errorOnFail", &errorOnFail); err != nil {
 			return nil, err
 		}
 
@@ -163,6 +167,10 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		res, err := h.client.Do(req)
 		if err != nil {
 			return nil, err
+		}
+
+		if errorOnFail && (res.StatusCode < 200 || res.StatusCode >= 300) { // 1xx and 3xx are also failed by default
+			return nil, fmt.Errorf("http request failed with status code %d: %s", res.StatusCode, res.Status)
 		}
 
 		r := &Response{*res}
