@@ -118,7 +118,7 @@ func (h *httpPlugin) reqMethod(method string) func(thread *starlark.Thread, _ *s
 		if err := starlark.UnpackArgs(method, args, kwargs, "url", &urlv, "params?", &params, "headers",
 			&headers, "body", &body, "form_body", &formBody, "form_encoding", &formEncoding,
 			"json_body", &jsonBody, "auth_basic", &basicAuth, "auth_signature", &signAuth,
-			"errorOnFail", &errorOnFail); err != nil {
+			"error_on_fail", &errorOnFail); err != nil {
 			return nil, err
 		}
 

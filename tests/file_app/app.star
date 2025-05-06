@@ -12,19 +12,12 @@ def handler(req):
 
    # First attempt works
    ret4 = http.get("http://localhost:25222" + ret2.value["url"])
-   if ret4.value.status_code != 200:
-      return "Error: %s" % ret4.value.status_code
-   ret5 = http.get("http://localhost:25222" + ret3.value["url"])
-   if ret5.value.status_code != 200:
-      return "Error: %d" % ret5.value.status_code
-
+   ret5 = http.get("http://localhost:25222" + ret3.value["url"], error_on_fail=True)
    # Second attempt  fails for file1 (it got deleted on first GET call), works for file2 as it is multi_access
-   ret6 = http.get("http://localhost:25222" + ret2.value["url"])
+   ret6 = http.get("http://localhost:25222" + ret2.value["url"], error_on_fail=False)
    if ret6.value.status_code == 200:
       return "Error: %d" % ret6.value.status_code
    ret7 = http.get("http://localhost:25222" + ret3.value["url"])
-   if ret7.value.status_code != 200:
-      return "Error: %d" % ret7.value.status_code
 
    ret8 = fs.find("/tmp/fileapptmp", "testfileapp.txt")
    if len(ret8.value) != 0:
