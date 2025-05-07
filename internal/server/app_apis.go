@@ -130,6 +130,9 @@ func (s *Server) CreateAppTx(ctx context.Context, currentTx types.Transaction, a
 	} else {
 		appEntry.Settings.AuthnType = types.AppAuthnDefault
 	}
+	// Set the default for write access by staging and preview apps
+	appEntry.Settings.StageWriteAccess = s.config.Security.StageEnableWriteAccess
+	appEntry.Settings.PreviewWriteAccess = s.config.Security.PreviewEnableWriteAccess
 
 	appEntry.Metadata.VersionMetadata = types.VersionMetadata{
 		Version: 0,

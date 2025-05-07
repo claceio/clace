@@ -176,15 +176,17 @@ type HttpsConfig struct {
 
 // SecurityConfig is the security related configuration
 type SecurityConfig struct {
-	AdminOverTCP        bool   `toml:"admin_over_tcp"`
-	AdminPasswordBcrypt string `toml:"admin_password_bcrypt"`
-	AppDefaultAuthType  string `toml:"app_default_auth_type"`
-	SessionSecret       string `toml:"session_secret"`
-	SessionBlockKey     string `toml:"session_block_key"`
-	SessionMaxAge       int    `toml:"session_max_age"`
-	SessionHttpsOnly    bool   `toml:"session_https_only"`
-	CallbackUrl         string `toml:"callback_url"`
-	DefaultGitAuth      string `toml:"default_git_auth"`
+	AdminOverTCP             bool   `toml:"admin_over_tcp"`
+	AdminPasswordBcrypt      string `toml:"admin_password_bcrypt"`
+	AppDefaultAuthType       string `toml:"app_default_auth_type"`
+	SessionSecret            string `toml:"session_secret"`
+	SessionBlockKey          string `toml:"session_block_key"`
+	SessionMaxAge            int    `toml:"session_max_age"`
+	SessionHttpsOnly         bool   `toml:"session_https_only"`
+	CallbackUrl              string `toml:"callback_url"`
+	DefaultGitAuth           string `toml:"default_git_auth"`
+	StageEnableWriteAccess   bool   `toml:"stage_enable_write_access"`
+	PreviewEnableWriteAccess bool   `toml:"preview_enable_write_access"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer

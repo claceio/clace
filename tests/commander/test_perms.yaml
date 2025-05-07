@@ -16,17 +16,17 @@ tests:
     stdout: "Disk Usage"
   perms0106: # test stage app
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
-    stdout: "Stage app does not have access to write operation"
+    stdout: "Disk Usage"
   perms0107: # Update stage perms
-    command: ../clace app update-settings stage-write-access true "/perms*"
+    command: ../clace app update-settings stage-write-access false "/perms*"
   perms0108: # test stage app
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
-    stdout: "Disk Usage"
-  perms0109: # Update stage perms again to disallow write
-    command: ../clace app update-settings stage-write-access false "/perms*"
+    stdout: "Stage app does not have access to write operation"
+  perms0109: # Update stage perms again to allow write
+    command: ../clace app update-settings stage-write-access true "/perms*"
   perms0110: # test stage app
     command: curl -su "admin:qwerty" localhost:25222/perms1_cl_stage
-    stdout: "Stage app does not have access to write operation"
+    stdout: "Disk Usage"
   perms0111: # test prod app
     command: curl -su "admin:qwerty" localhost:25222/perms1
     stdout: "Disk Usage"
@@ -51,12 +51,12 @@ tests:
     command: ../clace preview create --approve 0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec /permsgit1
   perms0203: # test preview app
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec
-    stdout: "Preview app does not have access to write operation"
+    stdout: "Disk Usage"
   perms0204: # Update preview perms
-    command: ../clace app update-settings preview-write-access true "/perms*"
+    command: ../clace app update-settings preview-write-access false "/perms*"
   perms0205: # test preview app
     command: curl -su "admin:qwerty" localhost:25222/permsgit1_cl_preview_0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec
-    stdout: "Disk Usage"
+    stdout: "Preview app does not have access to write operation"
   perms0206: # Create preview app for non git
     command: ../clace preview create 0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec /perms1
     stderr: "source is not git"

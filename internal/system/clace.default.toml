@@ -36,6 +36,9 @@ session_max_age = 86400          # session max age in seconds
 session_https_only = true        # session cookie is HTTPS only
 app_default_auth_type = "system" # default auth type for apps, "system" or "none" or custom auth
 default_git_auth = ""            # default git auth entry to use
+stage_enable_write_access = true # enable write plugin API call access for staging apps
+preview_enable_write_access = true #  enable write plugin API call access for preview apps
+
 
 # Logging related Config
 [logging]
