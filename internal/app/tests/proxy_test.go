@@ -616,3 +616,42 @@ permissions=[
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
 }
+
+func TestProxyRequestHeaders(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("AAA", "BBB")
+		w.Header().Set("ALLOW", "ALLOWED")
+		io.WriteString(w, "test contents")
+	}))
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": fmt.Sprintf(`
+load("proxy.in", "proxy")
+
+app = ace.app("testApp", routes = [ace.proxy("/", proxy.config("%s", response_headers={"-AAA": "", "NEWH": "NEWVAL", "NEWTEMP": "aa/$urlbb"}))],
+permissions=[
+	ace.permission("proxy.in", "config"),
+]
+)`, testServer.URL),
+	}
+
+	a, _, err := CreateTestAppPluginRoot(logger, fileData, []string{"proxy.in"},
+		[]types.Permission{
+			{Plugin: "proxy.in", Method: "config"},
+		}, map[string]types.PluginSettings{})
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/abc/def", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+	testutil.AssertEqualsString(t, "header", "", response.Header().Get("AAA"))
+	testutil.AssertEqualsString(t, "header", "ALLOWED", response.Header().Get("ALLOW"))
+	testutil.AssertEqualsString(t, "header", "NEWVAL", response.Header().Get("NEWH"))
+	testutil.AssertEqualsString(t, "header", "aa/abc/defbb", response.Header().Get("NEWTEMP"))
+}

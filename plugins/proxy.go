@@ -4,12 +4,11 @@
 package plugins
 
 import (
-	"fmt"
-
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/plugin"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 func init() {
@@ -31,62 +30,18 @@ func (h *proxyPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin,
 	var url, stripPath starlark.String
 	var preserveHost starlark.Bool
 	var stripApp starlark.Bool = starlark.True
+	var responseHeaders *starlark.Dict = &starlark.Dict{}
 	if err := starlark.UnpackArgs("config", args, kwargs, "url", &url, "strip_path?",
-		&stripPath, "preserve_host?", &preserveHost, "strip_app?", &stripApp); err != nil {
+		&stripPath, "preserve_host?", &preserveHost, "strip_app?", &stripApp, "response_headers", &responseHeaders); err != nil {
 		return nil, err
 	}
 
-	return ProxyConfig{
-		Url:          string(url),
-		StripPath:    string(stripPath),
-		PreserveHost: bool(preserveHost),
-		StripApp:     bool(stripApp),
-	}, nil
-}
-
-type ProxyConfig struct {
-	Url          string
-	StripPath    string
-	PreserveHost bool
-	StripApp     bool
-}
-
-func (p ProxyConfig) Attr(name string) (starlark.Value, error) {
-	switch name {
-	case "Url":
-		return starlark.String(p.Url), nil
-	case "StripPath":
-		return starlark.String(p.StripPath), nil
-	case "PreserveHost":
-		return starlark.Bool(p.PreserveHost), nil
-	case "StripApp":
-		return starlark.Bool(p.StripApp), nil
-	default:
-		return starlark.None, fmt.Errorf("proxy config has no attribute '%s'", name)
+	fields := starlark.StringDict{
+		"url":              url,
+		"strip_path":       stripPath,
+		"preserve_host":    preserveHost,
+		"strip_app":        stripApp,
+		"response_headers": responseHeaders,
 	}
+	return starlarkstruct.FromStringDict(starlark.String("ProxyConfig"), fields), nil
 }
-
-func (p ProxyConfig) AttrNames() []string {
-	return []string{"Url", "StripPath", "PreserveHost", "StripApp"}
-}
-
-func (p ProxyConfig) String() string {
-	return p.Url
-}
-
-func (p ProxyConfig) Type() string {
-	return "ProxyConfig"
-}
-
-func (p ProxyConfig) Freeze() {
-}
-
-func (p ProxyConfig) Truth() starlark.Bool {
-	return p.Url != ""
-}
-
-func (p ProxyConfig) Hash() (uint32, error) {
-	return starlark.Tuple{starlark.String(p.Url), starlark.String(p.StripPath), starlark.Bool(p.PreserveHost), starlark.Bool(p.StripApp)}.Hash()
-}
-
-var _ starlark.Value = (*ProxyConfig)(nil)

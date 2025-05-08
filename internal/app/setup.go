@@ -332,7 +332,7 @@ func (a *App) checkAppPathStripping() (bool, error) {
 			}
 
 			var urlValue starlark.Value
-			if urlValue, err = configAttr.Attr("Url"); err != nil {
+			if urlValue, err = configAttr.Attr("url"); err != nil {
 				return false, err
 			}
 
@@ -342,7 +342,7 @@ func (a *App) checkAppPathStripping() (bool, error) {
 			}
 
 			var stripAppValue starlark.Value
-			if stripAppValue, err = configAttr.Attr("StripApp"); err != nil {
+			if stripAppValue, err = configAttr.Attr("strip_app"); err != nil {
 				return false, err
 			}
 
@@ -720,9 +720,10 @@ func getProxyConfig(count int, proxyDef *starlarkstruct.Struct) (starlark.HasAtt
 		return nil, err
 	}
 
-	if config.Type() != "ProxyConfig" {
-		return nil, fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
-	}
+	/*
+		if config.String() != "ProxyConfig" {
+			return nil, fmt.Errorf("proxy entry %d:%s is not a proxy config", count, pathStr)
+		}*/
 
 	var configAttr starlark.HasAttrs
 	if configAttr, ok = config.(starlark.HasAttrs); !ok {
@@ -750,24 +751,29 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		return rootWildcard, err
 	}
 
-	var urlValue, stripPathValue starlark.Value
-	if urlValue, err = configAttr.Attr("Url"); err != nil {
+	urlStr, err := apptype.GetStringAttr(configAttr, "url")
+	if err != nil {
 		return rootWildcard, err
 	}
-	if stripPathValue, err = configAttr.Attr("StripPath"); err != nil {
+
+	preserveHost, err := apptype.GetBoolAttr(configAttr, "preserve_host")
+	if err != nil {
 		return rootWildcard, err
 	}
-	var preserveHostValue starlark.Value
-	if preserveHostValue, err = configAttr.Attr("PreserveHost"); err != nil {
+
+	stripApp, err := apptype.GetBoolAttr(configAttr, "strip_app")
+	if err != nil {
 		return rootWildcard, err
 	}
-	var stripAppValue starlark.Value
-	if stripAppValue, err = configAttr.Attr("StripApp"); err != nil {
+	stripPath, err := apptype.GetStringAttr(configAttr, "strip_path")
+	if err != nil {
 		return rootWildcard, err
 	}
-	urlStr := urlValue.(starlark.String).GoString()
-	preserveHost := bool(preserveHostValue.(starlark.Bool))
-	stripApp := bool(stripAppValue.(starlark.Bool))
+
+	responseHeaders, err := apptype.GetDictAttr(configAttr, "response_headers", true)
+	if err != nil {
+		return rootWildcard, err
+	}
 
 	if urlStr == apptype.CONTAINER_URL {
 		// proxying to container url
@@ -778,13 +784,12 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		urlStr = a.containerManager.GetProxyUrl()
 	}
 
-	stripPathStr := stripPathValue.(starlark.String).GoString()
-	url, err := url.Parse(urlStr)
+	urlParsed, err := url.Parse(urlStr)
 	if err != nil {
 		return rootWildcard, fmt.Errorf("error parsing url %s: %w", urlStr, err)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(url)
+	proxy := httputil.NewSingleHostReverseProxy(urlParsed)
 
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	maxIdleConnCount := a.AppConfig.Proxy.MaxIdleConns
@@ -806,7 +811,7 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 		} else if !preserveHost {
 			// Set the Host header to target url for non-WebSocket requests, unless
 			// disabled in proxy config
-			req.Host = url.Host
+			req.Host = urlParsed.Host
 		}
 	}
 
@@ -832,12 +837,32 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			}
 			// use the reverse proxy to handle the request
 			p.ServeHTTP(w, r)
+
+			// Set the response headers
+			for key, value := range responseHeaders {
+				if value == nil {
+					continue
+				}
+
+				valueStr, ok := value.(string)
+				if !ok {
+					a.Error().Msgf("response header %s is not a string", key)
+					continue
+				}
+				if strings.HasPrefix(key, "-") {
+					// Remove the header
+					w.Header().Del(key[1:])
+				} else {
+					valueStr = strings.ReplaceAll(valueStr, "$url", r.URL.Path)
+					w.Header().Set(key, valueStr)
+				}
+			}
 		})
 	}
 	if stripApp {
-		stripPathStr = path.Join(a.Path, stripPathStr)
+		stripPath = path.Join(a.Path, stripPath)
 	}
-	router.Mount(pathStr, http.StripPrefix(stripPathStr, permsHandler(proxy)))
+	router.Mount(pathStr, http.StripPrefix(stripPath, permsHandler(proxy)))
 	return rootWildcard, nil
 }
 
