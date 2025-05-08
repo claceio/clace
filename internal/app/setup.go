@@ -235,8 +235,7 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 				a.paramValuesStr[p.Name] = fmt.Sprintf("%d", intVal)
 			case starlark_type.BOOLEAN:
 				a.paramValuesStr[p.Name] = strconv.FormatBool(bool(p.DefaultValue.(starlark.Bool)))
-			case starlark_type.DICT:
-			case starlark_type.LIST:
+			case starlark_type.DICT, starlark_type.LIST:
 				val, err := starlark_type.UnmarshalStarlark(p.DefaultValue)
 				if err != nil {
 					return nil, err
@@ -835,8 +834,6 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			} else {
 				r.Header.Set("X-Forwarded-Proto", "http")
 			}
-			// use the reverse proxy to handle the request
-			p.ServeHTTP(w, r)
 
 			// Set the response headers
 			for key, value := range responseHeaders {
@@ -857,6 +854,9 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 					w.Header().Set(key, valueStr)
 				}
 			}
+
+			// use the reverse proxy to handle the request
+			p.ServeHTTP(w, r)
 		})
 	}
 	if stripApp {
