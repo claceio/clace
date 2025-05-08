@@ -619,7 +619,6 @@ permissions=[
 
 func TestProxyRequestHeaders(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("AAA", "BBB")
 		w.Header().Set("ALLOW", "ALLOWED")
 		io.WriteString(w, "test contents")
 	}))
@@ -650,7 +649,6 @@ permissions=[
 
 	testutil.AssertEqualsInt(t, "code", 200, response.Code)
 	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
-	testutil.AssertEqualsString(t, "header", "", response.Header().Get("AAA"))
 	testutil.AssertEqualsString(t, "header", "ALLOWED", response.Header().Get("ALLOW"))
 	testutil.AssertEqualsString(t, "header", "NEWVAL", response.Header().Get("NEWH"))
 	testutil.AssertEqualsString(t, "header", "aa/abc/defbb", response.Header().Get("NEWTEMP"))

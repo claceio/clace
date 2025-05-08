@@ -846,13 +846,8 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 					a.Error().Msgf("response header %s is not a string", key)
 					continue
 				}
-				if strings.HasPrefix(key, "-") {
-					// Remove the header
-					w.Header().Del(key[1:])
-				} else {
-					valueStr = strings.ReplaceAll(valueStr, "$url", r.URL.Path)
-					w.Header().Set(key, valueStr)
-				}
+				valueStr = strings.ReplaceAll(valueStr, "$url", r.URL.Path)
+				w.Header().Set(key, valueStr)
 			}
 
 			// use the reverse proxy to handle the request
