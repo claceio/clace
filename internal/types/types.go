@@ -218,8 +218,9 @@ type SystemConfig struct {
 	EnableCompression         bool     `toml:"enable_compression"`
 	HttpEventRetentionDays    int      `toml:"http_event_retention_days"`
 	NonHttpEventRetentionDays int      `toml:"non_http_event_retention_days"`
-	AllowedEnv                []string `toml:"allowed_env"`           // List of environment variables that are allowed to be used in the node config
-	DefaultScheduleMins       int      `toml:"default_schedule_mins"` // Default schedule time in minutes for scheduled sync
+	AllowedEnv                []string `toml:"allowed_env"`            // List of environment variables that are allowed to be used in the node config
+	DefaultScheduleMins       int      `toml:"default_schedule_mins"`  // Default schedule time in minutes for scheduled sync
+	MaxSyncFailureCount       int      `toml:"max_sync_failure_count"` // Max failure count for sync jobs
 }
 
 // GitAuth is a github auth config entry
@@ -604,6 +605,7 @@ type SyncMetadata struct {
 }
 
 type SyncJobStatus struct {
+	FailureCount      int              `json:"failure_count"`       // the number of times the sync job has failed recently
 	LastExecutionTime time.Time        `json:"last_execution_time"` // the last time the sync job was executed
 	Error             string           `json:"error"`               // the error message if the sync job failed
 	CommitId          string           `json:"commit_id"`           // the commit id of the sync job

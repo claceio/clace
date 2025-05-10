@@ -162,6 +162,16 @@ func (s *Server) runSyncJobs() error {
 			continue
 		}
 
+		if !entry.Status.LastExecutionTime.IsZero() && entry.Status.LastExecutionTime.Add(time.Duration(entry.Metadata.ScheduleFrequency)*time.Minute).After(time.Now()) {
+			s.Trace().Msgf("Sync job %s not ready to run", entry.Id)
+			continue
+		}
+
+		if entry.Status.FailureCount >= s.config.System.MaxSyncFailureCount {
+			s.Trace().Msgf("Sync job %s has failed too many times, skipping", entry.Id)
+			continue
+		}
+
 		_, _, err = s.runSyncJob(ctx, types.Transaction{}, entry, true, repoCache) // each sync runs in its own transaction
 		if err != nil {
 			s.Error().Err(err).Msgf("Error running sync job %s", entry.Id)
@@ -172,7 +182,8 @@ func (s *Server) runSyncJobs() error {
 	return nil
 }
 
-func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entry *types.SyncEntry, checkCommitHash bool, repoCache *RepoCache) (*types.SyncJobStatus, []types.AppPathDomain, error) {
+func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entry *types.SyncEntry,
+	checkCommitHash bool, repoCache *RepoCache) (*types.SyncJobStatus, []types.AppPathDomain, error) {
 	var tx types.Transaction
 	var err error
 	if inputTx.Tx == nil {
@@ -186,6 +197,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		// No rollback here if transaction is passed in
 	}
 
+	s.Debug().Msgf("Running sync job %s", entry.Id)
 	if repoCache == nil {
 		// Create a new repo cache if not passed in
 		repoCache, err = NewRepoCache(s)
@@ -213,8 +225,10 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		status.Error = applyErr.Error()
 		applyInfo = &types.AppApplyResponse{}
 		applyInfo.FilteredApps = lastRunApps
+		status.FailureCount++
 	} else {
 		status.CommitId = applyInfo.CommitId
+		status.FailureCount = 0
 	}
 
 	status.ApplyResponse = *applyInfo
@@ -270,8 +284,8 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 			status.ApplyResponse.PromoteResults = promoteResults
 		}
 	}
-	status.ApplyResponse = *applyInfo
 
+	status.ApplyResponse = *applyInfo
 	err = s.db.UpdateSyncStatus(ctx, tx, entry.Id, &status)
 	if err != nil {
 		return nil, nil, err
