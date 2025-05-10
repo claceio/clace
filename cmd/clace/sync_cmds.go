@@ -21,14 +21,14 @@ func initSyncCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *
 		Name:  "sync",
 		Usage: "Manage sync operations, scheduled and webhook",
 		Subcommands: []*cli.Command{
-			syncCreateCommand(commonFlags, clientConfig),
+			syncScheduleCommand(commonFlags, clientConfig),
 			syncListCommand(commonFlags, clientConfig),
 			syncDeleteCommand(commonFlags, clientConfig),
 		},
 	}
 }
 
-func syncCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+func syncScheduleCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
 	flags := make([]cli.Flag, 0, len(commonFlags)+2)
 	flags = append(flags, commonFlags...)
 	flags = append(flags, newStringFlag("branch", "b", "The branch to checkout if using git source", "main"))
@@ -36,14 +36,14 @@ func syncCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 	flags = append(flags, newBoolFlag("approve", "a", "Approve the app permissions", false))
 	flags = append(flags, newStringFlag("reload", "r", "Which apps to reload: none, updated, matched", ""))
 	flags = append(flags, newBoolFlag("promote", "p", "Promote changes from stage to prod", false))
-	flags = append(flags, newIntFlag("schedule", "s", "Schedule sync for every N minutes", 0))
+	flags = append(flags, newIntFlag("minutes", "s", "Schedule sync for every N minutes", 0))
 	flags = append(flags, newBoolFlag("clobber", "", "Force update app config, overwriting non-declarative changes", false))
-	flags = append(flags, newBoolFlag("force-reload", "f", "Force reload even if there is no new commit", false))
+	flags = append(flags, newBoolFlag("force-reload", "f", "Force reload even if there are no new commits", false))
 	flags = append(flags, dryRunFlag())
 
 	return &cli.Command{
-		Name:      "create",
-		Usage:     "Create sync job for updating app config",
+		Name:      "schedule",
+		Usage:     "Create scheduled sync job for updating app config",
 		Flags:     flags,
 		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
 		ArgsUsage: "<filePath>",
@@ -52,12 +52,11 @@ func syncCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig)
 <filePath> is the path to the apply file containing the app configuration.
 
 Examples:
-  Create sync entry, reloading all apps: clace sync ./app.ace
-  Create sync entry, reloading updated apps: clace sync --reload=updated github.com/claceio/apps/apps.ace
-  Create sync entry: clace sync --promote --approve github.com/claceio/apps/apps.ace
-  Create sync entry, overwriting changes: clace sync --promote --clobber github.com/claceio/apps/apps.ace
+  Create scheduled sync, reloading apps with code changes: clace sync schedule ./app.ace
+  Create scheduled sync, reloading only apps with a config change: clace sync schedule --reload=updated github.com/claceio/apps/apps.ace
+  Create scheduled sync, promoting changes: clace sync schedule --promote --approve github.com/claceio/apps/apps.ace
+  Create scheduled sync, overwriting changes: clace sync schedule --promote --clobber github.com/claceio/apps/apps.ace
 `,
-
 		Action: func(cCtx *cli.Context) error {
 			if cCtx.NArg() != 1 {
 				return fmt.Errorf("expected one arg : <filePath>")
@@ -65,10 +64,10 @@ Examples:
 
 			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			reloadMode := types.AppReloadOption(cmp.Or(cCtx.String("reload"), string(types.AppReloadOptionMatched)))
-			schedule := cCtx.Int("schedule")
 			values := url.Values{}
 			values.Add("path", cCtx.Args().Get(0))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+			values.Add("scheduled", "true")
 
 			sync := types.SyncMetadata{
 				GitBranch:         cCtx.String("branch"),
@@ -78,7 +77,7 @@ Examples:
 				Reload:            string(reloadMode),
 				Clobber:           cCtx.Bool("clobber"),
 				ForceReload:       cCtx.Bool("force-reload"),
-				ScheduleFrequency: schedule,
+				ScheduleFrequency: cCtx.Int("minutes"),
 			}
 
 			var syncResponse types.SyncCreateResponse
@@ -87,8 +86,9 @@ Examples:
 				return err
 			}
 
-			fmt.Printf("Sync job created with Id: %s\n", syncResponse.Id)
+			printApplyResponse(cCtx, &syncResponse.SyncJobStatus.ApplyResponse)
 
+			fmt.Printf("\nSync job created with Id: %s\n", syncResponse.Id)
 			if syncResponse.DryRun {
 				fmt.Print(DRY_RUN_MESSAGE)
 			}
@@ -194,30 +194,30 @@ func printSyncList(cCtx *cli.Context, sync []*types.SyncEntry, format string) {
 			enc.Encode(s)
 		}
 	case FORMAT_BASIC:
-		formatStr := "%-35s %-10s %-40s %-s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStr, "Id", "Trigger", "Path", "Url")
+		formatStr := "%-35s %-12s %-s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStr, "Id", "SyncType", "Path")
 
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, getTriggerType(s), s.Path, s.Metadata.WebhookUrl)
+			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, getSyncType(s), s.Path)
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s %-10s %-8s %-8s %-7s %-6s %-10s %-15s %-40s %-s\n"
-		formatStrData := "%-35s %-10s %-8s %-8t %-7t %-6t %-10s %-15s %-40s %-s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "Trigger", "Reload", "Promote", "Approve", "Clobber", "GitAuth", "Branch", "Path", "Url")
+		formatStrHead := "%-35s %-12s %-8s %-8s %-7s %-7s %-10s %-15s %-s\n"
+		formatStrData := "%-35s %-12s %-8s %-8t %-7t %-7t %-10s %-15s %-s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "SyncType", "Reload", "Promote", "Approve", "Clobber", "GitAuth", "Branch", "Path")
 
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, s.Id, getTriggerType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Metadata.WebhookUrl)
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, s.Id, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path)
 		}
 	case FORMAT_CSV:
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%s,%t,%t,%t,%s,%s,%s,%s\n", s.Id, getTriggerType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Metadata.WebhookUrl)
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%s,%t,%t,%t,%s,%s,%s,%s\n", s.Id, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Metadata.WebhookUrl)
 		}
 	default:
 		panic(fmt.Errorf("unknown format %s", format))
 	}
 }
 
-func getTriggerType(sync *types.SyncEntry) string {
+func getSyncType(sync *types.SyncEntry) string {
 	if sync.Metadata.ScheduleFrequency > 0 {
 		return fmt.Sprintf("%d (mins)", sync.Metadata.ScheduleFrequency)
 	}

@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const CURRENT_DB_VERSION = 4
+const CURRENT_DB_VERSION = 5
 
 // Metadata is the metadata persistence layer
 type Metadata struct {
@@ -125,6 +125,17 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 		}
 
 		if _, err := tx.ExecContext(ctx, `update version set version=4, last_upgraded=datetime('now')`); err != nil {
+			return err
+		}
+	}
+
+	if version < 5 {
+		m.Info().Msg("Upgrading to version 5")
+		if _, err := tx.ExecContext(ctx, `alter table sync add column status json`); err != nil {
+			return err
+		}
+
+		if _, err := tx.ExecContext(ctx, `update version set version=5, last_upgraded=datetime('now')`); err != nil {
 			return err
 		}
 	}
@@ -407,8 +418,13 @@ func (m *Metadata) CreateSync(ctx context.Context, tx types.Transaction, sync *t
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT into sync(id, path, is_scheduled, user_id, create_time, metadata) values(?, ?, ?, ?, datetime('now'), ?)`,
-		sync.Id, sync.Path, sync.IsScheduled, sync.UserID, metadataJson)
+	statusJson, err := json.Marshal(sync.Status)
+	if err != nil {
+		return fmt.Errorf("error marshalling status: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `INSERT into sync(id, path, is_scheduled, user_id, create_time, metadata, status) values(?, ?, ?, ?, datetime('now'), ?, ?)`,
+		sync.Id, sync.Path, sync.IsScheduled, sync.UserID, metadataJson, statusJson)
 	if err != nil {
 		return fmt.Errorf("error inserting sync entry: %w", err)
 	}
@@ -432,7 +448,7 @@ func (m *Metadata) DeleteSync(ctx context.Context, tx types.Transaction, id stri
 
 // GetSyncEntries gets all the sync entries for the given webhook type
 func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]*types.SyncEntry, error) {
-	stmt, err := tx.PrepareContext(ctx, `select id, path, is_scheduled, user_id, create_time, metadata from sync`)
+	stmt, err := tx.PrepareContext(ctx, `select id, path, is_scheduled, user_id, create_time, metadata, status from sync`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -445,7 +461,8 @@ func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]
 	for rows.Next() {
 		var sync types.SyncEntry
 		var metadata sql.NullString
-		err = rows.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata)
+		var status sql.NullString
+		err = rows.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata, &status)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return syncEntries, nil // No entries found, return empty slice
@@ -460,6 +477,13 @@ func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]
 			}
 		}
 
+		if status.Valid && status.String != "" {
+			err = json.Unmarshal([]byte(status.String), &sync.Status)
+			if err != nil {
+				return nil, fmt.Errorf("error unmarshalling status: %w", err)
+			}
+		}
+
 		syncEntries = append(syncEntries, &sync)
 	}
 	if closeErr := rows.Close(); closeErr != nil {
@@ -469,10 +493,10 @@ func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]
 	return syncEntries, nil
 }
 func (m *Metadata) GetSyncEntry(ctx context.Context, tx types.Transaction, id string) (*types.SyncEntry, error) {
-	row := m.db.QueryRow("select id, path, is_scheduled, user_id, create_time, metadata from sync where id = ?", id)
+	row := m.db.QueryRow("select id, path, is_scheduled, user_id, create_time, metadata, status from sync where id = ?", id)
 	var sync types.SyncEntry
-	var metadata sql.NullString
-	err := row.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata)
+	var metadata, status sql.NullString
+	err := row.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata, &status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("sync entry not found with id: " + id)
@@ -486,7 +510,27 @@ func (m *Metadata) GetSyncEntry(ctx context.Context, tx types.Transaction, id st
 			return nil, fmt.Errorf("error unmarshalling metadata: %w", err)
 		}
 	}
+	if status.Valid && status.String != "" {
+		err = json.Unmarshal([]byte(status.String), &sync.Status)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling status: %w", err)
+		}
+	}
 	return &sync, nil
+}
+
+func (m *Metadata) UpdateSyncStatus(ctx context.Context, tx types.Transaction, id string, status *types.SyncJobStatus) error {
+	statusJson, err := json.Marshal(status)
+	if err != nil {
+		return fmt.Errorf("error marshalling status: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `UPDATE sync set status = ? where id = ?`, string(statusJson), id)
+	if err != nil {
+		return fmt.Errorf("error updating app status: %w", err)
+	}
+
+	return nil
 }
 
 // BeginTransaction starts a new Transaction

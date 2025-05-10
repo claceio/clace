@@ -214,68 +214,93 @@ func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCach
 	return repo, applyFile, nil
 }
 
-func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string, approve, dryRun, promote bool,
-	reload types.AppReloadOption, branch, commit, gitAuth string, clobber, forceReload bool) (*types.AppApplyResponse, error) {
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
+func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath string, appPathGlob string, approve, dryRun, promote bool,
+	reload types.AppReloadOption, branch, commit, gitAuth string, clobber, forceReload bool, lastRunCommitId string, repoCache *RepoCache) (*types.AppApplyResponse, []types.AppPathDomain, error) {
+	var tx types.Transaction
+	var err error
+	if inputTx.Tx == nil {
+		tx, err = s.db.BeginTransaction(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer tx.Rollback()
+	} else {
+		tx = inputTx
+		// No rollback here if transaction is passed in
 	}
-	defer tx.Rollback()
 
 	if reload == "" {
 		reload = types.AppReloadOptionUpdated
 	}
 
-	repoCache, err := NewRepoCache(s)
-	if err != nil {
-		return nil, err
+	if repoCache == nil {
+		repoCache, err = NewRepoCache(s)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer repoCache.Cleanup()
 	}
-	defer repoCache.Cleanup()
+
+	branch = cmp.Or(branch, "main")
+	newSha, err := repoCache.GetSha(applyPath, branch, gitAuth)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error getting git commit sha for %s: %w", applyPath, err)
+	}
+	if !forceReload && lastRunCommitId != "" && newSha == lastRunCommitId && (commit == "" || commit == lastRunCommitId) {
+		// If no commit is specified, and the current version is the same as the latest commit, skip apply
+		// Only schedule sync passes in the lastRunCommitId, so this does not happen for normal apply
+		s.Debug().Msgf("Already applied commit for %s, skipping apply", applyPath)
+		return &types.AppApplyResponse{
+			DryRun:       dryRun,
+			SkippedApply: true,
+			CommitId:     newSha,
+		}, nil, nil
+	}
 
 	dir, file, err := s.setupSource(applyPath, branch, commit, gitAuth, repoCache)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sourceFS, err := appfs.NewSourceFs(dir, appfs.NewDiskReadFS(s.Logger, dir, nil), false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	applyConfig := map[types.AppPathDomain]*types.CreateAppRequest{}
 	globFiles, err := sourceFS.Glob(file)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(globFiles) == 0 {
-		return nil, fmt.Errorf("no matching files found in %s", applyPath)
+		return nil, nil, fmt.Errorf("no matching files found in %s", applyPath)
 	}
 	for _, f := range globFiles {
 		s.Trace().Msgf("Applying file %s", f)
 		fileBytes, err := sourceFS.ReadFile(f)
 		if err != nil {
-			return nil, fmt.Errorf("error reading file %s: %w", f, err)
+			return nil, nil, fmt.Errorf("error reading file %s: %w", f, err)
 		}
 
 		fileConfig, err := s.loadApplyInfo(f, fileBytes)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		for _, config := range fileConfig {
 			appPathDomain, err := parseAppPath(config.Path)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if appPathDomain.Domain != "" && appPathDomain.Domain[len(appPathDomain.Domain)-1] == '.' {
 				// If domain ends with a dot, append the default domain
 				if s.config.System.DefaultDomain == "" {
-					return nil, types.CreateRequestError("Domain cannot end with a dot since default_domain is not configured", http.StatusBadRequest)
+					return nil, nil, types.CreateRequestError("Domain cannot end with a dot since default_domain is not configured", http.StatusBadRequest)
 				}
 				appPathDomain.Domain += s.config.System.DefaultDomain
 			}
 			if _, ok := applyConfig[appPathDomain]; ok {
-				return nil, fmt.Errorf("duplicate app %s defined in file %s", config.Path, f)
+				return nil, nil, fmt.Errorf("duplicate app %s defined in file %s", config.Path, f)
 			}
 			applyConfig[appPathDomain] = config
 		}
@@ -285,7 +310,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	for appPathDomain := range applyConfig {
 		match, err := MatchGlob(appPathGlob, appPathDomain)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !match {
 			continue
@@ -301,7 +326,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 
 	allApps, err := s.apps.GetAllAppsInfo()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	allAppsMap := make(map[types.AppPathDomain]types.AppInfo)
 	for _, appInfo := range allApps {
@@ -319,10 +344,10 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		} else {
 			applyInfo := applyConfig[appPath]
 			if appInfo.SourceUrl != applyInfo.SourceUrl {
-				return nil, fmt.Errorf("app %s already exists with different source url: %s", appPath, appInfo.SourceUrl)
+				return nil, nil, fmt.Errorf("app %s already exists with different source url: %s", appPath, appInfo.SourceUrl)
 			}
 			if appInfo.IsDev != applyInfo.IsDev {
-				return nil, fmt.Errorf("app %s already exists with different dev status: %t", appPath, appInfo.IsDev)
+				return nil, nil, fmt.Errorf("app %s already exists with different dev status: %t", appPath, appInfo.IsDev)
 			}
 
 			updatedApps = append(updatedApps, appPath)
@@ -335,7 +360,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		applyInfo := applyConfig[newApp]
 		res, err := s.CreateAppTx(ctx, tx, newApp.String(), approve, dryRun, applyInfo, repoCache)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		createResults = append(createResults, *res)
@@ -347,7 +372,7 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 		applyResult, err := s.applyAppUpdate(ctx, tx, updateApp, applyInfo, approve, dryRun,
 			promote, reload, clobber, repoCache, forceReload)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		updateResults = append(updateResults, applyResult.Updated...)
@@ -378,22 +403,27 @@ func (s *Server) Apply(ctx context.Context, applyPath string, appPathGlob string
 	}
 	allUpdatedApps = slices.Collect(maps.Keys(allAppMap))
 
-	// Commit the transaction if not dry run and update the in memory app store
-	if err := s.CompleteTransaction(ctx, tx, allUpdatedApps, dryRun, "apply"); err != nil {
-		return nil, err
+	if inputTx.Tx == nil {
+		// Commit the transaction if not dry run and update the in memory app store
+		if err := s.CompleteTransaction(ctx, tx, allUpdatedApps, dryRun, "apply"); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	ret := &types.AppApplyResponse{
 		DryRun:         dryRun,
+		CommitId:       newSha,
+		SkippedApply:   false,
 		CreateResults:  createResults,
 		UpdateResults:  updateResults,
 		ApproveResults: approveResults,
 		PromoteResults: promoteResults,
 		ReloadResults:  reloadResults,
 		SkippedResults: skippedResults,
+		FilteredApps:   filteredApps,
 	}
 
-	return ret, nil
+	return ret, allUpdatedApps, nil
 }
 
 func convertToMapString(input map[string]any, convertToml bool) (map[string]string, error) {

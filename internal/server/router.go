@@ -986,10 +986,10 @@ func (h *Handler) apply(r *http.Request) (any, error) {
 	}
 	updateOperationInContext(r, genOperationName("apply", promote, approve))
 
-	ret, err := h.server.Apply(r.Context(), applyPath, appPathGlob, approve, dryRun, promote,
+	ret, _, err := h.server.Apply(r.Context(), types.Transaction{}, applyPath, appPathGlob, approve, dryRun, promote,
 		types.AppReloadOption(r.URL.Query().Get("reload")),
 		r.URL.Query().Get("branch"), r.URL.Query().Get("commit"), r.URL.Query().Get("gitAuth"),
-		clobber, forceReload)
+		clobber, forceReload, "", nil)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusInternalServerError)
 	}
@@ -1003,6 +1003,10 @@ func (h *Handler) createSyncEntry(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	scheduled, err := parseBoolArg(r.URL.Query().Get("scheduled"), false)
+	if err != nil {
+		return nil, err
+	}
 
 	var sync types.SyncMetadata
 	err = json.NewDecoder(r.Body).Decode(&sync)
@@ -1012,7 +1016,7 @@ func (h *Handler) createSyncEntry(r *http.Request) (any, error) {
 	updateTargetInContext(r, path, dryRun)
 	updateOperationInContext(r, "sync_create")
 
-	results, err := h.server.CreateSyncEntry(r.Context(), path, dryRun, &sync)
+	results, err := h.server.CreateSyncEntry(r.Context(), path, scheduled, dryRun, &sync)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}

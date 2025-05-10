@@ -127,6 +127,7 @@ type Server struct {
 	listAppsApp    *app.App
 	mu             sync.RWMutex
 	auditDB        *sql.DB
+	syncTimer      *time.Ticker
 }
 
 // NewServer creates a new instance of the Clace Server
@@ -192,6 +193,10 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	go server.handleAppClose()
 
 	initClacePlugin(server)
+
+	// Start the idle shutdown check
+	server.syncTimer = time.NewTicker(time.Minute) // run sync every minute
+	go server.syncRunner()
 	return server, nil
 }
 

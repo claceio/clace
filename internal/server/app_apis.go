@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"github.com/claceio/clace/internal/app"
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/metadata"
-	"github.com/claceio/clace/internal/passwd"
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/segmentio/ksuid"
@@ -630,8 +628,10 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, 
 		return nil
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
+	if tx.Tx != nil { // Used when called in a context where the transaction is handled by the caller
+		if err := tx.Commit(); err != nil {
+			return err
+		}
 	}
 
 	// Update the in memory cache
@@ -973,105 +973,4 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 
 	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
 	return ret, nil
-}
-
-func (s *Server) CreateSyncEntry(ctx context.Context, path string, dryRun bool, sync *types.SyncMetadata) (*types.SyncCreateResponse, error) {
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	genId, err := ksuid.NewRandom()
-	if err != nil {
-		return nil, err
-	}
-
-	id := "cl_syn_" + strings.ToLower(genId.String())
-
-	if sync.ScheduleFrequency <= 0 {
-		secret, err := passwd.GeneratePassword()
-		if err != nil {
-			return nil, err
-		}
-		sync.WebhookSecret = fmt.Sprintf("cl_tkn_%s", base64.StdEncoding.EncodeToString([]byte(secret)))
-	}
-
-	syncEntry := types.SyncEntry{
-		Id:          id,
-		Path:        path,
-		IsScheduled: sync.ScheduleFrequency > 0,
-		UserID:      system.GetContextUserId(ctx),
-		Metadata:    *sync,
-	}
-
-	// Persist the settings
-	if err := s.db.CreateSync(ctx, tx, &syncEntry); err != nil {
-		return nil, err
-	}
-
-	ret := types.SyncCreateResponse{
-		Id:                syncEntry.Id,
-		DryRun:            dryRun,
-		WebhookUrl:        "aaa", // TODO
-		WebhookSecret:     syncEntry.Metadata.WebhookSecret,
-		ScheduleFrequency: syncEntry.Metadata.ScheduleFrequency,
-	}
-
-	if dryRun {
-		return &ret, nil
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return &ret, nil
-}
-
-func (s *Server) DeleteSyncEntry(ctx context.Context, id string, dryRun bool) (*types.SyncDeleteResponse, error) {
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	if err := s.db.DeleteSync(ctx, tx, id); err != nil {
-		return nil, err
-	}
-
-	ret := types.SyncDeleteResponse{
-		Id:     id,
-		DryRun: dryRun,
-	}
-
-	if dryRun {
-		return &ret, nil
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return &ret, nil
-}
-
-func (s *Server) ListSyncEntries(ctx context.Context) (*types.SyncListResponse, error) {
-	tx, err := s.db.BeginTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	entries, err := s.db.GetSyncEntries(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, e := range entries {
-		e.Metadata.WebhookUrl = "aaa" // TODO: Set the actual webhook URL
-	}
-
-	ret := types.SyncListResponse{
-		Entries: entries,
-	}
-	return &ret, nil
 }

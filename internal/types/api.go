@@ -155,12 +155,15 @@ type AppApplyResult struct {
 
 type AppApplyResponse struct {
 	DryRun         bool                `json:"dry_run"`
+	CommitId       string              `json:"commit_id"`
+	SkippedApply   bool                `json:"skipped_apply"`
 	CreateResults  []AppCreateResponse `json:"create_results"`
 	UpdateResults  []AppPathDomain     `json:"update_results"`
 	ApproveResults []ApproveResult     `json:"approve_results"`
 	PromoteResults []AppPathDomain     `json:"promote_results"`
 	ReloadResults  []AppPathDomain     `json:"reload_results"`
 	SkippedResults []AppPathDomain     `json:"skipped_results"`
+	FilteredApps   []AppPathDomain     `json:"filtered_apps"`
 }
 
 type AppPromoteResponse struct {
@@ -231,11 +234,12 @@ type TokenDeleteResponse struct {
 }
 
 type SyncCreateResponse struct {
-	DryRun            bool   `json:"dry_run"`
-	Id                string `json:"id"`
-	WebhookUrl        string `json:"webhook_url"`
-	WebhookSecret     string `json:"webhook_secret"`
-	ScheduleFrequency int    `json:"schedule_minutes"`
+	DryRun            bool          `json:"dry_run"`
+	Id                string        `json:"id"`
+	WebhookUrl        string        `json:"webhook_url"`
+	WebhookSecret     string        `json:"webhook_secret"`
+	ScheduleFrequency int           `json:"schedule_minutes"`
+	SyncJobStatus     SyncJobStatus `json:"sync_job_status"`
 }
 
 type SyncDeleteResponse struct {
