@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -56,6 +57,10 @@ func (s *Server) CreateSyncEntry(ctx context.Context, path string, scheduled, dr
 	syncStatus, updatedApps, err := s.runSyncJob(ctx, tx, &syncEntry, true, nil)
 	if err != nil {
 		return nil, err
+	}
+	if syncStatus.Error != "" {
+		// The sync job job failed, delete the entry
+		return nil, errors.New(syncStatus.Error)
 	}
 
 	ret := types.SyncCreateResponse{
@@ -225,7 +230,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		status.Error = applyErr.Error()
 		applyInfo = &types.AppApplyResponse{}
 		applyInfo.FilteredApps = lastRunApps
-		status.FailureCount++
+		status.FailureCount = entry.Status.FailureCount + 1
 	} else {
 		status.CommitId = applyInfo.CommitId
 		status.FailureCount = 0

@@ -177,7 +177,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 }
 
 func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache, forceReload bool) (bool, error) {
-	s.Info().Msgf("Reloading app code %v", appEntry)
+	s.Debug().Msgf("Reloading app code %v", appEntry)
 
 	if isGit(appEntry.SourceUrl) {
 		currentSha := appEntry.Metadata.VersionMetadata.GitCommit
@@ -194,7 +194,7 @@ func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry
 		}
 		if !forceReload && currentSha != "" && newSha == currentSha && (commit == "" || commit == currentSha) {
 			// If no commit is specified, and the current version is the same as the latest commit, skip reload
-			s.Info().Msgf("App %s already at latest commit %s, skipping reload", appEntry.AppPathDomain(), newSha)
+			s.Debug().Msgf("App %s already at latest commit %s, skipping reload", appEntry.AppPathDomain(), newSha)
 			return false, nil
 		}
 
