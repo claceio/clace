@@ -834,6 +834,9 @@ func (a *App) addProxyConfig(count int, router *chi.Mux, proxyDef *starlarkstruc
 			} else {
 				r.Header.Set("X-Forwarded-Proto", "http")
 			}
+			if a.Path != "" && a.Path != "/" {
+				r.Header.Set("X-Forwarded-Prefix", a.Path)
+			}
 
 			// Set the response headers
 			for key, value := range responseHeaders {
