@@ -186,6 +186,7 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 		v.SetKey(starlark.String("path_split_glob"), &pathSplitGlob)
 		v.SetKey(starlark.String("id"), starlark.String(app.Id))
 		v.SetKey(starlark.String("is_dev"), starlark.Bool(app.IsDev))
+		v.SetKey(starlark.String("is_stage"), starlark.Bool(strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE)))
 		v.SetKey(starlark.String("main_app"), starlark.String(app.MainApp))
 		if app.Auth == types.AppAuthnDefault {
 			v.SetKey(starlark.String("auth"), starlark.String(c.server.config.Security.AppDefaultAuthType))
@@ -196,6 +197,7 @@ func (c *clacePlugin) listAppsImpl(thread *starlark.Thread, _ *starlark.Builtin,
 		}
 		v.SetKey(starlark.String("source"), starlark.String(app.SourceUrl))
 		v.SetKey(starlark.String("source_url"), starlark.String(getSourceUrl(app.SourceUrl, app.Branch)))
+		v.SetKey(starlark.String("star_base"), starlark.String(app.StarBase))
 		v.SetKey(starlark.String("spec"), starlark.String(app.Spec))
 		v.SetKey(starlark.String("version"), starlark.MakeInt(app.Version))
 		v.SetKey(starlark.String("version_mismatch"), starlark.Bool(versionMismatchMap[app.Id]))
