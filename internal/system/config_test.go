@@ -89,5 +89,5 @@ func TestClientConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "admin password", "", c.Client.AdminPassword)
 	testutil.AssertEqualsString(t, "server uri", "$CL_HOME/run/clace.sock", c.ServerUri)
 	testutil.AssertEqualsString(t, "admin user", "admin", c.AdminUser)
-	testutil.AssertEqualsString(t, "default format", "table", c.Client.DefaultFormat)
+	testutil.AssertEqualsString(t, "default format", "basic", c.Client.DefaultFormat)
 }

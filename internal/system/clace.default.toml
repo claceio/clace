@@ -7,7 +7,7 @@ admin_user = "admin"
 [client]
 admin_password = ""      # the password for the admin user. Required only if admin over TCP is enabled
 skip_cert_check = false
-default_format = "table" # default output format for the client commands
+default_format = "basic" # default output format for the client commands
 
 # HTTP port binding related Config
 [http]

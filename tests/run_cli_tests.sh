@@ -69,6 +69,9 @@ port = 9155
 
 [system]
 enable_compression = true
+
+[client]
+default_format = "table"
 EOF
 
 CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
@@ -165,6 +168,9 @@ ca_cert_file="certs/testcerts2/ca.crt"
 
 [system]
 enable_compression = true
+
+[client]
+default_format = "table"
 EOF
 
 export TESTENV=abc
