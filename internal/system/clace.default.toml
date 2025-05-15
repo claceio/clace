@@ -62,10 +62,10 @@ node_path = ""                      # node module lookup paths https://esbuild.g
 container_command = "auto"          # "auto" or "docker" or "podman"
 default_domain = "localhost"        # default domain for apps
 root_serve_list_apps = "auto"       # "auto" means serve list_apps app for default domain, "disable" means don't server for any domain,
+                                    # any other value means serve for specified domain
 enable_compression = false          # enable compression for HTTP responses
-default_schedule_mins = 5           # default sync schedule interval in minutes
+default_schedule_mins = 15          # default sync schedule interval in minutes
 max_sync_failure_count = 5          # max number of sync failures before sync is marked as disabled
-# any other value means server for specified domain
 
 http_event_retention_days = 90      # number of days to retain http events
 non_http_event_retention_days = 180 # number of days to retain non-http (system, action, custom) events
