@@ -60,6 +60,7 @@ rm -f run/clace.sock
 cat <<EOF > config_basic_test.toml
 [security]
 admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DUPUyvIK7C"
+app_default_auth_type = "system"
 
 [http]
 port = 9154
