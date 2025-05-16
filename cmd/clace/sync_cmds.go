@@ -200,23 +200,25 @@ func printSyncList(cCtx *cli.Context, sync []*types.SyncEntry, format string) {
 			enc.Encode(s)
 		}
 	case FORMAT_BASIC:
-		formatStr := "%-35s %-12s %-s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStr, "Id", "SyncType", "Path")
+		formatStr := "%-35s %-9s %-12s %-s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStr, "Id", "State", "SyncType", "Path")
 
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, getSyncType(s), s.Path)
+			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, s.Status.State, getSyncType(s), s.Path, s.Status.Error)
 		}
 	case FORMAT_TABLE:
-		formatStrHead := "%-35s %-12s %-8s %-8s %-7s %-7s %-10s %-15s %-s\n"
-		formatStrData := "%-35s %-12s %-8s %-8t %-7t %-7t %-10s %-15s %-s\n"
-		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "SyncType", "Reload", "Promote", "Approve", "Clobber", "GitAuth", "Branch", "Path")
+		formatStrHead := "%-35s %-9s %-12s %-8s %-8s %-7s %-7s %-10s %-15s %-60s %-s\n"
+		formatStrData := "%-35s %-9s %-12s %-8s %-8t %-7t %-7t %-10s %-15s %-60s %-s\n"
+		fmt.Fprintf(cCtx.App.Writer, formatStrHead, "Id", "State", "SyncType", "Reload", "Promote", "Approve", "Clobber", "GitAuth", "Branch", "Path", "Error")
 
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, formatStrData, s.Id, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path)
+			fmt.Fprintf(cCtx.App.Writer, formatStrData, s.Id, s.Status.State, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote,
+				s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Status.Error)
 		}
 	case FORMAT_CSV:
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%s,%t,%t,%t,%s,%s,%s,%s\n", s.Id, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber, s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Metadata.WebhookUrl)
+			fmt.Fprintf(cCtx.App.Writer, "%s,%s,%s,%s,%t,%t,%t,%s,%s,%s,%s,%s\n", s.Id, s.Status.State, getSyncType(s), s.Metadata.Reload, s.Metadata.Promote, s.Metadata.Approve, s.Metadata.Clobber,
+				s.Metadata.GitAuth, s.Metadata.GitBranch, s.Path, s.Metadata.WebhookUrl, s.Status.Error)
 		}
 	default:
 		panic(fmt.Errorf("unknown format %s", format))

@@ -224,6 +224,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 	status := types.SyncJobStatus{
 		LastExecutionTime: time.Now(),
 		IsApply:           true,
+		State:             "Enabled",
 	}
 	if applyErr != nil {
 		s.Error().Err(applyErr).Msgf("Error applying sync job %s", entry.Id)
@@ -231,6 +232,11 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		applyInfo = &types.AppApplyResponse{}
 		applyInfo.FilteredApps = lastRunApps
 		status.FailureCount = entry.Status.FailureCount + 1
+		if status.FailureCount >= s.config.System.MaxSyncFailureCount {
+			status.State = "Disabled"
+		} else {
+			status.State = "Failing"
+		}
 	} else {
 		status.CommitId = applyInfo.CommitId
 		status.FailureCount = 0
@@ -269,12 +275,22 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 			}
 			return s.runSyncJob(ctx, inputTx, entry, false, repoCache)
 		} else {
+			var reloadErr error
 			for _, appPath := range lastRunApps {
 				app := appMap[appPath]
-				reloadResult, err := s.ReloadApp(ctx, tx, app, nil, entry.Metadata.Approve, false, entry.Metadata.Promote,
+				var reloadResult *types.AppReloadResult
+				reloadResult, reloadErr = s.ReloadApp(ctx, tx, app, nil, entry.Metadata.Approve, false, entry.Metadata.Promote,
 					app.Metadata.VersionMetadata.GitBranch, "", app.Settings.GitAuthName, repoCache, entry.Metadata.ForceReload)
-				if err != nil {
-					return nil, nil, err
+				if reloadErr != nil {
+					s.Error().Err(reloadErr).Msgf("Error reloading app %s sync job %s", appPath, entry.Id)
+					status.Error = reloadErr.Error()
+					status.FailureCount = entry.Status.FailureCount + 1
+					if status.FailureCount >= s.config.System.MaxSyncFailureCount {
+						status.State = "Disabled"
+					} else {
+						status.State = "Failing"
+					}
+					break // abort reloads
 				}
 
 				reloadResults = append(reloadResults, reloadResult.ReloadResults...)
@@ -284,19 +300,32 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 				promoteResults = append(promoteResults, reloadResult.PromoteResults...)
 			}
 
-			status.ApplyResponse.ReloadResults = reloadResults
-			status.ApplyResponse.ApproveResults = approveResults
-			status.ApplyResponse.PromoteResults = promoteResults
+			if reloadErr != nil {
+				status.ApplyResponse.ReloadResults = reloadResults
+				status.ApplyResponse.ApproveResults = approveResults
+				status.ApplyResponse.PromoteResults = promoteResults
+			}
 		}
 	}
 
-	status.ApplyResponse = *applyInfo
+	if status.Error != "" {
+		tx.Rollback() // rollback any changes to db done during apply or reload
+		// CreateSyncEntry also aborts if the sync job fails, so rolling back the transaction here is fine
+		// Use a new transaction to update the sync status
+		tx, err = s.db.BeginTransaction(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer tx.Rollback()
+		updatedApps = nil
+	}
+
 	err = s.db.UpdateSyncStatus(ctx, tx, entry.Id, &status)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if inputTx.Tx == nil {
+	if status.Error == "" && inputTx.Tx == nil {
 		if err := s.CompleteTransaction(ctx, tx, updatedApps, false, "sync"); err != nil {
 			return nil, nil, err
 		}

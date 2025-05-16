@@ -607,6 +607,7 @@ type SyncMetadata struct {
 }
 
 type SyncJobStatus struct {
+	State             string           `json:"state"`               // the state of the sync job
 	FailureCount      int              `json:"failure_count"`       // the number of times the sync job has failed recently
 	LastExecutionTime time.Time        `json:"last_execution_time"` // the last time the sync job was executed
 	Error             string           `json:"error"`               // the error message if the sync job failed
