@@ -132,7 +132,6 @@ Examples:
 				return fmt.Errorf("require two arguments: <app_source_url> <app_path>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			values := url.Values{}
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -185,9 +184,14 @@ Examples:
 				confMap[key] = "\"" + value + "\""
 			}
 
+			sourceUrl, err := makeAbsolute(cCtx.Args().Get(0))
+			if err != nil {
+				return err
+			}
+
 			body := types.CreateAppRequest{
 				Path:             cCtx.Args().Get(1),
-				SourceUrl:        cCtx.Args().Get(0),
+				SourceUrl:        sourceUrl,
 				IsDev:            cCtx.Bool("dev"),
 				AppAuthn:         types.AppAuthnType(cCtx.String("auth")),
 				GitBranch:        cCtx.String("branch"),
@@ -201,7 +205,8 @@ Examples:
 				AppConfig:        confMap,
 			}
 			var createResult types.AppCreateResponse
-			err := client.Post("/_clace/app", values, body, &createResult)
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			err = client.Post("/_clace/app", values, body, &createResult)
 			if err != nil {
 				return err
 			}

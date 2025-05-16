@@ -18,6 +18,7 @@ import (
 	"github.com/claceio/clace/internal/app/appfs"
 	"github.com/claceio/clace/internal/app/apptype"
 	"github.com/claceio/clace/internal/metadata"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -195,7 +196,7 @@ func appDefToApplyInfo(appDef *starlarkstruct.Struct) (*types.CreateAppRequest, 
 }
 
 func (s *Server) setupSource(applyPath, branch, commit, gitAuth string, repoCache *RepoCache) (string, string, error) {
-	if !isGit(applyPath) {
+	if !system.IsGit(applyPath) {
 		return filepath.Dir(applyPath), filepath.Base(applyPath), nil
 	}
 

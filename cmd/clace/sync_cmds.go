@@ -62,10 +62,15 @@ Examples:
 				return fmt.Errorf("expected one arg : <filePath>")
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			reloadMode := types.AppReloadOption(cmp.Or(cCtx.String("reload"), string(types.AppReloadOptionMatched)))
 			values := url.Values{}
-			values.Add("path", cCtx.Args().Get(0))
+
+			sourceUrl, err := makeAbsolute(cCtx.Args().Get(0))
+			if err != nil {
+				return err
+			}
+
+			values.Add("path", sourceUrl)
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
 			values.Add("scheduled", "true")
 
@@ -80,8 +85,9 @@ Examples:
 				ScheduleFrequency: cCtx.Int("minutes"),
 			}
 
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			var syncResponse types.SyncCreateResponse
-			err := client.Post("/_clace/sync", values, sync, &syncResponse)
+			err = client.Post("/_clace/sync", values, sync, &syncResponse)
 			if err != nil {
 				return err
 			}

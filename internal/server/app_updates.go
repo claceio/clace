@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/metadata"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 )
 
@@ -179,7 +180,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, approve, dr
 func (s *Server) loadAppCode(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, branch, commit, gitAuth string, repoCache *RepoCache, forceReload bool) (bool, error) {
 	s.Debug().Msgf("Reloading app code %v", appEntry)
 
-	if isGit(appEntry.SourceUrl) {
+	if system.IsGit(appEntry.SourceUrl) {
 		currentSha := appEntry.Metadata.VersionMetadata.GitCommit
 		if !forceReload && currentSha != "" && currentSha == commit {
 			// Commit is specified and matches the current version, skip reload

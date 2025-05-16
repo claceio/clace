@@ -5,8 +5,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/claceio/clace/internal/system"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 )
@@ -106,4 +109,25 @@ func newBoolFlag(name, alias, usage string, value bool) *cli.BoolFlag {
 		Usage:   usage,
 		Value:   value,
 	}
+}
+
+// makeAbsolute converts a relative path to an absolute path.
+// This needs to be called in the client before the call to system.NewHttpClient
+// since that changes the cwd to $CL_HOME
+func makeAbsolute(sourceUrl string) (string, error) {
+	if sourceUrl == "-" || system.IsGit(sourceUrl) {
+		return sourceUrl, nil
+	}
+
+	var err error
+	// Convert to absolute path so that server can find it
+	sourceUrl, err = filepath.Abs(sourceUrl)
+	if err != nil {
+		return "", fmt.Errorf("error getting absolute path for %s: %w", sourceUrl, err)
+	}
+	_, err = os.Stat(sourceUrl)
+	if err != nil {
+		return "", fmt.Errorf("path does not exist %s: %w", sourceUrl, err)
+	}
+	return sourceUrl, nil
 }

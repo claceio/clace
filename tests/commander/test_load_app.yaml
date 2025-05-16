@@ -106,7 +106,7 @@ tests:
     exit-code: 0
   load0120: # Create app, invalid path, app should not be created
     command: ../clace app create ./invalid /load2
-    stderr: "audit failed: error reading app.star file: file does not exist"
+    stderr: "path does not exist"
     exit-code: 1
   load0130: # Create app, granting approval
     command: ../clace app create --approve ./disk_usage /load2

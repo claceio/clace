@@ -403,7 +403,7 @@ func (h *Handler) webhookHandler(w http.ResponseWriter, r *http.Request, webhook
 	h.Trace().Str("method", r.Method).Str("url", r.URL.String()).Msg("API Received request")
 
 	var resp any
-	if reload && isGit(app.SourceUrl) {
+	if reload && system.IsGit(app.SourceUrl) {
 		// validate branch name, it should match branch name in app metadata if app is using git
 		payload := map[string]any{}
 		err = json.Unmarshal(body, &payload)

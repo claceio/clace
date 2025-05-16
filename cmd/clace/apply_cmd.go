@@ -57,9 +57,13 @@ Examples:
 				appPathGlob = cCtx.Args().Get(1)
 			}
 
-			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			sourceUrl, err := makeAbsolute(cCtx.Args().Get(0))
+			if err != nil {
+				return err
+			}
+
 			values := url.Values{}
-			values.Add("applyPath", cCtx.Args().Get(0))
+			values.Add("applyPath", sourceUrl)
 			values.Add("appPathGlob", appPathGlob)
 			values.Add("approve", strconv.FormatBool(cCtx.Bool("approve")))
 			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
@@ -71,8 +75,9 @@ Examples:
 			values.Add("clobber", strconv.FormatBool(cCtx.Bool("clobber")))
 			values.Add("forceReload", strconv.FormatBool(cCtx.Bool("force-reload")))
 
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
 			var applyResponse types.AppApplyResponse
-			err := client.Post("/_clace/apply", values, nil, &applyResponse)
+			err = client.Post("/_clace/apply", values, nil, &applyResponse)
 			if err != nil {
 				return err
 			}

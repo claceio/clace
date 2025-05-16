@@ -154,7 +154,7 @@ func (s *Server) CreateAppTx(ctx context.Context, currentTx types.Transaction, a
 
 func (s *Server) createApp(ctx context.Context, tx types.Transaction,
 	appEntry *types.AppEntry, approve, dryRun bool, branch, commit, gitAuth string, applyInfo *types.CreateAppRequest, repoCache *RepoCache) (*types.AppCreateResponse, error) {
-	if isGit(appEntry.SourceUrl) {
+	if system.IsGit(appEntry.SourceUrl) {
 		if appEntry.IsDev {
 			return nil, fmt.Errorf("cannot create dev mode app from git source. For dev mode, manually checkout the git repo and create app from the local path")
 		}
@@ -222,7 +222,7 @@ func (s *Server) createApp(ctx context.Context, tx types.Transaction,
 		workEntry = &stageAppEntry // Work on the stage app for prod apps, it will be promoted later
 	}
 
-	if isGit(workEntry.SourceUrl) {
+	if system.IsGit(workEntry.SourceUrl) {
 		// Checkout the git repo locally and load into database
 		if err := s.loadSourceFromGit(ctx, tx, workEntry, branch, commit, gitAuth, repoCache); err != nil {
 			return nil, fmt.Errorf("failed to load source %s from git: %w. Wrong org/repo name can show as auth error."+
@@ -900,7 +900,7 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 		return nil, err
 	}
 
-	if !isGit(mainAppEntry.SourceUrl) {
+	if !system.IsGit(mainAppEntry.SourceUrl) {
 		return nil, fmt.Errorf("cannot preview app %s, source is not git", mainAppPath)
 	}
 
