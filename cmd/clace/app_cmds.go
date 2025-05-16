@@ -21,7 +21,7 @@ import (
 const (
 	DRY_RUN_FLAG    = "dry-run"
 	DRY_RUN_ARG     = "dryRun"
-	DRY_RUN_MESSAGE = "\n*** dry-run mode, changes have NOT been committed. ***\n"
+	DRY_RUN_MESSAGE = "\n" + YELLOW + "*** dry-run mode, changes have NOT been committed. ***" + RESET + "\n"
 	PATH_SPEC_HELP  = `The (optional) domain and path are separated by a ":". appPathGlob supports a glob pattern.
 In the glob, * matches any number of characters, ** matches any number of characters including /.
 all is a shortcut for "*:**", which matches all apps across all domains, including no domain.

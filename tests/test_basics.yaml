@@ -12,16 +12,14 @@ tests:
 
   basic020:
     command: CL_CONFIG_FILE=config_basic_client_np.toml ../clace app list /invalid
-    stderr:
-      exactly: "error: 404 page not found" # admin api's are disabled over http
+    stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
     exit-code: 1
 
   basic030:
     command: CL_CONFIG_FILE=config_basic_client.toml ../clace app list /invalid # No app
-    stderr:
-      exactly: "error: 404 page not found" # admin api's are disabled over http
+    stderr: "error: 404 page not found" # admin api's are disabled over http
     stdout:
       line-count: 0
     exit-code: 1

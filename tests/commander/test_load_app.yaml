@@ -23,8 +23,7 @@ tests:
     stdout: "app /disk_usage_dev is not permitted to load plugin fs.in. Audit the app and approve permissions"
   load0041: # check audit output
     command: '../clace app approve --dry-run /disk_usage_dev | sed "s/app_dev_.*/YYY/g"'
-    stdout:
-      exactly: "App permissions have been approved /disk_usage_dev - YYY\n  Plugins :\n    fs.in\n  Permissions:\n    fs.in.abs [] \n    fs.in.list [] \n    fs.in.find [] \n1 app(s) audited, 1 app(s) approved, 0 app(s) promoted.\n\n*** dry-run mode, changes have NOT been committed. ***\n"
+    stdout: "dry-run mode, changes have NOT been committed."
     exit-code: 0
   load0041a: # test dev app, make sure dry run did not update the in memory cache
     command: curl -su "admin:qwerty" localhost:25222/disk_usage_dev

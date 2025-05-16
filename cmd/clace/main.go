@@ -198,7 +198,7 @@ func main() {
 		},
 		ExitErrHandler: func(c *cli.Context, err error) {
 			if err != nil {
-				fmt.Fprintf(cli.ErrWriter, "error: %s\n", err)
+				fmt.Fprintf(cli.ErrWriter, RED+"error: %s\n"+RESET, err)
 				os.Exit(1)
 			}
 		},
