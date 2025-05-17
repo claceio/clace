@@ -8,6 +8,7 @@ SHELL := bash
 MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 CL_HOME := `pwd`
+INPUT := $(word 2,$(MAKECMDGOALS))
 
 .DEFAULT_GOAL := help
 ifeq ($(origin .RECIPEPREFIX), undefined)
@@ -16,7 +17,7 @@ endif
 .RECIPEPREFIX = >
 TAG := 
 
-.PHONY: help test unit int release
+.PHONY: help test unit int release int_single
 
 help: ## Display this help section
 > @awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-38s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -38,9 +39,11 @@ covunit: ## Run unit tests with coverage
 > go tool covdata textfmt -i=$(CL_HOME)/coverage/unit -o $(CL_HOME)/coverage/profile
 > go tool cover -func coverage/profile
 
-
 int: ## Run integration tests
 > CL_HOME=$(CL_HOME) ./tests/run_cli_tests.sh
+
+int_single: ## Run one integration test
+> CL_SINGLE_TEST=${INPUT} CL_HOME=$(CL_HOME) ./tests/run_cli_tests.sh
 
 covint: ## Run integration tests with coverage
 > rm -rf $(CL_HOME)/coverage/int && mkdir -p $(CL_HOME)/coverage/int

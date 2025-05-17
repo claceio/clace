@@ -1024,6 +1024,24 @@ func (h *Handler) createSyncEntry(r *http.Request) (any, error) {
 	return results, nil
 }
 
+func (h *Handler) runSyncEntry(r *http.Request) (any, error) {
+	id := r.URL.Query().Get("id")
+	dryRun, err := parseBoolArg(r.URL.Query().Get(DRY_RUN_ARG), false)
+	if err != nil {
+		return nil, err
+	}
+
+	updateTargetInContext(r, id, dryRun)
+	updateOperationInContext(r, "sync_run")
+
+	results, err := h.server.RunSync(r.Context(), id, dryRun)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+
+	return results, nil
+}
+
 func (h *Handler) deleteSyncEntry(r *http.Request) (any, error) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
@@ -1162,17 +1180,22 @@ func (h *Handler) serveInternal(enableBasicAuth bool) http.Handler {
 
 	// API to create sync entry
 	r.Post("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "apply", h.createSyncEntry)
+		h.apiHandler(w, r, enableBasicAuth, "sync_create", h.createSyncEntry)
+	}))
+
+	// API to run sync
+	r.Post("/sync/run", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.apiHandler(w, r, enableBasicAuth, "sync_run", h.runSyncEntry)
 	}))
 
 	// API to delete sync entry
 	r.Delete("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "apply", h.deleteSyncEntry)
+		h.apiHandler(w, r, enableBasicAuth, "sync_delete", h.deleteSyncEntry)
 	}))
 
 	// API to get sync entries
 	r.Get("/sync", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.apiHandler(w, r, enableBasicAuth, "apply", h.listSyncEntries)
+		h.apiHandler(w, r, enableBasicAuth, "list_sync", h.listSyncEntries)
 	}))
 
 	return r

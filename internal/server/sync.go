@@ -54,7 +54,7 @@ func (s *Server) CreateSyncEntry(ctx context.Context, path string, scheduled, dr
 		return nil, err
 	}
 
-	syncStatus, updatedApps, err := s.runSyncJob(ctx, tx, &syncEntry, true, nil)
+	syncStatus, updatedApps, err := s.runSyncJob(ctx, tx, &syncEntry, dryRun, true, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -72,15 +72,38 @@ func (s *Server) CreateSyncEntry(ctx context.Context, path string, scheduled, dr
 		SyncJobStatus:     *syncStatus,
 	}
 
-	if dryRun {
-		return &ret, nil
-	}
-
-	if err := s.CompleteTransaction(ctx, tx, updatedApps, false, "create_sync"); err != nil {
+	if err := s.CompleteTransaction(ctx, tx, updatedApps, dryRun, "create_sync"); err != nil {
 		return nil, err
 	}
 
 	return &ret, nil
+}
+
+func (s *Server) RunSync(ctx context.Context, id string, dryRun bool) (*types.SyncJobStatus, error) {
+	tx, err := s.db.BeginTransaction(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	syncEntry, err := s.db.GetSyncEntry(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	syncStatus, updatedApps, err := s.runSyncJob(ctx, tx, syncEntry, dryRun, true, nil)
+	if err != nil {
+		return nil, err
+	}
+	if syncStatus.Error != "" {
+		// The sync job job failed, status would be already updated
+		return nil, errors.New(syncStatus.Error)
+	}
+
+	if err := s.CompleteTransaction(ctx, tx, updatedApps, dryRun, "sync_run"); err != nil {
+		return nil, err
+	}
+	return syncStatus, nil
 }
 
 func (s *Server) DeleteSyncEntry(ctx context.Context, id string, dryRun bool) (*types.SyncDeleteResponse, error) {
@@ -177,7 +200,7 @@ func (s *Server) runSyncJobs() error {
 			continue
 		}
 
-		_, _, err = s.runSyncJob(ctx, types.Transaction{}, entry, true, repoCache) // each sync runs in its own transaction
+		_, _, err = s.runSyncJob(ctx, types.Transaction{}, entry, false, true, repoCache) // each sync runs in its own transaction
 		if err != nil {
 			s.Error().Err(err).Msgf("Error running sync job %s", entry.Id)
 			// One failure does not stop the rest
@@ -188,7 +211,7 @@ func (s *Server) runSyncJobs() error {
 }
 
 func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entry *types.SyncEntry,
-	checkCommitHash bool, repoCache *RepoCache) (*types.SyncJobStatus, []types.AppPathDomain, error) {
+	dryRun, checkCommitHash bool, repoCache *RepoCache) (*types.SyncJobStatus, []types.AppPathDomain, error) {
 	var tx types.Transaction
 	var err error
 	if inputTx.Tx == nil {
@@ -218,7 +241,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		lastRunCommitId = entry.Status.CommitId
 	}
 
-	applyInfo, updatedApps, applyErr := s.Apply(ctx, tx, entry.Path, "all", entry.Metadata.Approve, false, entry.Metadata.Promote, types.AppReloadOption(entry.Metadata.Reload),
+	applyInfo, updatedApps, applyErr := s.Apply(ctx, tx, entry.Path, "all", entry.Metadata.Approve, dryRun, entry.Metadata.Promote, types.AppReloadOption(entry.Metadata.Reload),
 		entry.Metadata.GitBranch, "", entry.Metadata.GitAuth, entry.Metadata.Clobber, entry.Metadata.ForceReload, lastRunCommitId, repoCache)
 
 	status := types.SyncJobStatus{
@@ -230,6 +253,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		s.Error().Err(applyErr).Msgf("Error applying sync job %s", entry.Id)
 		status.Error = applyErr.Error()
 		applyInfo = &types.AppApplyResponse{}
+		applyInfo.DryRun = dryRun
 		applyInfo.FilteredApps = lastRunApps
 		status.FailureCount = entry.Status.FailureCount + 1
 		if status.FailureCount >= s.config.System.MaxSyncFailureCount {
@@ -242,7 +266,6 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		status.FailureCount = 0
 	}
 
-	status.ApplyResponse = *applyInfo
 	reloadResults := make([]types.AppPathDomain, 0, len(lastRunApps))
 	approveResults := make([]types.ApproveResult, 0, len(lastRunApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(lastRunApps))
@@ -273,7 +296,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 			if !checkCommitHash {
 				return nil, nil, fmt.Errorf("Unexpected error, sync rerun with no commit hash")
 			}
-			return s.runSyncJob(ctx, inputTx, entry, false, repoCache)
+			return s.runSyncJob(ctx, inputTx, entry, dryRun, false, repoCache)
 		} else {
 			var reloadErr error
 			for _, appPath := range lastRunApps {
@@ -301,9 +324,9 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 			}
 
 			if reloadErr != nil {
-				status.ApplyResponse.ReloadResults = reloadResults
-				status.ApplyResponse.ApproveResults = approveResults
-				status.ApplyResponse.PromoteResults = promoteResults
+				applyInfo.ReloadResults = reloadResults
+				applyInfo.ApproveResults = approveResults
+				applyInfo.PromoteResults = promoteResults
 			}
 		}
 	}
@@ -320,13 +343,14 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 		updatedApps = nil
 	}
 
+	status.ApplyResponse = *applyInfo
 	err = s.db.UpdateSyncStatus(ctx, tx, entry.Id, &status)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if status.Error == "" && inputTx.Tx == nil {
-		if err := s.CompleteTransaction(ctx, tx, updatedApps, false, "sync"); err != nil {
+		if err := s.CompleteTransaction(ctx, tx, updatedApps, dryRun, "sync"); err != nil {
 			return nil, nil, err
 		}
 	}

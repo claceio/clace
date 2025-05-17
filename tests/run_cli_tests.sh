@@ -100,7 +100,9 @@ admin_password = "abcd"
 skip_cert_check = true
 EOF
 
-commander test $CL_TEST_VERBOSE test_basics.yaml
+if [[ -z $CL_SINGLE_TEST ]]; then
+    commander test $CL_TEST_VERBOSE test_basics.yaml
+fi
 CL_CONFIG_FILE=config_basic_test.toml GOCOVERDIR=$GOCOVERDIR/../client ../clace server stop
 rm -rf metadata run/clace.sock config_basic_*.toml
 
@@ -177,8 +179,13 @@ export TESTENV=abc
 export c1c2_c3=xyz
 GOCOVERDIR=$GOCOVERDIR ../clace server start &
 sleep 2
-commander test $CL_TEST_VERBOSE  --dir ./commander/
-#commander test $CL_TEST_VERBOSE ./commander/test_misc.yaml
+
+if [[ -z $CL_SINGLE_TEST ]]; then
+    commander test $CL_TEST_VERBOSE  --dir ./commander/
+else
+    commander test $CL_TEST_VERBOSE ./commander/$CL_SINGLE_TEST
+    CL_CONTAINER_COMMANDS="disable"
+fi
 
 echo $?
 
@@ -230,4 +237,4 @@ EOF
 done
 
 cleanup
-echo "Test completed"
+echo "Test $CL_SINGLE_TEST completed"

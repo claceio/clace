@@ -22,6 +22,7 @@ func initSyncCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *
 		Usage: "Manage sync operations, scheduled and webhook",
 		Subcommands: []*cli.Command{
 			syncScheduleCommand(commonFlags, clientConfig),
+			syncRunCommand(commonFlags, clientConfig),
 			syncListCommand(commonFlags, clientConfig),
 			syncDeleteCommand(commonFlags, clientConfig),
 		},
@@ -92,6 +93,10 @@ Examples:
 				return err
 			}
 
+			if syncResponse.SyncJobStatus.Error != "" {
+				return fmt.Errorf("error creating sync job: %s", syncResponse.SyncJobStatus.Error)
+			}
+
 			printApplyResponse(cCtx, &syncResponse.SyncJobStatus.ApplyResponse)
 
 			fmt.Printf("\nSync job created with Id: %s\n", syncResponse.Id)
@@ -135,6 +140,50 @@ func syncListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *
 			}
 
 			printSyncList(cCtx, response.Entries, cmp.Or(cCtx.String("format"), clientConfig.Client.DefaultFormat))
+			return nil
+		},
+	}
+}
+
+func syncRunCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
+	flags := make([]cli.Flag, 0, len(commonFlags)+2)
+	flags = append(flags, commonFlags...)
+	flags = append(flags, dryRunFlag())
+
+	return &cli.Command{
+		Name:      "run",
+		Usage:     "Run specified sync job",
+		Flags:     flags,
+		Before:    altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc(configFileFlagName)),
+		ArgsUsage: "args: <syncId>",
+		UsageText: `
+	Examples:
+	  Run sync job: clace sync run cl_sync_44asd232`,
+		Action: func(cCtx *cli.Context) error {
+			if cCtx.NArg() != 1 {
+				return fmt.Errorf("expected one args: <syncId>")
+			}
+
+			client := system.NewHttpClient(clientConfig.ServerUri, clientConfig.AdminUser, clientConfig.Client.AdminPassword, clientConfig.Client.SkipCertCheck)
+			values := url.Values{}
+			values.Add("id", cCtx.Args().First())
+			values.Add(DRY_RUN_ARG, strconv.FormatBool(cCtx.Bool(DRY_RUN_FLAG)))
+
+			var response types.SyncJobStatus
+			err := client.Post("/_clace/sync/run", values, nil, &response)
+			if err != nil {
+				return err
+			}
+
+			if response.Error != "" {
+				return fmt.Errorf("error running sync job: %s", response.Error)
+			}
+
+			printApplyResponse(cCtx, &response.ApplyResponse)
+			if response.ApplyResponse.DryRun {
+				fmt.Print(DRY_RUN_MESSAGE)
+			}
+
 			return nil
 		},
 	}
