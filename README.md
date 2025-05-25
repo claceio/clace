@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://clace.io/clace.png" alt="Clace-logo" width="240" />
 
-  <p align="center">App deployment simplified, GitOps without the hassles.</p>
+  <p align="center">App deployment simplified. Application server for deploying containerized web apps. Easily deploy internal tools across a team.</p>
 </p>
 
 <p>
@@ -32,7 +32,7 @@
 
 ## Overview
 
-Clace is an Apache-2.0 licensed project building a web app development and deployment platform for internal tools. Clace allows you to deploy containerized apps and develop Hypermedia based web apps. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
+Clace is an Apache-2.0 licensed project building a web app deployment platform for internal tools. Clace allows you to deploy containerized apps. Clace is cross-platform (Linux/Windows/OSX) and provides a GitOps workflow for managing web apps.
 
 Clace apps are deployed directly from the git repo, no build step required. For example, Clace can be used to deploy Streamlit/Gradio apps, adding OAuth authentication for access control across a team.
 
@@ -44,9 +44,8 @@ This repo hosts the source code for Clace. The source for the documentation site
 
 Clace can be used to:
 
-- Automatically generate a form based UI for backend [actions](https://clace.io/docs/actions/)
 - Deploy [containerized applications](https://clace.io/docs/container/overview/), Clace will build and manage the container lifecycle
-- Build and deploy custom [Hypermedia based applications](https://clace.io/docs/app/overview/) using Starlark (no containers required)
+- Automatically generate a form based UI for backend [actions](https://clace.io/docs/actions/)
 
 Clace supports the following for all apps:
 
@@ -63,7 +62,7 @@ For containerized apps, Clace supports:
 
 - Managing [image builds](https://clace.io/docs/quickstart/#containerized-applications), in dev and prod mode
 - Passing [parameters](https://clace.io/docs/develop/#app-parameters) for the container
-- Building apps from [spec](https://clace.io/docs/develop/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Containerfile)
+- Building apps from [spec](https://clace.io/docs/develop/#building-apps-from-spec), no code changes required in repo for [supported frameworks](https://github.com/claceio/appspecs) (Flask, Streamlit and repos having a Dockerfile)
 - Support for [pausing](https://clace.io/docs/container/config/) app containers which are idle
 
 For building Hypermedia based apps, Clace supports:
@@ -82,7 +81,7 @@ For building Hypermedia based apps, Clace supports:
 
 The feature roadmap for Clace is:
 
-- SQLite is used for metadata storage currently. Support for postgres is planned. This will be used to allow for horizontal scaling.
+- SQLite is used for metadata storage currently. Support for postgres is planned.
 
 ## Setup
 
@@ -93,7 +92,7 @@ Clace manages TLS cert using LetsEncrypt for prod environments. For dev environm
 
 For container based apps, Docker or Podman or Orbstack should be installed and running on the machine. Clace automatically detects the container manager to use.
 
-Clace uses an `admin` user account as the default authentication for accessing apps. A random password is generated for this account during initial Clace server installation. Note down this password for accessing apps.
+Clace creates an `admin` user account as teh system auth for accessing apps. A random password is generated for this account during initial Clace server installation. Note down this password for accessing apps if using system auth.
 
 ### Install Clace On OSX/Linux
 
@@ -129,10 +128,15 @@ Start a new command window (to get the updated env) and run `clace server start`
 Once Clace server is running, to install apps declaratively, open a new window and run
 
 ```
-clace apply --approve github.com/claceio/clace/examples/utils.star all
+clace apply --approve github.com/claceio/clace/examples/utils.star
 ```
 
-To install apps using the CLI, run
+To schedule a background sync, which automatically applies the latest app config, run
+```
+clace sync schedule --approve github.com/claceio/clace/examples/utils.star
+```
+
+To install apps using the CLI (imperative mode), run
 
 ```
 clace app create --approve github.com/claceio/apps/system/list_files /files
@@ -140,7 +144,7 @@ clace app create --approve github.com/claceio/apps/system/disk_usage /disk_usage
 clace app create --approve github.com/claceio/apps/utils/bookmarks /book
 ```
 
-Open https://localhost:25223 to see the app listing. The disk usage app is available at https://localhost:25223/disk_usage (port 25222 for HTTP). admin is the username, use the password printed by the install script. The bookmark manager is available at https://localhost:25223/book, the list files app is available at https://localhost:25223/files. Add the `--auth none` flag to the `app create` command to disable authentication.
+Open https://localhost:25223 to see the app listing. The disk usage app is available at https://localhost:25223/disk_usage (port 25222 for HTTP). The bookmark manager is available at https://localhost:25223/book, the list files app is available at https://localhost:25223/files.
 
 See [installation]({{< ref "installation" >}}) for details. See [config options]({{< ref "configuration" >}}) for configuration options. To enable Let's Encrypt certificates, see [Automatic SSL]({{< ref "configuration/networking/#enable-automatic-signed-certificate" >}}).
 
@@ -196,69 +200,13 @@ $CL_HOME/clace server start
 This will print a random password on the screen, note that down as the password to use for accessing the applications.
 The service will be started on [https://localhost:25223](https://127.0.0.1:25223) by default (HTTP port 25222).
 
-### Loading Apps
-
-To create an app, run the Clace client
-
-```shell
-$HOME/clace app create --approve $HOME/clace_source/clace/examples/disk_usage/ /disk_usage
-```
-
-This will create an app at /disk_usage with the example disk_usage app. The disk_usage app provides a web interface for looking at file system disk usage, allowing the user to explore the sub-folders which are consuming most disk space.
-
-To access the app, go to [https://127.0.0.1:25223/disk_usage](https://127.0.0.1:25223/disk_usage). Use `admin` as the username and use the password previously generated. Allow the browser to connect to the self-signed certificate page. Or connect to [http://127.0.0.1:25222/disk_usage](http://127.0.0.1:25222/disk_usage) to avoid the certificate related warning.
-
-## Sample App
-
-To create an app with a custom HTML page which shows a listing of files, create an directory `~/fileapp` with file `app.star` file containing:
-
-```python
-load("exec.in", "exec")
-
-def handler(req):
-   ret = exec.run("ls", ["-l"])
-   if ret.error:
-       return {"Error": ret.error, "Lines": []}
-   return {"Error": "", "Lines": ret.value}
-
-app = ace.app("File Listing",
-              custom_layout=True,
-              routes = [ace.html("/")],
-              permissions = [ace.permission("exec.in", "run", ["ls"])]
-             )
-```
-
-and file `index.go.html` containing:
-
-<!-- prettier-ignore -->
-```html
-<!doctype html>
-<html>
-  <head>
-    <title>File List</title>
-  </head>
-  <body>
-    <h1>File List</h1>
-    {{ .Data.Error }}
-    {{ range .Data.Lines }}
-       {{.}}
-       <br/>
-    {{end}}
-  </body>
-</html>
-```
-
-<!-- prettier-ignore-end -->
-
-Run `clace app create --auth=none --approve ~/fileapp /files`. The app is available at `https://localhost:25223/files`.
-
 ## Documentation
 
 Clace docs are at https://clace.io/docs/. For doc bugs, raise a GitHub issue in the [docs](https://github.com/claceio/docs) repo.
 
 ## Getting help
 
-Please use [Github Discussions](https://github.com/claceio/clace/discussions) for discussing Clace related topics. Please use the bug tracker only for bug reports and feature requests.
+Please use [Github Discussions](https://github.com/claceio/clace/discussions) for discussing Clace related topics. Please use the bug tracker for bug reports and feature requests.
 
 ## Contributing
 
@@ -266,8 +214,3 @@ PRs welcome for bug fixes. For feature enhancements, please first file a ticket 
 
 The Google [go style guide](https://google.github.io/styleguide/go/guide) is used for Clace. For application behavior related fixes, refer the [app unit test cases](https://github.com/claceio/clace/tree/main/internal/app/tests). Those test run as part of regular unit tests `go test ./...`. For API related changes, Clace uses the [commander-cli](https://github.com/commander-cli/commander) library for [automated CLI tests](https://github.com/claceio/clace/tree/main/tests). To run the CLI test, run `gmake test` from the clace home directory.
 
-Thanks for all contributions!
-
-<a href="https://github.com/claceio/clace/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=claceio/clace" />
-</a>
