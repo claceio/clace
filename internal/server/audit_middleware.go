@@ -31,7 +31,7 @@ func init() {
 
 func (s *Server) initAuditDB(connectString string) error {
 	var err error
-	s.auditDB, err = system.InitDB(connectString)
+	s.auditDB, err = system.InitDBConnection(connectString)
 	if err != nil {
 		return err
 	}

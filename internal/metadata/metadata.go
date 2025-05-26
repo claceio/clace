@@ -28,21 +28,10 @@ type Metadata struct {
 
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
-	dbPath, err := system.CheckConnectString(config.Metadata.DBConnection)
+	db, err := system.InitDBConnection(config.Metadata.DBConnection)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error initializing db: %w", err)
 	}
-
-	logger.Info().Str("dbPath", dbPath).Msg("Connecting to DB")
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := system.SQLItePragmas(db); err != nil {
-		return nil, err
-	}
-
 	m := &Metadata{
 		Logger: logger,
 		config: config,
