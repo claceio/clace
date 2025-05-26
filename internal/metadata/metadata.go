@@ -28,7 +28,7 @@ type Metadata struct {
 
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
-	db, err := system.InitDBConnection(config.Metadata.DBConnection)
+	db, err := system.InitDBConnection(config.Metadata.DBConnection, "metadata", system.DB_SQLITE_POSTGRES)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing db: %w", err)
 	}

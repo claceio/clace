@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/claceio/clace/internal/types"
@@ -30,31 +31,54 @@ func SQLItePragmas(db *sql.DB) error {
 	return nil
 }
 
-func CheckConnectString(connStr string) (string, error) {
+func CheckConnectString(connStr string, invoker string, supportedDBs []string) (string, string, error) {
 	parts := strings.SplitN(connStr, ":", 2)
 	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid connection string: %s", connStr)
+		return "", "", fmt.Errorf("invalid connection string: %s", connStr)
 	}
-	if !strings.HasPrefix(parts[0], "sqlite") {
-		return "", fmt.Errorf("invalid connection string: %s, only sqlite supported", connStr)
+
+	if !slices.Contains(supportedDBs, parts[0]) {
+		return "", "", fmt.Errorf("invalid database type: %s, only %s supported for %s", parts[0], strings.Join(supportedDBs, ", "), invoker)
 	}
-	return os.ExpandEnv(parts[1]), nil
+
+	return parts[0], os.ExpandEnv(parts[1]), nil
 }
 
-func InitDBConnection(connectString string) (*sql.DB, error) {
+const (
+	DB_TYPE_SQLITE   = "sqlite"
+	DB_TYPE_POSTGRES = "postgres"
+)
+
+var (
+	DB_SQLITE_POSTGRES = []string{DB_TYPE_SQLITE, DB_TYPE_POSTGRES}
+	DB_SQLITE          = []string{DB_TYPE_SQLITE}
+	DRIVER_MAP         = map[string]string{
+		DB_TYPE_SQLITE:   "sqlite",
+		DB_TYPE_POSTGRES: "pgx",
+	}
+)
+
+func InitDBConnection(connectString string, invoker string, supportedDBs []string) (*sql.DB, error) {
 	var err error
-	connectString, err = CheckConnectString(connectString)
+	dbType, connectString, err := CheckConnectString(connectString, invoker, supportedDBs)
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", connectString)
-	if err != nil {
-		return nil, fmt.Errorf("error opening db %s: %w", connectString, err)
+	driver := DRIVER_MAP[dbType]
+	if driver == "" {
+		return nil, fmt.Errorf("unknown database type: %s", dbType)
 	}
 
-	if err := SQLItePragmas(db); err != nil {
-		return nil, err
+	db, err := sql.Open(driver, connectString)
+	if err != nil {
+		return nil, fmt.Errorf("error opening %s db %s: %w", invoker, connectString, err)
+	}
+
+	if dbType == DB_TYPE_SQLITE {
+		if err := SQLItePragmas(db); err != nil {
+			return nil, err
+		}
 	}
 	return db, nil
 }

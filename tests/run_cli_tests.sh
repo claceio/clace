@@ -22,6 +22,12 @@ else
     go build ./cmd/clace
 fi
 
+if [[ -d appspecs_bk ]]; then
+    # Restore appspecs
+    rm -rf internal/server/appspecs
+    mv appspecs_bk internal/server/appspecs
+fi 
+
 cd tests
 rm -rf metadata
 
