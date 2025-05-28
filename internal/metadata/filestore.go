@@ -264,39 +264,43 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx types.Transaction, prodAp
 		return err
 	}
 
-	var insertStmt, selectStmt *sql.Stmt
-	if insertStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")")); err != nil {
-		return err
-	}
-	defer insertStmt.Close()
+	// Use direct queries instead of prepared statements to avoid connection issues
+	selectQuery := system.RebindQuery(f.metadata.dbType, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+	insertQuery := system.RebindQuery(f.metadata.dbType, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")")
 
-	if selectStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)); err != nil {
-		return fmt.Errorf("error preparing statement: %w", err)
-	}
-	defer selectStmt.Close()
-
-	rows, err := selectStmt.Query(f.appId, f.version)
+	rows, err := tx.Query(selectQuery, f.appId, f.version)
 	if err != nil {
 		return fmt.Errorf("error querying files: %w", err)
 	}
-
 	defer rows.Close()
+
+	// Collect all file data first to avoid keeping the result set open
+	type fileData struct {
+		name string
+		sha  string
+		size int64
+	}
+	var files []fileData
+
 	for rows.Next() {
 		var name, sha string
 		var size int64
 		var modTime time.Time
 		err = rows.Scan(&name, &sha, &size, &modTime)
 		if err != nil {
-			return fmt.Errorf("error querying files: %w", err)
+			return fmt.Errorf("error scanning file row: %w", err)
 		}
-
-		// Copy entries from staging to prod app
-		if _, err := insertStmt.ExecContext(ctx, prodAppId, metadata.VersionMetadata.Version, name, sha, size); err != nil {
-			return fmt.Errorf("error inserting app file: %w", err)
-		}
+		files = append(files, fileData{name: name, sha: sha, size: size})
 	}
 	if closeErr := rows.Close(); closeErr != nil {
 		return fmt.Errorf("error closing rows: %w", closeErr)
+	}
+
+	// Now insert all files
+	for _, file := range files {
+		if _, err := tx.ExecContext(ctx, insertQuery, prodAppId, metadata.VersionMetadata.Version, file.name, file.sha, file.size); err != nil {
+			return fmt.Errorf("error inserting app file during promote: %w", err)
+		}
 	}
 
 	return nil

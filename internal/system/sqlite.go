@@ -89,10 +89,10 @@ func InitDBConnection(connectString string, invoker string, supportedDBs []DBTyp
 		}
 	} else if dbType == DB_TYPE_POSTGRES {
 		// Configure connection pool settings for Postgres
-		db.SetMaxOpenConns(50)                  // Maximum number of open connections (reduced from 100)
-		db.SetMaxIdleConns(10)                  // Maximum number of idle connections (reduced from 25)
-		db.SetConnMaxIdleTime(2 * time.Minute)  // Maximum time a connection can be idle (reduced from 5 minutes)
-		db.SetConnMaxLifetime(10 * time.Minute) // Maximum lifetime of a connection (reduced from 15 minutes)
+		db.SetMaxOpenConns(200)                 // Maximum number of open connections
+		db.SetMaxIdleConns(10)                  // Maximum number of idle connections
+		db.SetConnMaxIdleTime(5 * time.Minute)  // Maximum time a connection can be idle
+		db.SetConnMaxLifetime(15 * time.Minute) // Maximum lifetime of a connection
 
 		// Test the connection
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
