@@ -253,7 +253,7 @@ func printSyncList(cCtx *cli.Context, sync []*types.SyncEntry, format string) {
 		fmt.Fprintf(cCtx.App.Writer, formatStr, "Id", "State", "SyncType", "Path")
 
 		for _, s := range sync {
-			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, s.Status.State, getSyncType(s), s.Path, s.Status.Error)
+			fmt.Fprintf(cCtx.App.Writer, formatStr, s.Id, s.Status.State, getSyncType(s), s.Path)
 		}
 	case FORMAT_TABLE:
 		formatStrHead := "%-35s %-9s %-12s %-8s %-8s %-7s %-7s %-10s %-15s %-60s %-s\n"
