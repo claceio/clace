@@ -19,6 +19,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/claceio/clace/internal/app/appfs"
+	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 )
 
@@ -59,12 +60,12 @@ func (f *FileStore) IncrementAppVersion(ctx context.Context, tx types.Transactio
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")"),
 		f.appId, currentVersion, nextVersion, metadataJson, defaultUser); err != nil {
 		return fmt.Errorf("error inserting app version: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) select appid, ?, name, sha, uncompressed_size, datetime('now') from app_files where appid = ? and version = ?`,
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) select appid, ?, name, sha, uncompressed_size, `+system.FuncNow(f.metadata.dbType)+" from app_files where appid = ? and version = ?"),
 		nextVersion, f.appId, currentVersion); err != nil {
 		return fmt.Errorf("error copying app files: %w", err)
 	}
@@ -78,20 +79,22 @@ func (f *FileStore) AddAppVersionDisk(ctx context.Context, tx types.Transaction,
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")"),
 		f.appId, metadata.VersionMetadata.PreviousVersion, metadata.VersionMetadata.Version, metadataJson, defaultUser); err != nil {
 		return fmt.Errorf("error inserting app version: %w", err)
 	}
 
 	var insertFileStmt *sql.Stmt
-	if insertFileStmt, err = tx.PrepareContext(ctx, `insert or ignore into files (sha, compression_type, content, create_time) values (?, ?, ?, datetime('now'))`); err != nil {
+	if insertFileStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, system.InsertIgnorePrefix(f.metadata.dbType)+" into files (sha, compression_type, content, create_time) values (?, ?, ?, "+system.FuncNow(f.metadata.dbType)+") "+system.InsertIgnoreSuffix(f.metadata.dbType))); err != nil {
 		return err
 	}
+	defer insertFileStmt.Close()
 
 	var insertAppFileStmt *sql.Stmt
-	if insertAppFileStmt, err = tx.PrepareContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
+	if insertAppFileStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")")); err != nil {
 		return err
 	}
+	defer insertAppFileStmt.Close()
 
 	if checkoutDir == types.NO_SOURCE {
 		// No source code to add
@@ -181,10 +184,12 @@ func (f *FileStore) GetFileByShaTx(sha string) ([]byte, string, error) {
 }
 
 func (f *FileStore) GetFileBySha(ctx context.Context, tx types.Transaction, sha string) ([]byte, string, error) {
-	stmt, err := tx.PrepareContext(ctx, "SELECT compression_type , content FROM files where sha = ?")
+	stmt, err := tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, "SELECT compression_type , content FROM files where sha = ?"))
 	if err != nil {
 		return nil, "", fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	row := stmt.QueryRow(sha)
 	var compressionType string
 	var content []byte
@@ -211,10 +216,12 @@ func (f *FileStore) getFileInfoTx() (map[string]DbFileInfo, error) {
 }
 
 func (f *FileStore) getFileInfo(ctx context.Context, tx types.Transaction) (map[string]DbFileInfo, error) {
-	stmt, err := tx.PrepareContext(ctx, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)
+	stmt, err := tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	rows, err := stmt.Query(f.appId, f.version)
 	if err != nil {
 		return nil, fmt.Errorf("error querying files: %w", err)
@@ -240,7 +247,7 @@ func (f *FileStore) getFileInfo(ctx context.Context, tx types.Transaction) (map[
 
 func (f *FileStore) GetHighestVersion(ctx context.Context, tx types.Transaction, appId types.AppId) (int, error) {
 	var maxId int
-	row := tx.QueryRowContext(ctx, `select max(version) from app_versions where appid = ?`, appId)
+	row := tx.QueryRowContext(ctx, system.RebindQuery(f.metadata.dbType, `select max(version) from app_versions where appid = ?`), appId)
 	if err := row.Scan(&maxId); err != nil {
 		return 0, nil // No versions found
 	}
@@ -252,19 +259,22 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx types.Transaction, prodAp
 	if err != nil {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, datetime('now'))`,
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")"),
 		prodAppId, metadata.VersionMetadata.PreviousVersion, metadata.VersionMetadata.Version, metadataJson, defaultUser); err != nil {
 		return err
 	}
 
 	var insertStmt, selectStmt *sql.Stmt
-	if insertStmt, err = tx.PrepareContext(ctx, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, datetime('now'))`); err != nil {
+	if insertStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `insert into app_files (appid, version, name, sha, uncompressed_size, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(f.metadata.dbType)+")")); err != nil {
 		return err
 	}
+	defer insertStmt.Close()
 
-	if selectStmt, err = tx.PrepareContext(ctx, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`); err != nil {
+	if selectStmt, err = tx.PrepareContext(ctx, system.RebindQuery(f.metadata.dbType, `select name, sha, uncompressed_size, create_time from app_files where appid = ? and version = ?`)); err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer selectStmt.Close()
+
 	rows, err := selectStmt.Query(f.appId, f.version)
 	if err != nil {
 		return fmt.Errorf("error querying files: %w", err)
@@ -293,7 +303,7 @@ func (f *FileStore) PromoteApp(ctx context.Context, tx types.Transaction, prodAp
 }
 
 func (f *FileStore) GetAppVersions(ctx context.Context, tx types.Transaction) ([]types.AppVersion, error) {
-	rows, err := tx.Query(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? order by version asc`, f.appId)
+	rows, err := tx.Query(system.RebindQuery(f.metadata.dbType, `select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? order by version asc`), f.appId)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -327,7 +337,7 @@ func (f *FileStore) GetAppVersions(ctx context.Context, tx types.Transaction) ([
 }
 
 func (f *FileStore) GetAppVersion(ctx context.Context, tx types.Transaction, version int) (*types.AppVersion, error) {
-	row := tx.QueryRow(`select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? and version = ?`, f.appId, version)
+	row := tx.QueryRow(system.RebindQuery(f.metadata.dbType, `select version, previous_version, user_id, create_time, metadata from app_versions where appid = ? and version = ?`), f.appId, version)
 
 	v := types.AppVersion{}
 	var metadataStr sql.NullString

@@ -14,6 +14,7 @@ import (
 
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "modernc.org/sqlite"
 )
 
@@ -24,11 +25,12 @@ type Metadata struct {
 	*types.Logger
 	config *types.ServerConfig
 	db     *sql.DB
+	dbType system.DBType
 }
 
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
-	db, err := system.InitDBConnection(config.Metadata.DBConnection, "metadata", system.DB_SQLITE_POSTGRES)
+	db, dbType, err := system.InitDBConnection(config.Metadata.DBConnection, "metadata", system.DB_SQLITE_POSTGRES)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing db: %w", err)
 	}
@@ -36,6 +38,7 @@ func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, e
 		Logger: logger,
 		config: config,
 		db:     db,
+		dbType: dbType,
 	}
 
 	err = m.VersionUpgrade(config)
@@ -74,13 +77,13 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 
 	if version < 1 {
 		m.Info().Msg("No version, initializing")
-		if _, err := tx.ExecContext(ctx, `create table version (version int, last_upgraded datetime)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `create table version (version int, last_upgraded `+system.MapDataType(m.dbType, "datetime")+")"); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `insert into version values (1, datetime('now'))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `insert into version values (1,`+system.FuncNow(m.dbType)+")"); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `create table apps(id text, path text, domain text, source_url text, is_dev bool, main_app text, user_id text, create_time datetime, update_time datetime, settings json, metadata json, UNIQUE(id), UNIQUE(path, domain))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `create table apps(id text, path text, domain text, source_url text, is_dev bool, main_app text, user_id text, create_time `+system.MapDataType(m.dbType, "datetime")+", update_time "+system.MapDataType(m.dbType, "datetime")+", settings json, metadata json, UNIQUE(id), UNIQUE(path, domain))"); err != nil {
 			return err
 		}
 	}
@@ -90,7 +93,7 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 		if err := m.initFileTables(ctx, tx); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `update version set version=2, last_upgraded=datetime('now')`); err != nil {
+		if _, err := tx.ExecContext(ctx, `update version set version=2, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
 			return err
 		}
 	}
@@ -102,18 +105,18 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 			return err
 		}
 
-		if _, err := tx.ExecContext(ctx, `update version set version=3, last_upgraded=datetime('now')`); err != nil {
+		if _, err := tx.ExecContext(ctx, `update version set version=3, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
 			return err
 		}
 	}
 
 	if version < 4 {
 		m.Info().Msg("Upgrading to version 4")
-		if _, err := tx.ExecContext(ctx, `create table sync(id text, path text, is_scheduled bool, user_id text, create_time datetime, metadata json, PRIMARY KEY(id))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `create table sync(id text, path text, is_scheduled bool, user_id text, create_time `+system.MapDataType(m.dbType, "datetime")+", metadata json, PRIMARY KEY(id))"); err != nil {
 			return err
 		}
 
-		if _, err := tx.ExecContext(ctx, `update version set version=4, last_upgraded=datetime('now')`); err != nil {
+		if _, err := tx.ExecContext(ctx, `update version set version=4, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
 			return err
 		}
 	}
@@ -124,7 +127,7 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 			return err
 		}
 
-		if _, err := tx.ExecContext(ctx, `update version set version=5, last_upgraded=datetime('now')`); err != nil {
+		if _, err := tx.ExecContext(ctx, `update version set version=5, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
 			return err
 		}
 	}
@@ -137,13 +140,13 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 }
 
 func (m *Metadata) initFileTables(ctx context.Context, tx types.Transaction) error {
-	if _, err := tx.ExecContext(ctx, `create table files (sha text, compression_type text, content blob, create_time datetime, PRIMARY KEY(sha))`); err != nil {
+	if _, err := tx.ExecContext(ctx, `create table files (sha text, compression_type text, content `+system.MapDataType(m.dbType, "blob")+`, create_time `+system.MapDataType(m.dbType, "datetime")+", PRIMARY KEY(sha))"); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `create table app_versions (appid text, version int, user_id text, metadata json, create_time datetime, PRIMARY KEY(appid, version))`); err != nil {
+	if _, err := tx.ExecContext(ctx, `create table app_versions (appid text, version int, user_id text, metadata json, create_time `+system.MapDataType(m.dbType, "datetime")+", PRIMARY KEY(appid, version))"); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `create table app_files (appid text, version int, name text, sha text, uncompressed_size int, create_time datetime, PRIMARY KEY(appid, version, name))`); err != nil {
+	if _, err := tx.ExecContext(ctx, `create table app_files (appid text, version int, name text, sha text, uncompressed_size int, create_time `+system.MapDataType(m.dbType, "datetime")+", PRIMARY KEY(appid, version, name))"); err != nil {
 		return err
 	}
 
@@ -160,7 +163,9 @@ func (m *Metadata) CreateApp(ctx context.Context, tx types.Transaction, app *typ
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT into apps(id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata) values(?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)`,
+	_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType,
+		`INSERT into apps(id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata)`+
+			` values(?, ?, ?, ?, ?, ?, ?, `+system.FuncNow(m.dbType)+", "+system.FuncNow(m.dbType)+", ?, ?)"),
 		app.Id, app.Path, app.Domain, app.MainApp, app.SourceUrl, app.IsDev, app.UserID, settingsJson, metadataJson)
 	if err != nil {
 		return fmt.Errorf("error inserting app: %w", err)
@@ -178,10 +183,12 @@ func (m *Metadata) GetApp(pathDomain types.AppPathDomain) (*types.AppEntry, erro
 }
 
 func (m *Metadata) GetAppTx(ctx context.Context, tx types.Transaction, pathDomain types.AppPathDomain) (*types.AppEntry, error) {
-	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where path = ? and domain = ?`)
+	stmt, err := tx.PrepareContext(ctx, system.RebindQuery(m.dbType, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where path = ? and domain = ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	row := stmt.QueryRow(pathDomain.Path, pathDomain.Domain)
 	var app types.AppEntry
 	var settings, metadata sql.NullString
@@ -217,21 +224,21 @@ func (m *Metadata) GetAppTx(ctx context.Context, tx types.Transaction, pathDomai
 }
 
 func (m *Metadata) DeleteApp(ctx context.Context, tx types.Transaction, id types.AppId) error {
-	if _, err := tx.ExecContext(ctx, `delete from app_versions where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(m.dbType, `delete from app_versions where appid in (select id from apps where id = ? or main_app = ?)`), id, id); err != nil {
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, `delete from app_files where appid in (select id from apps where id = ? or main_app = ?)`, id, id); err != nil {
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(m.dbType, `delete from app_files where appid in (select id from apps where id = ? or main_app = ?)`), id, id); err != nil {
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, `delete from apps where id = ? or main_app = ? `, id, id); err != nil {
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(m.dbType, `delete from apps where id = ? or main_app = ? `), id, id); err != nil {
 		return fmt.Errorf("error deleting apps : %w", err)
 	}
 
 	// Clean up unused files. This can be done more aggressively, when older versions are deleted.
 	// Currently done only when an app is deleted. This cleanup is across apps, not just the deleted app.
-	if _, err := tx.ExecContext(ctx, `delete from files where sha not in (select distinct sha from app_files)`); err != nil {
+	if _, err := tx.ExecContext(ctx, system.RebindQuery(m.dbType, `delete from files where sha not in (select distinct sha from app_files)`)); err != nil {
 		return err
 	}
 
@@ -239,10 +246,12 @@ func (m *Metadata) DeleteApp(ctx context.Context, tx types.Transaction, id types
 }
 
 func (m *Metadata) GetAppsForDomain(domain string) ([]string, error) {
-	stmt, err := m.db.Prepare(`select path from apps where domain = ?`)
+	stmt, err := m.db.Prepare(system.RebindQuery(m.dbType, `select path from apps where domain = ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	rows, err := stmt.Query(domain)
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
@@ -276,6 +285,8 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	rows, err := stmt.Query()
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
@@ -321,10 +332,12 @@ func (m *Metadata) GetAllApps(includeInternal bool) ([]types.AppInfo, error) {
 
 // GetLinkedApps gets all the apps linked to the given main app (staging and preview apps)
 func (m *Metadata) GetLinkedApps(ctx context.Context, tx types.Transaction, mainAppId types.AppId) ([]*types.AppEntry, error) {
-	stmt, err := tx.PrepareContext(ctx, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where main_app = ?`)
+	stmt, err := tx.PrepareContext(ctx, system.RebindQuery(m.dbType, `select id, path, domain, main_app, source_url, is_dev, user_id, create_time, update_time, settings, metadata from apps where main_app = ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	rows, err := stmt.Query(mainAppId)
 	if err != nil {
 		return nil, fmt.Errorf("error querying apps: %w", err)
@@ -372,13 +385,13 @@ func (m *Metadata) UpdateAppMetadata(ctx context.Context, tx types.Transaction, 
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `UPDATE apps set metadata = ? where path = ? and domain = ?`, string(metadataJson), app.Path, app.Domain)
+	_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, `UPDATE apps set metadata = ? where path = ? and domain = ?`), string(metadataJson), app.Path, app.Domain)
 	if err != nil {
 		return fmt.Errorf("error updating app metadata: %w", err)
 	}
 
 	if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE) {
-		_, err = tx.ExecContext(ctx, `UPDATE app_versions set metadata = ? where appid = ? and version = ?`, string(metadataJson), app.Id, app.Metadata.VersionMetadata.Version)
+		_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, `UPDATE app_versions set metadata = ? where appid = ? and version = ?`), string(metadataJson), app.Id, app.Metadata.VersionMetadata.Version)
 		if err != nil {
 			return fmt.Errorf("error updating app metadata: %w", err)
 		}
@@ -393,7 +406,7 @@ func (m *Metadata) UpdateAppSettings(ctx context.Context, tx types.Transaction, 
 		return fmt.Errorf("error marshalling settings: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `UPDATE apps set settings = ? where path = ? and domain = ?`, string(settingsJson), app.Path, app.Domain)
+	_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, `UPDATE apps set settings = ? where path = ? and domain = ?`), string(settingsJson), app.Path, app.Domain)
 	if err != nil {
 		return fmt.Errorf("error updating app settings: %w", err)
 	}
@@ -412,7 +425,7 @@ func (m *Metadata) CreateSync(ctx context.Context, tx types.Transaction, sync *t
 		return fmt.Errorf("error marshalling status: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT into sync(id, path, is_scheduled, user_id, create_time, metadata, status) values(?, ?, ?, ?, datetime('now'), ?, ?)`,
+	_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, `INSERT into sync(id, path, is_scheduled, user_id, create_time, metadata, status) values(?, ?, ?, ?, `+system.FuncNow(m.dbType)+", ?, ?)"),
 		sync.Id, sync.Path, sync.IsScheduled, sync.UserID, metadataJson, statusJson)
 	if err != nil {
 		return fmt.Errorf("error inserting sync entry: %w", err)
@@ -421,7 +434,7 @@ func (m *Metadata) CreateSync(ctx context.Context, tx types.Transaction, sync *t
 }
 
 func (m *Metadata) DeleteSync(ctx context.Context, tx types.Transaction, id string) error {
-	result, err := tx.ExecContext(ctx, `delete from sync where id = ?`, id)
+	result, err := tx.ExecContext(ctx, system.RebindQuery(m.dbType, `delete from sync where id = ?`), id)
 	if err != nil {
 		return err
 	}
@@ -437,10 +450,12 @@ func (m *Metadata) DeleteSync(ctx context.Context, tx types.Transaction, id stri
 
 // GetSyncEntries gets all the sync entries for the given webhook type
 func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]*types.SyncEntry, error) {
-	stmt, err := tx.PrepareContext(ctx, `select id, path, is_scheduled, user_id, create_time, metadata, status from sync`)
+	stmt, err := tx.PrepareContext(ctx, system.RebindQuery(m.dbType, `select id, path, is_scheduled, user_id, create_time, metadata, status from sync`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
+	defer stmt.Close()
+
 	rows, err := stmt.Query()
 	if err != nil {
 		return nil, fmt.Errorf("error querying sync: %w", err)
@@ -481,8 +496,9 @@ func (m *Metadata) GetSyncEntries(ctx context.Context, tx types.Transaction) ([]
 
 	return syncEntries, nil
 }
+
 func (m *Metadata) GetSyncEntry(ctx context.Context, tx types.Transaction, id string) (*types.SyncEntry, error) {
-	row := m.db.QueryRow("select id, path, is_scheduled, user_id, create_time, metadata, status from sync where id = ?", id)
+	row := m.db.QueryRow(system.RebindQuery(m.dbType, `select id, path, is_scheduled, user_id, create_time, metadata, status from sync where id = ?`), id)
 	var sync types.SyncEntry
 	var metadata, status sql.NullString
 	err := row.Scan(&sync.Id, &sync.Path, &sync.IsScheduled, &sync.UserID, &sync.CreateTime, &metadata, &status)
@@ -514,7 +530,7 @@ func (m *Metadata) UpdateSyncStatus(ctx context.Context, tx types.Transaction, i
 		return fmt.Errorf("error marshalling status: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `UPDATE sync set status = ? where id = ?`, string(statusJson), id)
+	_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, `UPDATE sync set status = ? where id = ?`), string(statusJson), id)
 	if err != nil {
 		return fmt.Errorf("error updating app status: %w", err)
 	}

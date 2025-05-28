@@ -18,6 +18,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/gorilla/sessions v1.4.0
 	github.com/hashicorp/vault/api v1.15.0
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/markbates/goth v1.80.0
 	github.com/moby/buildkit v0.18.1
 	github.com/pkg/profile v1.7.0
@@ -25,8 +26,8 @@ require (
 	github.com/segmentio/ksuid v1.0.4
 	github.com/urfave/cli/v2 v2.27.5
 	go.starlark.net v0.0.0-20241125201518-c05ff208a98f
-	golang.org/x/sync v0.12.0
-	golang.org/x/term v0.30.0
+	golang.org/x/sync v0.13.0
+	golang.org/x/term v0.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.34.2
 )
@@ -78,6 +79,9 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
@@ -107,7 +111,7 @@ require (
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
@@ -129,8 +133,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/crypto v0.36.0
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/crypto v0.37.0
+	golang.org/x/sys v0.32.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
