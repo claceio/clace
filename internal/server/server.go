@@ -127,6 +127,7 @@ type Server struct {
 	listAppsApp    *app.App
 	mu             sync.RWMutex
 	auditDB        *sql.DB
+	auditDbType    system.DBType
 	syncTimer      *time.Ticker
 }
 

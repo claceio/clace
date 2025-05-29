@@ -31,7 +31,7 @@ func init() {
 
 func (s *Server) initAuditDB(connectString string) error {
 	var err error
-	s.auditDB, _, err = system.InitDBConnection(connectString, "audit", system.DB_SQLITE_POSTGRES)
+	s.auditDB, s.auditDbType, err = system.InitDBConnection(connectString, "audit", system.DB_SQLITE_POSTGRES)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (s *Server) versionUpgradeAuditDB() error {
 	var dt time.Time
 	row.Scan(&version, &dt)
 
-	if version > CURRENT_AUDIT_DB_VERSION {
+	if !s.config.Metadata.IgnoreHigherVersion && version > CURRENT_AUDIT_DB_VERSION {
 		return fmt.Errorf("audit DB version is newer than server version, exiting. Server %d, DB %d", CURRENT_AUDIT_DB_VERSION, version)
 	}
 
@@ -71,14 +71,14 @@ func (s *Server) versionUpgradeAuditDB() error {
 	if version < 1 {
 		s.Info().Msg("No audit version, initializing")
 
-		if _, err := tx.ExecContext(ctx, `create table audit_version (version int, last_upgraded datetime)`); err != nil {
+		if _, err := tx.ExecContext(ctx, `create table audit_version (version int, last_upgraded `+system.MapDataType(s.auditDbType, "datetime")+`)`); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `insert into audit_version values (1, datetime('now'))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `insert into audit_version values (1, `+system.FuncNow(s.auditDbType)+`)`); err != nil {
 			return err
 		}
 
-		if _, err := tx.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time int,` +
+		if _, err := tx.Exec(`create table IF NOT EXISTS audit (rid text, app_id text, create_time bigint,` +
 			`user_id text, event_type text, operation text, target text, status text, detail text)`); err != nil {
 			return err
 		}
@@ -100,8 +100,8 @@ func (s *Server) versionUpgradeAuditDB() error {
 }
 
 func (s *Server) InsertAuditEvent(event *types.AuditEvent) error {
-	_, err := s.auditDB.Exec(`insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
-		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := s.auditDB.Exec(system.RebindQuery(s.auditDbType, `insert into audit (rid, app_id, create_time, user_id, event_type, operation, target, status, detail) `+
+		`values (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 		event.RequestId, event.AppId, event.CreateTime.UnixNano(), event.UserId, event.EventType, event.Operation, event.Target, event.Status, event.Detail)
 	return err
 }
@@ -110,11 +110,11 @@ func (s *Server) cleanupEvents() error {
 	httpCleanupTime := time.Now().Add(-time.Duration(s.config.System.HttpEventRetentionDays) * 24 * time.Hour).UnixNano()
 	nonHttpCleanupTime := time.Now().Add(-time.Duration(s.config.System.NonHttpEventRetentionDays) * 24 * time.Hour).UnixNano()
 
-	httpResult, err := s.auditDB.Exec(`delete from audit where event_type = "http" and create_time < ?`, httpCleanupTime)
+	httpResult, err := s.auditDB.Exec(system.RebindQuery(s.auditDbType, `delete from audit where event_type = 'http' and create_time < ?`), httpCleanupTime)
 	if err != nil {
 		return err
 	}
-	nonHttpResult, err := s.auditDB.Exec(`delete from audit where event_type != "http" and create_time < ?`, nonHttpCleanupTime)
+	nonHttpResult, err := s.auditDB.Exec(system.RebindQuery(s.auditDbType, `delete from audit where event_type != 'http' and create_time < ?`), nonHttpCleanupTime)
 	if err != nil {
 		return err
 	}

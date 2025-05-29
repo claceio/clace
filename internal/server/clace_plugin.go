@@ -269,7 +269,7 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 		}
 		appIds := []string{}
 		for _, app := range appInfo {
-			appIds = append(appIds, "\""+string(app.Id)+"\"")
+			appIds = append(appIds, "'"+string(app.Id)+"'")
 		}
 
 		filterConditions = append(filterConditions, fmt.Sprintf("app_id in (%s)", strings.Join(appIds, ",")))
@@ -309,13 +309,23 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 
 	startDateStr := strings.TrimSpace(startDate.GoString())
 	if startDateStr != "" {
-		filterConditions = append(filterConditions, `create_time >= strftime('%s', ?) * 1000000000`)
+		if c.server.auditDbType == system.DB_TYPE_SQLITE {
+			filterConditions = append(filterConditions, `create_time >= strftime('%s', ?) * 1000000000`)
+		} else {
+			// Postgres
+			filterConditions = append(filterConditions, `create_time >= EXTRACT(EPOCH FROM  ?::timestamp)::bigint * 1000000000`)
+		}
 		queryParams = append(queryParams, startDateStr)
 	}
 
 	endDateStr := strings.TrimSpace(endDate.GoString())
 	if endDateStr != "" {
-		filterConditions = append(filterConditions, `create_time <= (strftime('%s', ?) + 86400) * 1000000000`)
+		if c.server.auditDbType == system.DB_TYPE_SQLITE {
+			filterConditions = append(filterConditions, `create_time <= (strftime('%s', ?) + 86400) * 1000000000`)
+		} else {
+			// Postgres
+			filterConditions = append(filterConditions, `create_time <= (EXTRACT(EPOCH FROM  ?::timestamp)::bigint + 86400) * 1000000000`)
+		}
 		queryParams = append(queryParams, endDateStr)
 	}
 
@@ -355,7 +365,7 @@ func (c *clacePlugin) ListAuditEvents(thread *starlark.Thread, builtin *starlark
 	query.WriteString(" limit ?")
 	queryParams = append(queryParams, limitVal)
 
-	rows, err := c.server.auditDB.Query(query.String(), queryParams...)
+	rows, err := c.server.auditDB.Query(system.RebindQuery(c.server.auditDbType, query.String()), queryParams...)
 	if err != nil {
 		return nil, err
 	}
