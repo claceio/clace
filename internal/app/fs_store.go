@@ -22,13 +22,14 @@ import (
 )
 
 var (
-	mu sync.RWMutex
-	db *sql.DB
+	mu       sync.RWMutex
+	fsDB     *sql.DB
+	fsDBType system.DBType
 )
 
 func InitFileStore(ctx context.Context, connectString string) error {
 	mu.RLock()
-	if db != nil {
+	if fsDB != nil {
 		mu.RUnlock()
 		return nil
 	}
@@ -37,13 +38,14 @@ func InitFileStore(ctx context.Context, connectString string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	var err error
-	db, _, err = system.InitDBConnection(connectString, "fs_store", system.DB_SQLITE)
+	fsDB, fsDBType, err = system.InitDBConnection(connectString, "fs_store", system.DB_SQLITE_POSTGRES)
 	if err != nil {
 		return err
 	}
 
-	if _, err := db.Exec(`create table IF NOT EXISTS user_files (id text, appid text, file_path text, file_name text, ` +
-		`mime_type text, create_time datetime, expire_at datetime, created_by text, single_access bool, visibility text, metadata json, PRIMARY KEY(id))`); err != nil {
+	if _, err := fsDB.Exec(`create table IF NOT EXISTS user_files (id text, appid text, file_path text, file_name text, ` +
+		`mime_type text, create_time ` + system.MapDataType(fsDBType, "datetime") + `, expire_at ` + system.MapDataType(fsDBType,
+		"datetime") + `, created_by text, single_access bool, visibility text, metadata json, PRIMARY KEY(id))`); err != nil {
 		return err
 	}
 
@@ -186,7 +188,8 @@ func AddUserFile(ctx context.Context, file *types.UserFile) error {
 		return fmt.Errorf("error marshalling metadata: %w", err)
 	}
 
-	_, err = db.ExecContext(ctx, `INSERT into user_files(id, appid, file_name, file_path, mime_type, create_time, expire_at, created_by, single_access, visibility, metadata) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err = fsDB.ExecContext(ctx, system.RebindQuery(fsDBType, `INSERT into user_files(id, appid, file_name, file_path, mime_type,`+
+		`create_time, expire_at, created_by, single_access, visibility, metadata) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 		file.Id, file.AppId, file.FileName, file.FilePath, file.MimeType, file.CreateTime, file.ExpireAt, file.CreatedBy, file.SingleAccess, file.Visibility, string(metadataJson))
 	if err != nil {
 		return fmt.Errorf("error inserting user file: %w", err)
@@ -195,7 +198,8 @@ func AddUserFile(ctx context.Context, file *types.UserFile) error {
 }
 
 func GetUserFile(ctx context.Context, id string) (*types.UserFile, error) {
-	stmt, err := db.PrepareContext(ctx, `select id, appid, file_name, file_path, mime_type, create_time, expire_at, created_by, single_access, visibility, metadata from user_files where id = ?`)
+	stmt, err := fsDB.PrepareContext(ctx, system.RebindQuery(fsDBType,
+		`select id, appid, file_name, file_path, mime_type, create_time, expire_at, created_by, single_access, visibility, metadata from user_files where id = ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -222,7 +226,7 @@ func GetUserFile(ctx context.Context, id string) (*types.UserFile, error) {
 }
 
 func DeleteUserFile(ctx context.Context, id string) error {
-	stmt, err := db.PrepareContext(ctx, `delete from user_files where id = ?`)
+	stmt, err := fsDB.PrepareContext(ctx, system.RebindQuery(fsDBType, `delete from user_files where id = ?`))
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -239,7 +243,7 @@ type expiredFile struct {
 }
 
 func listExpiredFile(ctx context.Context) ([]expiredFile, error) {
-	stmt, err := db.PrepareContext(ctx, `select id, file_path from user_files where expire_at < ?`)
+	stmt, err := fsDB.PrepareContext(ctx, system.RebindQuery(fsDBType, `select id, file_path from user_files where expire_at < ?`))
 	if err != nil {
 		return nil, fmt.Errorf("error preparing statement: %w", err)
 	}
@@ -269,7 +273,7 @@ func listExpiredFile(ctx context.Context) ([]expiredFile, error) {
 }
 
 func deleteExpiredFiles(ctx context.Context) error {
-	stmt, err := db.PrepareContext(ctx, `delete from user_files where expire_at < ?`)
+	stmt, err := fsDB.PrepareContext(ctx, system.RebindQuery(fsDBType, `delete from user_files where expire_at < ?`))
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %w", err)
 	}
