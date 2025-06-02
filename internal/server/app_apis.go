@@ -115,10 +115,21 @@ func (s *Server) CreateAppTx(ctx context.Context, currentTx types.Transaction, a
 			fmt.Sprintf("App already exists at %s", matchedApp), http.StatusBadRequest)
 	}
 
+	sourceUrl := appRequest.SourceUrl
+	splitSource := strings.Split(sourceUrl, "#")
+	if len(splitSource) > 1 {
+		// If source url has a hash, the part after the hash is the star base path
+		sourceUrl = splitSource[0]
+		if appRequest.AppConfig == nil {
+			appRequest.AppConfig = make(map[string]string)
+		}
+		appRequest.AppConfig["star_base"] = "\"" + splitSource[1] + "\""
+	}
+
 	var appEntry types.AppEntry
 	appEntry.Path = appPathDomain.Path
 	appEntry.Domain = appPathDomain.Domain
-	appEntry.SourceUrl = appRequest.SourceUrl
+	appEntry.SourceUrl = sourceUrl
 	appEntry.IsDev = appRequest.IsDev
 	if appRequest.AppAuthn != "" {
 		if !s.ssoAuth.ValidateAuthType(string(appRequest.AppAuthn)) {
