@@ -66,12 +66,13 @@ type ContainerManager struct {
 	healthCheckTicker *time.Ticker
 	stripAppPath      bool
 	mountArgs         []string
+	cargs             map[string]string
 }
 
 func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 	systemConfig *types.SystemConfig, configPort int64, lifetime, scheme, health, buildDir string, sourceFS appfs.ReadableFS,
 	paramMap map[string]string, containerConfig types.Container, stripAppPath bool,
-	containerVolumes []string, secretsAllowed [][]string) (*ContainerManager, error) {
+	containerVolumes []string, secretsAllowed [][]string, cargs map[string]any) (*ContainerManager, error) {
 
 	image := ""
 	volumes := []string{}
@@ -97,10 +98,11 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 			case "EXPOSE":
 				portVal, err := strconv.Atoi(strings.TrimSpace(child.Next.Value))
 				if err != nil {
-					return nil, fmt.Errorf("error parsing port: %w", err)
+					// Can fail if value is an arg like $PORT
+					logger.Warn().Msgf("Error parsing EXPOSE port %s in container file %s", child.Next.Value, containerFile)
+				} else {
+					filePort = int64(portVal)
 				}
-				filePort = int64(portVal)
-				logger.Debug().Msgf("Found EXPOSE port %d in container file %s", filePort, containerFile)
 			case "VOLUME":
 				v := extractVolumes(child)
 				volumes = append(volumes, v...)
@@ -132,6 +134,14 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 
 	delete(paramMap, "secrets") // remove the secrets entry, which is a list of secrets the container is allowed to use
 
+	cargs_map := map[string]string{}
+	for k, v := range cargs {
+		cargs_map[k] = fmt.Sprintf("%v", v)
+	}
+	for k, v := range app.Metadata.ContainerArgs {
+		cargs_map[k] = v
+	}
+
 	m := &ContainerManager{
 		Logger:          logger,
 		app:             app,
@@ -150,6 +160,7 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		stateLock:       sync.RWMutex{},
 		currentState:    ContainerStateUnknown,
 		stripAppPath:    stripAppPath,
+		cargs:           cargs_map,
 	}
 
 	if containerConfig.IdleShutdownSecs > 0 && (!app.IsDev || containerConfig.IdleShutdownDevApps) {
@@ -578,7 +589,7 @@ func (m *ContainerManager) DevReload(dryRun bool) error {
 			return err
 		}
 		buildDir := path.Join(m.app.SourceUrl, m.buildDir)
-		err = m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
+		err = m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.cargs)
 		if err != nil {
 			return err
 		}
@@ -691,7 +702,7 @@ func (m *ContainerManager) getAppHash() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting copt hash: %w", err)
 	}
-	cargHash, err := getMapHash(m.app.Metadata.ContainerArgs)
+	cargHash, err := getMapHash(m.cargs)
 	if err != nil {
 		return "", fmt.Errorf("error getting carg hash: %w", err)
 	}
@@ -787,7 +798,7 @@ func (m *ContainerManager) ProdReload(dryRun bool) error {
 				return fmt.Errorf("error creating temp source dir: %w", err)
 			}
 			buildDir := path.Join(sourceDir, m.buildDir)
-			buildErr := m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.app.Metadata.ContainerArgs)
+			buildErr := m.command.BuildImage(m.systemConfig, m.GenImageName, buildDir, m.containerFile, m.cargs)
 
 			if buildErr != nil {
 				return fmt.Errorf("error building image: %w", buildErr)

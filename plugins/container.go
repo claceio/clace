@@ -53,10 +53,15 @@ func (c *containerPlugin) Run(thread *starlark.Thread, builtin *starlark.Builtin
 func (c *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var src, lifetime, scheme, health, buildDir starlark.String
 	var port starlark.Int
+	var cargs *starlark.Dict
 	var volumes *starlark.List
 	if err := starlark.UnpackArgs("config", args, kwargs, "src?", &src, "port?", &port, "scheme?", &scheme,
-		"health?", &health, "lifetime?", &lifetime, "build_dir?", &buildDir, "volumes?", &volumes); err != nil {
+		"health?", &health, "lifetime?", &lifetime, "build_dir?", &buildDir, "volumes?", &volumes, "cargs", &cargs); err != nil {
 		return nil, err
+	}
+
+	if cargs == nil {
+		cargs = starlark.NewDict(0)
 	}
 	portInt, ok := port.Int64()
 	if !ok || portInt < 0 {
@@ -73,6 +78,7 @@ func (c *containerPlugin) Config(thread *starlark.Thread, builtin *starlark.Buil
 		"health":    starlark.String(cmp.Or(string(health), "/")),
 		"build_dir": buildDir,
 		"volumes":   volumes,
+		"cargs":     cargs,
 	}
 
 	return starlarkstruct.FromStringDict(starlark.String("container_config"), fields), nil

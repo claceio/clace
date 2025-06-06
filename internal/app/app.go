@@ -449,6 +449,11 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 	volumes := a.Metadata.ContainerVolumes
 	volumes = append(volumes, volumesConfig...)
 
+	cargs, err := apptype.GetDictAttr(configAttr, "cargs", true)
+	if err != nil {
+		return fmt.Errorf("error reading cargs: %w", err)
+	}
+
 	// Parse the source file specification
 	var fileName string
 	switch src {
@@ -493,7 +498,7 @@ func (a *App) loadContainerManager(stripAppPath bool) error {
 	a.containerManager, err = NewContainerManager(a.Logger, a,
 		fileName, a.systemConfig, port, lifetime, scheme, health, buildDir,
 		a.sourceFS, a.paramValuesStr, a.AppConfig.Container, stripAppPath, volumes,
-		a.getSecretsAllowed("container.in", "config"))
+		a.getSecretsAllowed("container.in", "config"), cargs)
 	if err != nil {
 		return fmt.Errorf("error creating container manager: %w", err)
 	}
