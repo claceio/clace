@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/claceio/clace/internal/testutil"
+	"github.com/claceio/clace/internal/types"
 )
 
 func TestRTypeBasic(t *testing.T) {
@@ -225,4 +226,56 @@ def handler(req):
 	}
 	_, _, err := CreateDevModeTestApp(logger, fileData)
 	testutil.AssertErrorContains(t, err, "invalid API type specified : ABC")
+}
+
+func TestStreamResponse(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"index.go.html": `
+		<div>
+{{.}}
+</div>
+`,
+		"app.star": `
+load("exec.in", "exec")
+
+app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
+
+def handler(req):
+	return exec.run("sh", ["-c", 'echo "aa"; sleep 5; echo "bb"'], stream=True)
+`}
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, nil)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertEqualsString(t, "type", "text/html; charset=utf-8", response.Header().Get("Content-Type"))
+	testutil.AssertStringContains(t, response.Body.String(), "aa")
+}
+
+func TestStreamResponseError(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load("exec.in", "exec")
+
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")])
+
+def handler(req):
+	return exec.run("ls", ["-l", "/tmp"], stream=True).value
+`}
+	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, nil)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+	request := httptest.NewRequest("GET", "/test", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 500, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "stream value cannot be accessed in Starlark")
 }

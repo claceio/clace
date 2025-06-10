@@ -4,6 +4,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/claceio/clace/internal/app/starlark_type"
@@ -17,6 +18,7 @@ type PluginResponse struct {
 	errorCode int
 	err       error
 	value     any
+	isStream  bool
 	thread    *starlark.Thread
 }
 
@@ -43,10 +45,19 @@ func NewResponse(value any) *PluginResponse {
 	}
 }
 
+func NewStreamResponse(value any) *PluginResponse {
+	return &PluginResponse{
+		value:    value,
+		isStream: true,
+	}
+}
+
 func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 	switch name {
 	case "error_code":
 		return starlark.MakeInt(r.errorCode), nil
+	case "is_stream":
+		return starlark.Bool(r.isStream), nil
 	case "error":
 		// Error value is being checked in the handler code, clear the thread local state
 		if r.thread != nil {
@@ -67,6 +78,10 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 			return starlark.None, nil
 		}
 
+		if r.isStream {
+			return starlark.None, errors.New("stream value cannot be accessed in Starlark, return the response object instead")
+		}
+
 		if v, ok := r.value.(starlark.Value); ok {
 			return v, nil
 		}
@@ -81,11 +96,11 @@ func (r *PluginResponse) Attr(name string) (starlark.Value, error) {
 }
 
 func (r *PluginResponse) AttrNames() []string {
-	return []string{"error_code", "error", "value"}
+	return []string{"error_code", "error", "value", "is_stream"}
 }
 
 func (r *PluginResponse) String() string {
-	return fmt.Sprintf("%d:%s:%s", r.errorCode, r.err, r.value)
+	return fmt.Sprintf("%d:%s:%s:%t", r.errorCode, r.err, r.value, r.isStream)
 }
 
 func (r *PluginResponse) Type() string {
@@ -124,6 +139,7 @@ func (r *PluginResponse) UnmarshalStarlarkType() (any, error) {
 		"error_code": r.errorCode,
 		"error":      r.err,
 		"value":      r.value,
+		"is_stream":  r.isStream,
 	}, nil
 }
 

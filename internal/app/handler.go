@@ -302,6 +302,12 @@ func (a *App) createHandlerFunc(fullHtml, fragment string, handler starlark.Call
 		respHeader["Vary"] = VARY_HEADER_VALUE
 		respHeader["Server"] = SERVER_NAME
 
+		streamResponse, ok := handlerResponse.(map[string]any)
+		if ok && streamResponse["is_stream"] == true {
+			a.handleStreamResponse(w, r, rtype, cmp.Or(fragment, fullHtml), streamResponse)
+			return
+		}
+
 		if rtype == apptype.JSON {
 			// If the route type is JSON, then return the handler response as JSON
 			respHeader["Content-Type"] = CONTENT_TYPE_JSON
@@ -515,4 +521,60 @@ func getRemoteIP(r *http.Request) string {
 		}
 	}
 	return remoteIP
+}
+
+func (a *App) handleStreamResponse(w http.ResponseWriter, r *http.Request, rtype string, fragment string, streamResponse map[string]any) {
+	// Stream the response to the client
+	if rtype == apptype.JSON {
+		w.Header().Set("Content-Type", "application/json")
+	} else if rtype == apptype.TEXT {
+		w.Header().Set("Content-Type", "text/plain")
+	} else {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
+	w.WriteHeader(http.StatusOK)
+
+	retValue := streamResponse["value"]
+	if retValue == nil {
+		http.Error(w, "stream value is nil", http.StatusInternalServerError)
+		return
+	}
+
+	retSeq, ok := retValue.(func(yield func(any, error) bool))
+	if !ok {
+		http.Error(w, "stream value is not a sequence function", http.StatusInternalServerError)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "response writer does not support flushing", http.StatusInternalServerError)
+		return
+	}
+
+	for v := range retSeq {
+		if rtype == apptype.HTML_TYPE {
+			err := a.executeTemplate(w, "", fragment, v)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if rtype == apptype.JSON {
+			err := json.NewEncoder(w).Encode(retValue)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if rtype == apptype.TEXT {
+			_, err := fmt.Fprint(w, retValue)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		flusher.Flush()
+	}
+
+	return
 }
