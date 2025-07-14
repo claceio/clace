@@ -211,6 +211,9 @@ func (s *AppStyle) setupTailwindConfig(templateLocations []string, sourceFS *app
 		buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.Root, loc)))
 	}
 
+	buf.WriteString(", ")
+	buf.WriteString(fmt.Sprintf("'%s'", path.Join(sourceFS.Root, "static", "*.js")))
+
 	configContents := fmt.Sprintf(TAILWIND_CONFIG_CONTENTS, buf.String(), daisyPlugin, daisyThemes)
 	if err := workFS.Write(configPath, []byte(configContents)); err != nil {
 		return fmt.Errorf("error writing tailwind config file : %s", err)

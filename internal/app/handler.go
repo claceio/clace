@@ -532,7 +532,6 @@ func (a *App) handleStreamResponse(w http.ResponseWriter, r *http.Request, rtype
 	} else {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	}
-	w.WriteHeader(http.StatusOK)
 
 	retValue := streamResponse["value"]
 	if retValue == nil {
@@ -552,27 +551,44 @@ func (a *App) handleStreamResponse(w http.ResponseWriter, r *http.Request, rtype
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	for v := range retSeq {
-		if rtype == apptype.HTML_TYPE {
+		if rtype == apptype.TEXT || (rtype == apptype.HTML_TYPE && (fragment == "" || fragment == "-")) {
+			vStr, ok := v.(string)
+			if !ok {
+				vStr = fmt.Sprintf("%v", v)
+			}
+			vStr = types.StripQuotes(vStr)
+			_, err := fmt.Fprint(w, vStr)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if rtype == apptype.HTML_TYPE {
 			err := a.executeTemplate(w, "", fragment, v)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		} else if rtype == apptype.JSON {
-			err := json.NewEncoder(w).Encode(retValue)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else if rtype == apptype.TEXT {
-			_, err := fmt.Fprint(w, retValue)
+			err := json.NewEncoder(w).Encode(v)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
 
+		_, err := fmt.Fprint(w, "\n")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		flusher.Flush()
+	}
+
+	if rtype == apptype.HTML_TYPE {
+		w.Write([]byte("<!--cl_stream_end-->\n\n"))
 		flusher.Flush()
 	}
 
