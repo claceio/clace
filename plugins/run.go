@@ -58,15 +58,16 @@ func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread
 		envList = append(envList, string(value))
 	}
 
+	ctx := app.GetContext(thread)
 	var cmd *exec.Cmd
 	var err error
 	if containerManager != nil {
-		cmd, err = containerManager.Run(pathStr, argsList, envList)
+		cmd, err = containerManager.Run(ctx, pathStr, argsList, envList)
 		if err != nil {
 			return nil, fmt.Errorf("error running command in container: %w", err)
 		}
 	} else {
-		cmd = exec.Command(pathStr, argsList...)
+		cmd = exec.CommandContext(ctx, pathStr, argsList...)
 		cmd.Env = envList
 	}
 	stdout, err := cmd.StdoutPipe()

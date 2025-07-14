@@ -5,6 +5,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -870,7 +871,7 @@ func (m *ContainerManager) Close() error {
 	return nil
 }
 
-func (m *ContainerManager) Run(path string, cmdArgs []string, env []string) (*exec.Cmd, error) {
+func (m *ContainerManager) Run(ctx context.Context, path string, cmdArgs []string, env []string) (*exec.Cmd, error) {
 	args := []string{"run", "--rm"}
 	envMap, _ := m.GetEnvMap()
 
@@ -896,6 +897,6 @@ func (m *ContainerManager) Run(path string, cmdArgs []string, env []string) (*ex
 	args = append(args, cmdArgs...)
 	m.Debug().Msgf("Running command with args: %v", args)
 
-	cmd := exec.Command(m.systemConfig.ContainerCommand, args...)
+	cmd := exec.CommandContext(ctx, m.systemConfig.ContainerCommand, args...)
 	return cmd, nil
 }
