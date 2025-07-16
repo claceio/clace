@@ -19,14 +19,14 @@ import (
 )
 
 func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var (
-		path, parse                          starlark.String
-		cmdArgs                              *starlark.List
-		env                                  *starlark.List
-		processPartial, stdoutToFile, stream starlark.Bool
-	)
+	var path, parse, cwd starlark.String
+	var cmdArgs *starlark.List
+	var env *starlark.List
+	var processPartial, stdoutToFile, stream starlark.Bool
+	var includeStderr starlark.Bool = starlark.Bool(true)
 	if err := starlark.UnpackArgs("run", args, kwargs, "path", &path, "args?", &cmdArgs, "env?", &env,
-		"process_partial?", &processPartial, "stdout_file", &stdoutToFile, "parse", &parse, "stream", &stream); err != nil {
+		"process_partial?", &processPartial, "stdout_file", &stdoutToFile, "parse", &parse, "stream", &stream,
+		"include_stderr", &includeStderr, "cwd", &cwd); err != nil {
 		return nil, err
 	}
 	if cmdArgs == nil {
@@ -66,15 +66,23 @@ func execCommand(containerManager *app.ContainerManager, thread *starlark.Thread
 		if err != nil {
 			return nil, fmt.Errorf("error running command in container: %w", err)
 		}
+		// cwd is not supported in container mode
 	} else {
 		cmd = exec.CommandContext(ctx, pathStr, argsList...)
 		cmd.Env = envList
+		if cwd != "" {
+			cmd.Dir = string(cwd)
+		}
 	}
 	stdout, err := cmd.StdoutPipe()
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
 	if err != nil {
 		return nil, err
+	}
+	var stderr bytes.Buffer
+	if bool(includeStderr) {
+		cmd.Stderr = cmd.Stdout
+	} else {
+		cmd.Stderr = &stderr
 	}
 
 	if err := cmd.Start(); err != nil {
