@@ -143,6 +143,15 @@ func NewContainerManager(logger *types.Logger, app *App, containerFile string,
 		cargs_map[k] = v
 	}
 
+	// Evaluate secrets in the build args
+	for k, v := range cargs_map {
+		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating secret for %s: %w", k, err)
+		}
+		cargs_map[k] = val
+	}
+
 	m := &ContainerManager{
 		Logger:          logger,
 		app:             app,

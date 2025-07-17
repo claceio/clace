@@ -216,6 +216,7 @@ elif [[ -z "$CL_CONTAINER_COMMANDS" ]]; then
   CL_CONTAINER_COMMANDS="docker podman"
 fi
 
+export PYTHON_VERSION=3.12.4-slim
 port_base=9000
 for cmd in ${CL_CONTAINER_COMMANDS}; do
     http_port=`expr $port_base + 1`
@@ -231,6 +232,7 @@ port = $https_port
 app_default_auth_type="none"
 [system]
 container_command="$cmd"
+[secret.env]
 EOF
     rm -rf metadata run/clace.sock
     CL_CONFIG_FILE=config_container.toml GOCOVERDIR=$GOCOVERDIR ../clace server start &
