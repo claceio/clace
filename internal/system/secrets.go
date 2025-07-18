@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -310,22 +311,99 @@ func (v *vaultSecretProvider) Configure(ctx context.Context, conf map[string]any
 	return nil
 }
 
-func (v *vaultSecretProvider) GetSecret(ctx context.Context, secretName string) (string, error) {
-	secret, err := v.client.Logical().Read(secretName)
+// GetSecret reads the secret at the given path and returns the one string value it contains.
+// It handles both KV v1 and v2 engines automatically.
+func (v *vaultSecretProvider) GetSecret(ctx context.Context, fullPath string) (string, error) {
+	// 1) List all mounts so we can detect KV versions.
+	mounts, err := v.client.Sys().ListMountsWithContext(ctx)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to list mounts: %w", err)
 	}
 
-	if secret == nil || secret.Data == nil {
-		return "", fmt.Errorf("key %s not found", secretName)
+	// 2) Pick the longest‐matching mount for our path.
+	//    Mount keys come back with trailing slashes, e.g. "secret/" or "kv/".
+	type mountInfo struct {
+		mountPath string           // e.g. "secret/" (with slash)
+		opts      *api.MountOutput // contains .Options["version"]
+	}
+	var all []mountInfo
+	for m, o := range mounts {
+		all = append(all, mountInfo{mountPath: m, opts: o})
+	}
+	sort.Slice(all, func(i, j int) bool {
+		// longer mountPath first (“secret/data/” before “secret/”)
+		return len(all[i].mountPath) > len(all[j].mountPath)
+	})
+
+	var (
+		chosen  *mountInfo
+		relPath string
+	)
+	for _, mi := range all {
+		// trim the trailing slash for comparison
+		prefix := strings.TrimSuffix(mi.mountPath, "/")
+		if fullPath == prefix || strings.HasPrefix(fullPath, prefix+"/") {
+			chosen = &mi
+			// everything after “prefix/”
+			relPath = strings.TrimPrefix(fullPath, prefix+"/")
+			break
+		}
+	}
+	if chosen == nil {
+		return "", fmt.Errorf("no mount found matching path %q", fullPath)
 	}
 
-	value, ok := secret.Data[secretName].(string)
-	if !ok {
-		return "", fmt.Errorf("key %s must be string", secretName)
+	// 3) Decide API version (default to v1 if not set).
+	ver := 1
+	if v, ok := chosen.opts.Options["version"]; ok && v == "2" {
+		ver = 2
 	}
 
-	return value, nil
+	// 4) Build the actual read path for the logical API.
+	//    KV v2 lives under “<mount>/data/<relPath>”
+	mountPrefix := strings.TrimSuffix(chosen.mountPath, "/")
+	var readPath string
+	if ver == 2 {
+		readPath = fmt.Sprintf("%s/data/%s", mountPrefix, relPath)
+	} else {
+		readPath = fmt.Sprintf("%s/%s", mountPrefix, relPath)
+	}
+
+	// 5) Read the secret
+	secret, err := v.client.Logical().ReadWithContext(ctx, readPath)
+	if err != nil {
+		return "", fmt.Errorf("error reading %s: %w", readPath, err)
+	}
+	if secret == nil {
+		return "", fmt.Errorf("no secret found at %s", readPath)
+	}
+
+	// 6) Extract the data map
+	var data map[string]interface{}
+	if ver == 2 {
+		// KV v2 nests values under “data”
+		raw, ok := secret.Data["data"].(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("malformed data at %s", readPath)
+		}
+		data = raw
+	} else {
+		// KV v1 writes your keys at top level of Data
+		data = secret.Data
+	}
+
+	if len(data) != 1 {
+		return "", fmt.Errorf("expected exactly one key in secret at %s, got %d keys", readPath, len(data))
+	}
+	for _, v := range data {
+		str, ok := v.(string)
+		if !ok {
+			return "", fmt.Errorf("secret value at %s is not a string", readPath)
+		}
+		return str, nil
+	}
+
+	return "", fmt.Errorf("unexpected error extracting secret at %s", readPath)
 }
 
 func (v *vaultSecretProvider) GetJoinDelimiter() string {
