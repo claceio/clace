@@ -444,19 +444,36 @@ func createAPIBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tup
 }
 
 func CreateConfigBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	return func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var input starlark.String
+	return func(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		var key starlark.String
 		var defaultVal starlark.Value
-		if err := starlark.UnpackArgs(CONFIG, args, kwargs, "input", &input, "default?", &defaultVal); err != nil {
+		if err := starlark.UnpackArgs(CONFIG, args, kwargs, "key", &key, "default", &defaultVal); err != nil {
 			return nil, fmt.Errorf("error unpacking config args: %w", err)
 		}
 		var err error
 		var outVal starlark.Value = defaultVal
-		localVal, ok := nodeConfig[string(input)]
+
+		if key == "_branch" {
+			// _branch is a special input that returns the current branch name
+			branch := thread.Local(types.TL_BRANCH)
+			if branch == nil {
+				return defaultVal, nil
+			}
+			branchStr, ok := branch.(string)
+			if !ok {
+				return nil, fmt.Errorf("branch is not a string %v", branch)
+			}
+			if branchStr == "" {
+				return defaultVal, nil
+			}
+			return starlark.String(branchStr), nil
+		}
+
+		localVal, ok := nodeConfig[string(key)]
 		if ok {
 			outVal, err = starlark_type.MarshalStarlark(localVal)
 			if err != nil {
-				return nil, fmt.Errorf("error marshalling config value for %s: %w", input, err)
+				return nil, fmt.Errorf("error marshalling config value for %s: %w", key, err)
 			}
 		}
 		if strVal, ok := outVal.(starlark.String); ok {

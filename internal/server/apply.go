@@ -29,7 +29,7 @@ const (
 	APP = "app"
 )
 
-func (s *Server) loadApplyInfo(fileName string, data []byte) ([]*types.CreateAppRequest, error) {
+func (s *Server) loadApplyInfo(fileName string, data []byte, branch string) ([]*types.CreateAppRequest, error) {
 	appDefs := make([]*starlarkstruct.Struct, 0)
 
 	createAppBuiltin := func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -80,6 +80,8 @@ func (s *Server) loadApplyInfo(fileName string, data []byte) ([]*types.CreateApp
 		Name:  fileName,
 		Print: func(_ *starlark.Thread, msg string) { s.Info().Msg(msg) },
 	}
+
+	thread.SetLocal(types.TL_BRANCH, branch)
 
 	options := syntax.FileOptions{}
 	_, err := starlark.ExecFileOptions(&options, thread, fileName, data, builtins)
@@ -273,6 +275,10 @@ func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath
 		return nil, nil, err
 	}
 
+	if !system.IsGit(applyPath) {
+		branch = ""
+	}
+
 	if len(globFiles) == 0 {
 		return nil, nil, fmt.Errorf("no matching files found in %s", applyPath)
 	}
@@ -283,7 +289,7 @@ func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath
 			return nil, nil, fmt.Errorf("error reading file %s: %w", f, err)
 		}
 
-		fileConfig, err := s.loadApplyInfo(f, fileBytes)
+		fileConfig, err := s.loadApplyInfo(f, fileBytes, branch)
 		if err != nil {
 			return nil, nil, err
 		}

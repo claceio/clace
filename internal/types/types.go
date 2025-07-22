@@ -49,6 +49,7 @@ const (
 	TL_AUDIT_TARGET             = "TL_audit_target"
 	TL_AUDIT_DETAIL             = "TL_audit_detail"
 	TL_CONTAINER_MANAGER        = "TL_container_manager"
+	TL_BRANCH                   = "TL_branch"
 )
 
 const (

@@ -44,3 +44,17 @@ tests:
     command: ../clace apply github.com/claceio/clace/tests/apply_files/apply_invalid.ace /applytest/test2
     stderr: "no matching files found in"
     exit-code: 1
+
+  apply_git0060: ## create apps without branch
+    command: ../clace apply github.com/claceio/clace/tests/apply_files/apply_git_config.ace
+    stdout: "1 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted."
+  apply_git0061: ## create apps with branch
+    command: ../clace apply --branch main github.com/claceio/clace/tests/apply_files/apply_git_config.ace
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped, 0 app(s) approved, 0 app(s) promoted."
+  apply_git0062: ## create apps with branch which is invalid for app
+    command: ../clace apply --branch test github.com/claceio/clace/tests/apply_files/apply_git_config.ace
+    stderr: "error checking out branch test"
+    exit-code: 1
+  apply_git0063: ## create apps without git
+    command: ../clace apply ./apply_files/apply_git_config.ace
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped, 0 app(s) approved, 0 app(s) promoted."
