@@ -83,7 +83,7 @@ func (s *Server) CreateApp(ctx context.Context, appPath string,
 		return nil, err
 	}
 
-	s.apps.ClearAllAppCache()
+	s.apps.ResetAllAppCache()
 	return result, nil
 }
 
@@ -439,7 +439,7 @@ func (s *Server) DeleteApps(ctx context.Context, appPathGlob string, dryRun bool
 
 	// Remove from in memory app cache
 	for _, appInfo := range filteredApps {
-		if err := s.apps.DeleteLinkedApps(appInfo.AppPathDomain); err != nil {
+		if err := s.apps.ClearLinkedApps(appInfo.AppPathDomain); err != nil {
 			return nil, fmt.Errorf("error deleting app: %s", err)
 		}
 	}
@@ -647,7 +647,7 @@ func (s *Server) CompleteTransaction(ctx context.Context, tx types.Transaction, 
 
 	// Update the in memory cache
 	if entries != nil {
-		if err := s.apps.DeleteAppsAudit(ctx, entries, op); err != nil {
+		if err := s.apps.ClearAppsAudit(ctx, entries, op); err != nil {
 			return err
 		}
 	}
@@ -982,6 +982,6 @@ func (s *Server) PreviewApp(ctx context.Context, mainAppPath, commitId string, a
 		return nil, err
 	}
 
-	s.apps.ClearAllAppCache() // Clear the cache so that the new app is loaded next time
+	s.apps.ResetAllAppCache() // Clear the cache so that the new app is loaded next time
 	return ret, nil
 }

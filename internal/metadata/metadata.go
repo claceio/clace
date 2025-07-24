@@ -14,7 +14,10 @@ import (
 
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgxlisten"
 	_ "modernc.org/sqlite"
 )
 
@@ -23,10 +26,14 @@ const CURRENT_DB_VERSION = 5
 // Metadata is the metadata persistence layer
 type Metadata struct {
 	*types.Logger
-	config *types.ServerConfig
-	db     *sql.DB
-	dbType system.DBType
+	config        *types.ServerConfig
+	db            *sql.DB
+	dbType        system.DBType
+	pgListener    *pgxlisten.Listener
+	AppNotifyFunc func(types.AppUpdatePayload)
 }
+
+const pg_listen_channel = "clace_events"
 
 // NewMetadata creates a new metadata persistence layer
 func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, error) {
@@ -46,7 +53,81 @@ func NewMetadata(logger *types.Logger, config *types.ServerConfig) (*Metadata, e
 		return nil, err
 	}
 
+	if m.dbType == system.DB_TYPE_POSTGRES {
+		// Setup listener for app update notifications
+		m.pgListener = &pgxlisten.Listener{
+			Connect: func(ctx context.Context) (*pgx.Conn, error) {
+				return pgx.Connect(ctx, m.config.Metadata.DBConnection)
+			},
+			LogError: func(innerCtx context.Context, err error) {
+				m.Err(err).Msg("error in postgres listener")
+			},
+			ReconnectDelay: 2 * time.Second,
+		}
+
+		var handler pgxlisten.HandlerFunc = func(ctx context.Context, notification *pgconn.Notification, conn *pgx.Conn) error {
+			if notification.Payload == "" {
+				return nil
+			}
+
+			msg := types.NotificationMessage{}
+			err := json.Unmarshal([]byte(notification.Payload), &msg)
+			if err != nil {
+				m.Error().Err(err).Msg("error unmarshalling notification payload")
+				return err
+			}
+
+			if msg.MessageType == types.MessageTypeAppUpdate {
+				updateMsg := types.AppUpdateMessage{}
+				err := json.Unmarshal([]byte(notification.Payload), &updateMsg)
+				if err != nil {
+					m.Error().Err(err).Msg("error unmarshalling app update message")
+					return err
+				}
+				go m.AppNotifyFunc(updateMsg.Payload)
+			} else {
+				m.Error().Msgf("unknown message type: %s", msg.MessageType)
+			}
+
+			return nil
+		}
+
+		m.pgListener.Handle(pg_listen_channel, handler)
+		go func() {
+			err := m.pgListener.Listen(context.Background())
+			if err != nil {
+				m.Error().Err(err).Msg("error listening for postgres messages")
+				return
+			}
+		}()
+	}
+
 	return m, nil
+}
+
+// NotifyAppUpdate sends a notification thrrough the postgres listener that an app has been updated
+func (m *Metadata) NotifyAppUpdate(appPathDomains []types.AppPathDomain) error {
+	if m.dbType != system.DB_TYPE_POSTGRES {
+		return nil
+	}
+
+	payload := types.AppUpdatePayload{
+		AppPathDomains: appPathDomains,
+		ServerId:       types.CurrentServerId,
+	}
+
+	msg := types.AppUpdateMessage{
+		MessageType: types.MessageTypeAppUpdate,
+		Payload:     payload,
+	}
+
+	payloadBytes, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.db.Exec("select pg_notify($1,$2)", pg_listen_channel, string(payloadBytes))
+	return err
 }
 
 func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {

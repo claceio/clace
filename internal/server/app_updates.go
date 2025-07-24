@@ -435,7 +435,7 @@ func (s *Server) UpdateAppSettings(ctx context.Context, appPathGlob string, dryR
 		return nil, err
 	}
 
-	s.apps.DeleteAppsAudit(ctx, results, "update_settings") // Delete instead of update to avoid having to initialize all the linked apps
+	s.apps.ClearAppsAudit(ctx, results, "update_settings") // Delete instead of update to avoid having to initialize all the linked apps
 	// Apps will get reloaded on the next request
 	return ret, nil
 }

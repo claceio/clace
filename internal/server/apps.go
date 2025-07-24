@@ -48,7 +48,7 @@ func (a *AppStore) GetAppsFullInfo() ([]types.AppInfo, map[string]bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo()
+	err := a.reloadAppInfo()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,7 +67,7 @@ func (a *AppStore) GetAllAppsInfo() ([]types.AppInfo, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo()
+	err := a.reloadAppInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (a *AppStore) GetAppInfo(appId types.AppId) (types.AppInfo, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo()
+	err := a.reloadAppInfo()
 	if err != nil {
 		return types.AppInfo{}, false
 	}
@@ -107,14 +107,14 @@ func (a *AppStore) GetAllDomains() (map[string]bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	err := a.updateAppInfo()
+	err := a.reloadAppInfo()
 	if err != nil {
 		return nil, err
 	}
 	return a.allDomains, nil
 }
 
-func (a *AppStore) updateAppInfo() error {
+func (a *AppStore) reloadAppInfo() error {
 	var err error
 	a.allApps, err = a.server.db.GetAllApps(true)
 	if err != nil {
@@ -136,10 +136,13 @@ func (a *AppStore) updateAppInfo() error {
 	return nil
 }
 
-func (a *AppStore) ClearAllAppCache() {
+func (a *AppStore) ResetAllAppCache() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.resetAllAppCache()
+}
 
+func (a *AppStore) resetAllAppCache() {
 	a.allApps = nil
 	a.allDomains = nil
 	a.idToInfo = nil
@@ -161,25 +164,28 @@ func (a *AppStore) AddApp(app *app.App) {
 	defer a.mu.Unlock()
 
 	a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
-	a.allApps = nil
+	a.resetAllAppCache()
 }
 
-func (a *AppStore) DeleteLinkedApps(pathDomain types.AppPathDomain) error {
+func (a *AppStore) ClearLinkedApps(pathDomain types.AppPathDomain) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	appPaths := []types.AppPathDomain{}
+	appPaths = append(appPaths, pathDomain)
+
+	// TODO: create audit entry for linked apps
 	linkedAppPrefix := pathDomain.Path + types.INTERNAL_APP_DELIM
 	for key, app := range a.appMap {
 		if app.Domain == pathDomain.Domain && strings.HasPrefix(app.Path, linkedAppPrefix) {
 			a.clearApp(key)
+			appPaths = append(appPaths, key)
 		}
 	}
 
 	a.clearApp(pathDomain)
-	a.allApps = nil
-	a.allDomains = nil
-	a.idToInfo = nil
-	return nil
+	a.resetAllAppCache()
+	return a.server.db.NotifyAppUpdate(appPaths)
 }
 
 func (a *AppStore) clearApp(pathDomain types.AppPathDomain) {
@@ -190,19 +196,46 @@ func (a *AppStore) clearApp(pathDomain types.AppPathDomain) {
 	}
 }
 
-func (a *AppStore) DeleteApps(pathDomain []types.AppPathDomain) {
+// ClearApps removes the specified apps from the in memory App cache
+// Also clears the app info cache for all apps (so that it is reloaded on next request)
+func (a *AppStore) ClearApps(pathDomains []types.AppPathDomain) {
+	if len(pathDomains) == 0 {
+		return
+	}
+
+	a.mu.Lock()
+	for _, pd := range pathDomains {
+		a.clearApp(pd)
+	}
+	a.resetAllAppCache()
+	a.mu.Unlock()
+
+	err := a.server.db.NotifyAppUpdate(pathDomains)
+	if err != nil {
+		a.Error().Err(err).Msg("error sending app update notification")
+	}
+}
+
+// ClearApps removes the specified apps from the in memory App cache
+// Also clears the app info cache for all apps (so that it is reloaded on next request)
+// This does not notify other servers of the app update (intended for use from the listener)
+func (a *AppStore) ClearAppsNoNotify(pathDomains []types.AppPathDomain) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for _, pd := range pathDomain {
+	for _, pd := range pathDomains {
 		a.clearApp(pd)
 	}
-	a.allApps = nil
-	a.allDomains = nil
-	a.idToInfo = nil
+	a.resetAllAppCache()
 }
 
-func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPathDomain, op string) error {
+// ClearApps removes the specified apps from the in memory App cache and creates an audit entry.
+// Also clears the app info cache for all apps (so that it is reloaded on next request)
+func (a *AppStore) ClearAppsAudit(ctx context.Context, pathDomains []types.AppPathDomain, op string) error {
+	if len(pathDomains) == 0 {
+		return nil
+	}
+
 	appInfo, error := a.GetAllAppsInfo()
 	if error != nil {
 		return error
@@ -217,7 +250,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 		Status:    string(types.EventStatusSuccess),
 	}
 
-	for _, pd := range pathDomain {
+	for _, pd := range pathDomains {
 		appInfo, ok := appMap[pd.String()]
 		if !ok {
 			continue
@@ -232,14 +265,7 @@ func (a *AppStore) DeleteAppsAudit(ctx context.Context, pathDomain []types.AppPa
 		}
 	}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, pd := range pathDomain {
-		a.clearApp(pd)
-	}
-	a.allApps = nil
-	a.allDomains = nil
-	a.idToInfo = nil
+	a.ClearApps(pathDomains)
 	return nil
 }
 
@@ -249,18 +275,4 @@ func getAppInfoMap(appInfo []types.AppInfo) map[string]types.AppInfo {
 		ret[info.AppPathDomain.String()] = info
 	}
 	return ret
-}
-
-func (a *AppStore) UpdateApps(apps []*app.App) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	for _, app := range apps {
-		app.ResetFS() // clear the transaction for DbFS
-		// close required??
-		a.appMap[types.CreateAppPathDomain(app.Path, app.Domain)] = app
-	}
-	a.allApps = nil
-	a.allDomains = nil
-	a.idToInfo = nil
 }

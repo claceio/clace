@@ -21,6 +21,7 @@ const (
 	ID_PREFIX_APP_DEV       = "app_dev_"
 	ID_PREFIX_APP_STAGE     = "app_stg_"
 	ID_PREFIX_APP_PREVIEW   = "app_pre_"
+	ID_PREFIX_SERVER        = "srv_id_"
 	INTERNAL_URL_PREFIX     = "/_clace"
 	WEBHOOK_URL_PREFIX      = "/_clace_webhook"
 	APP_INTERNAL_URL_PREFIX = "/_clace_app"
@@ -615,4 +616,25 @@ type SyncJobStatus struct {
 	CommitId          string           `json:"commit_id"`           // the commit id of the sync job
 	IsApply           bool             `json:"is_apply"`            // whether this is an apply job
 	ApplyResponse     AppApplyResponse `json:"app_apply_response"`  // the response of the apply job
+}
+
+// NotificationMessage is the message sent through the postgres listener
+type NotificationMessage struct {
+	MessageType string `json:"message_type"`
+}
+
+type ServerId string // the id of the server that sent the notification
+
+var CurrentServerId ServerId // initialized in server.go init()
+
+const MessageTypeAppUpdate = "app_update"
+
+type AppUpdatePayload struct {
+	AppPathDomains []AppPathDomain `json:"app_path_domains"`
+	ServerId       ServerId        `json:"server_id"`
+}
+
+type AppUpdateMessage struct {
+	MessageType string           `json:"message_type"`
+	Payload     AppUpdatePayload `json:"payload"`
 }

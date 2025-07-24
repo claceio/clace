@@ -30,6 +30,7 @@ import (
 	"github.com/claceio/clace/internal/system"
 	"github.com/claceio/clace/internal/types"
 	"github.com/go-chi/chi/middleware"
+	"github.com/segmentio/ksuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/claceio/clace/internal/app/appfs"
@@ -49,6 +50,12 @@ var embedAppTypes embed.FS
 var appTypes map[string]types.SpecFiles
 
 func init() {
+	id, err := ksuid.NewRandom()
+	if err != nil {
+		panic(err)
+	}
+	types.CurrentServerId = types.ServerId(types.ID_PREFIX_SERVER + id.String())
+
 	// Read app type config embedded in the binary
 	appTypes = make(map[string]types.SpecFiles)
 	entries, err := embedAppTypes.ReadDir(APPSPECS)
@@ -149,6 +156,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		config: config,
 		db:     db,
 	}
+	db.AppNotifyFunc = server.appNotifyFunction
 	server.apps = NewAppStore(l, server)
 	server.authHandler = NewAdminBasicAuth(l, config)
 	server.notifyClose = make(chan types.AppPathDomain)
@@ -199,6 +207,16 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.syncTimer = time.NewTicker(time.Minute) // run sync every minute
 	go server.syncRunner()
 	return server, nil
+}
+
+func (s *Server) appNotifyFunction(updatePayload types.AppUpdatePayload) {
+	if updatePayload.ServerId == types.CurrentServerId {
+		s.Trace().Str("server_id", string(updatePayload.ServerId)).Msg("Ignoring app update notification from self")
+		return
+	}
+	s.Debug().Str("server_id", string(updatePayload.ServerId)).Msgf(
+		"Received app update notification from %s for %s", updatePayload.ServerId, updatePayload.AppPathDomains)
+	s.apps.ClearAppsNoNotify(updatePayload.AppPathDomains)
 }
 
 // updateConfigSecrets updates the secrets in the server config using the evalSecret function
@@ -256,7 +274,7 @@ const (
 // handleAppClose listens for app close notifications and removes the app from the store
 func (s *Server) handleAppClose() {
 	for appPathDomain := range s.notifyClose {
-		s.apps.DeleteApps([]types.AppPathDomain{appPathDomain})
+		s.apps.ClearApps([]types.AppPathDomain{appPathDomain})
 		s.Debug().Str("app", appPathDomain.String()).Msg("App closed")
 	}
 	s.Debug().Msg("App close handler stopped")
