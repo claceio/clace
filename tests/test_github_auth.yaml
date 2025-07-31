@@ -27,6 +27,9 @@ tests:
     command: ../clace app create --git-auth invalid --approve --commit 6574d08b47abb71636665fbcbad51c2f7e8cab71 git@github.com:claceio/clace.git/examples/disk_usage /ghauth4
     stderr: "git auth entry invalid not found in server config"
     exit-code: 1
+  github0100: # Create app, http url, with PAT auth
+    command: ../clace app create --git-auth testpat --approve github.com/akclace/test/disk_usage /ghauthpat1
+    exit-code: 0
 
   github0900: # cleanup
     command: rm -rf ./disk_usage || true

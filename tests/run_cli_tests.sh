@@ -136,13 +136,16 @@ EOF
 
 if [[ -n "$CL_INFOCLACE_SSH" ]]; then
   # CL_INFOCLACE_SSH env is set, test authenticated git access with ssh key
-  # infoclace user has only read access to clace repo, which is anyway public
+  # infoclace user has read only access to clace repo, which is anyway public
   echo "$CL_INFOCLACE_SSH" > ./infoclace_ssh
   chmod 600 ./infoclace_ssh
 
   cat <<EOF >> $CL_CONFIG_FILE
   [git_auth.infoclace]
   key_file_path = "./infoclace_ssh"
+
+  [git_auth.testpat]
+  password="$TEST_PAT"
 EOF
 fi
 

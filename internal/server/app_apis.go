@@ -672,7 +672,7 @@ func (s *Server) getStageApp(ctx context.Context, tx types.Transaction, appEntry
 	return stageAppEntry, nil
 }
 
-func parseGithubUrl(sourceUrl string, gitAuth string) (repo, folder string, err error) {
+func parseGithubUrl(sourceUrl string, usingSSH bool) (repo, folder string, err error) {
 	if !strings.HasSuffix(sourceUrl, "/") {
 		sourceUrl = sourceUrl + "/"
 	}
@@ -698,8 +698,8 @@ func parseGithubUrl(sourceUrl string, gitAuth string) (repo, folder string, err 
 
 	split := strings.SplitN(url.Path, "/", 4)
 	if len(split) == 4 {
-		if gitAuth != "" {
-			// If gitAuth is provided, use git url like git@github.com:claceio/clace.git
+		if usingSSH {
+			// Use git url like git@github.com:claceio/clace.git
 			gitUrl := fmt.Sprintf("git@%s:%s/%s.git", url.Host, split[1], split[2])
 			return gitUrl, split[3], nil
 		}
@@ -722,18 +722,17 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 		return nil, fmt.Errorf("git auth entry %s not found in server config", gitAuth)
 	}
 
-	gitKey, err := os.ReadFile(authEntry.KeyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading git key %s: %w", authEntry.KeyFilePath, err)
-	}
-
-	user := "git" // https://github.com/src-d/go-git/issues/637, default to "git"
-	if authEntry.UserID != "" {
-		user = authEntry.UserID
+	var err error
+	gitKey := []byte{}
+	if authEntry.KeyFilePath != "" {
+		gitKey, err = os.ReadFile(authEntry.KeyFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading git key %s: %w", authEntry.KeyFilePath, err)
+		}
 	}
 
 	return &gitAuthEntry{
-		user:     user,
+		user:     cmp.Or(authEntry.UserID, "git"), // https://github.com/src-d/go-git/issues/637, default user to "git"
 		key:      gitKey,
 		password: authEntry.Password,
 	}, nil

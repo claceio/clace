@@ -30,7 +30,7 @@ func TestParseGithub(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotRepo, gotFolder, gotError := parseGithubUrl(tc.url, "")
+			gotRepo, gotFolder, gotError := parseGithubUrl(tc.url, false)
 			testutil.AssertEqualsString(t, "repo", gotRepo, tc.wantRepo)
 			testutil.AssertEqualsString(t, "folder", gotFolder, tc.wantFolder)
 			testutil.AssertEqualsError(t, "error", gotError, tc.wantError)
@@ -58,7 +58,7 @@ func TestParseGithubAuth(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotRepo, gotFolder, gotError := parseGithubUrl(tc.url, "authkey")
+			gotRepo, gotFolder, gotError := parseGithubUrl(tc.url, true)
 			testutil.AssertEqualsString(t, "repo", gotRepo, tc.wantRepo)
 			testutil.AssertEqualsString(t, "folder", gotFolder, tc.wantFolder)
 			testutil.AssertEqualsError(t, "error", gotError, tc.wantError)

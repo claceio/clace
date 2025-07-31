@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport" // for AuthMethod
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
 )
@@ -51,9 +52,13 @@ func NewRepoCache(server *Server) (*RepoCache, error) {
 
 func (r *RepoCache) GetSha(sourceUrl, branch, gitAuth string) (string, error) {
 	gitAuth = cmp.Or(gitAuth, r.server.config.Security.DefaultGitAuth)
+	authEntry, err := r.server.loadGitKey(gitAuth)
+	if err != nil {
+		return "", err
+	}
 
 	// Figure on which repo to clone
-	repo, _, err := parseGithubUrl(sourceUrl, gitAuth)
+	repo, _, err := parseGithubUrl(sourceUrl, len(authEntry.key) != 0)
 	if err != nil {
 		return "", err
 	}
@@ -65,13 +70,8 @@ func (r *RepoCache) GetSha(sourceUrl, branch, gitAuth string) (string, error) {
 
 	var auth transport.AuthMethod
 	if gitAuth != "" {
-		// Auth is specified, load the key
-		authEntry, err := r.server.loadGitKey(gitAuth)
-		if err != nil {
-			return "", err
-		}
-		r.server.Info().Msgf("Using git auth %s", authEntry.user)
-		auth, err = ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
+		r.server.Info().Msgf("Using git auth %s", gitAuth)
+		auth, err = r.createAuthMethod(gitAuth)
 		if err != nil {
 			return "", err
 		}
@@ -80,6 +80,24 @@ func (r *RepoCache) GetSha(sourceUrl, branch, gitAuth string) (string, error) {
 	sha, err := latestCommitSHA(repo, branch, auth)
 	r.shaCache[Repo{repo, branch, "", gitAuth}] = sha
 	return sha, nil
+}
+
+func (r *RepoCache) createAuthMethod(gitAuth string) (transport.AuthMethod, error) {
+	authEntry, err := r.server.loadGitKey(gitAuth)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(authEntry.key) != 0 {
+		// SSH auth
+		return ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
+	} else {
+		// HTTP auth, either basic or using Personal Access Token
+		return &http.BasicAuth{
+			Username: authEntry.user,
+			Password: authEntry.password,
+		}, nil
+	}
 }
 
 func latestCommitSHA(repoURL, branch string, auth transport.AuthMethod) (string, error) {
@@ -108,9 +126,13 @@ func latestCommitSHA(repoURL, branch string, auth transport.AuthMethod) (string,
 
 func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (string, string, string, string, error) {
 	gitAuth = cmp.Or(gitAuth, r.server.config.Security.DefaultGitAuth)
+	authEntry, err := r.server.loadGitKey(gitAuth)
+	if err != nil {
+		return "", "", "", "", err
+	}
 
 	// Figure on which repo to clone
-	repo, folder, err := parseGithubUrl(sourceUrl, gitAuth)
+	repo, folder, err := parseGithubUrl(sourceUrl, len(authEntry.key) != 0)
 	if err != nil {
 		return "", "", "", "", err
 	}
@@ -132,13 +154,8 @@ func (r *RepoCache) CheckoutRepo(sourceUrl, branch, commit, gitAuth string) (str
 	}
 
 	if gitAuth != "" {
-		// Auth is specified, load the key
-		authEntry, err := r.server.loadGitKey(gitAuth)
-		if err != nil {
-			return "", "", "", "", err
-		}
-		r.server.Info().Msgf("Using git auth %s", authEntry.user)
-		auth, err := ssh.NewPublicKeys(authEntry.user, authEntry.key, authEntry.password)
+		r.server.Info().Msgf("Using git auth %s", gitAuth)
+		auth, err := r.createAuthMethod(gitAuth)
 		if err != nil {
 			return "", "", "", "", err
 		}
