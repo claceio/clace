@@ -30,7 +30,6 @@ tests:
     exit-code: 1
   github0100: # Create app, http url, with PAT auth
     command: ../clace app create --git-auth testpat --approve github.com/akclace/test/disk_usage /ghauthpat1
-    stderr: "failure"
     exit-code: 0
 
   github0900: # cleanup

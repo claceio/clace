@@ -145,6 +145,7 @@ if [[ -n "$CL_INFOCLACE_SSH" ]]; then
   key_file_path = "./infoclace_ssh"
 
   [git_auth.testpat]
+  user_id = "akclace"
   password="$TEST_PAT"
 EOF
 fi
