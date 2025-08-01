@@ -713,10 +713,19 @@ type gitAuthEntry struct {
 	user     string
 	key      []byte
 	password string
+	usingSSH bool
 }
 
 // loadGitKey gets the git key from the config and loads the key from disk
 func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
+	if gitAuth == "" {
+		return &gitAuthEntry{
+			user:     "",
+			key:      []byte{},
+			password: "",
+			usingSSH: false, // default to non-SSH git url if no auth is specified
+		}, nil
+	}
 	authEntry, ok := s.config.GitAuth[gitAuth]
 	if !ok {
 		return nil, fmt.Errorf("git auth entry %s not found in server config", gitAuth)
@@ -724,17 +733,22 @@ func (s *Server) loadGitKey(gitAuth string) (*gitAuthEntry, error) {
 
 	var err error
 	gitKey := []byte{}
+	user := authEntry.UserID
+	usingSSH := false
 	if authEntry.KeyFilePath != "" {
 		gitKey, err = os.ReadFile(authEntry.KeyFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading git key %s: %w", authEntry.KeyFilePath, err)
 		}
+		user = cmp.Or(authEntry.UserID, "git") // https://github.com/src-d/go-git/issues/637, default user to "git"
+		usingSSH = true
 	}
 
 	return &gitAuthEntry{
-		user:     cmp.Or(authEntry.UserID, "git"), // https://github.com/src-d/go-git/issues/637, default user to "git"
+		user:     user,
 		key:      gitKey,
 		password: authEntry.Password,
+		usingSSH: usingSSH,
 	}, nil
 }
 
