@@ -83,12 +83,14 @@ func (a *App) loadStarlarkConfig(dryRun types.DryRun) error {
 		return err
 	}
 
+	a.jsLibs, err = a.loadLibraryInfo()
+	if err != nil {
+		return err
+	}
+
 	if a.IsDev {
 		a.appDev.CustomLayout = a.CustomLayout
-		a.appDev.JsLibs, err = a.loadLibraryInfo()
-		if err != nil {
-			return err
-		}
+		a.appDev.JsLibs = a.jsLibs
 	}
 
 	var settingsMap map[string]interface{}
@@ -554,7 +556,7 @@ func (a *App) addAction(count int, val starlark.Value, router *chi.Mux) (err err
 	}
 	action, err := action.NewAction(a.Logger, a.sourceFS, a.IsDev, name, description, path, run, suggest,
 		slices.Collect(maps.Values(a.paramInfo)), a.paramValuesStr, a.paramDict, a.Path, a.appStyle.GetStyleType(),
-		containerProxyUrl, hidden, showValidate, a.auditInsert, a.containerManager)
+		containerProxyUrl, hidden, showValidate, a.auditInsert, a.containerManager, a.jsLibs)
 	if err != nil {
 		return fmt.Errorf("error creating action %s: %w", name, err)
 	}
@@ -1056,7 +1058,7 @@ func (a *App) userFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) loadLibraryInfo() ([]dev.JSLibrary, error) {
+func (a *App) loadLibraryInfo() ([]types.JSLibrary, error) {
 	lib, err := a.appDef.Attr("libraries")
 	if err != nil {
 		return nil, err
@@ -1073,7 +1075,7 @@ func (a *App) loadLibraryInfo() ([]dev.JSLibrary, error) {
 		return nil, fmt.Errorf("libraries is not a list")
 	}
 
-	libraries := []dev.JSLibrary{}
+	libraries := []types.JSLibrary{}
 	iter := libList.Iterate()
 	var libValue starlark.Value
 	count := 0

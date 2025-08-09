@@ -66,18 +66,20 @@ type Action struct {
 	showValidate      bool
 	auditInsert       func(*types.AuditEvent) error
 	containerManager  any // Container manager, if available, used to run commands in the container
+	jsLibs            []types.JSLibrary
 }
 
 // NewAction creates a new action
 func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name, description, apath string, run, suggest starlark.Callable,
 	params []apptype.AppParam, paramValuesStr map[string]string, paramDict starlark.StringDict,
 	appPath string, styleType types.StyleType, containerProxyUrl string, hidden []string, showValidate bool,
-	auditInsert func(*types.AuditEvent) error, containerManager any) (*Action, error) {
+	auditInsert func(*types.AuditEvent) error, containerManager any, jsLibs []types.JSLibrary) (*Action, error) {
 
 	funcMap := system.GetFuncMap()
 
 	funcMap["static"] = func(name string) string {
-		fullPath := path.Join(appPath, sourceFS.HashName(name))
+		staticPath := path.Join("static", name)
+		fullPath := path.Join(appPath, sourceFS.HashName(staticPath))
 		return fullPath
 	}
 
@@ -87,7 +89,8 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 	}
 
 	funcMap["fileNonEmpty"] = func(name string) bool {
-		fi, err := sourceFS.Stat(name)
+		staticPath := path.Join("static", name)
+		fi, err := sourceFS.Stat(staticPath)
 		if err != nil {
 			return false
 		}
@@ -116,6 +119,10 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		hiddenParams[h] = true
 	}
 
+	if len(jsLibs) == 0 {
+		jsLibs = []types.JSLibrary{*&types.JSLibrary{}}
+	}
+
 	return &Action{
 		Logger:            &appLogger,
 		isDev:             isDev,
@@ -135,6 +142,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		showValidate:      showValidate,
 		auditInsert:       auditInsert,
 		containerManager:  containerManager,
+		jsLibs:            jsLibs,
 		// Links, AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -449,6 +457,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 		"path":        a.pagePath,
 		"lightTheme":  a.LightTheme,
 		"darkTheme":   a.DarkTheme,
+		"jsLibs":      a.jsLibs,
 	}
 
 	if !isHtmxRequest {
@@ -806,6 +815,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"hasFileUpload": hasFileUpload,
 		"showSuggest":   a.suggest != nil,
 		"showValidate":  a.showValidate,
+		"jsLibs":        a.jsLibs,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {

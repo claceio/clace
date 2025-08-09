@@ -45,8 +45,8 @@ type AppDev struct {
 	AppStyle     *AppStyle
 
 	filesDownloaded map[string][]string
-	JsLibs          []JSLibrary
-	jsCache         map[JSLibrary]string
+	JsLibs          []types.JSLibrary
+	jsCache         map[types.JSLibrary]string
 }
 
 func NewAppDev(logger *types.Logger, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs, appStyle *AppStyle, systemConfig *types.SystemConfig) *AppDev {
@@ -57,8 +57,8 @@ func NewAppDev(logger *types.Logger, sourceFS *appfs.WritableSourceFs, workFS *a
 		AppStyle:        appStyle,
 		systemConfig:    systemConfig,
 		filesDownloaded: make(map[string][]string),
-		jsCache:         make(map[JSLibrary]string),
-		JsLibs:          []JSLibrary{},
+		jsCache:         make(map[types.JSLibrary]string),
+		JsLibs:          []types.JSLibrary{},
 	}
 	return dev
 }
@@ -102,11 +102,11 @@ func (a *AppDev) SetupJsLibs() error {
 	hasHtmx := false
 	hasHtmxSSE := false
 	for _, jsLib := range a.JsLibs {
-		if jsLib.libType == Library {
-			if strings.Contains(jsLib.directUrl, "htmx.org") && !strings.Contains(jsLib.directUrl, "ext") {
+		if jsLib.LibType == types.Library {
+			if strings.Contains(jsLib.DirectUrl, "htmx.org") && !strings.Contains(jsLib.DirectUrl, "ext") {
 				hasHtmx = true
 			}
-			if strings.Contains(jsLib.directUrl, "htmx.org") && strings.Contains(jsLib.directUrl, "ext/sse.js") {
+			if strings.Contains(jsLib.DirectUrl, "htmx.org") && strings.Contains(jsLib.DirectUrl, "ext/sse.js") {
 				hasHtmxSSE = true
 			}
 		}
@@ -126,7 +126,8 @@ func (a *AppDev) SetupJsLibs() error {
 			continue
 		}
 
-		targetFile, err := jsLib.Setup(a, a.sourceFS, a.workFS)
+		jsLibManager := JsLibManager{jsLib}
+		targetFile, err := jsLibManager.Setup(a, a.sourceFS, a.workFS)
 		if err != nil {
 			if targetFile == "" {
 				// Setup failed and cannot check if file exists, error out

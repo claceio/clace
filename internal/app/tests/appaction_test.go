@@ -613,6 +613,37 @@ app = ace.app("testApp",
         <div id="action_result" hx-swap-oob="innerHTML"> <output role="alert"> </output> </div>html/template: "custom" is undefined`, response.Body.String())
 }
 
+func TestCustomESMImport(t *testing.T) {
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+def handler(dry_run, args):
+	return ace.result(status="done", values=[{"a": 1, "b": "abc"}], report="custom")
+
+app = ace.app("testApp",
+	actions=[ace.action("testAction", "/", handler)],
+	libraries=[ace.library("d3", "2.3"), ace.library("e4", "3.4")])
+		`,
+		"params.star":              `param("param1", description="param1 description", type=STRING, default="myvalue")`,
+		"myfile.go.html":           `{{block "custom" .}} customdata {{end}}`,
+		"static/gen/esm/d3-2.3.js": "abc",
+		"static/gen/esm/e4-3.4.js": "def",
+	}
+	a, _, err := CreateTestApp(logger, fileData)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	request := httptest.NewRequest("GET", "/test/", nil)
+	response := httptest.NewRecorder()
+	a.ServeHTTP(response, request)
+
+	testutil.AssertEqualsInt(t, "code", 200, response.Code)
+	testutil.AssertStringContains(t, response.Body.String(), "script type=\"importmap\"")
+	testutil.AssertStringContains(t, response.Body.String(), "\"d3\": \"/test/static/gen/esm/d3-2-ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad.3.js\"")
+	testutil.AssertStringContains(t, response.Body.String(), "\"e4\": \"/test/static/gen/esm/e4-3-cb8379ac2098aa165029e3938a51da0bcecfc008fd6795f401178647f96c5b34.4.js\"")
+}
+
 func TestParamOptions(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{

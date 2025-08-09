@@ -11,78 +11,61 @@ import (
 	"strings"
 
 	"github.com/claceio/clace/internal/app/appfs"
+	"github.com/claceio/clace/internal/types"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/evanw/esbuild/pkg/cli"
 )
 
-type LibraryType string
-
-const (
-	ESModule LibraryType = "ecmascript_module"
-	Library  LibraryType = "library"
-)
-
-const (
-	LIB_PATH = "static/gen/lib"
-	ESM_PATH = "static/gen/esm"
-)
-
-// JSLibrary handles the downloading for JS libraries and esbuild based bundling for ESM libraries
-type JSLibrary struct {
-	libType           LibraryType
-	directUrl         string
-	packageName       string
-	version           string
-	esbuildArgs       [10]string // use an array so that the struct can be used as key in the jsCache map
-	sanitizedFileName string
-}
-
-func NewLibrary(url string) *JSLibrary {
-	j := JSLibrary{
-		libType:           Library,
-		directUrl:         url,
-		sanitizedFileName: sanitizeFileName(url),
+func NewLibrary(url string) *types.JSLibrary {
+	j := types.JSLibrary{
+		LibType:           types.Library,
+		DirectUrl:         url,
+		SanitizedFileName: sanitizeFileName(url),
 	}
 	return &j
 }
 
-func NewLibraryESM(packageName string, version string, esbuildArgs []string) *JSLibrary {
+func NewLibraryESM(packageName string, version string, esbuildArgs []string) *types.JSLibrary {
 	args := [10]string{}
 	if esbuildArgs != nil {
 		copy(args[:], esbuildArgs)
 	}
 
-	j := JSLibrary{
-		libType:           ESModule,
-		packageName:       packageName,
-		version:           version,
-		esbuildArgs:       args,
-		sanitizedFileName: sanitizeFileName(packageName) + "-" + version + ".js",
+	j := types.JSLibrary{
+		LibType:           types.ESModule,
+		PackageName:       packageName,
+		Version:           version,
+		EsbuildArgs:       args,
+		SanitizedFileName: sanitizeFileName(packageName) + "-" + version + ".js",
 	}
 	return &j
 }
 
-func (j *JSLibrary) Setup(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
-	if j.libType == Library {
-		targetFile := path.Join(LIB_PATH, j.sanitizedFileName)
+type JsLibManager struct {
+	types.JSLibrary
+}
+
+func (j *JsLibManager) Setup(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
+	if j.LibType == types.Library {
+		targetFile := path.Join(types.LIB_PATH, j.SanitizedFileName)
 		targetDir := path.Dir(targetFile)
 		if err := os.MkdirAll(targetDir, 0755); err != nil {
-			return "", fmt.Errorf("error creating directory %s : %s", LIB_PATH, err)
+			return "", fmt.Errorf("error creating directory %s : %s", types.LIB_PATH, err)
 		}
-		if err := dev.downloadFile(j.directUrl, sourceFS, targetFile); err != nil {
-			return "", fmt.Errorf("error downloading %s : %s", j.directUrl, err)
+		if err := dev.downloadFile(j.DirectUrl, sourceFS, targetFile); err != nil {
+			return "", fmt.Errorf("error downloading %s : %s", j.DirectUrl, err)
 		}
 		return targetFile, nil
-	} else if j.libType == ESModule {
+	} else if j.LibType == types.ESModule {
 		return j.setupEsbuild(dev, sourceFS, workFS)
 	} else {
-		return "", fmt.Errorf("invalid library type : %s", j.libType)
+		return "", fmt.Errorf("invalid library type : %s", j.LibType)
 	}
 }
 
-func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
-	targetDir := path.Join(sourceFS.Root, ESM_PATH)
-	targetFile := path.Join(targetDir, j.sanitizedFileName)
+func (j *JsLibManager) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, workFS *appfs.WorkFs) (string, error) {
+	targetDir := path.Join(sourceFS.Root, types.ESM_PATH)
+	targetFile := path.Join(targetDir, j.SanitizedFileName)
 
 	sourceFile, err := j.generateSourceFile(workFS)
 	if err != nil {
@@ -92,7 +75,7 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, 
 	esbuildArgs := []string{sourceFile, "--bundle", "--format=esm"}
 
 	args := []string{}
-	for _, arg := range j.esbuildArgs {
+	for _, arg := range j.EsbuildArgs {
 		if arg == "" {
 			break
 		}
@@ -135,11 +118,11 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, 
 	if len(result.Errors) > 0 {
 		// Return the target file name. The caller can check if the file exists to determine if the
 		// setup was successful even though this step failed
-		dev.Error().Msgf("error building %s : %v", j.packageName, result.Warnings)
-		return targetFile, fmt.Errorf("error building %s : %v", j.packageName, result.Errors)
+		dev.Error().Msgf("error building %s : %v", j.PackageName, result.Warnings)
+		return targetFile, fmt.Errorf("error building %s : %v", j.PackageName, result.Errors)
 	}
 	if len(result.Warnings) > 0 {
-		dev.Warn().Msgf("warning building %s : %v", j.packageName, result.Warnings)
+		dev.Warn().Msgf("warning building %s : %v", j.PackageName, result.Warnings)
 	}
 
 	for _, file := range result.OutputFiles {
@@ -153,9 +136,9 @@ func (j *JSLibrary) setupEsbuild(dev *AppDev, sourceFS *appfs.WritableSourceFs, 
 	return options.Outfile, nil
 }
 
-func (j *JSLibrary) generateSourceFile(workFS *appfs.WorkFs) (string, error) {
-	sourceFileName := j.sanitizedFileName
-	sourceContent := fmt.Sprintf(`export * from "%s"`, j.packageName)
+func (j *JsLibManager) generateSourceFile(workFS *appfs.WorkFs) (string, error) {
+	sourceFileName := j.SanitizedFileName
+	sourceContent := fmt.Sprintf(`export * from "%s"`, j.PackageName)
 	if err := workFS.Write(sourceFileName, []byte(sourceContent)); err != nil {
 		return "", fmt.Errorf("error writing source file %s : %s", sourceFileName, err)
 	}

@@ -47,4 +47,20 @@
   <script src="{{ astatic "astatic/json.js" }}"></script>
   <script src="{{ astatic "astatic/toggle.js" }}"></script>
   <script src="{{ astatic "astatic/htmx.min.js" }}"></script>
+
+  {{ if gt (len .jsLibs) 0 }}
+  <script type="importmap">
+  {
+    "imports": {
+     {{ range $i, $lib := .jsLibs }}
+     {{ $libPath :=  printf "%s%s" "gen/esm/" $lib.SanitizedFileName }}
+     "{{ $lib.PackageName }}": "{{ static $libPath}}"
+     {{ if not (eq $i (sub (len $.jsLibs) 1)) }},{{end}}
+     {{ end }}
+    }
+  }
+  </script>
+
+  {{end}}
+
 {{ end -}}

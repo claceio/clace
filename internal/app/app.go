@@ -69,6 +69,7 @@ type App struct {
 	template         *template.Template            // unstructured templates, no base_templates defined
 	templateMap      map[string]*template.Template // structured templates, base_templates defined
 	staticOnly       bool                          // app has only static files, no HTML routes
+	jsLibs           []types.JSLibrary             // JS libraries used by the app
 
 	watcher       *fsnotify.Watcher
 	sseListeners  []chan SSEMessage

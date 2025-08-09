@@ -638,3 +638,25 @@ type AppUpdateMessage struct {
 	MessageType string           `json:"message_type"`
 	Payload     AppUpdatePayload `json:"payload"`
 }
+
+type LibraryType string
+
+const (
+	ESModule LibraryType = "ecmascript_module"
+	Library  LibraryType = "library"
+)
+
+const (
+	LIB_PATH = "static/gen/lib"
+	ESM_PATH = "static/gen/esm"
+)
+
+// JSLibrary handles the downloading for JS libraries and esbuild based bundling for ESM libraries
+type JSLibrary struct {
+	LibType           LibraryType
+	DirectUrl         string
+	PackageName       string
+	Version           string
+	EsbuildArgs       [10]string // use an array so that the struct can be used as key in the jsCache map
+	SanitizedFileName string
+}
