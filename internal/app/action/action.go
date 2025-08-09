@@ -66,7 +66,7 @@ type Action struct {
 	showValidate      bool
 	auditInsert       func(*types.AuditEvent) error
 	containerManager  any // Container manager, if available, used to run commands in the container
-	jsLibs            []types.JSLibrary
+	esmLibs           []types.JSLibrary
 }
 
 // NewAction creates a new action
@@ -119,8 +119,11 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		hiddenParams[h] = true
 	}
 
-	if len(jsLibs) == 0 {
-		jsLibs = []types.JSLibrary{*&types.JSLibrary{}}
+	esmLibs := []types.JSLibrary{}
+	for _, lib := range jsLibs {
+		if lib.LibType == types.ESModule {
+			esmLibs = append(esmLibs, lib)
+		}
 	}
 
 	return &Action{
@@ -142,7 +145,7 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		showValidate:      showValidate,
 		auditInsert:       auditInsert,
 		containerManager:  containerManager,
-		jsLibs:            jsLibs,
+		esmLibs:           esmLibs,
 		// Links, AppTemplate and Theme names are initialized later
 	}, nil
 }
@@ -457,7 +460,7 @@ func (a *Action) execAction(w http.ResponseWriter, r *http.Request, isSuggest, i
 		"path":        a.pagePath,
 		"lightTheme":  a.LightTheme,
 		"darkTheme":   a.DarkTheme,
-		"jsLibs":      a.jsLibs,
+		"esmLibs":     a.esmLibs,
 	}
 
 	if !isHtmxRequest {
@@ -815,7 +818,7 @@ func (a *Action) getForm(w http.ResponseWriter, r *http.Request) {
 		"hasFileUpload": hasFileUpload,
 		"showSuggest":   a.suggest != nil,
 		"showValidate":  a.showValidate,
-		"jsLibs":        a.jsLibs,
+		"esmLibs":       a.esmLibs,
 	}
 	err := a.actionTemplate.ExecuteTemplate(w, "form.go.html", input)
 	if err != nil {

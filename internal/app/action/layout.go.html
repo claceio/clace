@@ -48,14 +48,14 @@
   <script src="{{ astatic "astatic/toggle.js" }}"></script>
   <script src="{{ astatic "astatic/htmx.min.js" }}"></script>
 
-  {{ if gt (len .jsLibs) 0 }}
+  {{ if gt (len .esmLibs) 0 }}
   <script type="importmap">
   {
     "imports": {
-     {{ range $i, $lib := .jsLibs }}
+     {{ range $i, $lib := .esmLibs }}
      {{ $libPath :=  printf "%s%s" "gen/esm/" $lib.SanitizedFileName }}
      "{{ $lib.PackageName }}": "{{ static $libPath}}"
-     {{ if not (eq $i (sub (len $.jsLibs) 1)) }},{{end}}
+     {{ if not (eq $i (sub (len $.esmLibs) 1)) }},{{end}}
      {{ end }}
     }
   }
