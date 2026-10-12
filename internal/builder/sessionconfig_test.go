@@ -79,3 +79,45 @@ func TestApplySessionConfigWarnings(t *testing.T) {
 		t.Errorf("expected no warnings, got %v", warnings)
 	}
 }
+
+// optionsSetter returns a new option set from each set call, like an agent
+// whose effort levels depend on the chosen model
+type optionsSetter struct {
+	calls []acp.SetSessionConfigOptionValueId
+	next  []acp.SessionConfigOption
+}
+
+func (f *optionsSetter) SetSessionConfigOption(ctx context.Context, params acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
+	f.calls = append(f.calls, *params.ValueId)
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: f.next}, nil
+}
+
+func TestApplySessionConfigUsesResponseOptions(t *testing.T) {
+	// the effort option only offers "max" after the model change
+	setter := &optionsSetter{next: []acp.SessionConfigOption{
+		selectOption("model", nil, "big"),
+		selectOption("effort", nil, "low", "max"),
+	}}
+	options := []acp.SessionConfigOption{
+		selectOption("model", nil, "small", "big"),
+		selectOption("effort", nil, "low"),
+	}
+	if warnings := applySessionConfig(context.Background(), setter, "ses1", options, "big", "max"); len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+	if len(setter.calls) != 2 || setter.calls[1].Value != "max" {
+		t.Fatalf("unexpected calls: %+v", setter.calls)
+	}
+}
+
+func TestApplySessionConfigSkipsCurrentValue(t *testing.T) {
+	setter := &fakeSetter{}
+	option := selectOption("model", nil, "small", "big")
+	option.Select.CurrentValue = "big"
+	if warnings := applySessionConfig(context.Background(), setter, "ses1", []acp.SessionConfigOption{option}, "big", ""); len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+	if len(setter.calls) != 0 {
+		t.Fatalf("an option already at the configured value must not be set again: %+v", setter.calls)
+	}
+}

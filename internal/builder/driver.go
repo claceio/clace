@@ -5,7 +5,6 @@ package builder
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -132,34 +131,36 @@ type driverClient struct {
 
 var _ acp.Client = (*driverClient)(nil)
 
-var errNotSupported = errors.New("not supported by this client (capability not advertised)")
-
+// The fs/* and terminal/* methods are only callable when the matching client
+// capability was advertised; a stray call gets the JSON-RPC method-not-found
+// error (the standard answer for an unsupported method) rather than an
+// internal error the agent may retry
 func (d *driverClient) ReadTextFile(context.Context, acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
-	return acp.ReadTextFileResponse{}, errNotSupported
+	return acp.ReadTextFileResponse{}, acp.NewMethodNotFound(acp.ClientMethodFsReadTextFile)
 }
 
 func (d *driverClient) WriteTextFile(context.Context, acp.WriteTextFileRequest) (acp.WriteTextFileResponse, error) {
-	return acp.WriteTextFileResponse{}, errNotSupported
+	return acp.WriteTextFileResponse{}, acp.NewMethodNotFound(acp.ClientMethodFsWriteTextFile)
 }
 
 func (d *driverClient) CreateTerminal(context.Context, acp.CreateTerminalRequest) (acp.CreateTerminalResponse, error) {
-	return acp.CreateTerminalResponse{}, errNotSupported
+	return acp.CreateTerminalResponse{}, acp.NewMethodNotFound(acp.ClientMethodTerminalCreate)
 }
 
 func (d *driverClient) KillTerminal(context.Context, acp.KillTerminalRequest) (acp.KillTerminalResponse, error) {
-	return acp.KillTerminalResponse{}, errNotSupported
+	return acp.KillTerminalResponse{}, acp.NewMethodNotFound(acp.ClientMethodTerminalKill)
 }
 
 func (d *driverClient) TerminalOutput(context.Context, acp.TerminalOutputRequest) (acp.TerminalOutputResponse, error) {
-	return acp.TerminalOutputResponse{}, errNotSupported
+	return acp.TerminalOutputResponse{}, acp.NewMethodNotFound(acp.ClientMethodTerminalOutput)
 }
 
 func (d *driverClient) ReleaseTerminal(context.Context, acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {
-	return acp.ReleaseTerminalResponse{}, errNotSupported
+	return acp.ReleaseTerminalResponse{}, acp.NewMethodNotFound(acp.ClientMethodTerminalRelease)
 }
 
 func (d *driverClient) WaitForTerminalExit(context.Context, acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
-	return acp.WaitForTerminalExitResponse{}, errNotSupported
+	return acp.WaitForTerminalExitResponse{}, acp.NewMethodNotFound(acp.ClientMethodTerminalWaitForExit)
 }
 
 // RequestPermission auto-approves: the container is the safety boundary and
@@ -206,9 +207,12 @@ func (d *driverClient) RequestPermission(ctx context.Context, params acp.Request
 	}, nil
 }
 
-// pickPermissionOption prefers allow-always, then allow-once
+// pickPermissionOption prefers allow-always, then allow-once. A request
+// offering no allow option is answered with a reject option: the cancelled
+// outcome means the prompt turn was cancelled, which it was not. Empty only
+// when no option has a known kind
 func pickPermissionOption(options []acp.PermissionOption) acp.PermissionOptionId {
-	var allowOnce acp.PermissionOptionId
+	var allowOnce, rejectOnce, rejectAlways acp.PermissionOptionId
 	for _, option := range options {
 		switch option.Kind {
 		case acp.PermissionOptionKindAllowAlways:
@@ -217,9 +221,23 @@ func pickPermissionOption(options []acp.PermissionOption) acp.PermissionOptionId
 			if allowOnce == "" {
 				allowOnce = option.OptionId
 			}
+		case acp.PermissionOptionKindRejectOnce:
+			if rejectOnce == "" {
+				rejectOnce = option.OptionId
+			}
+		case acp.PermissionOptionKindRejectAlways:
+			if rejectAlways == "" {
+				rejectAlways = option.OptionId
+			}
 		}
 	}
-	return allowOnce
+	switch {
+	case allowOnce != "":
+		return allowOnce
+	case rejectOnce != "":
+		return rejectOnce
+	}
+	return rejectAlways
 }
 
 // SessionUpdate relays typed agent updates to SSE subscribers and records
@@ -294,10 +312,49 @@ func (d *driverClient) SessionUpdate(ctx context.Context, params acp.SessionNoti
 	return nil
 }
 
-// contentText extracts the text from a content block, empty for non-text
+// contentText renders a message content block as transcript markdown. Text
+// is passed through; the other block kinds an agent may stream are rendered
+// as a short reference so they are not silently lost (a link to a file the
+// agent created, an embedded resource) - binary media is only noted, the
+// transcript does not store it
 func contentText(block acp.ContentBlock) string {
-	if block.Text != nil {
+	switch {
+	case block.Text != nil:
 		return block.Text.Text
+	case block.ResourceLink != nil:
+		link := block.ResourceLink
+		name := link.Name
+		if link.Title != nil && *link.Title != "" {
+			name = *link.Title
+		}
+		return resourceRef(name, link.Uri)
+	case block.Resource != nil:
+		resource := block.Resource.Resource
+		switch {
+		case resource.TextResourceContents != nil:
+			return resourceRef("", resource.TextResourceContents.Uri)
+		case resource.BlobResourceContents != nil:
+			return resourceRef("", resource.BlobResourceContents.Uri)
+		}
+	case block.Image != nil:
+		return "[image]"
+	case block.Audio != nil:
+		return "[audio]"
 	}
 	return ""
+}
+
+// resourceRef renders a resource reference: web links stay clickable, other
+// URIs (file:// paths inside the sandbox) are shown as code
+func resourceRef(name, uri string) string {
+	if name == "" {
+		name = uri
+	}
+	if strings.HasPrefix(uri, "https://") || strings.HasPrefix(uri, "http://") {
+		return fmt.Sprintf("[%s](%s)", name, uri)
+	}
+	if name == "" {
+		return ""
+	}
+	return "`" + name + "`"
 }

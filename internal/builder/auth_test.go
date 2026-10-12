@@ -4,6 +4,7 @@
 package builder
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -72,5 +73,23 @@ func TestDescribeAuthMethods(t *testing.T) {
 	emptyMsg := describeAuthMethods(nil, "myagent", false)
 	if !strings.Contains(emptyMsg, "[builder_agent.myagent]") {
 		t.Errorf("empty methods message should point at the agent config: %s", emptyMsg)
+	}
+}
+
+func TestAgentAuthMethodExplicitType(t *testing.T) {
+	// "agent" is the default type; an explicit "type": "agent" must not be
+	// mistaken for a terminal method (the SDK decodes it as one)
+	var methods []acp.AuthMethod
+	if err := json.Unmarshal([]byte(`[{"id":"login","name":"Login","type":"agent"},
+		{"id":"tui","name":"TUI","type":"terminal"},{"id":"plain","name":"Plain"}]`), &methods); err != nil {
+		t.Fatal(err)
+	}
+	agentMethods := agentAuthMethods(methods)
+	if len(agentMethods) != 2 || agentMethods[0].Id != "login" || agentMethods[1].Id != "plain" {
+		t.Fatalf("expected [login plain], got %v", agentMethods)
+	}
+	described := describeAuthMethods(methods, "codex", true)
+	if !strings.Contains(described, "Login (agent-managed browser login)") || !strings.Contains(described, "TUI (interactive terminal login") {
+		t.Fatalf("unexpected description: %s", described)
 	}
 }

@@ -466,12 +466,15 @@ func (m *Manager) launch(ls *liveSession) error {
 	acpCwd := "/workspace"
 	var sb *sandbox
 	if m.hostMode() {
+		// ACP requires an absolute cwd; workspace_dir may be configured relative
+		if acpCwd, err = filepath.Abs(session.WorkspaceDir); err != nil {
+			return err
+		}
 		ls.emit(Event{Kind: "status", Status: "starting agent process (unsafe, no sandbox)"})
 		sb, err = startHostAgent(session.WorkspaceDir, p, env)
 		if err != nil {
 			return err
 		}
-		acpCwd = session.WorkspaceDir
 	} else {
 		cli, err := m.containerCLI()
 		if err != nil {
@@ -514,45 +517,29 @@ func (m *Manager) launch(ls *liveSession) error {
 	if err != nil {
 		return fmt.Errorf("ACP initialize failed: %w (agent stderr: %s)", err, sb.stderr())
 	}
-	// Version negotiation: the agent echoes our version if it supports it,
-	// otherwise it answers with its own latest. The client must disconnect
-	// when it does not support the returned version
-	if initResp.ProtocolVersion != acp.ProtocolVersionNumber {
-		return fmt.Errorf("agent %s uses unsupported ACP protocol version %v (supported: %v)",
-			session.Agent, initResp.ProtocolVersion, acp.ProtocolVersionNumber)
+	if err := checkProtocolVersion(session.Agent, initResp.ProtocolVersion); err != nil {
+		return err
 	}
 	// Restore the previous conversation when the agent supports it and this
-	// session ran before: session/resume (rehydrates without replaying the
-	// history) is preferred over session/load (streams the whole history
-	// back as updates, suppressed by the restoring flag). The agent's own
-	// state lives in its home - persisted across sandbox restarts by the
-	// state volume (host mode uses the real home). A failed restore falls
-	// back to a fresh session: the chat transcript in the console is
-	// unaffected either way, only the agent's memory of it
+	// session ran before. The agent's own state lives in its home -
+	// persisted across sandbox restarts by the state volume (host mode uses
+	// the real home). A failed restore falls back to a fresh session: the
+	// chat transcript in the console is unaffected either way, only the
+	// agent's memory of it
 	acpSessionId := acp.SessionId(session.AcpSessionId)
 	restored := false
 	if session.AcpSessionId != "" {
 		restoreCtx, restoreCancel := context.WithTimeout(ls.ctx, handshakeTimeout)
-		caps := initResp.AgentCapabilities
-		if caps.SessionCapabilities.Resume != nil {
-			_, err := conn.ResumeSession(restoreCtx, acp.ResumeSessionRequest{
-				Cwd: acpCwd, SessionId: acpSessionId})
-			restored = err == nil
-			if err != nil {
-				m.Warn().Err(err).Str("session", ls.id).Msg("ACP session/resume failed, starting fresh")
-			}
-		} else if caps.LoadSession {
-			ls.mu.Lock()
-			ls.restoring = true
-			ls.mu.Unlock()
-			_, err := conn.LoadSession(restoreCtx, acp.LoadSessionRequest{
-				Cwd: acpCwd, SessionId: acpSessionId, McpServers: []acp.McpServer{}})
-			ls.mu.Lock()
-			ls.restoring = false
-			ls.mu.Unlock()
-			restored = err == nil
-			if err != nil {
-				m.Warn().Err(err).Str("session", ls.id).Msg("ACP session/load failed, starting fresh")
+		var configOptions []acp.SessionConfigOption
+		restored, configOptions = m.restoreSession(restoreCtx, ls, conn, initResp.AgentCapabilities, acpCwd, acpSessionId)
+		if restored && len(configOptions) > 0 {
+			// The restored session reports its config state: re-apply the
+			// profile's model/effort, which may have changed since the
+			// session was created. Agents not reporting options keep the
+			// state they restored (warnings would repeat on every resume)
+			for _, warning := range applySessionConfig(restoreCtx, conn, acpSessionId,
+				configOptions, agentConfig.Model, agentConfig.Effort) {
+				m.Warn().Str("session", ls.id).Msg(warning)
 			}
 		}
 		restoreCancel()
@@ -621,6 +608,62 @@ func (m *Manager) launch(ls *liveSession) error {
 
 	m.setStatus(ls, types.BuilderSessionReady)
 	return nil
+}
+
+// checkProtocolVersion validates the initialize response version. The agent
+// echoes the requested version when it supports it, otherwise it answers
+// with the latest version it supports; the client should then disconnect
+// and tell the user. The version is the major protocol version, only bumped
+// for breaking changes: older agents speaking version 1 with fewer features
+// are handled through capability checks, while a different major version
+// (an agent that only speaks a pre-1 draft or a newer major) cannot be driven
+func checkProtocolVersion(agentName string, version acp.ProtocolVersion) error {
+	if version == acp.ProtocolVersionNumber {
+		return nil
+	}
+	return fmt.Errorf("agent %s does not support ACP protocol version %v (it answered with version %v); "+
+		"use an agent release that speaks ACP v%v", agentName, acp.ProtocolVersionNumber, version, acp.ProtocolVersionNumber)
+}
+
+// sessionRestorer is the subset of the ACP connection used to restore a
+// previous agent session, split out so tests can fake the agent side
+type sessionRestorer interface {
+	ResumeSession(ctx context.Context, params acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error)
+	LoadSession(ctx context.Context, params acp.LoadSessionRequest) (acp.LoadSessionResponse, error)
+}
+
+// restoreSession restores the agent conversation for acpSessionId, calling
+// only the methods the agent advertised. session/resume (rehydrates without
+// replaying the history) is preferred; session/load (streams the whole
+// history back as updates, dropped while the restoring flag is set) is
+// tried when resume is not advertised or fails - resume was an unstable
+// extension in older agents, while load has been in the spec since v1.
+// Returns the config options the agent reported for the restored session
+func (m *Manager) restoreSession(ctx context.Context, ls *liveSession, conn sessionRestorer,
+	caps acp.AgentCapabilities, cwd string, acpSessionId acp.SessionId) (bool, []acp.SessionConfigOption) {
+	if caps.SessionCapabilities.Resume != nil {
+		resp, err := conn.ResumeSession(ctx, acp.ResumeSessionRequest{Cwd: cwd, SessionId: acpSessionId})
+		if err == nil {
+			return true, resp.ConfigOptions
+		}
+		m.Warn().Err(err).Str("session", ls.id).Msg("ACP session/resume failed")
+	}
+	if caps.LoadSession {
+		ls.mu.Lock()
+		ls.restoring = true
+		ls.mu.Unlock()
+		// mcpServers is required on session/load (optional on resume)
+		resp, err := conn.LoadSession(ctx, acp.LoadSessionRequest{
+			Cwd: cwd, SessionId: acpSessionId, McpServers: []acp.McpServer{}})
+		ls.mu.Lock()
+		ls.restoring = false
+		ls.mu.Unlock()
+		if err == nil {
+			return true, resp.ConfigOptions
+		}
+		m.Warn().Err(err).Str("session", ls.id).Msg("ACP session/load failed")
+	}
+	return false, nil
 }
 
 // SendMessage starts a prompt turn with the user's message
@@ -713,9 +756,25 @@ func (m *Manager) runTurn(ls *liveSession, text string, claimed bool) {
 	ls.turnActive = false
 	ls.turnCancel = nil
 	ls.lastActive = time.Now()
+	cancelled := ls.turnCancelled
 	message := ls.msgBuf.String()
 	ls.msgBuf.Reset()
 	ls.mu.Unlock()
+
+	if err != nil && ls.ctx.Err() != nil {
+		// The session was stopped mid-turn: stopLive already persisted the
+		// final status (a ready status here would overwrite it) and closed
+		// the subscribers
+		return
+	}
+	if err != nil && cancelled && !timedOut {
+		// The protocol requires the agent to answer a cancelled prompt with
+		// the cancelled stop reason, catching its own abort errors. Older
+		// agents answer with an error instead: after session/cancel that is
+		// the cancellation, not a failure to show the user
+		m.Info().Err(err).Str("session", ls.id).Msg("Agent answered the cancelled turn with an error, treating it as cancelled")
+		response, err = acp.PromptResponse{StopReason: acp.StopReasonCancelled}, nil
+	}
 
 	if err != nil {
 		errText := err.Error()
@@ -737,7 +796,30 @@ func (m *Manager) runTurn(ls *liveSession, text string, claimed bool) {
 	if message = strings.TrimSpace(message); message != "" {
 		m.appendActivity(ls.id, ls.userID, "agent_message", message, metadata)
 	}
+	// Non-natural endings get a durable mark: the console shows a live chip
+	// for them, which a reloaded transcript would otherwise lose
+	if note := stopReasonNote(response.StopReason); note != "" {
+		m.appendActivity(ls.id, ls.userID, "lifecycle", note, map[string]any{"stop_reason": string(response.StopReason)})
+	}
 	m.finishSuccessfulTurn(ls, string(response.StopReason))
+}
+
+// stopReasonNote describes a turn that did not end naturally, empty for
+// end_turn (and for stop reasons added after this client was written)
+func stopReasonNote(reason acp.StopReason) string {
+	switch reason {
+	case acp.StopReasonCancelled:
+		return "turn stopped"
+	case acp.StopReasonRefusal:
+		// the agent drops the refused prompt (and anything after it) from
+		// the context of the next prompt
+		return "the agent declined to continue; the last message is not part of its context"
+	case acp.StopReasonMaxTokens:
+		return "the turn hit the agent's token limit"
+	case acp.StopReasonMaxTurnRequests:
+		return "the turn hit the agent's model request limit"
+	}
+	return ""
 }
 
 // finishSuccessfulTurn completes server-side turn processing before exposing
@@ -800,8 +882,9 @@ func (m *Manager) StopSession(id, userID string) error {
 }
 
 // ResumeSession relaunches the sandbox for a detached session. The agent
-// conversation starts fresh over the same sources; the transcript history
-// stays in the activity log
+// conversation is restored when the agent supports session/resume or
+// session/load, otherwise it starts fresh over the same sources; the
+// transcript history stays in the activity log either way
 func (m *Manager) ResumeSession(ctx context.Context, id, userID string) error {
 	config := m.config()
 	if !config.AppBuilder.Enabled {
@@ -1160,11 +1243,13 @@ func (m *Manager) VerifyProfile(ctx context.Context, name string, testPrompt boo
 	acpCwd := "/workspace"
 	var sb *sandbox
 	if m.hostMode() {
+		if acpCwd, err = filepath.Abs(workspace); err != nil { // ACP requires an absolute cwd
+			return err
+		}
 		sb, err = startHostAgent(workspace, p, env)
 		if err != nil {
 			return err
 		}
-		acpCwd = workspace
 	} else {
 		cli, err := m.containerCLI()
 		if err != nil {
@@ -1197,9 +1282,8 @@ func (m *Manager) VerifyProfile(ctx context.Context, name string, testPrompt boo
 	if err != nil {
 		return fmt.Errorf("ACP initialize failed: %w (agent stderr: %s)", err, sb.stderr())
 	}
-	if initResp.ProtocolVersion != acp.ProtocolVersionNumber {
-		return fmt.Errorf("agent %s uses unsupported ACP protocol version %v (supported: %v)",
-			name, initResp.ProtocolVersion, acp.ProtocolVersionNumber)
+	if err := checkProtocolVersion(name, initResp.ProtocolVersion); err != nil {
+		return err
 	}
 	newSession, err := m.newSessionWithAuth(ctx, conn, sb, acpCwd, name, initResp.AuthMethods,
 		func(msg string) { m.Info().Str("agent", name).Msg(msg) })

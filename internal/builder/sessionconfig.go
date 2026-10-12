@@ -19,7 +19,8 @@ type configOptionSetter interface {
 
 // applySessionConfig sets the profile's model and reasoning effort on a new
 // ACP session through the session config options the agent advertised in
-// session/new. Best-effort: a missing option or a failed set produces a
+// session/new (or the restored session's options from session/resume or
+// session/load). Best-effort: a missing option or a failed set produces a
 // warning, not an error - the OPENRUN_AGENT_MODEL/EFFORT env vars set at
 // sandbox start remain the fallback for agents without config options
 func applySessionConfig(ctx context.Context, conn configOptionSetter, sessionId acp.SessionId,
@@ -41,10 +42,21 @@ func applySessionConfig(ctx context.Context, conn configOptionSetter, sessionId 
 					kind, value, strings.Join(optionValues(sel), ", ")))
 				return
 			}
-			if _, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+			if sel.CurrentValue == chosen {
+				return // already set (a restored session keeps its config)
+			}
+			resp, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
 				ValueId: &acp.SetSessionConfigOptionValueId{SessionId: sessionId, ConfigId: sel.Id, Value: chosen},
-			}); err != nil {
+			})
+			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("setting agent %s to %q failed: %s", kind, value, err))
+				return
+			}
+			// The response carries the full option set: changing one option
+			// (the model) may change the others (the effort levels on offer).
+			// Older agents answer with no options, keep the advertised ones
+			if len(resp.ConfigOptions) > 0 {
+				options = resp.ConfigOptions
 			}
 			return
 		}

@@ -41,11 +41,27 @@ func isAuthRequired(err error) bool {
 func agentAuthMethods(methods []acp.AuthMethod) []*acp.AuthMethodAgent {
 	var agentMethods []*acp.AuthMethodAgent
 	for _, method := range methods {
-		if method.Agent != nil {
-			agentMethods = append(agentMethods, method.Agent)
+		if agent := asAgentMethod(method); agent != nil {
+			agentMethods = append(agentMethods, agent)
 		}
 	}
 	return agentMethods
+}
+
+// asAgentMethod returns the agent-managed form of an auth method, nil for
+// other types. "agent" is the default type when none is given, but agents
+// may also send it explicitly; the SDK decoder has no "agent" case and
+// files such a method under the terminal variant (which only needs id and
+// name), so it is mapped back here
+func asAgentMethod(method acp.AuthMethod) *acp.AuthMethodAgent {
+	switch {
+	case method.Agent != nil:
+		return method.Agent
+	case method.Terminal != nil && method.Terminal.Type == "agent":
+		terminal := method.Terminal
+		return &acp.AuthMethodAgent{Meta: terminal.Meta, Description: terminal.Description, Id: terminal.Id, Name: terminal.Name}
+	}
+	return nil
 }
 
 // newSessionWithAuth runs session/new, resolving the ACP auth-required error
@@ -115,6 +131,7 @@ func describeAuthMethods(methods []acp.AuthMethod, agentName string, hostMode bo
 	}
 	var options []string
 	for _, method := range methods {
+		agent := asAgentMethod(method)
 		switch {
 		case method.EnvVar != nil:
 			vars := make([]string, 0, len(method.EnvVar.Vars))
@@ -130,11 +147,11 @@ func describeAuthMethods(methods []acp.AuthMethod, agentName string, hostMode bo
 				option += fmt.Sprintf(" (get credentials at %s)", *method.EnvVar.Link)
 			}
 			options = append(options, option)
-		case method.Agent != nil:
+		case agent != nil:
 			if hostMode {
-				options = append(options, fmt.Sprintf("%s (agent-managed browser login)", method.Agent.Name))
+				options = append(options, fmt.Sprintf("%s (agent-managed browser login)", agent.Name))
 			} else {
-				options = append(options, fmt.Sprintf("%s (agent-managed browser login; only available with security.unsafe_agent_without_sandbox - a sandboxed agent cannot open a browser)", method.Agent.Name))
+				options = append(options, fmt.Sprintf("%s (agent-managed browser login; only available with security.unsafe_agent_without_sandbox - a sandboxed agent cannot open a browser)", agent.Name))
 			}
 		case method.Terminal != nil:
 			options = append(options, fmt.Sprintf("%s (interactive terminal login, not supported by OpenRun)", method.Terminal.Name))
