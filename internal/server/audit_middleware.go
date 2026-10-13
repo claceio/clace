@@ -494,6 +494,18 @@ func updateOperationInContext(r *http.Request, operation string) {
 	}
 }
 
+// updateUserInContext records the authenticated principal of ctx on the
+// shared request state, for the access log and http audit event written once
+// the request is done. Used by the paths which authenticate after the status
+// middleware ran (REST bearer credentials, the UDS --as user)
+func updateUserInContext(ctx context.Context) {
+	if cs, ok := ctx.Value(types.SHARED).(*ContextShared); ok {
+		if userId := system.GetContextUserId(ctx); userId != "" {
+			cs.UserId = userId
+		}
+	}
+}
+
 var requestCounter uint64
 
 // newBackgroundOperationContext returns a context for server-initiated work

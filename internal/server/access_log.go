@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/types"
 	"github.com/rs/zerolog"
 )
@@ -29,7 +30,10 @@ func (s *Server) initAccessLogger(config *types.ServerConfig) {
 }
 
 // accessLogMiddleware logs one entry per request when access logging is
-// enabled; when disabled it is a no-op passthrough.
+// enabled; when disabled it is a no-op passthrough. It runs inside the status
+// middleware, so the request id is set and the user/app id are filled in on
+// the shared request state by the auth code before the entry is written. The
+// request id matches the audit events of the request.
 func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 	if s.accessLogger == nil {
 		return next
@@ -43,6 +47,10 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
+		var userId, appId string
+		if cs, ok := r.Context().Value(types.SHARED).(*ContextShared); ok {
+			userId, appId = cs.UserId, cs.AppId
+		}
 		s.accessLogger.Log().
 			Str("method", r.Method).
 			Str("host", r.Host).
@@ -52,6 +60,9 @@ func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
 			Int("status", status).
 			Int("bytes", ww.BytesWritten()).
 			Dur("duration", time.Since(start)).
+			Str("request_id", system.GetContextRequestId(r.Context())).
+			Str("user_id", userId).
+			Str("app_id", appId).
 			Send()
 	})
 }

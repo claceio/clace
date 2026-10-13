@@ -451,6 +451,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, remote bool
 			if !ok {
 				return
 			}
+			updateUserInContext(authCtx)
 			if !h.server.apiOpEnabled(InvokerRest, API_NAME(operation)) {
 				// Refused attempts are audited: "what was tried and refused"
 				// is a first-class query on the invoker-tagged trail
@@ -489,6 +490,7 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, remote bool
 			return
 		}
 		r = r.WithContext(asCtx)
+		updateUserInContext(asCtx)
 	} else if !remote {
 		// Unix socket calls are authenticated by filesystem permissions and are
 		// the sole management API transport exempt from RBAC

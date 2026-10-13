@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Access log (`logs/access.log`) entries now include `request_id`, `user_id` and `app_id`. The request id matches the audit events for the request, and the user and app ids are empty for unauthenticated and non-app requests ([#106](https://github.com/openrundev/openrun/issues/106)).
+
 ## [v0.20.1] - 2026-10-13
 
 ### Added
