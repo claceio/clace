@@ -72,11 +72,12 @@ litestream_config = "mainbackup"           # replicate the server's own database
 | `path`              |           | Local directory (required for `file`)                                                                             |
 | `access_key_id`, `secret_access_key` | | Credentials; support secret references, resolved at startup                                      |
 | `force_path_style`  | `false`   | Path-style S3 URLs, required by most S3-compatible servers                                                        |
+| `sign_accept_encoding` | `true` | Include the `Accept-Encoding` header in request signatures. Set `false` for S3-compatible services that rewrite the header in transit (Garage, some proxies) and reject the signature. Google Cloud Storage endpoints (`*.googleapis.com`) are detected automatically and never sign it |
 | `sync_interval`     | `1s`      | How often changes are uploaded. This bounds the data loss window on a crash                                       |
 | `retention`         | `24h`     | How long replica history is kept. This bounds how far back a restore can go                                       |
 | `snapshot_interval` | `24h`     | Snapshot frequency; lower values make restores faster                                                             |
 | `sidecar_image`     | `litestream/litestream:0.5` | Litestream image for app replication containers. Keep pinned: the replica format ties restores to the image series |
-| `checkpoint_interval`, `min_checkpoint_page_count`, `truncate_page_n` | | Checkpoint tuning, see [Litestream's guide](https://litestream.io/guides/wal-truncate-threshold/). Apps with long-running reads should set `truncate_page_n = 0` |
+| `checkpoint_interval`, `min_checkpoint_page_count`, `truncate_page_n` | | Checkpoint tuning, see [Litestream's guide](https://litestream.io/guides/wal-truncate-threshold/). Apps with long-running reads should set `truncate_page_n = 0` to disable the blocking TRUNCATE checkpoint |
 | `storage_class`, `sse_kms_key_id` | | Optional S3 storage class and server-side encryption settings                                     |
 
 Credentials cannot use the `db` secret provider: metadata replication must be resolvable before the metadata database is opened. All configured entries are validated at server startup.

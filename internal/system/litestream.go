@@ -108,6 +108,30 @@ func litestreamDuration(value string, def time.Duration) time.Duration {
 	return d
 }
 
+// LitestreamTruncatePageDisabled is the TruncatePageN value passed to
+// litestream when truncate_page_n = 0 is configured.
+const LitestreamTruncatePageDisabled = -1
+
+// LitestreamTruncatePageN returns the TruncatePageN value to hand to
+// litestream for config (the embedded DB or the sidecar's truncate-page-n),
+// and false when truncate_page_n is unset (litestream's default applies).
+//
+// OpenRun documents truncate_page_n = 0 as disabling the blocking TRUNCATE
+// checkpoint. Litestream 0.5.15 treated 0 that way, but 0.5.16+ maps 0 to
+// its default threshold (~500MB) and only a negative value disables the
+// checkpoint; negative values disable it in both versions. So an explicit 0
+// is translated to LitestreamTruncatePageDisabled, keeping the documented
+// meaning across the library upgrade and across sidecar image versions.
+func LitestreamTruncatePageN(config types.LitestreamConfig) (int, bool) {
+	if config.TruncatePageN == nil {
+		return 0, false
+	}
+	if *config.TruncatePageN <= 0 {
+		return LitestreamTruncatePageDisabled, true
+	}
+	return *config.TruncatePageN, true
+}
+
 // newLitestreamReplicaClient builds the replica client for one database at
 // subPath below the config's prefix (e.g. "metadata/clace_metadata.db").
 func newLitestreamReplicaClient(config types.LitestreamConfig, subPath string) (litestream.ReplicaClient, error) {
@@ -119,6 +143,7 @@ func newLitestreamReplicaClient(config types.LitestreamConfig, subPath string) (
 		client.Region = config.Region
 		client.Endpoint = config.Endpoint
 		client.ForcePathStyle = config.ForcePathStyle
+		client.SignAcceptEncoding = config.SignsAcceptEncoding()
 		client.AccessKeyID = config.AccessKeyId
 		client.SecretAccessKey = config.SecretAccessKey
 		client.StorageClass = config.StorageClass
@@ -200,8 +225,8 @@ func (m *LitestreamManager) PrepareDB(ctx context.Context, name, dbFilePath stri
 	if m.config.MinCheckpointPageCount > 0 {
 		db.MinCheckpointPageN = m.config.MinCheckpointPageCount
 	}
-	if m.config.TruncatePageN != nil {
-		db.TruncatePageN = *m.config.TruncatePageN
+	if n, ok := LitestreamTruncatePageN(m.config); ok {
+		db.TruncatePageN = n
 	}
 
 	existed := true

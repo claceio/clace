@@ -165,3 +165,23 @@ func TestLitestreamManagerReplicateAndRestore(t *testing.T) {
 		t.Fatalf("restored value = %d, want 42", x)
 	}
 }
+
+// TestLitestreamTruncatePageN verifies the documented truncate_page_n
+// semantics survive the litestream 0.5.16+ change that made 0 mean "default
+// threshold": an explicit 0 becomes the disabling negative value, positive
+// values pass through, unset leaves litestream's default.
+func TestLitestreamTruncatePageN(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := LitestreamTruncatePageN(types.LitestreamConfig{}); ok {
+		t.Fatal("unset truncate_page_n must report ok=false")
+	}
+	zero := 0
+	if n, ok := LitestreamTruncatePageN(types.LitestreamConfig{TruncatePageN: &zero}); !ok || n != LitestreamTruncatePageDisabled || n >= 0 {
+		t.Fatalf("truncate_page_n = 0: got %d, %v; want a negative (disabled) value", n, ok)
+	}
+	pos := 4096
+	if n, ok := LitestreamTruncatePageN(types.LitestreamConfig{TruncatePageN: &pos}); !ok || n != 4096 {
+		t.Fatalf("truncate_page_n = 4096: got %d, %v", n, ok)
+	}
+}

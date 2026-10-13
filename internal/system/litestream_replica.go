@@ -20,6 +20,9 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/benbjohnson/litestream"
 	"github.com/openrundev/openrun/internal/types"
 )
 
@@ -70,6 +73,9 @@ func LitestreamReplicaURL(config types.LitestreamConfig, replicaPath string) (st
 		if config.ForcePathStyle {
 			query.Set("forcePathStyle", "true")
 		}
+		if !config.SignsAcceptEncoding() {
+			query.Set("signAcceptEncoding", "false")
+		}
 		u.RawQuery = query.Encode()
 		return u.String(), nil
 	case LitestreamReplicaTypeFile:
@@ -80,9 +86,11 @@ func LitestreamReplicaURL(config types.LitestreamConfig, replicaPath string) (st
 }
 
 // newLitestreamS3Client builds an S3 client for replica listing, matching the
-// connection settings litestream itself uses (static credentials, custom
-// endpoint, path-style addressing).
-func newLitestreamS3Client(ctx context.Context, config types.LitestreamConfig) (*awss3.Client, error) {
+// connection settings litestream's own s3 replica client uses (static
+// credentials, custom endpoint, path-style addressing, and the
+// S3-compatible-provider adjustments below), so a bucket that litestream
+// can replicate to can also be listed. extraOpts are applied last (tests).
+func newLitestreamS3Client(ctx context.Context, config types.LitestreamConfig, extraOpts ...func(*awss3.Options)) (*awss3.Client, error) {
 	region := config.Region
 	if region == "" {
 		region = "us-east-1"
@@ -96,12 +104,51 @@ func newLitestreamS3Client(ctx context.Context, config types.LitestreamConfig) (
 	if err != nil {
 		return nil, fmt.Errorf("error loading s3 config: %w", err)
 	}
-	return awss3.NewFromConfig(awsCfg, func(o *awss3.Options) {
+	s3Opts := []func(*awss3.Options){func(o *awss3.Options) {
 		if config.Endpoint != "" {
 			o.BaseEndpoint = aws.String(config.Endpoint)
+			// S3-compatible providers do not support the aws-chunked content
+			// encoding the SDK's default checksum calculation uses; litestream
+			// disables it for every custom endpoint and so does this client.
+			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 		}
 		o.UsePathStyle = config.ForcePathStyle
-	}), nil
+		o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) error {
+			if config.Endpoint != "" {
+				// Not registered for list-only calls; removal is best effort.
+				_, _ = stack.Finalize.Remove("addInputChecksumTrailer")
+			}
+			if litestreamSignsAcceptEncoding(config) {
+				return nil
+			}
+			// The SDK adds Accept-Encoding: identity and signs it; GCS (and
+			// some proxies) rewrite the header in transit, so the signature
+			// no longer matches (SignatureDoesNotMatch). Drop the header
+			// before signing, as litestream does (its #1394 / #1439).
+			return stack.Finalize.Insert(middleware.FinalizeMiddlewareFunc(
+				"OpenRunRemoveAcceptEncoding",
+				func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (
+					middleware.FinalizeOutput, middleware.Metadata, error,
+				) {
+					if req, ok := in.Request.(*smithyhttp.Request); ok {
+						req.Header.Del("Accept-Encoding")
+					}
+					return next.HandleFinalize(ctx, in)
+				}), "Signing", middleware.Before)
+		})
+	}}
+	s3Opts = append(s3Opts, extraOpts...)
+	return awss3.NewFromConfig(awsCfg, s3Opts...), nil
+}
+
+// litestreamSignsAcceptEncoding reports whether S3 requests for config
+// should include Accept-Encoding in the signature: the sign_accept_encoding
+// setting, except that Google Cloud Storage endpoints never sign it. This is
+// the same rule litestream's s3 replica client applies, using its endpoint
+// check, so both clients treat the same endpoints as GCS.
+func litestreamSignsAcceptEncoding(config types.LitestreamConfig) bool {
+	return config.SignsAcceptEncoding() && !litestream.IsGoogleCloudStorageEndpoint(config.Endpoint)
 }
 
 // ListLitestreamReplicaDBs lists the databases replicated under replicaPrefix

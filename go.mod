@@ -18,7 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.2
 	github.com/beevik/etree v1.7.0
 	github.com/benbjohnson/hashfs v0.2.2
-	github.com/benbjohnson/litestream v0.5.15
+	github.com/benbjohnson/litestream v0.5.17
 	github.com/bmatcuk/doublestar/v4 v4.7.1
 	github.com/caddyserver/certmagic v0.21.4
 	github.com/cloudflare/tableflip v1.2.3
@@ -202,7 +202,7 @@ require (
 	github.com/oklog/run v1.2.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -210,7 +210,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
-	github.com/psanford/sqlite3vfs v0.0.0-20251127171934-4e34e03a991a // indirect
+	github.com/psanford/sqlite3vfs v0.0.0-20260519004904-f9180fa2acc9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
@@ -222,7 +222,7 @@ require (
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/superfly/ltx v0.5.1 // indirect
+	github.com/superfly/ltx v0.5.2 // indirect
 	github.com/tetratelabs/wazero v1.2.1 // indirect
 	github.com/wasilibs/go-re2 v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

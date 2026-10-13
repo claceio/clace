@@ -88,3 +88,52 @@ func TestMergeSqliteVolumes(t *testing.T) {
 		t.Fatalf("no-binding merge changed the volumes: %+v", got)
 	}
 }
+
+// TestRenderLitestreamConfigSignAcceptEncoding verifies sign_accept_encoding
+// reaches the sidecar litestream.yml only when turned off (the key is a
+// litestream >= 0.5.17 setting; older sidecar images must not see it).
+func TestRenderLitestreamConfigSignAcceptEncoding(t *testing.T) {
+	db := litestreamDB{
+		config:          types.LitestreamConfig{Bucket: "bkt"},
+		containerConfig: types.LitestreamConfig{Bucket: "bkt"},
+		targetDir:       "/data",
+		replicaPrefix:   "bindings/b1/prod",
+	}
+	if got := renderLitestreamConfig([]litestreamDB{db}, ""); strings.Contains(got, "sign-accept-encoding") {
+		t.Fatalf("default must omit sign-accept-encoding:\n%s", got)
+	}
+
+	off := false
+	db.config.SignAcceptEncoding = &off
+	if got := renderLitestreamConfig([]litestreamDB{db}, ""); !strings.Contains(got, "      sign-accept-encoding: false\n") {
+		t.Fatalf("sign-accept-encoding: false missing:\n%s", got)
+	}
+}
+
+// TestRenderLitestreamConfigTruncatePageN verifies truncate_page_n reaches
+// the sidecar litestream.yml, with 0 (documented as "disable") written as
+// the negative value litestream >= 0.5.16 needs to actually disable the
+// truncate checkpoint (0 means "default threshold" there).
+func TestRenderLitestreamConfigTruncatePageN(t *testing.T) {
+	db := litestreamDB{
+		config:          types.LitestreamConfig{Bucket: "bkt"},
+		containerConfig: types.LitestreamConfig{Bucket: "bkt"},
+		targetDir:       "/data",
+		replicaPrefix:   "bindings/b1/prod",
+	}
+	if got := renderLitestreamConfig([]litestreamDB{db}, ""); strings.Contains(got, "truncate-page-n") {
+		t.Fatalf("unset must omit truncate-page-n:\n%s", got)
+	}
+
+	zero := 0
+	db.config.TruncatePageN = &zero
+	if got := renderLitestreamConfig([]litestreamDB{db}, ""); !strings.Contains(got, "    truncate-page-n: -1\n") {
+		t.Fatalf("truncate_page_n = 0 must disable (-1):\n%s", got)
+	}
+
+	n := 5000
+	db.config.TruncatePageN = &n
+	if got := renderLitestreamConfig([]litestreamDB{db}, ""); !strings.Contains(got, "    truncate-page-n: 5000\n") {
+		t.Fatalf("truncate-page-n: 5000 missing:\n%s", got)
+	}
+}

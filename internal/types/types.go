@@ -803,6 +803,13 @@ type LitestreamConfig struct {
 	AccessKeyId       string `toml:"access_key_id"`     // secret reference or raw value
 	SecretAccessKey   string `toml:"secret_access_key"` // secret reference or raw value
 	ForcePathStyle    bool   `toml:"force_path_style"`  // required by most S3-compatibles (Garage, MinIO)
+	// SignAcceptEncoding controls whether the Accept-Encoding header is part
+	// of the request signature (default true). Some S3-compatible services
+	// (Garage, services behind proxies that rewrite the header) alter the
+	// header in transit and then reject the signature; set false for those.
+	// Google Cloud Storage endpoints (*.googleapis.com) are detected and
+	// excluded automatically. Pointer so unset differs from an explicit false.
+	SignAcceptEncoding *bool `toml:"sign_accept_encoding"`
 
 	SyncInterval     string `toml:"sync_interval"`     // litestream replica sync interval, default 1s
 	Retention        string `toml:"retention"`         // replica retention, e.g. 72h
@@ -813,7 +820,7 @@ type LitestreamConfig struct {
 	// should set truncate_page_n = 0 to avoid blocking TRUNCATE checkpoints.
 	CheckpointInterval     string `toml:"checkpoint_interval"`
 	MinCheckpointPageCount int    `toml:"min_checkpoint_page_count"`
-	TruncatePageN          *int   `toml:"truncate_page_n"` // pointer so an explicit 0 (disable) differs from unset
+	TruncatePageN          *int   `toml:"truncate_page_n"` // pointer so an explicit 0 (disable) differs from unset; see system.LitestreamTruncatePageN
 
 	// SidecarImage is the litestream image used for app restore/replicate
 	// containers. Pinned per config: the 0.5 LTX replica format ties restore
@@ -822,6 +829,12 @@ type LitestreamConfig struct {
 
 	StorageClass string `toml:"storage_class"`  // optional S3 storage class, e.g. STANDARD_IA
 	SseKmsKeyId  string `toml:"sse_kms_key_id"` // optional S3 server-side encryption key
+}
+
+// SignsAcceptEncoding reports the effective sign_accept_encoding setting
+// (true when unset).
+func (c LitestreamConfig) SignsAcceptEncoding() bool {
+	return c.SignAcceptEncoding == nil || *c.SignAcceptEncoding
 }
 
 // LogConfig is the configuration for the Logger

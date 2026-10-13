@@ -149,8 +149,8 @@ func renderLitestreamConfig(dbs []litestreamDB, logLevel string) string {
 		if db.config.MinCheckpointPageCount > 0 {
 			fmt.Fprintf(&b, "    min-checkpoint-page-count: %d\n", db.config.MinCheckpointPageCount)
 		}
-		if db.config.TruncatePageN != nil {
-			fmt.Fprintf(&b, "    truncate-page-n: %d\n", *db.config.TruncatePageN)
+		if n, ok := system.LitestreamTruncatePageN(db.config); ok {
+			fmt.Fprintf(&b, "    truncate-page-n: %d\n", n)
 		}
 		b.WriteString("    replica:\n")
 		b.WriteString("      type: s3\n")
@@ -164,6 +164,9 @@ func renderLitestreamConfig(dbs []litestreamDB, logLevel string) string {
 		}
 		if db.config.ForcePathStyle {
 			b.WriteString("      force-path-style: true\n")
+		}
+		if !db.config.SignsAcceptEncoding() {
+			b.WriteString("      sign-accept-encoding: false\n")
 		}
 		if db.config.SyncInterval != "" {
 			fmt.Fprintf(&b, "      sync-interval: %s\n", db.config.SyncInterval)
