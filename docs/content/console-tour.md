@@ -180,10 +180,16 @@ permission are disabled too:
 
 {{< theme-image light="/images/console_rbac/13-enguser3-apps-light.png" dark="/images/console_rbac/13-enguser3-apps-dark.png" alt="Read-only user with disabled write controls and nav items" >}}
 
+The same user's app detail page shows only the basic app info. The
+Config, Compare and Files tabs, the source and the per-environment panel
+need `app:read_detail`, which the user role does not hold:
+
+{{< theme-image light="/images/console_rbac/14-enguser3-app-detail-light.png" dark="/images/console_rbac/14-enguser3-app-detail-dark.png" alt="Read-only user's app detail page with only the basic app info" >}}
+
 The operator's all-target grant sees everything, plus approve/promote and
 the configuration pages:
 
-{{< theme-image light="/images/console_rbac/14-operator-bindings-light.png" dark="/images/console_rbac/14-operator-bindings-dark.png" alt="Operator view with every app, service and binding visible" >}}
+{{< theme-image light="/images/console_rbac/15-operator-bindings-light.png" dark="/images/console_rbac/15-operator-bindings-dark.png" alt="Operator view with every app, service and binding visible" >}}
 
 ### Per-resource denials and staged updates
 
@@ -192,13 +198,13 @@ namespace, a binding outside the team prefix, a binding sourced from
 another team's service - are each denied per resource, with the form
 re-rendered in place:
 
-{{< theme-image light="/images/console_rbac/15-engdev1-binding-denied-light.png" dark="/images/console_rbac/15-engdev1-binding-denied-dark.png" alt="Scoped write denial re-rendered inline on the binding form" >}}
+{{< theme-image light="/images/console_rbac/16-engdev1-binding-denied-light.png" dark="/images/console_rbac/16-engdev1-binding-denied-dark.png" alt="Scoped write denial re-rendered inline on the binding form" >}}
 
 Updates always apply to staging first; promoting to prod is a separate
 permission. The read-only user sees the pending promotion but a disabled
 Promote action:
 
-{{< theme-image light="/images/console_rbac/16-engdev1-promoted-light.png" dark="/images/console_rbac/16-engdev1-promoted-dark.png" alt="Staged param update promoted to prod by the developer" >}}
+{{< theme-image light="/images/console_rbac/17-engdev1-promoted-light.png" dark="/images/console_rbac/17-engdev1-promoted-dark.png" alt="Staged param update promoted to prod by the developer" >}}
 
 ### Dynamic grant changes
 
@@ -206,11 +212,11 @@ Grant changes publish without restarts. The operator loans the eng
 developer to finance - the finance apps, service and bindings appear on
 their next request:
 
-{{< theme-image light="/images/console_rbac/17-operator-loan-published-light.png" dark="/images/console_rbac/17-operator-loan-published-dark.png" alt="Loan grant published by the operator" >}}
+{{< theme-image light="/images/console_rbac/18-operator-loan-published-light.png" dark="/images/console_rbac/18-operator-loan-published-dark.png" alt="Loan grant published by the operator" >}}
 
-{{< theme-image light="/images/console_rbac/18-engdev1-loaned-light.png" dark="/images/console_rbac/18-engdev1-loaned-dark.png" alt="Eng developer seeing the finance resources during the loan" >}}
+{{< theme-image light="/images/console_rbac/19-engdev1-loaned-light.png" dark="/images/console_rbac/19-engdev1-loaned-dark.png" alt="Eng developer seeing the finance resources during the loan" >}}
 
 Deleting the loan grant reverts the access just as immediately - the
 finance apps drop out of the lists and their URLs 403 again:
 
-{{< theme-image light="/images/console_rbac/19-engdev1-revoked-light.png" dark="/images/console_rbac/19-engdev1-revoked-dark.png" alt="Access back to the team baseline after the loan grant is deleted" >}}
+{{< theme-image light="/images/console_rbac/20-engdev1-revoked-light.png" dark="/images/console_rbac/20-engdev1-revoked-dark.png" alt="Access back to the team baseline after the loan grant is deleted" >}}
