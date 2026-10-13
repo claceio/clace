@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [v0.20.1] - 2026-10-13
+
 ### Added
 
 - Added the global CLI flag `--server-uri <uri>` (or the `OPENRUN_SERVER_URI` env variable): the server uri to connect to, a unix socket path or `https://host[:port]`. When set it takes precedence over `server_uri` in the config file, so one client config can be used against multiple servers (`openrun --server-uri https://staging.example.com:25223 app list`).
