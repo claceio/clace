@@ -92,6 +92,10 @@ The default OpenRun server config already includes two implicit approvals used b
 
 Because of these defaults, a standard containerized app does not need explicit `ace.permission(...)` entries just to call `proxy.config(container.URL)` and `container.config(...)`. The default `container.config(...)` approval does not allow secrets. If a containerized app passes secrets through params, build args or generated secret volumes, the app must declare and receive approval for a `container.config` permission with the required `secrets=[...]` allowlist, or the server config must be intentionally changed to allow those secrets globally.
 
+The server config entry and the app's own permission work at two levels. The server entry approves the plugin call, so an app whose `container.config` permission declares `secrets=[...]` still deploys without approval. The secrets themselves are granted by the app's approved permissions (plus any secrets on the server entry): until the app is approved, the declared secrets do not resolve and the container fails to start with an error saying so. `openrun app create` and `openrun app reload` print a warning when the app declares secret access it does not have, and `openrun app approve <path>` (or `--approve` on create/reload) records the declared secrets as approved. `openrun param update` warns in the same way when the new value references a secret the app cannot resolve, or when it declares the access (the `secrets` param of the built-in specs).
+
+For the built-in container specs, secret access is opt-in: their `container.config` permission uses the `secrets` param as its allowlist, which defaults to none, so an app passing no secrets needs no approval. Setting it declares the access, e.g. `--param secrets='[["DB_PASSWORD"]]'` (or `[["regex:.*"]]` for all secrets), after which the app must be approved.
+
 For example, to restore blanket server-level secret access for containerized apps:
 
 ```toml {filename="openrun.toml"}

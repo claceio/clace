@@ -1506,6 +1506,7 @@ func (s *Server) auditApp(ctx context.Context, tx types.Transaction, app *app.Ap
 func (s *Server) approveAuditResult(app *app.App, auditResult *types.ApproveResult) {
 	app.Metadata.Loads = auditResult.NewLoads
 	app.Metadata.Permissions = auditResult.NewPermissions
+	auditResult.Approved = true
 	s.Info().Msgf("Approved app %s %s: loads=%+v permissions=%+v",
 		app.Path, app.Domain, auditResult.NewLoads, auditResult.NewPermissions)
 }

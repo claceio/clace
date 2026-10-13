@@ -202,7 +202,7 @@ For a containerized app, the permission usually looks like:
 ace.permission("container.in", "config", [container.AUTO], secrets=[["DB_PASSWORD"]])
 ```
 
-The app must then be approved with that permission before `{{secret "DB_PASSWORD"}}` can be resolved for the container.
+The app must then be approved with that permission before `{{secret "DB_PASSWORD"}}` can be resolved for the container. Since the default server config allows the `container.config` call (without secrets), the app deploys without approval even with this permission declared; `openrun app create`, `app reload` and `param update` print a warning that the declared secret access is not approved, and the container fails to start with the same guidance until `openrun app approve <path>` (or `--approve`) records it. With the built-in specs, the permission's allowlist is the `secrets` param, empty by default: set it to declare the access, e.g. `--param secrets='[["DB_PASSWORD"]]'`.
 
 ## Revealing Secrets to HTML Templates
 

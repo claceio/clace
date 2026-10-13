@@ -1091,6 +1091,13 @@ type AppPathDomain struct {
 	Domain string
 }
 
+// MainPath returns the prod app's path domain for a stage app path (the
+// stage suffix stripped), the path domain itself otherwise. This is the path
+// a user runs commands like approve on
+func (a AppPathDomain) MainPath() AppPathDomain {
+	return AppPathDomain{Path: strings.TrimSuffix(a.Path, STAGE_SUFFIX), Domain: a.Domain}
+}
+
 func (a AppPathDomain) String() string {
 	if a.Domain == "" {
 		return a.Path
@@ -1175,6 +1182,29 @@ type Permission struct {
 	IsRead    *bool    `json:"is_read,omitempty" toml:"is_read,omitempty"` // Whether the call is a Read operation or Write operation.
 	// nil value means go with the default as set in the plugin code
 	Secrets [][]string `json:"secrets" toml:"secrets"` // The secrets that are allowed to be used in the call.
+}
+
+// SecretsString formats the permission's secret patterns for messages:
+// entries of a pattern joined with "," and patterns with ";"
+func (p Permission) SecretsString() string {
+	parts := make([]string, 0, len(p.Secrets))
+	for _, entry := range p.Secrets {
+		parts = append(parts, strings.Join(entry, ","))
+	}
+	return strings.Join(parts, ";")
+}
+
+// Describe formats the permission as plugin.method with its arguments and
+// secrets, for messages (not String, so %v output of the struct is unchanged)
+func (p Permission) Describe() string {
+	ret := p.Plugin + "." + p.Method
+	if len(p.Arguments) > 0 {
+		ret += " " + strings.Join(p.Arguments, ",")
+	}
+	if len(p.Secrets) > 0 {
+		ret += " secrets=" + p.SecretsString()
+	}
+	return ret
 }
 
 // AppAuthnType is the app level authentication type

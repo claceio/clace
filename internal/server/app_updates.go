@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	apppkg "github.com/openrundev/openrun/internal/app"
@@ -86,9 +87,13 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 			if err := s.db.UpdateAppMetadata(ctx, tx, app.AppEntry); err != nil {
 				return nil, err
 			}
-			if auditResult.NeedsApproval {
-				approvalResult = auditResult
-			}
+		}
+		// The audit result is returned when the approval recorded a change, and
+		// when the app declares secret access it does not have (so the CLI can
+		// say so); unchanged, server config covered apps are left out to
+		// reduce the noise
+		if auditResult.Approved && auditResult.Changed || !auditResult.Approved && len(auditResult.UngrantedSecrets) > 0 {
+			approvalResult = auditResult
 		}
 		reloadResults := make([]types.AppPathDomain, 0)
 		promoteResults := make([]types.AppPathDomain, 0)
@@ -389,6 +394,7 @@ func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, opts Depl
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	ctx, warnings := withDeployWarnings(ctx)
 	result, entries, promoteResults, err := s.StagedUpdateAppsTx(ctx, tx, appPathGlob, opts, handler)
 	if err != nil {
 		return nil, err
@@ -398,6 +404,7 @@ func (s *Server) StagedUpdate(ctx context.Context, appPathGlob string, opts Depl
 		DryRun:              opts.DryRun,
 		StagedUpdateResults: result,
 		PromoteResults:      promoteResults,
+		Warnings:            warnings.list,
 	}
 
 	if err := s.CompleteTransaction(ctx, tx, entries, opts.DryRun, op); err != nil {
@@ -523,7 +530,9 @@ func (s *Server) ReplaceAppParams(ctx context.Context, appPathGlob string, opts 
 // param values with params
 func (s *Server) replaceParamsHandler(params map[string]string) stagedUpdateHandler {
 	return func(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry, _ DeployOptions) (any, types.AppPathDomain, error) {
+		before := s.ungrantedSecretsOf(ctx, tx, appEntry)
 		appEntry.Metadata.ParamValues = maps.Clone(params)
+		addDeployWarnings(ctx, s.secretAccessWarnings(ctx, tx, appEntry, slices.Collect(maps.Values(params)), before))
 		appPathDomain := appEntry.AppPathDomain()
 		return appPathDomain, appPathDomain, nil
 	}
@@ -780,6 +789,7 @@ func (s *Server) updateParamHandler(paramName, paramValue string) stagedUpdateHa
 			appEntry.Metadata.ParamValues = make(map[string]string)
 		}
 
+		before := s.ungrantedSecretsOf(ctx, tx, appEntry)
 		if paramValue == "-" {
 			// Delete the entry
 			delete(appEntry.Metadata.ParamValues, paramName)
@@ -787,6 +797,10 @@ func (s *Server) updateParamHandler(paramName, paramValue string) stagedUpdateHa
 			// Update existing value
 			appEntry.Metadata.ParamValues[paramName] = paramValue
 		}
+		// A value referencing secrets the app cannot resolve, or a param which
+		// declares secret access (the secrets param of spec based apps), is
+		// accepted (the app may be approved next), with a warning saying so
+		addDeployWarnings(ctx, s.secretAccessWarnings(ctx, tx, appEntry, []string{paramValue}, before))
 
 		appPathDomain := appEntry.AppPathDomain()
 		return appPathDomain, appPathDomain, nil
@@ -822,6 +836,11 @@ func (s *Server) updateMetadataHandler(updateMetadata types.UpdateAppMetadataReq
 			err := s.updateAppMetadataConfig(ctx, tx, appEntry, updateMetadata.ConfigType, updateMetadata.ConfigEntries, opts.DryRun, accounts)
 			if err != nil {
 				return nil, appEntry.AppPathDomain(), err
+			}
+			if updateMetadata.ConfigType == types.AppMetadataContainerArgs {
+				// Build arg values referencing secrets the app cannot resolve
+				// are accepted, with a warning saying so
+				addDeployWarnings(ctx, s.secretAccessWarnings(ctx, tx, appEntry, updateMetadata.ConfigEntries, nil))
 			}
 		}
 

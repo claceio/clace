@@ -74,9 +74,12 @@ Examples:
 				} else {
 					printStdout(cCtx, "App creation %s, permissions need to be approved, add the --approve option\n", status)
 				}
+			} else if approveResult.Approved && approveResult.Changed {
+				printStdout(cCtx, "App creation %s. Permissions have been approved\n", status)
 			} else {
 				printStdout(cCtx, "App creation %s. No approval required\n", status)
 			}
+			printSecretAccessWarning(cCtx, approveResult)
 
 			if previewResponse.HttpUrl != "" {
 				printStdout(cCtx, "\n HTTP Url: %s\n", previewResponse.HttpUrl)

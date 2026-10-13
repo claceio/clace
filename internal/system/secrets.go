@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -104,6 +105,17 @@ func (s *SecretManager) templateSecretFromFunc(providerName string, secretKeys .
 	return s.appTemplateSecretFunc(false, nil, s.defaultProvider, providerName, secretKeys...)
 }
 
+// ErrNoSecretAccess is the error for a plugin call resolving a secret when
+// the call has no secret access at all: no secrets are approved on the app's
+// permission for the call and the server config allows none for it. The
+// template engine returns a function panic as an error wrapping it, so
+// callers can errors.Is it to add app specific guidance
+var ErrNoSecretAccess = errors.New("the plugin call has no secret access: no secrets are approved on the app's permission for the call and the server config allows none")
+
+// ErrSecretNotAllowed is the error for a plugin call resolving a secret which
+// none of its allowed secret patterns match
+var ErrSecretNotAllowed = errors.New("the plugin call is not allowed to access the secret")
+
 // appTemplateSecretFunc is a template function that retrieves a secret from the secret manager.
 // Since the template function does not support errors, it panics if there is an error. The appPerms
 // are checked to see if the secret can be accessed by the plugin API call
@@ -120,7 +132,7 @@ func (s *SecretManager) appTemplateSecretFunc(checkAppPerms bool, appPerms [][]s
 
 	if checkAppPerms {
 		if len(appPerms) == 0 {
-			panic("Plugin does not have access to any secrets, update app permissions")
+			panic(ErrNoSecretAccess)
 		}
 
 		permMatched := false
@@ -149,7 +161,7 @@ func (s *SecretManager) appTemplateSecretFunc(checkAppPerms bool, appPerms [][]s
 		}
 
 		if !permMatched {
-			panic(fmt.Errorf("plugin does not have access to secret %s", strings.Join(secretKeys, provider.GetJoinDelimiter())))
+			panic(fmt.Errorf("%w: secret %s is not in the allowed patterns", ErrSecretNotAllowed, strings.Join(secretKeys, provider.GetJoinDelimiter())))
 		}
 	}
 

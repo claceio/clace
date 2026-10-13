@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -133,15 +134,52 @@ type RunBindingCommandRequest struct {
 	Command     string `json:"command"`
 }
 
+// UngrantedSecretsWarning is the advisory for an app declaring secret access
+// which is neither approved on the app nor allowed by the server config: the
+// app deploys, but the secrets do not resolve until it is approved. context
+// (optional) says what prompted the warning, e.g. "the new value references
+// secrets"
+func UngrantedSecretsWarning(appPath, context string, ungranted []Permission) string {
+	descs := make([]string, 0, len(ungranted))
+	for _, p := range ungranted {
+		descs = append(descs, p.Describe())
+	}
+	prefix := fmt.Sprintf("app %s: ", appPath)
+	if context != "" {
+		prefix += context + ", but "
+	}
+	return prefix + fmt.Sprintf("the app declares secret access which is not approved: %s. The secrets will not resolve until "+
+		"the app is approved: run `openrun app approve %s` (or use --approve), or allow the secrets in the server config "+
+		"[[permissions.allow]] entry for the plugin method", strings.Join(descs, "; "), appPath)
+}
+
 // ApproveResult represents the result of an app approval audit
 type ApproveResult struct {
-	Id                  AppId         `json:"id"`
-	AppPathDomain       AppPathDomain `json:"app_path_domain"`
-	NewLoads            []string      `json:"new_loads"`
-	NewPermissions      []Permission  `json:"new_permissions"`
-	ApprovedLoads       []string      `json:"approved_loads"`
-	ApprovedPermissions []Permission  `json:"approved_permissions"`
-	NeedsApproval       bool          `json:"needs_approval"`
+	Id            AppId         `json:"id"`
+	AppPathDomain AppPathDomain `json:"app_path_domain"`
+	// MainAppPath is the path a user runs commands like approve on: the prod
+	// app's path for a stage app (whose own path depends on the staging
+	// config), the app's own path otherwise
+	MainAppPath         string       `json:"main_app_path"`
+	NewLoads            []string     `json:"new_loads"`
+	NewPermissions      []Permission `json:"new_permissions"`
+	ApprovedLoads       []string     `json:"approved_loads"`
+	ApprovedPermissions []Permission `json:"approved_permissions"`
+	// NeedsApproval is set when the app declares loads or permissions which
+	// are neither approved on the app nor allowed by the server config
+	NeedsApproval bool `json:"needs_approval"`
+	// Changed is set when the declared loads or permissions differ from the
+	// ones approved on the app, whether or not the server config allows
+	// them. An approve records the declared ones when this is set
+	Changed bool `json:"changed"`
+	// Approved is set by the server when the audit recorded the declared
+	// loads and permissions as the app's approved ones
+	Approved bool `json:"approved"`
+	// UngrantedSecrets lists the declared permissions asking for secrets
+	// which neither the approved permissions nor the server config allow.
+	// Such an app deploys (the plugin call itself is allowed), but the
+	// secrets do not resolve until the app is approved
+	UngrantedSecrets []Permission `json:"ungranted_secrets,omitempty"`
 }
 
 type AppResponse struct {
@@ -176,6 +214,9 @@ type AppStagedUpdateResponse struct {
 	DryRun              bool            `json:"dry_run"`
 	StagedUpdateResults any             `json:"staged_update_results"`
 	PromoteResults      []AppPathDomain `json:"promote_results"`
+	// Warnings are advisories about the update which did not fail it, such
+	// as a param referencing secrets the app has no access to
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type AppApproveResponse struct {
@@ -264,12 +305,18 @@ type AppLinkAccountResponse struct {
 	DryRun              bool            `json:"dry_run"`
 	StagedUpdateResults []AppPathDomain `json:"staged_update_results"`
 	PromoteResults      []AppPathDomain `json:"promote_results"`
+	// Warnings are advisories about the update which did not fail it, such
+	// as a param referencing secrets the app has no access to
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type AppUpdateMetadataResponse struct {
 	DryRun              bool            `json:"dry_run"`
 	StagedUpdateResults []AppPathDomain `json:"staged_update_results"`
 	PromoteResults      []AppPathDomain `json:"promote_results"`
+	// Warnings are advisories about the update which did not fail it, such
+	// as a param referencing secrets the app has no access to
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type AppGetResponse struct {

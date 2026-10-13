@@ -139,15 +139,14 @@ func printApplyResponse(cCtx *cli.Context, applyResponse *types.AppApplyResponse
 		printStdout(cCtx, "\n")
 	}
 
+	approvedCount := 0
 	if len(applyResponse.ApproveResults) > 0 {
-		printStdout(cCtx, "Approved apps:\n")
+		// The server returns the audit results of the apps approved with a
+		// change and of the apps declaring secret access they do not have
+		printStdout(cCtx, "Audited apps:\n")
 		for _, approveResult := range applyResponse.ApproveResults {
-			if !approveResult.NeedsApproval {
-				// Server does not return these for reload to reduce the noise
-				printStdout(cCtx, "No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-			} else {
-				printStdout(cCtx, "App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-				printApproveResult(cCtx, approveResult)
+			if printApproveOutcome(cCtx, approveResult) {
+				approvedCount += 1
 			}
 		}
 	}
@@ -219,7 +218,7 @@ func printApplyResponse(cCtx *cli.Context, applyResponse *types.AppApplyResponse
 	}
 
 	printStdout(cCtx, "%d app(s) created, %d app(s) updated, %d app(s) reloaded, %d app(s) skipped, %d app(s) approved, %d app(s) promoted.\n",
-		len(applyResponse.CreateResults), len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.SkippedResults), len(applyResponse.ApproveResults), len(applyResponse.PromoteResults))
+		len(applyResponse.CreateResults), len(applyResponse.UpdateResults), len(applyResponse.ReloadResults), len(applyResponse.SkippedResults), approvedCount, len(applyResponse.PromoteResults))
 	if len(applyResponse.CreateBindingResults) > 0 || len(applyResponse.UpdateBindingResults) > 0 || len(applyResponse.PromoteBindingResults) > 0 {
 		printStdout(cCtx, "%d binding(s) created, %d binding(s) updated, %d binding(s) promoted.\n",
 			len(applyResponse.CreateBindingResults), len(applyResponse.UpdateBindingResults), len(applyResponse.PromoteBindingResults))

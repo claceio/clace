@@ -34,9 +34,9 @@ tests:
     stdout: "Disk Usage"
   perms0112: # Update code to change plugin call to be READ type
     command: perl -i -pe 's/type="WRITE"/type="READ"/g' ./perms_disk_usage/app.star
-  perms0113: # Reload apps
+  perms0113: # Reload apps: the read type change is recorded by the approve and counted
     command: ../openrun app reload --approve "/perms*"
-    stdout: "2 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted."
+    stdout: "2 app(s) reloaded, 0 app(s) skipped, 2 app(s) approved, 0 app(s) promoted."
   perms0114: # test stage app
     command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/perms1_cl_stage
     stdout: "Disk Usage"

@@ -1881,15 +1881,29 @@ func (a *App) applyAppConfigSettings(settingsMap map[string]any) error {
 	return nil
 }
 
+// getSecretsAllowed returns the secrets the plugin method may resolve for
+// this app: those on the approved permissions plus those on the server
+// config allow entries for the method
 func (a *App) getSecretsAllowed(plugin, function string) [][]string {
-	ret := [][]string{}
-	for _, p := range append(a.Metadata.Permissions, a.serverConfig.Permissions.Allow...) {
-		if p.Plugin == plugin && p.Method == function {
-			ret = append(ret, p.Secrets...)
-		}
-	}
+	return allowedSecrets(plugin, function, a.Metadata.Permissions, a.serverConfig.Permissions.Allow)
+}
 
-	return ret
+// SecretsAllowed is the exported form of getSecretsAllowed, for the server's
+// deploy time checks
+func (a *App) SecretsAllowed(plugin, function string) [][]string {
+	return a.getSecretsAllowed(plugin, function)
+}
+
+// mainAppPath is the path a user runs commands like approve on: the linked
+// main app's stored path for a stage or preview app (the stage path itself
+// depends on the staging config, a domain by default), the app's own path
+// otherwise. Legacy entries without a linked path fall back to trimming the
+// path suffix
+func (a *App) mainAppPath() string {
+	if a.MainApp != "" && a.LinkedAppPath != "" {
+		return a.LinkedAppPath
+	}
+	return a.AppPathDomain().MainPath().String()
 }
 
 func (a *App) getStarPath(name string) string {

@@ -195,6 +195,7 @@ Examples:
 			for _, app := range updateResponse.StagedUpdateResults {
 				printStdout(cCtx, "Updated app %s\n", app)
 			}
+			printWarnings(cCtx, updateResponse.Warnings)
 
 			if len(updateResponse.PromoteResults) > 0 {
 				printStdout(cCtx, "Promoted apps: ")

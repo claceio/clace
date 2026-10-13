@@ -110,9 +110,9 @@ tests:
     command: ../openrun app create --spec python-flask --bind /pgcontainer/private ./pg_flaskapp /pg_container_private
     stdout: "App: /pg_container_private"
 
-  postgres_container0093: # promote the app so prod serves the binding (nothing needs approval - binding access is not approval based)
+  postgres_container0093: # promote the app so prod serves the binding. Binding access is not approval based; the approve records the spec's server-covered permissions, which it reports
     command: ../openrun app approve --promote /pg_container_private
-    stdout: "1 app(s) audited, 0 app(s) approved, 1 app(s) promoted."
+    stdout: "1 app(s) audited, 1 app(s) approved, 1 app(s) promoted."
 
   postgres_container0096: # non-default binding source reaches the container (binding access is RBAC gated, no approval needed)
     command: curl -sS localhost:${HTTP_PORT}/pg_container_private

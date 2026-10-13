@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Secret access for containerized apps is now reported at every step instead of failing silently on the first request ([#105](https://github.com/openrundev/openrun/issues/105)). The default server config allows the `container.config` call without secrets, so an app declaring `secrets=[...]` on that permission deploys without approval but cannot resolve them until approved. `app create`, `app reload` and `apply` now print a warning (on stderr) when an app declares secret access that is neither approved nor allowed by the server config; `param update` and `app update container_args` warn when the new value references a secret the app cannot resolve, or when the update declares the access (the `secrets` param); and the container start error says which permission to declare and that `openrun app approve <path>` grants it. `app approve` (and `--approve`) reports the permissions it records as approved, including server-covered ones, instead of "No approval required". The audit result gains `changed`, `approved`, `ungranted_secrets` and `main_app_path`; the staged update responses gain `warnings`. The built-in container specs default their `secrets` param to empty, so a new app passing no secrets requests none; set `--param secrets='[["name"]]'` to declare the access. Existing apps are unaffected: the approval rules are unchanged.
+
 ### Added
 
 - Access log (`logs/access.log`) entries now include `request_id`, `user_id` and `app_id`. The request id matches the audit events for the request, and the user and app ids are empty for unauthenticated and non-app requests ([#106](https://github.com/openrundev/openrun/issues/106)).

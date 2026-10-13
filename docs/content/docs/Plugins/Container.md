@@ -64,7 +64,7 @@ app = ace.app("My App",
        ) 
 ```
 
-With the default server config, both `proxy.config(container.URL)` and `container.config(...)` are approved implicitly. That default `container.config(...)` approval does not allow secrets. Add an explicit `ace.permission("container.in", "config", ..., secrets=[...])` entry when the app needs to pass secrets to the container, or when you want to narrow the allowed arguments.
+With the default server config, both `proxy.config(container.URL)` and `container.config(...)` are approved implicitly. That default `container.config(...)` approval does not allow secrets. Add an explicit `ace.permission("container.in", "config", ..., secrets=[...])` entry when the app needs to pass secrets to the container, or when you want to narrow the allowed arguments. Declaring the secrets does not by itself grant them: the app still deploys without approval (the config call is allowed by the server config), but the secrets resolve only once the app is approved with `openrun app approve` or `--approve`. Create and reload print a warning while the declared access is not approved. The built-in specs declare this permission with their `secrets` param as the allowlist; it is empty by default, so set it to pass secrets, e.g. `--param secrets='[["DB_PASSWORD"]]'`.
 
 ## sidecar
 
@@ -137,6 +137,6 @@ app = ace.app(param.app_name + " : " + param.image ,
 )
 ```
 
-The explicit `container.in.run` permission is still required in this example. `container.config(...)` is implicitly approved by default without secret access. Add an explicit `ace.permission("container.in", "config", ..., secrets=[...])` entry if the config call needs to resolve secrets, or if the app needs to restrict the allowed arguments for that config call.
+The explicit `container.in.run` permission is still required in this example. `container.config(...)` is implicitly approved by default without secret access. Add an explicit `ace.permission("container.in", "config", ..., secrets=[...])` entry if the config call needs to resolve secrets, or if the app needs to restrict the allowed arguments for that config call, and approve the app for the declared secrets to resolve.
 
 <!-- prettier-ignore-end -->

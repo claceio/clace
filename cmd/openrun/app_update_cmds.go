@@ -211,6 +211,7 @@ Examples:
 			for _, updateResult := range updateResponse.StagedUpdateResults {
 				printStdout(cCtx, "Updated %s\n", updateResult)
 			}
+			printWarnings(cCtx, updateResponse.Warnings)
 
 			if len(updateResponse.PromoteResults) > 0 {
 				printStdout(cCtx, "Promoted apps: ")
@@ -327,6 +328,7 @@ Examples:
 			for _, updateResult := range updateResponse.StagedUpdateResults {
 				printStdout(cCtx, "Updated %s\n", updateResult)
 			}
+			printWarnings(cCtx, updateResponse.Warnings)
 
 			if len(updateResponse.PromoteResults) > 0 {
 				printStdout(cCtx, "Promoted apps: ")

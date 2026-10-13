@@ -450,7 +450,7 @@ cleanup() {
   remove_session_containers
 
   force_rm metadata app_src config1.json config2.json config_k8s.toml sync_test_id.tmp sqlite_tmp verifyapp_tmp pvverify_tmp pv_generation.txt kube_plugins versionstest disk_usage/config_gen.lock flaskhttp/config_gen.lock
-  force_rm config/ logs/ openrun.toml config_container.toml server.stdout flaskapp kube_flaskapp testauthapp pg_flaskapp todo_flaskapp todo_rbac.json streamlitdev stdev_started.txt plugin_ext storeex_app/config_gen.lock
+  force_rm config/ logs/ openrun.toml config_container.toml config_secret_access.toml secret_access_app server.stdout flaskapp kube_flaskapp testauthapp pg_flaskapp todo_flaskapp todo_rbac.json streamlitdev stdev_started.txt plugin_ext storeex_app/config_gen.lock
 
   if [[ -n "$POSTGRES_TEST_CONTAINER_ID" ]]; then
     $CONTAINER_TOOL rm -f "$POSTGRES_TEST_CONTAINER_ID" >/dev/null 2>&1 || true
@@ -930,7 +930,7 @@ done
 POSTGRES_FILES="test_service.yaml test_bindings.yaml test_app_update_bindings.yaml test_postgres.yaml test_postgres_container.yaml test_todo_flow.yaml"
 MYSQL_FILES="test_mysql.yaml"
 REDIS_FILES="test_redis.yaml"
-CONTAINER_FILES="test_containers.yaml container_sidecar.yaml container_jobs.yaml test_postgres_container.yaml test_todo_flow.yaml"
+CONTAINER_FILES="test_containers.yaml container_sidecar.yaml container_jobs.yaml test_postgres_container.yaml test_todo_flow.yaml test_secret_access.yaml"
 LITESTREAM_FILES="test_sqlite_litestream.yaml test_replication_status.yaml test_metadata_litestream.yaml test_metadata_litestream_verify.yaml"
 
 if [[ -n "$ENABLE_POSTGRES" ]] && contains_any "$POSTGRES_FILES"; then
@@ -1235,6 +1235,45 @@ EOF
     SERVER_PID=""
     stop_forward_auth_testcontainer
 done
+
+# Secret access advisories (test_secret_access.yaml): a server with the
+# default permissions, which allow the container config call without
+# secrets, so an app declaring secrets deploys but cannot resolve them until
+# approved. The container suites above run with all secrets allowed, which
+# never exercises that path
+SECRET_ACCESS_CMD="${ORIG_CONTAINER_COMMANDS%% *}"
+if [[ -n "$SECRET_ACCESS_CMD" ]] && is_selected test_secret_access.yaml; then
+    export OPENRUN_CONTAINER_COMMAND="$SECRET_ACCESS_CMD"
+    cat <<EOF > config_secret_access.toml
+[http]
+port = $SERVER_HTTP_PORT
+[https]
+port = $SERVER_HTTPS_PORT
+[system]
+container_command="$SECRET_ACCESS_CMD"
+
+[app_config]
+container.health_attempts_after_startup = 10
+container.health_timeout_secs = 2
+
+[security]
+admin_password_bcrypt = "\$2a\$10\$Hk5/XcvwrN.JRFrjdG0vjuGZxa5JaILdir1qflIj5i9DUPUyvIK7C"
+EOF
+    rm -rf metadata run/openrun.sock
+    wait_port_free "$SERVER_HTTP_PORT" && wait_port_free "$SERVER_HTTPS_PORT"
+    CL_CONFIG_FILE=config_secret_access.toml GOCOVERDIR=$GOCOVERDIR ../openrun server start &
+    SERVER_PID=$!
+    wait_for_http $SERVER_HTTP_PORT
+    wait_for_socket
+
+    export HTTP_PORT=$SERVER_HTTP_PORT
+    [[ -f openrun.toml ]] || : > openrun.toml
+    echo "********Testing secret access advisories with $SECRET_ACCESS_CMD*********"
+    commander test $VERBOSE test_secret_access.yaml
+    MATCHED_TESTS+=(test_secret_access.yaml)
+    CL_CONFIG_FILE=config_secret_access.toml GOCOVERDIR=$GOCOVERDIR/../client ../openrun server stop
+    SERVER_PID=""
+fi
 
 # Litestream replication suites: need an S3 endpoint (--seaweedfs) and a
 # container command for the app + sidecar containers

@@ -48,3 +48,138 @@ func TestServerConfigCoverageChecksPermissionPermit(t *testing.T) {
 		t.Fatal("did not expect approval when permit list is covered by server config")
 	}
 }
+
+func TestSecretsCovered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		requested [][]string
+		allowed   [][]string
+		covered   bool
+	}{
+		{"no request", nil, nil, true},
+		{"no allowed", [][]string{{"my_secret"}}, nil, false},
+		{"exact", [][]string{{"my_secret"}}, [][]string{{"my_secret"}}, true},
+		{"other secret", [][]string{{"my_secret"}}, [][]string{{"other"}}, false},
+		{"allowed regex covers literal", [][]string{{"db_pass"}}, [][]string{{"regex:^db_.*"}}, true},
+		{"allowed wildcard covers requested regex", [][]string{{"regex:.*"}}, [][]string{{"regex:.*"}}, true},
+		{"literal does not cover requested regex", [][]string{{"regex:.*"}}, [][]string{{"my_secret"}}, false},
+		{"narrower regex does not cover wildcard", [][]string{{"regex:.*"}}, [][]string{{"regex:^db_.*"}}, false},
+		{"every request needs cover", [][]string{{"a"}, {"b"}}, [][]string{{"a"}}, false},
+		{"allowed prefix covers longer request", [][]string{{"db", "pass"}}, [][]string{{"db"}}, true},
+		{"multi entry mismatch", [][]string{{"db", "pass"}}, [][]string{{"db", "user"}}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := secretsCovered(tc.requested, tc.allowed); got != tc.covered {
+				t.Fatalf("secretsCovered(%v, %v) = %v, want %v", tc.requested, tc.allowed, got, tc.covered)
+			}
+		})
+	}
+}
+
+func TestUngrantedSecretsMirrorsRuntimeAllowlist(t *testing.T) {
+	t.Parallel()
+
+	declared := []types.Permission{
+		{Plugin: "proxy.in", Method: "config", Arguments: []string{"<CONTAINER_URL>"}},
+		{Plugin: "container.in", Method: "config", Arguments: []string{"AUTO"}, Secrets: [][]string{{"regex:.*"}}},
+	}
+	serverNoSecrets := []types.Permission{{Plugin: "container.in", Method: "config", Arguments: []string{"regex:.*"}, Secrets: [][]string{}}}
+
+	// Neither approved nor allowed by the server config: the secrets are ungranted
+	got := ungrantedSecrets(declared, nil, serverNoSecrets)
+	if len(got) != 1 || got[0].Plugin != "container.in" {
+		t.Fatalf("ungranted = %+v, want the container.in config permission", got)
+	}
+
+	// The server config allowing all secrets for the method grants them
+	serverAll := []types.Permission{{Plugin: "container.in", Method: "config", Arguments: []string{"regex:.*"}, Secrets: [][]string{{"regex:.*"}}}}
+	if got := ungrantedSecrets(declared, nil, serverAll); len(got) != 0 {
+		t.Fatalf("ungranted = %+v, want none with server config allowing all secrets", got)
+	}
+
+	// Approved on the app grants them, the server config adding nothing
+	if got := ungrantedSecrets(declared, declared, serverNoSecrets); len(got) != 0 {
+		t.Fatalf("ungranted = %+v, want none when approved", got)
+	}
+
+	// The union of approved and server config is what counts, as at runtime
+	approvedPart := []types.Permission{{Plugin: "container.in", Method: "config", Arguments: []string{"AUTO"}, Secrets: [][]string{{"a"}}}}
+	serverPart := []types.Permission{{Plugin: "container.in", Method: "config", Secrets: [][]string{{"b"}}}}
+	twoSecrets := []types.Permission{{Plugin: "container.in", Method: "config", Secrets: [][]string{{"a"}, {"b"}}}}
+	if got := ungrantedSecrets(twoSecrets, approvedPart, serverPart); len(got) != 0 {
+		t.Fatalf("ungranted = %+v, want none when approved and server config together cover the request", got)
+	}
+	if got := ungrantedSecrets(twoSecrets, approvedPart, nil); len(got) != 1 {
+		t.Fatalf("ungranted = %+v, want the permission when only part of the request is covered", got)
+	}
+
+	// A permission declaring no secrets is never reported
+	if got := ungrantedSecrets(declared[:1], nil, nil); len(got) != 0 {
+		t.Fatalf("ungranted = %+v, want none for permissions without secrets", got)
+	}
+}
+
+func TestSetApprovalStateKeepsServerCoverageAndReportsSecrets(t *testing.T) {
+	t.Parallel()
+
+	a := &App{serverConfig: &types.ServerConfig{Permissions: types.PermissionsConfig{Allow: []types.Permission{
+		{Plugin: "proxy.in", Method: "config", Arguments: []string{"<CONTAINER_URL>"}},
+		{Plugin: "container.in", Method: "config", Arguments: []string{"regex:.*"}, Secrets: [][]string{}},
+	}}}}
+	declared := []types.Permission{
+		{Plugin: "proxy.in", Method: "config", Arguments: []string{"<CONTAINER_URL>"}},
+		{Plugin: "container.in", Method: "config", Arguments: []string{"AUTO"}, Secrets: [][]string{{"regex:.*"}}},
+	}
+
+	// Not approved on the app: the server config covers the calls, so the app
+	// deploys without approval (unchanged behavior), the change is reported
+	// and the secrets are flagged as ungranted
+	results := &types.ApproveResult{NewLoads: []string{"proxy.in", "container.in"}, NewPermissions: declared}
+	a.setApprovalState(results)
+	if results.NeedsApproval {
+		t.Fatal("server config covered permissions must not need approval")
+	}
+	if !results.Changed {
+		t.Fatal("declared permissions differ from the approved ones, expected Changed")
+	}
+	if len(results.UngrantedSecrets) != 1 || results.UngrantedSecrets[0].Method != "config" {
+		t.Fatalf("UngrantedSecrets = %+v, want the container.in config permission", results.UngrantedSecrets)
+	}
+
+	// Approved: nothing changed, nothing ungranted
+	results = &types.ApproveResult{NewLoads: []string{"proxy.in", "container.in"}, ApprovedLoads: []string{"proxy.in", "container.in"},
+		NewPermissions: declared, ApprovedPermissions: declared}
+	a.setApprovalState(results)
+	if results.NeedsApproval || results.Changed || len(results.UngrantedSecrets) != 0 {
+		t.Fatalf("approved app: NeedsApproval=%v Changed=%v Ungranted=%+v, want all clear", results.NeedsApproval, results.Changed, results.UngrantedSecrets)
+	}
+
+	// A permission the server config does not cover still needs approval
+	results = &types.ApproveResult{NewPermissions: []types.Permission{{Plugin: "http.in", Method: "get", Arguments: []string{"https://example.com"}}}}
+	a.setApprovalState(results)
+	if !results.NeedsApproval || !results.Changed {
+		t.Fatal("uncovered permission must need approval")
+	}
+}
+
+func TestMainAppPathUsesLinkedPath(t *testing.T) {
+	t.Parallel()
+
+	stage := &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_STAGE + "abc"), Path: "/secretapp", Domain: "stage.localhost",
+		MainApp: types.AppId(types.ID_PREFIX_APP_PROD + "abc"), LinkedAppPath: "/secretapp"}}
+	if got := stage.mainAppPath(); got != "/secretapp" {
+		t.Fatalf("stage mainAppPath() = %q, want the linked prod path", got)
+	}
+	legacy := &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_STAGE + "abc"), Path: "/secretapp" + types.STAGE_SUFFIX,
+		MainApp: types.AppId(types.ID_PREFIX_APP_PROD + "abc")}}
+	if got := legacy.mainAppPath(); got != "/secretapp" {
+		t.Fatalf("legacy stage mainAppPath() = %q, want the suffix trimmed", got)
+	}
+	prod := &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_PROD + "abc"), Path: "/secretapp", Domain: "example.com"}}
+	if got := prod.mainAppPath(); got != "example.com:/secretapp" {
+		t.Fatalf("prod mainAppPath() = %q, want its own path", got)
+	}
+}

@@ -389,6 +389,7 @@ func (a *App) createApproveResponse(loads []string, appDef *starlarkstruct.Struc
 	perms := []types.Permission{}
 	results := types.ApproveResult{
 		AppPathDomain:       a.AppPathDomain(),
+		MainAppPath:         a.mainAppPath(),
 		Id:                  a.Id,
 		NewLoads:            loads,
 		NewPermissions:      perms,
@@ -397,11 +398,7 @@ func (a *App) createApproveResponse(loads []string, appDef *starlarkstruct.Struc
 	}
 	permissions, err := appDef.Attr("permissions")
 	if err != nil {
-		// permission order needs to match for now
-		results.NeedsApproval = needsApproval(&results)
-		if results.NeedsApproval && len(a.serverConfig.Permissions.Allow) > 0 {
-			results.NeedsApproval = needsApprovalWithServerConfig(&results, a.serverConfig.Permissions.Allow)
-		}
+		a.setApprovalState(&results)
 		return &results, nil
 	}
 
@@ -458,9 +455,90 @@ func (a *App) createApproveResponse(loads []string, appDef *starlarkstruct.Struc
 
 	}
 	results.NewPermissions = perms
-	results.NeedsApproval = needsApproval(&results)
-	if results.NeedsApproval && len(a.serverConfig.Permissions.Allow) > 0 {
-		results.NeedsApproval = needsApprovalWithServerConfig(&results, a.serverConfig.Permissions.Allow)
-	}
+	a.setApprovalState(&results)
 	return &results, nil
+}
+
+// setApprovalState fills in the audit verdict: Changed when the declared
+// loads/permissions differ from the approved ones (permission order needs to
+// match for now), NeedsApproval when the difference is not allowed by the
+// server config either, and UngrantedSecrets for the declared secret access
+// the app would not have at runtime
+func (a *App) setApprovalState(results *types.ApproveResult) {
+	serverPerms := a.serverConfig.Permissions.Allow
+	results.Changed = needsApproval(results)
+	results.NeedsApproval = results.Changed
+	if results.NeedsApproval && len(serverPerms) > 0 {
+		results.NeedsApproval = needsApprovalWithServerConfig(results, serverPerms)
+	}
+	results.UngrantedSecrets = ungrantedSecrets(results.NewPermissions, results.ApprovedPermissions, serverPerms)
+}
+
+// ungrantedSecrets returns the declared permissions asking for secrets the
+// app cannot resolve at runtime. The secrets a plugin call may use are the
+// union of the secrets on the app's approved permissions and on the server
+// config entries for the same plugin method (see allowedSecrets), so a
+// declared secret pattern is granted when one of those patterns covers it.
+// The server config allowing the plugin call does not by itself grant the
+// secrets: an app whose only uncovered request is its secrets deploys without
+// approval, with the secrets unresolved until it is approved
+func ungrantedSecrets(declared, approved, serverPerms []types.Permission) []types.Permission {
+	var ret []types.Permission
+	for _, p := range declared {
+		if len(p.Secrets) == 0 {
+			continue
+		}
+		allowed := allowedSecrets(p.Plugin, p.Method, approved, serverPerms)
+		if !secretsCovered(p.Secrets, allowed) {
+			ret = append(ret, p)
+		}
+	}
+	return ret
+}
+
+// allowedSecrets returns the secret patterns the given plugin method may
+// resolve: the union over the permission lists of the secrets on the entries
+// for that plugin method. This is the runtime allowlist, so the audit's
+// view of granted secrets is the one enforcement uses
+func allowedSecrets(plugin, method string, permLists ...[]types.Permission) [][]string {
+	ret := [][]string{}
+	for _, perms := range permLists {
+		for _, p := range perms {
+			if p.Plugin == plugin && p.Method == method {
+				ret = append(ret, p.Secrets...)
+			}
+		}
+	}
+	return ret
+}
+
+// secretsCovered reports whether every requested secret pattern is matched
+// by an allowed one. An allowed pattern is matched against a requested one
+// the way the runtime check matches a secret name (types.RegexMatch per
+// entry, the allowed entry as a prefix), so an allowed regex:.* covers any
+// request while a requested regex is covered only by the same regex or by a
+// wider one
+func secretsCovered(requested, allowed [][]string) bool {
+	for _, req := range requested {
+		if !slices.ContainsFunc(allowed, func(a []string) bool { return secretPatternCovers(a, req) }) {
+			return false
+		}
+	}
+	return true
+}
+
+func secretPatternCovers(allowed, requested []string) bool {
+	for i, entry := range requested {
+		if i >= len(allowed) {
+			continue
+		}
+		if allowed[i] == entry {
+			continue
+		}
+		match, err := types.RegexMatch(allowed[i], entry)
+		if err != nil || !match {
+			return false
+		}
+	}
+	return true
 }

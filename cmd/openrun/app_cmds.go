@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"cmp"
 	"encoding/json/v2"
 	"fmt"
@@ -300,9 +299,59 @@ func printCreateResult(cCtx *cli.Context, createResult types.AppCreateResponse) 
 		} else {
 			printStdout(cCtx, "App created. Permissions need to be approved\n")
 		}
+	} else if approveResult.Approved && approveResult.Changed {
+		// Allowed by the server config, recorded on the app since --approve was passed
+		printStdout(cCtx, "App created. Permissions have been approved\n")
 	} else {
 		printStdout(cCtx, "App created. No approval required\n")
 	}
+	printSecretAccessWarning(cCtx, approveResult)
+}
+
+// printSecretAccessWarning prints the advisory for an app which declares
+// secret access it does not have: the audit allowed the deploy (the plugin
+// call is allowed by the server config) but the secrets are neither approved
+// on the app nor allowed by the server config, so they will not resolve
+func printSecretAccessWarning(cCtx *cli.Context, approveResult types.ApproveResult) {
+	if approveResult.Approved || len(approveResult.UngrantedSecrets) == 0 {
+		return
+	}
+	appPath := approveResult.MainAppPath
+	if appPath == "" {
+		appPath = approveResult.AppPathDomain.MainPath().String()
+	}
+	printWarnings(cCtx, []string{types.UngrantedSecretsWarning(appPath, "", approveResult.UngrantedSecrets)})
+}
+
+// printWarnings prints advisories on stderr, as the other commands do, so
+// the command's stdout (and any formatted output) stays as it was
+func printWarnings(cCtx *cli.Context, warnings []string) {
+	for _, warning := range warnings {
+		fmt.Fprintf(cCtx.App.ErrWriter, "warning: %s\n", warning) //nolint:errcheck
+	}
+}
+
+// printApproveOutcome prints the outcome of an audit for one app of a reload,
+// apply or approve: whether the declared permissions were recorded, and the
+// secret access advisory when they were not and the app declares secret
+// access it does not have. Returns whether the app was approved
+func printApproveOutcome(cCtx *cli.Context, approveResult types.ApproveResult) bool {
+	switch {
+	case approveResult.Approved && approveResult.Changed:
+		printStdout(cCtx, "App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+		printApproveResult(cCtx, approveResult)
+		return true
+	case approveResult.Approved:
+		// Approved with nothing to record: the declared permissions are the approved ones
+		printStdout(cCtx, "No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+	case approveResult.NeedsApproval:
+		printStdout(cCtx, "App permissions need to be approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+		printApproveResult(cCtx, approveResult)
+	default:
+		printStdout(cCtx, "No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
+	}
+	printSecretAccessWarning(cCtx, approveResult)
+	return false
 }
 
 func appListCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfig) *cli.Command {
@@ -458,15 +507,7 @@ func printApproveResult(cCtx *cli.Context, approveResult types.ApproveResult) {
 	for _, perm := range approveResult.NewPermissions {
 		secrets := ""
 		if len(perm.Secrets) > 0 {
-			buf := new(bytes.Buffer)
-			for i, entry := range perm.Secrets {
-				if i > 0 {
-					buf.WriteString(";")
-				}
-				buf.WriteString(strings.Join(entry, ","))
-			}
-
-			secrets = fmt.Sprintf(" secrets=%s", buf.String())
+			secrets = fmt.Sprintf(" secrets=%s", perm.SecretsString())
 		}
 		permit := ""
 		if len(perm.Permit) > 0 {
@@ -566,12 +607,8 @@ Examples:
 
 			approvedCount := 0
 			for _, approveResult := range approveResponse.StagedUpdateResults {
-				if !approveResult.NeedsApproval {
-					printStdout(cCtx, "No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-				} else {
+				if printApproveOutcome(cCtx, approveResult) {
 					approvedCount += 1
-					printStdout(cCtx, "App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-					printApproveResult(cCtx, approveResult)
 				}
 			}
 
@@ -680,15 +717,14 @@ Examples:
 				printStdout(cCtx, "\n")
 			}
 
+			approvedCount := 0
 			if len(reloadResponse.ApproveResults) > 0 {
-				printStdout(cCtx, "Approved apps:\n")
+				// The server returns the audit results of the apps approved with a
+				// change and of the apps declaring secret access they do not have
+				printStdout(cCtx, "Audited apps:\n")
 				for _, approveResult := range reloadResponse.ApproveResults {
-					if !approveResult.NeedsApproval {
-						// Server does not return these for reload to reduce the noise
-						printStdout(cCtx, "No approval required. %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-					} else {
-						printStdout(cCtx, "App permissions have been approved %s - %s\n", approveResult.AppPathDomain, approveResult.Id)
-						printApproveResult(cCtx, approveResult)
+					if printApproveOutcome(cCtx, approveResult) {
+						approvedCount += 1
 					}
 				}
 			}
@@ -705,7 +741,7 @@ Examples:
 			}
 
 			printStdout(cCtx, "%d app(s) reloaded, %d app(s) skipped, %d app(s) approved, %d app(s) promoted.\n",
-				len(reloadResponse.ReloadResults), len(reloadResponse.SkippedResults), len(reloadResponse.ApproveResults), len(reloadResponse.PromoteResults))
+				len(reloadResponse.ReloadResults), len(reloadResponse.SkippedResults), approvedCount, len(reloadResponse.PromoteResults))
 
 			if reloadResponse.DryRun {
 				printStdout(cCtx, "%s", DRY_RUN_MESSAGE)

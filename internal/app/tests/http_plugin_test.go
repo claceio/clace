@@ -250,7 +250,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler
 	response = httptest.NewRecorder()
 	a.ServeHTTP(response, request)
 	testutil.AssertEqualsInt(t, "code", 500, response.Code)
-	testutil.AssertStringContains(t, response.Body.String(), "error calling secret_from: plugin does not have access to secret abc")
+	testutil.AssertStringContains(t, response.Body.String(), "error calling secret_from: the plugin call is not allowed to access the secret: secret abc2 is not in the allowed patterns")
 }
 
 func TestHttpPluginDeferredCleanupWithoutBodyRead(t *testing.T) {

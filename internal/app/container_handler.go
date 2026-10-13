@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math"
@@ -220,7 +221,7 @@ func NewContainerHandler(logger *types.Logger, app *App, containerFile string,
 	for k, v := range paramMap {
 		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
 		if err != nil {
-			return nil, fmt.Errorf("error evaluating secret for %s: %w", k, err)
+			return nil, secretEvalError(app, "param", k, err)
 		}
 		paramMap[k] = val
 	}
@@ -239,7 +240,7 @@ func NewContainerHandler(logger *types.Logger, app *App, containerFile string,
 	for k, v := range cargs_map {
 		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
 		if err != nil {
-			return nil, fmt.Errorf("error evaluating secret for %s: %w", k, err)
+			return nil, secretEvalError(app, "build arg", k, err)
 		}
 		cargs_map[k] = val
 	}
@@ -2247,4 +2248,19 @@ func sqliteBindingVolumes(appBindings []*types.Binding, useProdAccount bool) []*
 		})
 	}
 	return vols
+}
+
+// secretEvalError wraps a secret evaluation failure for a param or build arg
+// of the container. A missing secret access (the app's container.in config
+// permission grants none, or not the one referenced) gets the fix: the
+// secrets are granted by approving the app with them declared on its
+// permission, or by allowing them in the server config
+func secretEvalError(app *App, kind, name string, err error) error {
+	if errors.Is(err, system.ErrNoSecretAccess) || errors.Is(err, system.ErrSecretNotAllowed) {
+		return fmt.Errorf("error evaluating secret in %s %s: %w. The app's container.in config permission does not grant the secret: "+
+			"declare the secrets on the permission (the secrets param for spec based apps, e.g. --param secrets='[[\"regex:.*\"]]') and "+
+			"approve the app with `openrun app approve %s`, or allow them in the server config [[permissions.allow]] entry for container.in config",
+			kind, name, err, app.mainAppPath())
+	}
+	return fmt.Errorf("error evaluating secret for %s: %w", name, err)
 }

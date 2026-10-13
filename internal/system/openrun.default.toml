@@ -288,8 +288,13 @@ arguments = ["<CONTAINER_URL>"]
 plugin = "container.in"
 method = "config"
 arguments = ["regex:.*"]
-secrets = [] # no secrets allowed by default, use [["regex:.*"]] to allow all secrets
-             # to be accessed by apps which are using the container plugin
+# No secrets allowed by default: this entry approves the container.config call
+# itself, not the secrets an app declares for it. An app declaring secrets on its
+# container.in config permission deploys without approval (the call is allowed),
+# but the secrets do not resolve until the app is approved (openrun app approve,
+# or --approve on create/reload), which records the declared secrets on the app.
+# Use [["regex:.*"]] to allow all secrets for every app using the container plugin
+secrets = []
 
 [[permissions.allow]]
 plugin = "http.in"
