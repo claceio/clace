@@ -61,11 +61,59 @@ tests:
   container0100: # prod is not yet updated
     command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
     stdout: "hello"
+  container0101: # the lazily started prod version (no reload of its own) has its image recorded
+    command: ../openrun app list --format json /cont_flaskprod
+    stdout:
+      contains:
+        - '"image_name": "cli-'
   container0110: # do promote
     command: ../openrun app promote /cont_flaskprod
   container0120: # prod is updated
     command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
     stdout: "updated"
+
+  # Superseded image and container cleanup (container.retain_previous_images)
+  container0121: # record the prod app id; stage and prod share the cli-<id> image repository
+    command: bash -c '../openrun app list --internal --format csv /cont_flaskprod | grep -o "app_prd_[a-z0-9]*" | head -1 > flaskprod_id.txt && [ -s flaskprod_id.txt ]'
+  container0122: # update app code again and deploy version 3 to stage and prod
+    command: perl -i -pe 's/"updated"/"updated2"/g' flaskapp/app.py && ../openrun app reload --promote /cont_flaskprod
+  container0123: # prod runs the new version
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout: "updated2"
+  container0124: # the default keeps the previous version's image: two images remain; the superseded containers are gone
+    command: bash -c 'id=$(cat flaskprod_id.txt); i=$(${OPENRUN_CONTAINER_COMMAND} images -q "cli-${id#app_prd_}" | wc -l | tr -d " "); p=$(${OPENRUN_CONTAINER_COMMAND} ps -aq --filter "label=dev.openrun.app.id=$id" | wc -l | tr -d " "); s=$(${OPENRUN_CONTAINER_COMMAND} ps -aq --filter "label=dev.openrun.app.id=app_stg_${id#app_prd_}" | wc -l | tr -d " "); echo "images=$i prod=$p stage=$s"'
+    stdout: "images=2 prod=1 stage=1"
+    config:
+      retries: 10
+      interval: 2s
+  container0125: # keep only the images in use
+    command: ../openrun app update conf --promote container.retain_previous_images=0 /cont_flaskprod
+  container0126: # the previous version's image is removed after the config deploy
+    command: bash -c 'id=$(cat flaskprod_id.txt); ${OPENRUN_CONTAINER_COMMAND} images -q "cli-${id#app_prd_}" | wc -l | tr -d " "'
+    stdout: "1"
+    config:
+      retries: 10
+      interval: 2s
+  container0127: # switching prod to version 2 (the conf update made version 4 from version 3's source), whose image was removed, rebuilds it
+    command: ../openrun version switch 2 /cont_flaskprod
+  container0128: # prod serves version 2 after the rebuild
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout:
+      exactly: "updated"
+    config:
+      retries: 5
+      interval: 2s
+  container0129a: # back to the latest version, the image is reused
+    command: ../openrun version switch 4 /cont_flaskprod
+  container0129b: # prod serves the latest version
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout:
+      exactly: "updated2"
+    config:
+      retries: 5
+      interval: 2s
+  container0129c: # restore the shared flask source for the verification apps below
+    command: perl -i -pe 's/"updated2"/"updated"/g' flaskapp/app.py
 
   # Test reload verification for container apps
   container0130: # setup verification app sources
@@ -231,4 +279,4 @@ tests:
     stdout: "Hello, Gopher!"
 
   container_cleanup: # Cleanup generated test sources
-    command: rm -rf ./flaskverify_ok ./flaskverify_fail ./cont_verify_reload.log ./devstageapp ./inferapp ./devstage_id.txt
+    command: rm -rf ./flaskverify_ok ./flaskverify_fail ./cont_verify_reload.log ./devstageapp ./inferapp ./devstage_id.txt ./flaskprod_id.txt

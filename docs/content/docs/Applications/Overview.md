@@ -133,6 +133,8 @@ In the above listing, the staging app has five versions. Three of those (1,2 and
 
 By default, OpenRun keeps the current version plus 5 older versions for each app. Version cleanup runs automatically after operations which create or promote new app versions, so the version list does not grow without bound. The retention count can be changed globally with `app_config.fs.retain_versions` in `openrun.toml`, or per app with `openrun app update conf --promote fs.retain_versions=<count> /myapp`.
 
+In Docker/Podman mode, the images of older versions are kept for quick version switches, the count being controlled by `container.retain_previous_images` (default `1`), see [container config]({{< ref "docs/container/config/#image-and-container-cleanup" >}}). Switching to a version whose image was removed rebuilds it.
+
 A star, like `PROD*` in the `app list` output indicates that there are staged changes waiting to be promoted. That will show up any time the prod app is at a different version than the stage app.
 
 ## App Authentication

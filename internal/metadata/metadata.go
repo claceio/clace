@@ -1396,6 +1396,13 @@ func (m *Metadata) GetAllAppsContext(ctx context.Context, includeInternal bool) 
 			metadata.VersionMetadata.GitBranch, types.StripQuotes(metadata.AppConfig["star_base"]), *updateTime, retainVersions,
 			metadata.AppliedSyncId, userId.String)
 		appInfo.CreatedBySyncId = metadata.CreatedBySyncId
+		appInfo.ImageName = metadata.VersionMetadata.ImageName
+		appInfo.RetainPreviousImages = m.config.AppConfig.Container.RetainPreviousImages
+		if val, ok := metadata.AppConfig["container.retain_previous_images"]; ok {
+			if intVal, err := strconv.Atoi(val); err == nil && intVal >= -1 {
+				appInfo.RetainPreviousImages = intVal
+			}
+		}
 		// The effective MCP config: an app with actions has the actions
 		// endpoint unless it says otherwise. From the stored action
 		// definitions, so nothing is loaded; not for an action sitting at
@@ -2069,6 +2076,102 @@ func (m *Metadata) CleanupAppVersions(ctx context.Context, app types.AppInfo) er
 	}
 
 	return nil
+}
+
+// GetAppVersionImageNames returns the generated image recorded on each
+// stored version of the app (VersionMetadata.ImageName), keyed by version.
+// Every stored version is a key; the value is empty for versions deployed
+// before the image name was recorded and for image spec apps
+func (m *Metadata) GetAppVersionImageNames(ctx context.Context, appId types.AppId) (map[int]string, error) {
+	rows, err := m.db.QueryContext(ctx, system.RebindQuery(m.dbType,
+		`select version, metadata from app_versions where appid = ?`), appId)
+	if err != nil {
+		return nil, fmt.Errorf("error querying app versions: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	images := map[int]string{}
+	for rows.Next() {
+		var version int
+		var metadataStr sql.NullString
+		if err := rows.Scan(&version, &metadataStr); err != nil {
+			return nil, fmt.Errorf("error scanning app version: %w", err)
+		}
+		images[version] = ""
+		if !metadataStr.Valid || metadataStr.String == "" {
+			continue
+		}
+		var metadata types.AppMetadata
+		if err := json.Unmarshal([]byte(metadataStr.String), &metadata); err != nil {
+			return nil, fmt.Errorf("error unmarshalling version %d metadata: %w", version, err)
+		}
+		images[version] = metadata.VersionMetadata.ImageName
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating app versions: %w", err)
+	}
+	return images, nil
+}
+
+// RecordVersionImageName stores the generated image the app's current
+// version was deployed with (VersionMetadata.ImageName) on the apps row and,
+// for stage and prod apps, the app_versions row of that version, changing
+// nothing else. Called by the server after a lazy container start (first
+// request after a create, a version switch or a server restart), which has
+// no metadata write of its own. The rows are read and written in one
+// transaction; the update is skipped when the app moved to another version
+// in between. The read locks the rows on PostgreSQL (its read committed
+// transactions would otherwise let a reload commit between the read and
+// the write, and the write replace the new version's metadata with the
+// old); SQLite serializes writers, and a write after a concurrent commit
+// fails (busy snapshot) rather than overwriting, see the metadata tests
+func (m *Metadata) RecordVersionImageName(ctx context.Context, app *types.AppEntry, imageName string) error {
+	tx, err := m.BeginTransaction(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	version := app.Metadata.VersionMetadata.Version
+	rowLock := ""
+	if m.dbType == system.DB_TYPE_POSTGRES {
+		rowLock = " for update"
+	}
+
+	setImage := func(query string, update string, args ...any) error {
+		var metadataStr sql.NullString
+		if err := tx.QueryRowContext(ctx, system.RebindQuery(m.dbType, query+rowLock), args...).Scan(&metadataStr); err != nil {
+			return err
+		}
+		if !metadataStr.Valid || metadataStr.String == "" {
+			return nil
+		}
+		var metadata types.AppMetadata
+		if err := json.Unmarshal([]byte(metadataStr.String), &metadata); err != nil {
+			return fmt.Errorf("error unmarshalling metadata: %w", err)
+		}
+		if metadata.VersionMetadata.Version != version || metadata.VersionMetadata.ImageName == imageName {
+			return nil
+		}
+		metadata.VersionMetadata.ImageName = imageName
+		metadataJson, err := json.Marshal(metadata)
+		if err != nil {
+			return fmt.Errorf("error marshalling metadata: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, system.RebindQuery(m.dbType, update), append([]any{string(metadataJson)}, args...)...)
+		return err
+	}
+
+	if err := setImage(`select metadata from apps where path = ? and domain = ?`,
+		`update apps set metadata = ? where path = ? and domain = ?`, app.Path, app.Domain); err != nil {
+		return fmt.Errorf("error recording app image: %w", err)
+	}
+	if strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_PROD) || strings.HasPrefix(string(app.Id), types.ID_PREFIX_APP_STAGE) {
+		if err := setImage(`select metadata from app_versions where appid = ? and version = ?`,
+			`update app_versions set metadata = ? where appid = ? and version = ?`, app.Id, version); err != nil {
+			return fmt.Errorf("error recording version image: %w", err)
+		}
+	}
+	return m.CommitTransaction(tx)
 }
 
 func (m *Metadata) CleanupFiles(ctx context.Context) error {

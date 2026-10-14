@@ -188,20 +188,20 @@ func AsContainerExitChecker(cm ContainerManager) (ContainerExitChecker, bool) {
 	return nil, false
 }
 
-// AppContainerStopper is an optional manager capability: stopping all of an
-// app's version containers except the active one. Implemented by the
+// SupersededContainerRemover is an optional manager capability: removing all
+// of an app's version containers except the active one. Implemented by the
 // command-based (Docker/Podman) manager, where superseded versions linger as
-// separately named containers; Kubernetes cleans up through its own
-// workload-cleanup path instead.
-type AppContainerStopper interface {
-	StopAppContainersExcept(ctx context.Context, appId types.AppId, keep ContainerName) error
+// separately named containers, pinning their images; Kubernetes cleans up
+// through its own workload-cleanup path instead.
+type SupersededContainerRemover interface {
+	RemoveSupersededContainers(ctx context.Context, appId types.AppId, keep ContainerName) error
 }
 
-// AsAppContainerStopper unwraps any decorating container managers and returns
-// the underlying AppContainerStopper if one is present.
-func AsAppContainerStopper(cm ContainerManager) (AppContainerStopper, bool) {
+// AsSupersededContainerRemover unwraps any decorating container managers and
+// returns the underlying SupersededContainerRemover if one is present.
+func AsSupersededContainerRemover(cm ContainerManager) (SupersededContainerRemover, bool) {
 	for cm != nil {
-		if s, ok := cm.(AppContainerStopper); ok {
+		if s, ok := cm.(SupersededContainerRemover); ok {
 			return s, true
 		}
 		u, ok := cm.(interface{ Unwrap() ContainerManager })
@@ -275,6 +275,17 @@ func GenImageName(appId types.AppId, contentHash string) ImageName {
 	} else {
 		return ImageName(fmt.Sprintf("%s%s:%s", IMAGE_NAME_PREFIX, appId, shortHash(contentHash)))
 	}
+}
+
+// ImageRepoAppId returns the app id keying the generated image repository of
+// a GenImageName image (cli-<id>[:tag]), false for other images.
+func ImageRepoAppId(name ImageName) (types.AppId, bool) {
+	repo, _, _ := strings.Cut(string(name), ":")
+	id, ok := strings.CutPrefix(repo, IMAGE_NAME_PREFIX)
+	if !ok || id == "" {
+		return "", false
+	}
+	return types.AppId(id), true
 }
 
 func GenVolumeName(appId types.AppId, dirName string) VolumeName {

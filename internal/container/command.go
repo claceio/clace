@@ -135,13 +135,29 @@ func (c *CommandCM) RemoveImage(ctx context.Context, name ImageName) error {
 // RemoveSupersededImages removes the app's generated images other than keep,
 // cleaning up dev images left behind by image hash changes.
 func (c *CommandCM) RemoveSupersededImages(ctx context.Context, keep ImageName) error {
-	return c.removeAppImages(ctx, c.appId, keep)
+	return c.removeAppImages(ctx, c.appId, map[ImageName]bool{keep: true}, 0)
+}
+
+// RemoveRepoImagesExcept removes the generated images of the repository keyed
+// by repoAppId (cli-<repoAppId>, see GenImageName) that are not in keep and
+// are not referenced by any container. The superseded image cleanup calls it
+// with the images of the retained app versions as keep, computed at image
+// generation (ImageGeneration): the sweep stops with ErrImagesChanged, before
+// removing anything else, once the generation has moved, as a deploy may
+// have committed an image keep does not list.
+func (c *CommandCM) RemoveRepoImagesExcept(ctx context.Context, repoAppId types.AppId, keep map[ImageName]bool, generation uint64) error {
+	return c.removeAppImages(ctx, repoAppId, keep, generation)
 }
 
 // removeAppImages removes the generated (cli-<appId>) images of the app other
-// than keep; an empty keep removes them all. Foreign images (sidecars, image
-// specs) never match the generated repository and are not touched.
-func (c *CommandCM) removeAppImages(ctx context.Context, appId types.AppId, keep ImageName) error {
+// than those in keep, those pinned by a deploy in progress (see PinImage) and
+// those referenced by an existing container (running or stopped; the runtime
+// refuses to remove those anyway, listing them first keeps the errors out of
+// the logs). An empty keep removes all unreferenced images. A non-zero
+// generation is the image generation keep was computed at (see
+// RemoveRepoImagesExcept). Foreign images (sidecars, image specs) never match
+// the generated repository and are not touched.
+func (c *CommandCM) removeAppImages(ctx context.Context, appId types.AppId, keep map[ImageName]bool, generation uint64) error {
 	repo := string(GenImageName(appId, ""))
 	cmd := exec.CommandContext(ctx, c.config.System.ContainerCommand, "images",
 		"--filter", "reference="+repo, "--format", "{{.Repository}}:{{.Tag}}")
@@ -150,21 +166,90 @@ func (c *CommandCM) removeAppImages(ctx context.Context, appId types.AppId, keep
 		return fmt.Errorf("error listing images: %s : %s", output, err)
 	}
 
-	var errs []error
+	var candidates []string
 	for _, line := range strings.Split(string(output), "\n") {
 		name := strings.TrimSpace(line)
 		if name == "" || strings.Contains(name, "<none>") {
 			continue
 		}
-		// Podman reports local images with a localhost/ repository prefix
-		if name == string(keep) || strings.HasSuffix(name, "/"+string(keep)) {
+		candidates = append(candidates, name)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Images in use by a container (any app, any state) stay
+	referenced, err := c.containerImages(ctx)
+	if err != nil {
+		return err
+	}
+	isKept := func(name string) bool {
+		for kept := range keep {
+			// Podman reports local images with a localhost/ repository prefix
+			if kept != "" && (name == string(kept) || strings.HasSuffix(name, "/"+string(kept))) {
+				return true
+			}
+		}
+		for ref := range referenced {
+			if name == ref || strings.HasSuffix(name, "/"+ref) || strings.HasSuffix(ref, "/"+name) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var errs []error
+	for _, name := range candidates {
+		if isKept(name) {
 			continue
 		}
-		if err := c.RemoveImage(ctx, ImageName(name)); err != nil {
+		if err := c.removeUnpinnedImage(ctx, name, generation); err != nil {
 			errs = append(errs, err)
+			if errors.Is(err, ErrImagesChanged) {
+				break
+			}
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// removeUnpinnedImage removes the image unless a deploy pinned it, under the
+// sweep lock so a deploy's pin and existence check cannot interleave with
+// the removal (see PinImageAndCheck). With a non-zero generation, it is
+// ErrImagesChanged (and nothing is removed) when the image generation moved
+// since: a pin was released, possibly of an image the caller's keep set
+// predates
+func (c *CommandCM) removeUnpinnedImage(ctx context.Context, name string, generation uint64) error {
+	imageSweepMu.Lock()
+	defer imageSweepMu.Unlock()
+	if generation != 0 && ImageGeneration() != generation {
+		return ErrImagesChanged
+	}
+	if imagePinned(name) {
+		c.Debug().Msgf("Keeping image %s pinned by a deploy in progress", name)
+		return nil
+	}
+	c.Info().Msgf("Removing superseded image %s", name)
+	return c.RemoveImage(ctx, ImageName(name))
+}
+
+// containerImages returns the image references of all containers on the
+// host, running or stopped, as the runtime reports them. A plain format
+// listing: the json listing's port parsing expects the published port
+// mapping of OpenRun containers, which unrelated containers need not have
+func (c *CommandCM) containerImages(ctx context.Context) (map[string]bool, error) {
+	cmd := exec.CommandContext(ctx, c.config.System.ContainerCommand, "ps", "-a", "--format", "{{.Image}}")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error listing container images: %s : %s", output, err)
+	}
+	images := map[string]bool{}
+	for _, line := range strings.Split(string(output), "\n") {
+		if image := strings.TrimSpace(line); image != "" {
+			images[image] = true
+		}
+	}
+	return images, nil
 }
 
 func (c *CommandCM) BuildImage(ctx context.Context, imgName ImageName, sourceUrl, containerFile string, containerArgs map[string]string) error {
@@ -245,7 +330,7 @@ func buildImageCommand(ctx context.Context, logger *types.Logger, config *types.
 }
 
 func (c *CommandCM) RemoveContainer(ctx context.Context, name ContainerName) error {
-	c.Debug().Msgf("Force removing dev container %s", name)
+	c.Debug().Msgf("Force removing container %s", name)
 	cmd := exec.CommandContext(ctx, c.config.System.ContainerCommand, "rm", "--force", string(name))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -432,13 +517,18 @@ func (c *CommandCM) StopContainer(ctx context.Context, name ContainerName) error
 	return nil
 }
 
-// StopAppContainersExcept stops all running containers of the given app other
-// than keep. Containers are content-hash named, so after a committed update
-// the previous version keeps running under its own name; this stops those
-// superseded versions at operation commit instead of leaving them for the
-// periodic stale container sweeper.
-func (c *CommandCM) StopAppContainersExcept(ctx context.Context, appId types.AppId, keep ContainerName) error {
-	containers, err := c.listContainers(ctx, []string{fmt.Sprintf("label=%sapp.id=%s", LABEL_PREFIX, appId)}, false)
+// RemoveSupersededContainers removes all containers of the given app other
+// than keep, running (stopped first, with the stop grace period, so the app
+// and its sidecars shut down cleanly) or stopped. Containers are content-hash
+// named, so after a committed update the previous version keeps running under
+// its own name; this removes those superseded versions at operation commit
+// instead of leaving them for the periodic stale container sweeper, which only
+// stops them. A stopped superseded container would pin its image, so removing
+// it is what lets the superseded image cleanup reclaim the image. Left alone:
+// the per app litestream sidecar, the kept version's sidecars and job
+// containers (removed by the job runner after their run).
+func (c *CommandCM) RemoveSupersededContainers(ctx context.Context, appId types.AppId, keep ContainerName) error {
+	containers, err := c.listContainers(ctx, []string{fmt.Sprintf("label=%sapp.id=%s", LABEL_PREFIX, appId)}, true)
 	if err != nil {
 		return err
 	}
@@ -458,8 +548,19 @@ func (c *CommandCM) StopAppContainersExcept(ctx context.Context, appId types.App
 			// active version's sidecars stay up with it
 			continue
 		}
-		c.Info().Msgf("Stopping superseded container %s for app %s", name, appId)
-		errs = append(errs, c.StopContainer(ctx, name))
+		if cont.LabelValue(LABEL_PREFIX+JobRunLabel) != "" {
+			// Job containers run in the foreground for a run record, on the
+			// version that started them; the job runner removes them
+			continue
+		}
+		if cont.State == "running" {
+			c.Info().Msgf("Stopping superseded container %s for app %s", name, appId)
+			if err := c.StopContainer(ctx, name); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		c.Info().Msgf("Removing superseded container %s for app %s", name, appId)
+		errs = append(errs, c.RemoveContainer(ctx, name))
 	}
 	return errors.Join(errs...)
 }
@@ -501,7 +602,7 @@ func (c *CommandCM) RemoveAppContainers(ctx context.Context, appId types.AppId) 
 func (c *CommandCM) RemoveAppAssets(ctx context.Context, appId types.AppId) error {
 	var errs []error
 	for _, imageId := range appImageIds(appId) {
-		if err := c.removeAppImages(ctx, imageId, ""); err != nil {
+		if err := c.removeAppImages(ctx, imageId, nil, 0); err != nil {
 			errs = append(errs, err)
 		}
 	}

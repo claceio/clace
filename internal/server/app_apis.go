@@ -24,6 +24,7 @@ import (
 	"github.com/openrundev/openrun/internal/app"
 	"github.com/openrundev/openrun/internal/app/appfs"
 	"github.com/openrundev/openrun/internal/bindings"
+	"github.com/openrundev/openrun/internal/container"
 	"github.com/openrundev/openrun/internal/metadata"
 	"github.com/openrundev/openrun/internal/rbac"
 	"github.com/openrundev/openrun/internal/system"
@@ -798,9 +799,25 @@ func (s *Server) GetApp(ctx context.Context, pathDomain types.AppPathDomain, ini
 		return application, nil
 	}
 
-	// Initialize the app
-	if err := application.Initialize(ctx, types.DryRunFalse); err != nil {
+	// Initialize the app. A lazy container start (first request after a
+	// create, a version switch or a server restart) has no metadata write:
+	// the version's image is recorded here so the superseded image cleanup
+	// retains it, and stays pinned against the cleanup until it is (the
+	// pin set outlives the start, see container.ContextWithImagePins). A
+	// failed recording is retried by the next request, which compares the
+	// image with what the app knows to be recorded
+	initCtx, pins := container.ContextWithImagePins(ctx)
+	defer pins.Release()
+	if err := application.Initialize(initCtx, types.DryRunFalse); err != nil {
 		return nil, fmt.Errorf("error initializing app: %w", err)
+	}
+	if image := application.Metadata.VersionMetadata.ImageName; !application.IsDev && image != "" && image != application.RecordedImageName() {
+		pins.Pin(container.ImageName(image)) // a retry: the start did not run again
+		if err := s.db.RecordVersionImageName(ctx, application.AppEntry, image); err != nil {
+			s.Warn().Err(err).Msgf("error recording the image of app %s version %d", pathDomain, application.Metadata.VersionMetadata.Version)
+		} else {
+			application.SetRecordedImageName(image)
+		}
 	}
 
 	return application, nil

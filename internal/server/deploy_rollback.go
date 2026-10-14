@@ -164,6 +164,7 @@ func (s *Server) unregisterDeployTxn(txn *container.DeployTxn) {
 	s.deployTxnMu.Lock()
 	defer s.deployTxnMu.Unlock()
 	delete(s.activeDeployTxns, txn)
+	txn.ReleaseImages()
 }
 
 // inFlightContainerNames returns the containers registered by operations

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/openrundev/openrun/internal/container"
@@ -105,4 +106,123 @@ func cleanupStaleContainers(ctx context.Context, logger *types.Logger, manager s
 		}
 	}
 	return retErr
+}
+
+// cleanupSupersededImages removes the generated images of app versions
+// outside each app's container.retain_previous_images window, after the
+// version cleanup has run. Docker/Podman only: on Kubernetes the images live
+// in a registry with its own retention. Per app copy (prod, stage, preview)
+// the kept images are the current version's, those of versions newer than
+// the current one (present after a revert) and those of the
+// retain_previous_images most recent older versions; the copies sharing a
+// repository (stage and prod by default) pool their kept images. Apps whose
+// current version has no recorded image (deployed before the name was
+// recorded, image spec apps) take no part, and a repository used by a copy
+// configured with -1 is left alone. Images pinned by operations in flight
+// (see container.PinImage) and images referenced by any container are never
+// removed. Best effort: failures are logged, not returned
+func (s *Server) cleanupSupersededImages(ctx context.Context) {
+	command := s.Config().System.ContainerCommand
+	if command == "" || command == types.CONTAINER_KUBERNETES {
+		return
+	}
+	manager := container.NewCommandCM(s.Logger, s.Config(), "", "")
+	// The images to keep come from the versions in the database. A deploy
+	// committing after that read protects its image with a pin only until
+	// the operation is over, so the sweep is tied to the image generation
+	// of the read (see container.ImageGeneration) and recomputed when a pin
+	// was released in between
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		generation := container.ImageGeneration()
+		apps, err := s.db.GetAllAppsContext(ctx, true)
+		if err != nil {
+			s.Error().Err(err).Msg("error listing apps for the superseded image cleanup")
+			return
+		}
+		keep, repos, err := supersededImageKeepSet(apps, func(appId types.AppId) (map[int]string, error) {
+			return s.db.GetAppVersionImageNames(ctx, appId)
+		})
+		if err != nil {
+			s.Error().Err(err).Msg("error computing retained app images")
+			return
+		}
+		changed := false
+		for repoId := range repos {
+			err := manager.RemoveRepoImagesExcept(ctx, repoId, keep, generation)
+			if errors.Is(err, container.ErrImagesChanged) {
+				changed = true
+				break
+			}
+			if err != nil {
+				s.Error().Err(err).Msgf("error removing superseded images of %s", container.GenImageName(repoId, ""))
+			}
+		}
+		if !changed {
+			return
+		}
+		if attempt >= maxAttempts {
+			s.Info().Msg("superseded image cleanup deferred, deploys in progress; the next cleanup pass retries")
+			return
+		}
+	}
+}
+
+// supersededImageKeepSet returns the generated images to keep across all
+// apps and the image repositories (by app id, see GenImageName) to sweep.
+// versionImages returns the image recorded on each stored version of an app
+// (see Metadata.GetAppVersionImageNames). The window of each app copy is
+// count based over its stored versions, like the fs.retain_versions cleanup:
+// the current version, every newer version and the RetainPreviousImages most
+// recent older versions. A copy with RetainPreviousImages < 0 excludes its
+// repository from the sweep.
+func supersededImageKeepSet(apps []types.AppInfo,
+	versionImages func(types.AppId) (map[int]string, error)) (map[container.ImageName]bool, map[types.AppId]bool, error) {
+	keep := map[container.ImageName]bool{}
+	repos := map[types.AppId]bool{}
+	skip := map[types.AppId]bool{}
+	for _, app := range apps {
+		if app.IsDev || app.ImageName == "" {
+			continue
+		}
+		repoId, ok := container.ImageRepoAppId(container.ImageName(app.ImageName))
+		if !ok {
+			continue
+		}
+		keep[container.ImageName(app.ImageName)] = true
+		if app.RetainPreviousImages < 0 {
+			skip[repoId] = true
+			continue
+		}
+		repos[repoId] = true
+
+		images, err := versionImages(app.Id)
+		if err != nil {
+			return nil, nil, fmt.Errorf("listing versions of app %s: %w", app.AppPathDomain, err)
+		}
+		var older []int
+		for version, image := range images {
+			if version < app.Version {
+				older = append(older, version)
+				continue
+			}
+			// The current version and newer ones (after a revert) are kept
+			if image != "" {
+				keep[container.ImageName(image)] = true
+			}
+		}
+		sort.Sort(sort.Reverse(sort.IntSlice(older)))
+		for i, version := range older {
+			if i >= app.RetainPreviousImages {
+				break
+			}
+			if image := images[version]; image != "" {
+				keep[container.ImageName(image)] = true
+			}
+		}
+	}
+	for repoId := range skip {
+		delete(repos, repoId)
+	}
+	return keep, repos, nil
 }

@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/openrundev/openrun/internal/container"
 	"github.com/openrundev/openrun/internal/testutil"
+	"github.com/openrundev/openrun/internal/types"
 )
 
 type fakeStaleContainerManager struct {
@@ -87,5 +89,75 @@ func TestCleanupStaleContainersReturnsStopErrors(t *testing.T) {
 	err := cleanupStaleContainers(context.Background(), testutil.TestLogger(), manager, nil, nil)
 	if !errors.Is(err, stopErr) {
 		t.Fatalf("cleanupStaleContainers error = %v, want %v", err, stopErr)
+	}
+}
+
+func TestSupersededImageKeepSetRetainsWindowPerCopyAndPoolsSharedRepo(t *testing.T) {
+	apps := []types.AppInfo{
+		{Id: "app_prd_shared", IsDev: false, Version: 5, RetainPreviousImages: 1, ImageName: "cli-shared:v5"},
+		{Id: "app_stg_shared", IsDev: false, Version: 6, RetainPreviousImages: 1, ImageName: "cli-shared:v6"},
+		{Id: "app_dev_x", IsDev: true, Version: 1, RetainPreviousImages: 1, ImageName: "cli-app_dev_x:dev-1"},
+		{Id: "app_prd_legacy", Version: 3, RetainPreviousImages: 1, ImageName: ""},
+		{Id: "app_prd_keepall", Version: 2, RetainPreviousImages: -1, ImageName: "cli-keepall:v2"},
+		{Id: "app_stg_keepall", Version: 2, RetainPreviousImages: 1, ImageName: "cli-keepall:v2"},
+		{Id: "app_prd_zero", Version: 4, RetainPreviousImages: 0, ImageName: "cli-zero:v4"},
+	}
+	versions := map[types.AppId]map[int]string{
+		// 7 is newer than current (revert); 4 is the most recent older
+		// version and has no recorded image, consuming the one slot
+		"app_prd_shared":  {1: "cli-shared:v1", 3: "cli-shared:v3", 4: "", 5: "cli-shared:v5", 7: "cli-shared:v7"},
+		"app_stg_shared":  {5: "cli-shared:v5", 6: "cli-shared:v6"},
+		"app_stg_keepall": {1: "cli-keepall:v1", 2: "cli-keepall:v2"},
+		"app_prd_zero":    {3: "cli-zero:v3", 4: "cli-zero:v4"},
+	}
+	var listed []types.AppId
+	keep, repos, err := supersededImageKeepSet(apps,
+		func(appId types.AppId) (map[int]string, error) {
+			listed = append(listed, appId)
+			v, ok := versions[appId]
+			if !ok {
+				return nil, errors.New("unexpected app " + string(appId))
+			}
+			return v, nil
+		})
+	if err != nil {
+		t.Fatalf("supersededImageKeepSet returned error: %v", err)
+	}
+
+	wantKeep := map[container.ImageName]bool{
+		"cli-shared:v5":  true,
+		"cli-shared:v6":  true,
+		"cli-shared:v7":  true,
+		"cli-keepall:v2": true,
+		"cli-keepall:v1": true,
+		"cli-zero:v4":    true,
+	}
+	if len(keep) != len(wantKeep) {
+		t.Fatalf("keep = %v, want %v", keep, wantKeep)
+	}
+	for name := range wantKeep {
+		if !keep[name] {
+			t.Fatalf("keep = %v, want %v", keep, wantKeep)
+		}
+	}
+	wantRepos := map[types.AppId]bool{"shared": true, "zero": true}
+	if len(repos) != len(wantRepos) || !repos["shared"] || !repos["zero"] {
+		t.Fatalf("repos = %v, want %v", repos, wantRepos)
+	}
+	// Dev apps, apps without a recorded image and -1 copies are not listed
+	for _, id := range listed {
+		if id == "app_dev_x" || id == "app_prd_legacy" || id == "app_prd_keepall" {
+			t.Fatalf("versions listed for %s", id)
+		}
+	}
+}
+
+func TestSupersededImageKeepSetReturnsVersionListErrors(t *testing.T) {
+	apps := []types.AppInfo{{Id: "app_prd_x", Version: 1, ImageName: "cli-x:v1"}}
+	_, _, err := supersededImageKeepSet(apps, func(types.AppId) (map[int]string, error) {
+		return nil, errors.New("db down")
+	})
+	if err == nil || !strings.Contains(err.Error(), "db down") {
+		t.Fatalf("err = %v, want version list error", err)
 	}
 }

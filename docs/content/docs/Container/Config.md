@@ -22,6 +22,9 @@ container.idle_shutdown_dev_apps = false
 container.idle_bytes_high_watermark = 1500 # bytes high watermark for idle shutdown
                                            # (1500 bytes sent and recv over 180 seconds)
 
+# Number of older versions whose images are kept after a deploy (Docker/Podman)
+container.retain_previous_images = 1
+
 # Status check Config
 container.status_check_interval_secs = 20
 container.status_health_attempts = 10
@@ -44,6 +47,12 @@ In the running state, a status check is done on the app every `container.status_
 If an app does not receive any REST API request for 180 seconds and the total data transfer from/to the app is below 1500 bytes over 180 seconds, the app is assumed to be idle and the container is stopped. The idle shutdown does not apply for dev apps, only for prod mode apps. For frameworks like Streamlit where WebSockets is used for communication between the UI and app, there will not be any REST API calls. The data transfer is used to determine whether the app is idle.
 
 Set `container.idle_shutdown_secs = 0` to disable idle shutdown. Dev apps skip idle shutdown by default; set `container.idle_shutdown_dev_apps = true` to enable it for them. Kubernetes replica minimums do not override idle shutdown; see [resources and autoscaling]({{< ref "docs/container/kubernetes/#resources-and-autoscaling" >}}).
+
+## Image and container cleanup
+
+In Docker/Podman mode, each deploy of a prod or stage app builds an image for the new version (when the source, build args or Containerfile changed) and starts a container for it. The previous version's containers are removed when the deploy commits. The previous version's image is kept so that `version switch` and `version revert` to that version start quickly; switching to a version whose image was removed rebuilds it from the stored source.
+
+`container.retain_previous_images` controls how many older versions keep their image: the images of the current version of each app copy (prod, stage, preview), of versions newer than the current one (after a revert) and of that many older versions are kept, and any other image of the app is removed after the deploy. The default of `1` keeps the previous version's image. Set it to `0` to keep only the images in use, or to `-1` to never remove the app's images. Versions pruned by `fs.retain_versions` cannot be switched to, so their images are never kept. Stage and prod share images by default, and the images kept for either copy are kept for both. Images of versions deployed before this setting existed are not tracked and are removed on the first deploy, unless a container still uses them. On Kubernetes, images are in the registry and are not removed by OpenRun.
 
 ## Changing Config
 

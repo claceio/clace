@@ -59,6 +59,12 @@ type App struct {
 	sourceFS    *appfs.SourceFs
 	initMutex   sync.Mutex
 	initialized bool
+	// recordedImageName is the generated image the database holds for the
+	// app's version: the stored value at load, then what the server recorded
+	// after a lazy container start (see Server.GetApp, which compares it
+	// with the image the start determined and retries the recording until
+	// it succeeds). Read on the request path
+	recordedImageName atomic.Pointer[string]
 	// reloadError is written by the file-watcher reload goroutine and read on
 	// the request path, so it needs atomic access
 	reloadError      atomic.Pointer[error]
@@ -203,6 +209,7 @@ func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger
 		appUrl:         types.GetAppUrl(appEntry.AppPathDomain(), serverConfig),
 	}
 	newApp.appUrlLocal = newApp.appUrl // pre-box once for the thread-local hot path
+	newApp.SetRecordedImageName(appEntry.Metadata.VersionMetadata.ImageName)
 	newApp.plugins = NewAppPlugins(newApp, plugins, appEntry.Metadata.Accounts)
 	newApp.baseAppConfig = appConfig
 	newApp.AppConfig = appConfig
@@ -255,6 +262,21 @@ func (a *App) Initialize(ctx context.Context, dryRun types.DryRun) error {
 		}
 	}
 	return nil
+}
+
+// RecordedImageName returns the generated image recorded in the database
+// for the app's version, as far as this App knows (see the field)
+func (a *App) RecordedImageName() string {
+	if name := a.recordedImageName.Load(); name != nil {
+		return *name
+	}
+	return ""
+}
+
+// SetRecordedImageName notes that the database records the image for the
+// app's version
+func (a *App) SetRecordedImageName(name string) {
+	a.recordedImageName.Store(&name)
 }
 
 // RecordActivity marks the app as in use now. The idle shutdown of the app

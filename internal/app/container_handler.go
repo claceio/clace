@@ -1636,11 +1636,18 @@ func (h *ContainerHandler) PrepareBuild(ctx context.Context) (*BuildPlan, error)
 	if err != nil {
 		return nil, err
 	}
+	// Recorded on the version like ProdReload does (see there): a version
+	// created without a container start (app create) is then tracked too
+	h.app.Metadata.VersionMetadata.ImageName = string(imageName)
 
-	imageExists, err := h.manager.ImageExists(ctx, imageName)
+	imageExists, release, err := container.PinImageAndCheck(ctx, h.manager, imageName)
 	if err != nil {
 		return nil, fmt.Errorf("error getting images: %w", err)
 	}
+	// The operation's pin (when there is an operation) outlives this call,
+	// through the build and until the operation is over
+	h.registerDeployImage(ctx, imageName)
+	release()
 	if imageExists {
 		return &BuildPlan{ImageName: imageName}, nil
 	}
@@ -1676,7 +1683,7 @@ func (h *ContainerHandler) ExecuteBuild(ctx context.Context, plan *BuildPlan) er
 // operation-level deploy transaction, when one is active. On rollback the
 // newly started container is stopped again — traffic never switched to it,
 // since the app store is only refreshed after the DB transaction commits. On
-// commit the app's superseded version containers are stopped immediately
+// commit the app's superseded version containers are removed immediately
 // instead of lingering until the periodic stale container sweeper. Registering
 // also shields the container from the sweeper while the operation is in
 // flight. No-op outside an operation (e.g. lazy app initialization). The
@@ -1694,12 +1701,21 @@ func (h *ContainerHandler) registerDeployTxn(ctx context.Context, containerName 
 		}
 	}
 	var onCommit func(context.Context) error
-	if stopper, ok := container.AsAppContainerStopper(h.manager); ok && !prepare {
+	if remover, ok := container.AsSupersededContainerRemover(h.manager); ok && !prepare {
 		onCommit = func(c context.Context) error {
-			return stopper.StopAppContainersExcept(c, h.app.Id, containerName)
+			return remover.RemoveSupersededContainers(c, h.app.Id, containerName)
 		}
 	}
 	dt.Register(h.app.Id, containerName, onRollback, onCommit)
+}
+
+// registerDeployImage pins the generated image the deploy builds or runs
+// from on the operation in ctx (its deploy transaction, or the pin set of a
+// lazy start, see container.RegisterImage), so the superseded image cleanup
+// of a concurrent operation leaves it alone until the version row recording
+// the image is committed. No-op outside an operation
+func (h *ContainerHandler) registerDeployImage(ctx context.Context, imageName container.ImageName) {
+	container.RegisterImage(ctx, imageName)
 }
 
 // ProdReload reloads the prod container. verify indicates the caller wants the
@@ -1762,6 +1778,10 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 		if err != nil {
 			return err
 		}
+		// Persisted with the reload's metadata write (apps and app_versions
+		// rows), or by the server after a lazy start: the superseded image
+		// cleanup keeps the images recorded on the retained versions
+		h.app.Metadata.VersionMetadata.ImageName = string(h.GenImageName)
 	} else if h.imageDigest != "" {
 		// Digest-pin the image reference we pass to RunContainer/the pod
 		// template. Subsequent pod restarts or scale-ups will fetch the
@@ -1806,7 +1826,7 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 				h.Warn().Err(err).Msgf("error ensuring sidecars for app %s", h.app.Id)
 			}
 			// Nothing was started, so nothing to roll back; still register so
-			// superseded version containers are stopped at operation commit
+			// superseded version containers are removed at operation commit
 			h.registerDeployTxn(ctx, containerName, false, prepare)
 			return nil
 		}
@@ -1828,11 +1848,16 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 
 	sourceDir := ""
 	if h.image == "" {
-		// Using a container file, build the image if required
-		imageExists, err := h.manager.ImageExists(ctx, h.GenImageName)
+		// Using a container file, build the image if required. The image is
+		// pinned against the superseded image cleanup from the existence
+		// check until this reload is over (the container then references
+		// it); the operation's pin, when there is one, lasts until commit
+		imageExists, release, err := container.PinImageAndCheck(ctx, h.manager, h.GenImageName)
 		if err != nil {
 			return fmt.Errorf("error getting images: %w", err)
 		}
+		defer release()
+		h.registerDeployImage(ctx, h.GenImageName)
 
 		if !imageExists || h.needsRuntimeSourceDir() {
 			sourceDir, err = h.sourceFS.CreateTempSourceDir()
@@ -1921,14 +1946,15 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 	h.hostNamePort = hostNamePort
 
 	if container.DeployTxnFromContext(ctx) == nil && !startedExisting {
-		// Standalone reload (lazy initialization after a promote): nothing
-		// defers the cleanup to a commit, so stop the superseded version's
-		// containers (and their sidecars) now rather than leaving them to
-		// the stale sweeper - which must leave always_on sidecars of
-		// existing apps alone and would otherwise keep an old worker running
-		if stopper, ok := container.AsAppContainerStopper(h.manager); ok {
-			if err := stopper.StopAppContainersExcept(ctx, h.app.Id, containerName); err != nil {
-				h.Warn().Err(err).Msgf("error stopping superseded containers for app %s", h.app.Id)
+		// Standalone reload (lazy initialization after a promote or a
+		// version switch): nothing defers the cleanup to a commit, so remove
+		// the superseded version's containers (and their sidecars) now
+		// rather than leaving them to the stale sweeper - which must leave
+		// always_on sidecars of existing apps alone and would otherwise keep
+		// an old worker running
+		if remover, ok := container.AsSupersededContainerRemover(h.manager); ok {
+			if err := remover.RemoveSupersededContainers(ctx, h.app.Id, containerName); err != nil {
+				h.Warn().Err(err).Msgf("error removing superseded containers for app %s", h.app.Id)
 			}
 		}
 	}

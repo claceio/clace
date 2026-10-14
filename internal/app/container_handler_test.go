@@ -1370,3 +1370,61 @@ func TestPauseIdleShutdownJoinsCommittedStop(t *testing.T) {
 		t.Fatalf("expected exactly one container stop, got %d", manager.stopContainerCalls)
 	}
 }
+
+func TestProdReloadCommandRecordsImageNameOnVersionAndDeployTxn(t *testing.T) {
+	t.Parallel()
+
+	sourceFS := &imageNameTestFS{hash: "source-hash", sourceDir: filepath.Join(t.TempDir(), "source")}
+	manager := &healthTestManager{imageExists: true}
+	serverConfig := &types.ServerConfig{Http: types.HttpConfig{Port: 8080}}
+	h := &ContainerHandler{
+		Logger:        types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		app:           &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_PROD + "record_image")}, serverConfig: serverConfig},
+		serverConfig:  serverConfig,
+		manager:       manager,
+		sourceFS:      sourceFS,
+		containerFile: "Dockerfile",
+	}
+
+	dt := container.NewDeployTxn()
+	defer dt.ReleaseImages()
+	ctx := container.ContextWithDeployTxn(context.Background(), dt)
+	if err := h.ProdReload(ctx, false, false, false); err != nil {
+		t.Fatalf("ProdReload returned error: %v", err)
+	}
+	if h.GenImageName == "" || !strings.HasPrefix(string(h.GenImageName), container.IMAGE_NAME_PREFIX) {
+		t.Fatalf("GenImageName = %q, want a generated image", h.GenImageName)
+	}
+	if got := h.app.Metadata.VersionMetadata.ImageName; got != string(h.GenImageName) {
+		t.Fatalf("recorded image name = %q, want %q", got, h.GenImageName)
+	}
+	if names := dt.ImageNames(); len(names) != 1 || names[0] != h.GenImageName {
+		t.Fatalf("deploy txn images = %v, want [%s]", names, h.GenImageName)
+	}
+}
+
+func TestProdReloadCommandDoesNotRecordImageNameForImageSpecApps(t *testing.T) {
+	t.Parallel()
+
+	manager := &healthTestManager{imageExists: true}
+	serverConfig := &types.ServerConfig{Http: types.HttpConfig{Port: 8080}}
+	h := &ContainerHandler{
+		Logger:       types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		app:          &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_PROD + "image_spec")}, serverConfig: serverConfig},
+		serverConfig: serverConfig,
+		manager:      manager,
+		sourceFS:     &imageNameTestFS{hash: "source-hash"},
+		image:        "python:3.12",
+	}
+
+	dt := container.NewDeployTxn()
+	if err := h.ProdReload(container.ContextWithDeployTxn(context.Background(), dt), false, false, false); err != nil {
+		t.Fatalf("ProdReload returned error: %v", err)
+	}
+	if got := h.app.Metadata.VersionMetadata.ImageName; got != "" {
+		t.Fatalf("recorded image name = %q, want none for an image spec app", got)
+	}
+	if names := dt.ImageNames(); len(names) != 0 {
+		t.Fatalf("deploy txn images = %v, want none", names)
+	}
+}

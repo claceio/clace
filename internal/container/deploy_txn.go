@@ -24,6 +24,11 @@ type DeployTxn struct {
 	mu      sync.Mutex
 	entries []deployEntry
 	names   []ContainerName
+	// images are the generated images the operation deploys from, pinned
+	// (see PinImage) from their registration until ReleaseImages: the
+	// superseded image cleanup of a concurrent operation must not remove an
+	// image whose version row is not committed yet
+	images ImagePins
 	// commitBudget is the extra time the commit actions need beyond the
 	// per-entry allowance, added by deploys whose commit action is a rollout
 	// rather than a traffic switch (see AddCommitBudget)
@@ -66,6 +71,26 @@ func (d *DeployTxn) ContainerNames() []ContainerName {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return slices.Clone(d.names)
+}
+
+// RegisterImage pins a generated image the operation is about to build or
+// run from, protecting it from the superseded image cleanup until the owning
+// scope unregisters the transaction and calls ReleaseImages (like
+// ContainerNames, not drained by CommitAll/RollbackAll)
+func (d *DeployTxn) RegisterImage(name ImageName) {
+	d.images.Pin(name)
+}
+
+// ImageNames returns the generated images registered with RegisterImage
+func (d *DeployTxn) ImageNames() []ImageName {
+	return d.images.Names()
+}
+
+// ReleaseImages drops the pins of the registered images. The owning scope
+// calls it when the operation is over: its versions are committed (and carry
+// their images) or rolled back
+func (d *DeployTxn) ReleaseImages() {
+	d.images.Release()
 }
 
 // AddCommitBudget adds to the time the operation's commit actions are given.

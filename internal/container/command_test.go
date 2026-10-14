@@ -5,6 +5,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -500,5 +501,155 @@ func TestParseCommandOptionsKeepsBuiltInLimitsOutOfOther(t *testing.T) {
 	}
 	if len(got.Other) != 0 {
 		t.Fatalf("Other = %#v, want empty", got.Other)
+	}
+}
+
+func TestRemoveSupersededContainersRemovesOtherVersionsOnly(t *testing.T) {
+	dir := t.TempDir()
+	commandPath := filepath.Join(dir, "docker")
+	logPath := filepath.Join(dir, "rm.log")
+	stopLogPath := filepath.Join(dir, "stop.log")
+	script := `#!/bin/sh
+if [ "$1" = "stop" ] && [ "$2" = "-t" ]; then
+	echo "$4" >> ` + stopLogPath + `
+	exit 0
+fi
+if [ "$1" = "ps" ]; then
+	if [ "$4" != "--filter" ] || [ "$5" != "label=dev.openrun.app.id=app_prd_x" ] || [ "$6" != "--all" ]; then
+		echo "unexpected ps args: $*" >&2
+		exit 64
+	fi
+	echo '{"ID":"1","Names":"clc-app_prd_x-keep","Image":"cli-x:new","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"2","Names":"clc-app_prd_x-old","Image":"cli-x:old","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"3","Names":"clc-app_prd_x-older","Image":"cli-x:older","State":"exited","Status":"Exited","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"4","Names":"cls-app_prd_x-keep-cache","Image":"redis","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.sidecar.app=clc-app_prd_x-keep"}'
+	echo '{"ID":"5","Names":"cls-app_prd_x-old-cache","Image":"redis","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.sidecar.app=clc-app_prd_x-old"}'
+	echo '{"ID":"6","Names":"cll-app_prd_x","Image":"litestream","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.role=litestream"}'
+	echo '{"ID":"7","Names":"clj-app_prd_x-migrate-1","Image":"cli-x:old","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.job.run=run1"}'
+	exit 0
+fi
+if [ "$1" = "rm" ] && [ "$2" = "--force" ]; then
+	echo "$3" >> ` + logPath + `
+	exit 0
+fi
+echo "unexpected args: $*" >&2
+exit 64
+`
+	if err := os.WriteFile(commandPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake container command: %v", err)
+	}
+	manager := NewCommandCM(testutil.TestLogger(), &types.ServerConfig{
+		System: types.SystemConfig{ContainerCommand: commandPath},
+	}, "", "")
+
+	if err := manager.RemoveSupersededContainers(context.Background(), "app_prd_x", "clc-app_prd_x-keep"); err != nil {
+		t.Fatalf("RemoveSupersededContainers returned error: %v", err)
+	}
+	removed, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read rm log: %v", err)
+	}
+	want := "clc-app_prd_x-old\nclc-app_prd_x-older\ncls-app_prd_x-old-cache\n"
+	if string(removed) != want {
+		t.Fatalf("removed containers:\n%s\nwant:\n%s", removed, want)
+	}
+	// Running containers are stopped (with the grace period) before the
+	// removal; the exited one is just removed
+	stopped, err := os.ReadFile(stopLogPath)
+	if err != nil {
+		t.Fatalf("read stop log: %v", err)
+	}
+	wantStopped := "clc-app_prd_x-old\ncls-app_prd_x-old-cache\n"
+	if string(stopped) != wantStopped {
+		t.Fatalf("stopped containers:\n%s\nwant:\n%s", stopped, wantStopped)
+	}
+}
+
+func TestRemoveRepoImagesExceptKeepsRetainedAndReferencedImages(t *testing.T) {
+	dir := t.TempDir()
+	commandPath := filepath.Join(dir, "docker")
+	logPath := filepath.Join(dir, "rmi.log")
+	script := `#!/bin/sh
+if [ "$1" = "images" ]; then
+	if [ "$3" != "reference=cli-shared" ]; then
+		echo "unexpected images args: $*" >&2
+		exit 64
+	fi
+	echo 'cli-shared:kept'
+	echo 'cli-shared:removed'
+	echo 'localhost/cli-shared:podmankept'
+	echo 'cli-shared:referenced'
+	echo 'localhost/cli-shared:pinned'
+	echo 'cli-shared:<none>'
+	exit 0
+fi
+if [ "$1" = "ps" ]; then
+	if [ "$2" != "-a" ] || [ "$3" != "--format" ] || [ "$4" != "{{.Image}}" ]; then
+		echo "unexpected ps args: $*" >&2
+		exit 64
+	fi
+	# Unrelated containers are listed too, whatever their port format
+	echo 'redis:7'
+	echo 'cli-shared:referenced'
+	exit 0
+fi
+if [ "$1" = "rmi" ]; then
+	echo "$2" >> ` + logPath + `
+	exit 0
+fi
+echo "unexpected args: $*" >&2
+exit 64
+`
+	if err := os.WriteFile(commandPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake container command: %v", err)
+	}
+	manager := NewCommandCM(testutil.TestLogger(), &types.ServerConfig{
+		System: types.SystemConfig{ContainerCommand: commandPath},
+	}, "", "")
+
+	release := PinImage("cli-shared:pinned")
+	defer release()
+	keep := map[ImageName]bool{"cli-shared:kept": true, "cli-shared:podmankept": true}
+
+	// A pin released after the keep set was computed (a deploy committed
+	// in between) stops the sweep before anything is removed
+	generation := ImageGeneration()
+	PinImage("cli-shared:committed")()
+	err := manager.RemoveRepoImagesExcept(context.Background(), "shared", keep, generation)
+	if !errors.Is(err, ErrImagesChanged) {
+		t.Fatalf("RemoveRepoImagesExcept after a release: got %v, want ErrImagesChanged", err)
+	}
+	if _, err := os.Stat(logPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("images were removed from a stale keep set: stat %v", err)
+	}
+
+	if err := manager.RemoveRepoImagesExcept(context.Background(), "shared", keep, ImageGeneration()); err != nil {
+		t.Fatalf("RemoveRepoImagesExcept returned error: %v", err)
+	}
+	removed, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read rmi log: %v", err)
+	}
+	if string(removed) != "cli-shared:removed\n" {
+		t.Fatalf("removed images:\n%s\nwant only cli-shared:removed", removed)
+	}
+}
+
+func TestImageRepoAppId(t *testing.T) {
+	cases := map[string]struct {
+		id types.AppId
+		ok bool
+	}{
+		"cli-app_prd_x:abc": {"app_prd_x", true},
+		"cli-x":             {"x", true},
+		"cli-":              {"", false},
+		"python:3.12":       {"", false},
+		"":                  {"", false},
+	}
+	for name, want := range cases {
+		id, ok := ImageRepoAppId(ImageName(name))
+		if id != want.id || ok != want.ok {
+			t.Errorf("ImageRepoAppId(%q) = %q, %v; want %q, %v", name, id, ok, want.id, want.ok)
+		}
 	}
 }

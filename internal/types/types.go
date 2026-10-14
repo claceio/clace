@@ -619,6 +619,13 @@ type Container struct {
 	LogLinesToShow     int  `toml:"log_lines_to_show"`
 	ShowLogsForFailure bool `toml:"show_logs_for_failure"`
 
+	// RetainPreviousImages is the number of older app versions (below the
+	// current one) whose generated images are kept on the container host
+	// after a deploy; older images are removed. -1 keeps every image. Images
+	// of the current version of each app copy (prod, stage) and of versions
+	// newer than the current one are always kept. Docker/Podman only
+	RetainPreviousImages int `toml:"retain_previous_images"`
+
 	// Idle shutdown related config
 	IdleShutdownSecs       int  `toml:"idle_shutdown_secs"`
 	IdleShutdownDevApps    bool `toml:"idle_shutdown_dev_apps"`
@@ -1147,6 +1154,13 @@ type AppInfo struct {
 	MCPImplicit bool // MCP is the implicit actions endpoint, not a stored document
 	MCPDisabled bool // the stored document turns all MCP off (--mcp=disable)
 	HasActions  bool // the app version defines actions (from the stored definitions)
+
+	// RetainPreviousImages is the effective container.retain_previous_images
+	// of the app (server config, overridden by the app metadata config)
+	RetainPreviousImages int
+	// ImageName is the generated image the current version was deployed
+	// with (VersionMetadata.ImageName), empty when not recorded
+	ImageName string
 }
 
 func CreateAppPathDomain(path, domain string) AppPathDomain {
@@ -1249,6 +1263,13 @@ type VersionMetadata struct {
 	ImageDigest   string `json:"image_digest,omitempty,omitzero"`
 	ApplyInfo     []byte `json:"apply_info"`
 	AppliedSyncId string `json:"applied_sync_id"`
+
+	// ImageName is the generated image (cli-<id>:<build hash>) the version
+	// was last deployed with, recorded by the container handler at deploy;
+	// empty for image spec apps and for versions deployed before it was
+	// recorded. The superseded image cleanup keeps the images of retained
+	// versions by this name
+	ImageName string `json:"image_name,omitempty,omitzero"`
 }
 
 // AppEntry is the application configuration in the DB

@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Docker/Podman: old images and containers of prod and stage apps are now cleaned up as new versions are deployed ([#108](https://github.com/openrundev/openrun/issues/108)). The superseded version's containers are removed (not just stopped) when a deploy commits, and the new `container.retain_previous_images` app config setting (default `1`) controls how many older versions keep their image for a quick `version switch`/`version revert`; the images of the current version of each app copy and of versions newer than the current one are always kept, `-1` keeps every image. Switching to a version whose image was removed rebuilds it from the stored source. Each app version now records the image it was deployed with (`image_name` in the version metadata); images of versions deployed before this release are not tracked and are removed on the first deploy unless a container still uses them.
+
 ## [v0.20.2] - 2026-10-13
 
 ### Fixed

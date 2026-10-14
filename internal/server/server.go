@@ -2005,6 +2005,10 @@ func (s *Server) CleanupVersions() {
 			}
 			s.Error().Err(err).Msg("error cleaning up files")
 		}
+
+		// The pruned versions' images are not retained by any version
+		// anymore; remove them along with those outside the image window
+		s.cleanupSupersededImages(ctx)
 	}()
 }
 

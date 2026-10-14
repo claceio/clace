@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/testutil"
 	"github.com/openrundev/openrun/internal/types"
 )
@@ -824,5 +825,139 @@ func TestPreviewOwnerMigration(t *testing.T) {
 				t.Fatalf("%s owner mismatch: %+v, %v", path, entry, err)
 			}
 		}
+	}
+}
+
+func TestGetAppVersionImageNamesListsEveryVersion(t *testing.T) {
+	m, cleanup := setupTestMetadata(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	insert := func(version int, metadata any) {
+		t.Helper()
+		_, err := m.db.ExecContext(ctx, system.RebindQuery(m.dbType,
+			`insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(m.dbType)+")"),
+			"app_prd_img", 0, version, metadata, "admin")
+		if err != nil {
+			t.Fatalf("insert version %d: %v", version, err)
+		}
+	}
+	insert(1, `{"version_metadata":{"version":1}}`)
+	insert(2, `{"version_metadata":{"version":2,"image_name":"cli-img:abc"}}`)
+	insert(3, nil)
+	// Another app's versions are not listed
+	_, err := m.db.ExecContext(ctx, system.RebindQuery(m.dbType,
+		`insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(m.dbType)+")"),
+		"app_prd_other", 0, 1, `{"version_metadata":{"version":1,"image_name":"cli-other:abc"}}`, "admin")
+	if err != nil {
+		t.Fatalf("insert other app version: %v", err)
+	}
+
+	images, err := m.GetAppVersionImageNames(ctx, "app_prd_img")
+	if err != nil {
+		t.Fatalf("GetAppVersionImageNames: %v", err)
+	}
+	want := map[int]string{1: "", 2: "cli-img:abc", 3: ""}
+	if len(images) != len(want) {
+		t.Fatalf("images = %v, want %v", images, want)
+	}
+	for version, image := range want {
+		if got, ok := images[version]; !ok || got != image {
+			t.Fatalf("images = %v, want %v", images, want)
+		}
+	}
+}
+
+func TestRecordVersionImageNameUpdatesCurrentVersionOnly(t *testing.T) {
+	m, cleanup := setupTestMetadata(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	entry := &types.AppEntry{Id: "app_prd_rec", Path: "/rec", Domain: "", Metadata: types.AppMetadata{
+		VersionMetadata: types.VersionMetadata{Version: 2}}}
+	tx, err := m.BeginTransaction(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if err := m.CreateApp(ctx, tx, entry); err != nil {
+		t.Fatalf("create app: %v", err)
+	}
+	versionInsert := system.RebindQuery(m.dbType, `insert into app_versions (appid, previous_version, version, metadata, user_id, create_time) values (?, ?, ?, ?, ?, `+system.FuncNow(m.dbType)+")")
+	for version, metadata := range map[int]string{1: `{"version_metadata":{"version":1,"image_name":"cli-rec:v1"}}`, 2: `{"version_metadata":{"version":2}}`} {
+		if _, err := tx.ExecContext(ctx, versionInsert, entry.Id, 0, version, metadata, "admin"); err != nil {
+			t.Fatalf("insert version %d: %v", version, err)
+		}
+	}
+	if err := m.CommitTransaction(tx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	if err := m.RecordVersionImageName(ctx, entry, "cli-rec:v2"); err != nil {
+		t.Fatalf("RecordVersionImageName: %v", err)
+	}
+	images, err := m.GetAppVersionImageNames(ctx, entry.Id)
+	if err != nil {
+		t.Fatalf("GetAppVersionImageNames: %v", err)
+	}
+	if images[1] != "cli-rec:v1" || images[2] != "cli-rec:v2" {
+		t.Fatalf("version images = %v, want v1 untouched and v2 recorded", images)
+	}
+	stored, err := m.GetAppEntry(ctx, entry.AppPathDomain())
+	if err != nil {
+		t.Fatalf("GetAppEntry: %v", err)
+	}
+	if stored.Metadata.VersionMetadata.ImageName != "cli-rec:v2" || stored.Metadata.VersionMetadata.Version != 2 {
+		t.Fatalf("stored metadata = %+v, want image recorded on version 2", stored.Metadata.VersionMetadata)
+	}
+
+	// The app moved on to another version in between: nothing is written
+	stale := *entry
+	stale.Metadata.VersionMetadata.Version = 1
+	if err := m.RecordVersionImageName(ctx, &stale, "cli-rec:stale"); err != nil {
+		t.Fatalf("RecordVersionImageName stale: %v", err)
+	}
+	stored, _ = m.GetAppEntry(ctx, entry.AppPathDomain())
+	if stored.Metadata.VersionMetadata.ImageName != "cli-rec:v2" {
+		t.Fatalf("stale record changed the apps row: %+v", stored.Metadata.VersionMetadata)
+	}
+}
+
+// RecordVersionImageName reads then writes the apps row in one transaction
+// and relies on SQLite refusing the write when another connection committed
+// after the read (busy snapshot in WAL mode), rather than overwriting the
+// committed row; PostgreSQL locks the row instead. This pins that behavior
+func TestSQLiteWriteAfterConcurrentCommitFails(t *testing.T) {
+	m, cleanup := setupTestMetadata(t)
+	defer cleanup()
+	ctx := context.Background()
+	if _, err := m.db.ExecContext(ctx, `insert into apps(id, path, domain, metadata) values('app_prd_snap', '/snap', '', '{"version_metadata":{"version":1}}')`); err != nil {
+		t.Fatalf("insert app: %v", err)
+	}
+
+	tx, err := m.BeginTransaction(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+	var metadataStr string
+	if err := tx.QueryRowContext(ctx, `select metadata from apps where path = '/snap' and domain = ''`).Scan(&metadataStr); err != nil {
+		t.Fatalf("read in transaction: %v", err)
+	}
+
+	// Another connection commits a newer version in between
+	if _, err := m.db.ExecContext(ctx, `update apps set metadata = '{"version_metadata":{"version":2}}' where path = '/snap' and domain = ''`); err != nil {
+		t.Fatalf("concurrent update: %v", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `update apps set metadata = '{"version_metadata":{"version":1,"image_name":"stale"}}' where path = '/snap' and domain = ''`)
+	if err == nil {
+		t.Fatal("write after a concurrent commit succeeded, the committed row would be overwritten")
+	}
+	tx.Rollback() //nolint:errcheck
+	if err := m.db.QueryRowContext(ctx, `select metadata from apps where path = '/snap' and domain = ''`).Scan(&metadataStr); err != nil {
+		t.Fatalf("read after: %v", err)
+	}
+	if metadataStr != `{"version_metadata":{"version":2}}` {
+		t.Fatalf("stored metadata = %s, want the concurrently committed version", metadataStr)
 	}
 }
