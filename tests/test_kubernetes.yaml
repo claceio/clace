@@ -26,8 +26,8 @@ tests:
   kubernetes021: # values encrypted with that key can be read back
     command: ../openrun secret show --reveal kube_db_secret
     stdout: "kube-secret-value"
-  kubernetes030: # setup flask prod app
-    command: ../openrun app create --stage-at path --spec python-flask --carg PYTHON_VERSION='{{secret_from "env" "PYTHON_VERSION"}}' --copt cpus=0.05 --copt memory=0.5g --approve ./kube_flaskapp /kube_flaskprod
+  kubernetes030: # setup flask prod app. The build arg reads an env secret, which the spec's container config permission grants only when declared (the secrets param) and approved
+    command: ../openrun app create --stage-at path --spec python-flask --carg PYTHON_VERSION='{{secret_from "env" "PYTHON_VERSION"}}' --param secrets='[["PYTHON_VERSION"]]' --copt cpus=0.05 --copt memory=0.5g --approve ./kube_flaskapp /kube_flaskprod
   kubernetes031:
     command: curl -sS localhost:${HTTP_PORT}/kube_flaskprod
   # Content checks after a create/reload/promote retry: the app create waits
