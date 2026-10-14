@@ -99,3 +99,35 @@ tests:
   sync0211:
     command: ../openrun app delete "/prune/*" && ../openrun service delete sqlite/prunesvc && rm -rf /tmp/prunetestapp /tmp/prune_sync.ace
     stdout: "app(s) deleted"
+
+  ## --- #109: a scheduled sync (default --reload=matched) saves a declaration
+  ## only change when the app's repo has no new commit, and the next run finds
+  ## nothing to update
+  sync0300: # setup: the first run creates the git app with its param
+    command: >-
+      printf 'app("/sync109/app", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "1"})\n' > /tmp/sync_109.ace && ../openrun sync schedule --approve --promote /tmp/sync_109.ace
+    stdout:
+      contains:
+        - "1 app(s) created"
+        - "Sync job created with Id"
+  sync0301:
+    command: ../openrun sync list -f json | jq -r '.[] | select(.path == "/tmp/sync_109.ace") | .id' > sync109_id.tmp
+  sync0302: # change only the param: both copies are updated, nothing is skipped
+    command: >-
+      printf 'app("/sync109/app", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "2"})\n' > /tmp/sync_109.ace && sh -c 'id=$(cat sync109_id.tmp); ../openrun sync run "$id"'
+    stdout:
+      contains:
+        - "Updated apps: /sync109/app_cl_stage, /sync109/app"
+        - "0 app(s) created, 2 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 1 app(s) promoted"
+  sync0303: # the param reached the prod app
+    command: ../openrun param list /sync109/app
+    stdout: "CONFIG_ONLY_TEST: 2"
+  sync0304: # the next run finds no difference
+    command: sh -c 'id=$(cat sync109_id.tmp); ../openrun sync run "$id"'
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+  sync0305: # cleanup
+    command: sh -c 'id=$(cat sync109_id.tmp); ../openrun sync delete "$id" && rm -f sync109_id.tmp'
+    stdout: "deleted"
+  sync0306:
+    command: ../openrun app delete /sync109/app && rm -f /tmp/sync_109.ace
+    stdout: "app(s) deleted"

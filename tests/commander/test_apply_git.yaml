@@ -29,19 +29,19 @@ tests:
     command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/applytest/test3/
     stdout: "List Files"
 
-  apply_git0050: ## check auth apply
+  apply_git0050: ## check auth apply: the code is up to date, the declaration change is saved without a reload (#109)
     command: ../openrun apply ./apply_files/apply_git2.ace /applytest/test1
-    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
+    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
   apply_git0051: ## check git auth apply
     command: ../openrun apply ./apply_files/apply_git2.ace /applytest/test2
     stderr: "git auth entry abc not found in server config"
     exit-code: 1
-  apply_git0052: ## check spec update
+  apply_git0052: ## check spec update: saved as a new version although the code is up to date (#109)
     command: ../openrun apply --approve ./apply_files/apply_git2.ace /applytest/test3
-    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
-  apply_git0053: ## check spec update
+    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
+  apply_git0053: ## check spec update: the declaration was saved by the previous apply, a forced reload finds no change
     command: ../openrun apply --approve --force-reload ./apply_files/apply_git2.ace /applytest/test3
-    stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
+    stdout: "0 app(s) created, 0 app(s) updated, 1 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
   apply_git0054: ## check git apply
     command: ../openrun apply github.com/openrundev/openrun/tests/apply_files/apply_git.ace /applytest/test2
     stdout: "0 app(s) created, 0 app(s) updated"
@@ -63,3 +63,115 @@ tests:
   apply_git0063: ## create apps without git
     command: ../openrun apply ./apply_files/apply_git_config.ace
     stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped, 0 app(s) approved, 0 app(s) promoted."
+
+  ## --- #109: a declaration-only change to a git app whose repo has no new
+  ## commit is saved as a new version. The up-to-date check skips the code
+  ## reload, which used to drop the merged declaration, so every later apply
+  ## (and sync run) found the same difference and skipped it again
+  apply_git0100: # setup: a git app declared with a param
+    command: >-
+      printf 'app("/applytest/p109", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "1"})\n' > /tmp/apply_109.ace && ../openrun apply --approve /tmp/apply_109.ace
+    stdout: "1 app(s) created"
+  apply_git0101: # unchanged declaration, code up to date: skipped
+    command: ../openrun apply --approve /tmp/apply_109.ace
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+  apply_git0102: # change only the param, with the default --reload=matched: updated, not skipped
+    command: >-
+      printf 'app("/applytest/p109", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "2"})\n' > /tmp/apply_109.ace && ../openrun apply --approve /tmp/apply_109.ace
+    stdout:
+      contains:
+        - "Updated apps: /applytest/p109_cl_stage"
+        - "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 0 app(s) promoted"
+  apply_git0103: # the param is saved on the stage app
+    command: ../openrun param list /applytest/p109_cl_stage
+    stdout: "CONFIG_ONLY_TEST: 2"
+  apply_git0104: # as a new version of the stage app
+    command: ../openrun version list /applytest/p109_cl_stage | awk '/=====>/{print $2}'
+    stdout:
+      exactly: "2"
+  apply_git0105: # prod is not promoted
+    command: ../openrun param list /applytest/p109
+    stdout: "CONFIG_ONLY_TEST: 1"
+  apply_git0105a:
+    command: ../openrun version list /applytest/p109 | awk '/=====>/{print $2}'
+    stdout:
+      exactly: "1"
+  apply_git0106: # the saved declaration is the new one: the next apply finds no difference
+    command: ../openrun apply --approve /tmp/apply_109.ace
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+  apply_git0107: # --reload=updated: the change is saved as well
+    command: >-
+      printf 'app("/applytest/p109", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "3"})\n' > /tmp/apply_109.ace && ../openrun apply --approve --reload=updated /tmp/apply_109.ace
+    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped"
+  apply_git0108:
+    command: ../openrun param list /applytest/p109_cl_stage
+    stdout: "CONFIG_ONLY_TEST: 3"
+  apply_git0109: # --promote: the change goes to the prod app too
+    command: >-
+      printf 'app("/applytest/p109", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "4"})\n' > /tmp/apply_109.ace && ../openrun apply --approve --promote /tmp/apply_109.ace
+    stdout:
+      contains:
+        - "Updated apps: /applytest/p109_cl_stage, /applytest/p109"
+        - "0 app(s) created, 2 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 1 app(s) promoted"
+  apply_git0110:
+    command: ../openrun param list /applytest/p109
+    stdout: "CONFIG_ONLY_TEST: 4"
+  apply_git0111: # the prod app still serves after the metadata only versions
+    command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/applytest/p109/
+    stdout: "Disk Usage"
+  apply_git0112: # --dry-run reports the update but saves nothing
+    command: >-
+      printf 'app("/applytest/p109", "github.com/openrundev/apps/system/disk_usage", stage_at="path", params={"CONFIG_ONLY_TEST": "5"})\n' > /tmp/apply_109.ace && ../openrun apply --approve --dry-run /tmp/apply_109.ace
+    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped"
+  apply_git0113:
+    command: ../openrun param list /applytest/p109_cl_stage
+    stdout: "CONFIG_ONLY_TEST: 4"
+  apply_git0114: # --force-reload saves the change along with the code reload
+    command: ../openrun apply --approve --force-reload /tmp/apply_109.ace
+    stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) skipped"
+  apply_git0115:
+    command: ../openrun param list /applytest/p109_cl_stage
+    stdout: "CONFIG_ONLY_TEST: 5"
+  apply_git0120: # cleanup
+    command: ../openrun app delete /applytest/p109 && rm -f /tmp/apply_109.ace
+    stdout: "app(s) deleted"
+
+  ## --- a declared git_commit change is loaded, not recorded over the old
+  ## files: the app's current commit is what the up-to-date check compares
+  ## the declared commit against, so it must not be overwritten before the
+  ## reload. The test app returns 555 at the first commit and 111 at the second
+  apply_git0200: # setup: a git app pinned to a commit
+    command: >-
+      printf 'app("/applytest/c109", "github.com/openrundev/openrun/tests/testapp", stage_at="path", git_commit="0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec")\n' > /tmp/apply_109c.ace && ../openrun apply --approve /tmp/apply_109c.ace
+    stdout: "1 app(s) created"
+  apply_git0201:
+    command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/applytest/c109_cl_stage/test1
+    stdout: "555"
+  apply_git0202: # change only git_commit, default --reload=matched: the new commit is loaded
+    command: >-
+      printf 'app("/applytest/c109", "github.com/openrundev/openrun/tests/testapp", stage_at="path", git_commit="350eaf7b9f2ffde01856263c39ab569e71f04f1b")\n' > /tmp/apply_109c.ace && ../openrun apply --approve /tmp/apply_109c.ace
+    stdout: "0 app(s) created, 1 app(s) updated, 1 app(s) reloaded, 0 app(s) skipped"
+  apply_git0203: # the stage app serves the new commit's code
+    command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/applytest/c109_cl_stage/test1
+    stdout: "111"
+  apply_git0204: # and records the loaded commit
+    command: ../openrun version list /applytest/c109_cl_stage | grep '=====>' | grep -c 350eaf7b9f2ffde01856
+    stdout:
+      exactly: "1"
+  apply_git0205: # prod is still at the first commit, no promote was asked
+    command: curl -su "admin:qwerty" localhost:${MAIN_HTTP_PORT}/applytest/c109/test1
+    stdout: "555"
+  apply_git0206: # the next apply finds nothing to do
+    command: ../openrun apply --approve /tmp/apply_109c.ace
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+  apply_git0207: # a git_commit change with --reload=none records the declared commit without a load, as before
+    command: >-
+      printf 'app("/applytest/c109", "github.com/openrundev/openrun/tests/testapp", stage_at="path", git_commit="0e23273f82701c7ecb4f9f6b4e2a4c6ea154c0ec")\n' > /tmp/apply_109c.ace && ../openrun apply --approve --reload=none /tmp/apply_109c.ace
+    stdout: "0 app(s) created, 1 app(s) updated, 0 app(s) reloaded, 0 app(s) skipped"
+  apply_git0208:
+    command: ../openrun version list /applytest/c109_cl_stage | grep '=====>' | grep -c 0e23273f82701c7ecb4f
+    stdout:
+      exactly: "1"
+  apply_git0210: # cleanup
+    command: ../openrun app delete /applytest/c109 && rm -f /tmp/apply_109c.ace
+    stdout: "app(s) deleted"

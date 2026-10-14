@@ -880,9 +880,6 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		gitCommitChanged = checkPropertyChanged(oldInfo, func(info *types.CreateAppRequest) any {
 			return info.GitCommit
 		}, newInfo.GitCommit, liveApp.Metadata.VersionMetadata.GitCommit, opts.Clobber)
-		if gitCommitChanged {
-			liveApp.Metadata.VersionMetadata.GitCommit = newInfo.GitCommit
-		}
 	}
 
 	// mergeMap updates the live maps in place, they cannot be nil
@@ -976,6 +973,15 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 	}
 
 	reloadApp := opts.Reload == types.AppReloadOptionMatched || updated && opts.Reload == types.AppReloadOptionUpdated
+	if gitCommitChanged && !reloadApp {
+		// Without a reload, the declared commit is recorded as is. With one,
+		// the reload records the commit it checks out: the current commit has
+		// to stay in place until then, it is what the up-to-date check
+		// compares the declared commit against (recording the declared commit
+		// here made the check skip the load, as the app seemed to be at it
+		// already)
+		liveApp.Metadata.VersionMetadata.GitCommit = newInfo.GitCommit
+	}
 	promoteApp := false
 	ret := &types.AppApplyResult{
 		DryRun:        opts.DryRun,
@@ -991,36 +997,55 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		ret.Reloaded = reloadResult.ReloadResults
 		ret.Skipped = reloadResult.SkippedResults
 		promoteApp = len(reloadResult.PromoteResults) > 0
-	} else if updated {
-		// No reload, increment version and promote (if enabled). The sync id
-		// is updated only when applied through a sync, imperative apply does
-		// not reset it
-		if syncId := system.GetContextValue(ctx, types.SYNC_ID); syncId != "" {
-			liveApp.Metadata.AppliedSyncId = syncId
-		}
-		stagingFileStore, err := metadata.NewFileStore(liveApp.Id, liveApp.Metadata.VersionMetadata.Version, s.db, tx)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing staging file store: %w", err)
-		}
-
-		err = stagingFileStore.IncrementAppVersion(ctx, tx, &liveApp.Metadata)
-		if err != nil {
-			return nil, fmt.Errorf("error incrementing app version: %w", err)
-		}
-		if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
-			return nil, err
-		}
-		if opts.Promote && !liveApp.IsDev {
-			if err = s.promoteApp(ctx, tx, liveApp, prodApp); err != nil {
+		if updated && len(reloadResult.ReloadResults) == 0 {
+			// The code is up to date, so the reload was skipped and nothing was
+			// saved. The declaration change still has to be persisted as a new
+			// version, else every later apply (and sync run) finds the same
+			// difference and skips it again (#109). The app was updated, not
+			// skipped
+			ret.Skipped = []types.AppPathDomain{}
+			if promoteApp, err = s.saveAppUpdate(ctx, tx, liveApp, prodApp, opts.Promote); err != nil {
 				return nil, err
 			}
-			promoteApp = true
+		}
+	} else if updated {
+		if promoteApp, err = s.saveAppUpdate(ctx, tx, liveApp, prodApp, opts.Promote); err != nil {
+			return nil, err
 		}
 	}
 
 	ret.Updated = updatedApps
 	ret.Promoted = promoteApp
 	return ret, nil
+}
+
+// saveAppUpdate persists a declaration change that did not reload the app's
+// code: the stage (or dev) entry liveApp, with the declaration merged into its
+// metadata, is saved as a new version, and promoted to prodApp when promote is
+// set. Returns whether the app was promoted. The sync id is updated only when
+// applied through a sync, imperative apply does not reset it
+func (s *Server) saveAppUpdate(ctx context.Context, tx types.Transaction, liveApp, prodApp *types.AppEntry, promote bool) (bool, error) {
+	if syncId := system.GetContextValue(ctx, types.SYNC_ID); syncId != "" {
+		liveApp.Metadata.AppliedSyncId = syncId
+	}
+	stagingFileStore, err := metadata.NewFileStore(liveApp.Id, liveApp.Metadata.VersionMetadata.Version, s.db, tx)
+	if err != nil {
+		return false, fmt.Errorf("error initializing staging file store: %w", err)
+	}
+
+	if err = stagingFileStore.IncrementAppVersion(ctx, tx, &liveApp.Metadata); err != nil {
+		return false, fmt.Errorf("error incrementing app version: %w", err)
+	}
+	if err := s.db.UpdateAppMetadata(ctx, tx, liveApp); err != nil {
+		return false, err
+	}
+	if promote && !liveApp.IsDev {
+		if err = s.promoteApp(ctx, tx, liveApp, prodApp); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func prepareBindingApplyInfo(newInfo *types.CreateBindingRequest) error {
