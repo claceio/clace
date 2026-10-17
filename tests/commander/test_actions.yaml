@@ -424,6 +424,44 @@ tests:
         - "Listed 1 orders / TABLE"
         - "credential scope ceiling"
     exit-code: 0
+  action0235: # destructive_confirm: the default (require) refuses a destructive call from a client
+    # which cannot confirm (a raw request, no elicitation capability), a --confirm skip key does
+    # not override require, the app set to ask runs the raw call at once and the skip key runs
+    # without the prompt; the audit detail says how each call was confirmed
+    command: |
+      mcp() { curl -sk -X POST -H "Authorization: Bearer $(cat $1)" -H 'Content-Type: application/json' \
+        -H 'Accept: application/json, text/event-stream' -H 'MCP-Protocol-Version: 2025-03-26' -d "$2" \
+        https://localhost:${MAIN_HTTPS_PORT}/actapps/ops/mcp | sed -n 's/^data: //p'; }
+      call='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"purge","arguments":{}}}'
+      echo "require raw: $(mcp act_carol_app.txt "$call" | jq -r '[(.result.isError // false), .result.content[0].text] | join(" ")')"
+      ../openrun apikey create --user builtin:carol --resource app:/actapps/ops --confirm require 2>&1 || true
+      ../openrun apikey create --user builtin:carol --resource app:/actapps/ops --confirm skip > act_carol_skip.out
+      grep "^Confirm:" act_carol_skip.out
+      grep -o "orun_pat_[0-9a-f_]*" act_carol_skip.out > act_carol_skip.txt
+      echo "listed: $(../openrun apikey list --all -f json | jq -r '[.[] | select(.user == "builtin:carol" and .destructive_confirm == "skip")] | length')"
+      echo "require skipkey: $(mcp act_carol_skip.txt "$call" | jq -r '[(.result.isError // false), .result.content[0].text] | join(" ")')"
+      ../openrun app update conf --promote 'action.destructive_confirm="ask"' /actapps/ops > /dev/null
+      echo "ask raw: $(mcp act_carol_app.txt "$call" | jq -r '[(.result.isError // false), .result.content[0].text] | join(" ")')"
+      echo "ask skipkey: $(mcp act_carol_skip.txt "$call" | jq -r '[(.result.isError // false), .result.content[0].text] | join(" ")')"
+      ../openrun app update conf --promote 'action.destructive_confirm="require"' /actapps/ops > /dev/null
+      echo "require again: $(mcp act_carol_app.txt "$call" | jq -r '.result.isError')"
+      sleep 2
+      sqlite3 metadata/clace_audit.db "select operation || ' ' || status || ' ' || detail from audit where event_type = 'action' and target = 'Purge' and operation = 'mcp_execute' and user_id = 'builtin:carol' order by create_time" 2>/dev/null || echo "no audit db"
+    stdout:
+      contains:
+        - "require raw: true Purge on /actapps/ops is destructive"
+        - "destructive_confirm=require"
+        - "a key can only skip the confirmation"
+        - "Confirm: skip"
+        - "listed: 1"
+        - "require skipkey: true Purge on /actapps/ops is destructive"
+        - "ask raw: false purged"
+        - "ask skipkey: false purged"
+        - "require again: true"
+        - "mcp_execute Failed confirm=refused"
+        - "mcp_execute Success confirm=unsupported"
+        - "mcp_execute Success confirm=skipped_by_key"
+    exit-code: 0
   action0240: # --mcp=actions needs actions, and an action cannot sit at the endpoint path
     command: |
       rm -rf act_empty && mkdir -p act_empty
@@ -618,5 +656,5 @@ tests:
       EOF
       ../openrun server update-config --force act_rbac.json
       rm -f act_rbac.json act_orders.csv act_alice_rest.txt act_alice_ro.txt act_alice_app.txt act_carol_app.txt act_alice_mcp.txt act_alice_mcp_ro.txt act_alice_files.txt act_tools.json act_call.json remote_client.toml
-      rm -rf act_src act_empty act_out act_up act_spec act_bad
+      rm -rf act_carol_skip.out act_carol_skip.txt act_src act_empty act_out act_up act_spec act_bad
     exit-code: 0

@@ -236,11 +236,47 @@ type ApiSurfaceConfig struct {
 	EnableApis  []string `toml:"enable_apis"`
 	DisableApis []string `toml:"disable_apis"`
 
-	// SkipDestructiveConfirm turns off the dry-run + elicitation
-	// confirmation flow for destructive MCP tools. Useful for headless
-	// automation, or for clients whose elicitation handling stalls the
-	// calling side while the prompt waits on a human. mcp only
+	// DestructiveConfirm is what happens when a destructive MCP tool is
+	// called (DestructiveConfirmRequire, the default, Ask or Skip). mcp only
+	DestructiveConfirm string `toml:"destructive_confirm"`
+
+	// SkipDestructiveConfirm is the pre-0.21 form of DestructiveConfirm =
+	// "skip", kept for existing configs. mcp only
 	SkipDestructiveConfirm bool `toml:"skip_destructive_confirm"`
+}
+
+// The destructive_confirm modes of the MCP surfaces, an app's actions
+// (action.destructive_confirm) and an API key (--confirm skip)
+const (
+	// DestructiveConfirmRequire asks capable clients to confirm a
+	// destructive tool call and refuses the call from a client which cannot
+	// confirm (an older protocol, no form elicitation). The default
+	DestructiveConfirmRequire = "require"
+	// DestructiveConfirmAsk asks capable clients and runs the call at once
+	// for the others, the behavior before require existed
+	DestructiveConfirmAsk = "ask"
+	// DestructiveConfirmSkip never asks: destructive tools run at once
+	DestructiveConfirmSkip = "skip"
+)
+
+// ValidateDestructiveConfirm checks a destructive_confirm value; "" is
+// accepted as unset
+func ValidateDestructiveConfirm(value string) error {
+	switch value {
+	case "", DestructiveConfirmRequire, DestructiveConfirmAsk, DestructiveConfirmSkip:
+		return nil
+	}
+	return fmt.Errorf("invalid destructive_confirm %q: expected require, ask or skip", value)
+}
+
+// DestructiveConfirmMode is the effective destructive_confirm mode of the
+// surface: the deprecated skip_destructive_confirm = true is skip, an unset
+// destructive_confirm is require
+func (c ApiSurfaceConfig) DestructiveConfirmMode() string {
+	if c.SkipDestructiveConfirm {
+		return DestructiveConfirmSkip
+	}
+	return cmp.Or(c.DestructiveConfirm, DestructiveConfirmRequire)
 }
 
 // Enabled reports whether the surface is on
@@ -569,6 +605,10 @@ type ActionConfig struct {
 	// app serving its actions as tools: how long a client may use a listed
 	// tool set before listing again. A Go duration, default 3m
 	MCPListTTL string `toml:"mcp_list_ttl"`
+	// DestructiveConfirm overrides the [api.mcp] destructive_confirm mode
+	// for the destructive actions of this app (require, ask or skip); ""
+	// inherits the surface setting
+	DestructiveConfirm string `toml:"destructive_confirm"`
 }
 
 // JobsConfig holds the job run settings of an app

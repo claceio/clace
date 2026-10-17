@@ -228,6 +228,14 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 	if err != nil {
 		return nil, err
 	}
+	switch req.DestructiveConfirm {
+	case "", types.DestructiveConfirmSkip:
+	case types.DestructiveConfirmRequire, types.DestructiveConfirmAsk:
+		return nil, types.CreateRequestError(fmt.Sprintf("--confirm %s: a key can only skip the confirmation of destructive MCP tools;"+
+			" require and ask are set on the server ([api.mcp] destructive_confirm) or the app (action.destructive_confirm)", req.DestructiveConfirm), http.StatusBadRequest)
+	default:
+		return nil, types.CreateRequestError(fmt.Sprintf("--confirm %q: expected skip", req.DestructiveConfirm), http.StatusBadRequest)
+	}
 
 	resources := slices.Clone(req.Resources)
 	if len(resources) == 0 {
@@ -295,6 +303,9 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 		if err != nil {
 			return nil, err
 		}
+		if req.DestructiveConfirm == types.DestructiveConfirmSkip && parent.DestructiveConfirm != types.DestructiveConfirmSkip {
+			return nil, types.CreateRequestError("a key created with a key which confirms destructive MCP tools cannot skip the confirmation", http.StatusForbidden)
+		}
 	}
 
 	identity, err := s.resolveApiIdentity(ctx, target)
@@ -343,6 +354,8 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 		Description: req.Description,
 		ExpiresAt:   expiresAt,
 		CreatedBy:   caller,
+
+		DestructiveConfirm: req.DestructiveConfirm,
 	}
 	if err := s.db.CreateCredential(ctx, cred); err != nil {
 		return nil, err
@@ -356,6 +369,8 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 		Scopes:    scopes,
 		Resources: resources,
 		ExpiresAt: expiresAt,
+
+		DestructiveConfirm: req.DestructiveConfirm,
 	}, nil
 }
 

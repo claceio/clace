@@ -503,16 +503,27 @@ func TestMCPDestructiveConfirmation(t *testing.T) {
 		t.Fatalf("explicit dry_run must not elicit, got prompt: %s", unexpected)
 	}
 
-	// A client without the elicitation capability keeps direct-execute
-	// behavior: the plain connect helper declares no capability
+	// A client without the elicitation capability cannot confirm: the
+	// default mode (require) refuses the call, the app stays
 	plainSession := connect(t, "admin", nil, nil)
 	result, err = plainSession.CallTool(t.Context(), &mcp.CallToolParams{
 		Name: "delete_apps", Arguments: map[string]any{"path_glob": "/apps/confirm-decline"}})
-	if err != nil || result.IsError {
-		t.Fatalf("no-capability delete: %v %s", err, callToolText(t, result))
+	if err != nil || !result.IsError {
+		t.Fatalf("no-capability delete must be refused: %v %s", err, callToolText(t, result))
 	}
-	if appExists("/apps/confirm-decline") {
-		t.Fatal("no-capability client must execute directly (unchanged behavior)")
+	for _, want := range []string{"delete_apps on /apps/confirm-decline is destructive", "destructive_confirm=require"} {
+		if !strings.Contains(callToolText(t, result), want) {
+			t.Fatalf("refusal lacks %q: %s", want, callToolText(t, result))
+		}
+	}
+	if !appExists("/apps/confirm-decline") {
+		t.Fatal("a refused delete must not run")
+	}
+	// Its dry_run is not refused
+	result, err = plainSession.CallTool(t.Context(), &mcp.CallToolParams{
+		Name: "delete_apps", Arguments: map[string]any{"path_glob": "/apps/confirm-decline", "dry_run": true}})
+	if err != nil || result.IsError {
+		t.Fatalf("no-capability dry-run delete: %v %s", err, callToolText(t, result))
 	}
 }
 

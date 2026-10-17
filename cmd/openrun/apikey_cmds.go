@@ -46,6 +46,8 @@ func apiKeyCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 			" RBAC still applies; scopes are a ceiling. Default: unscoped, except mcp-only keys which"+
 			" default to read-only: *:read plus app:read_detail (pass --scopes \"*\" for a write-capable MCP key)", ""),
 		newStringFlag("resource", "r", "What the key is valid for: rest, mcp, all, an MCP app (app:<path>, app:<domain>:<path>, or the app's MCP url), or the app actions endpoint /_openrun/app_mcp (app_mcp, app_mcp:<auth>)", "rest"),
+		newStringFlag("confirm", "", "skip: destructive MCP tools called with this key run without the confirmation prompt, for headless automation."+
+			" Allowed where the server or the app has destructive_confirm = ask; a require setting is never skipped", ""),
 		&cli.StringFlag{Name: "description", Aliases: []string{"d", "desc"}, Usage: "Description for the key"},
 	)
 
@@ -73,6 +75,8 @@ func apiKeyCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 				ExpiresIn:   cCtx.String("expires"),
 				Resources:   resources,
 				Description: cCtx.String("description"),
+
+				DestructiveConfirm: cCtx.String("confirm"),
 			}
 			if scopes := cCtx.String("scopes"); scopes != "" {
 				for scope := range strings.SplitSeq(scopes, ",") {
@@ -92,6 +96,9 @@ func apiKeyCreateCommand(commonFlags []cli.Flag, clientConfig *types.ClientConfi
 			printStdout(cCtx, "API key created for %s (id %s)\n", response.User, response.Id)
 			if len(response.Scopes) > 0 {
 				printStdout(cCtx, "Scopes: %s\n", strings.Join(response.Scopes, ","))
+			}
+			if response.DestructiveConfirm != "" {
+				printStdout(cCtx, "Confirm: %s (destructive MCP tools run without the confirmation prompt)\n", response.DestructiveConfirm)
 			}
 			if response.ExpiresAt != nil {
 				printStdout(cCtx, "Expires: %s\n", response.ExpiresAt.Format(time.RFC3339))

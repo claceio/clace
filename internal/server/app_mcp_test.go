@@ -228,6 +228,12 @@ func TestAggMCPAsyncToolsAndNames(t *testing.T) {
 	testutil.AssertEqualsString(t, "status auth", "builtin", statusDoc["auth"].(string))
 	testutil.AssertEqualsString(t, "status apps", "/apps/ops", statusDoc["apps"].(string))
 	testutil.AssertEqualsInt(t, "status tools", 3, int(statusDoc["tool_count"].(float64)))
+	// The destructive_confirm mode and whether this connection can confirm
+	// (the test client declares no elicitation capability)
+	testutil.AssertEqualsString(t, "status mode", types.DestructiveConfirmRequire, statusDoc["destructive_confirm"].(string))
+	testutil.AssertEqualsBool(t, "status can_confirm", false, statusDoc["can_confirm"].(bool))
+	testutil.AssertStringContains(t, statusDoc["confirm_capability"].(string), "protocol")
+	testutil.AssertStringContains(t, message["result"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"].(string), "cannot confirm them")
 	_, message = aggCall(t, ts, "?auth=builtin&apps=/nothing/**", alice, aggList)
 	testutil.AssertEqualsString(t, "empty view", aggMCPStatusToolName, strings.Join(aggToolNames(t, message), " "))
 	_, message = aggCall(t, ts, "?auth=builtin&apps=/nothing/**", alice, aggToolCall(aggMCPStatusToolName, `{}`))

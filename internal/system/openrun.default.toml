@@ -108,7 +108,9 @@ auth = ["admin"]                 # login mechanisms for browser auth (MCP OAuth)
                                  # an [auth.*]/[saml.*] entry name. At least one is required
 enable_apis = []                 # ops disabled by default for MCP (like secret_reveal), opted back in
 disable_apis = []                # additional ops turned off for MCP
-skip_destructive_confirm = false # true disables the dry-run + confirmation prompt on destructive MCP tools
+destructive_confirm = ""         # destructive MCP tools: "require" (what "" means) asks capable clients to confirm and
+                                 # refuses clients which cannot confirm, "ask" runs the call at once for those clients,
+                                 # "skip" never asks. Per app: action.destructive_confirm, per key: apikey create --confirm skip
 
 [api.rest]                       # the management REST API over TCP (remote CLI)
 enable = false                   # true serves the management API over HTTPS
@@ -329,6 +331,7 @@ action.output_tail_bytes = 10485760 # last bytes kept (the most recent while run
 action.result_max_bytes = 104857600 # JSON size cap of a values result
 action.display_rows = 1000          # result rows the run page renders inline
 action.mcp_list_ttl = "3m"          # how long an MCP client may use a listed tool set before listing again
+action.destructive_confirm = ""     # require, ask or skip for the destructive actions of the app; "" inherits [api.mcp] destructive_confirm
 action.max_wait_secs = 120          # cap of the wait of the run read APIs
 
 # Jobs related settings

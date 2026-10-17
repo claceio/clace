@@ -340,6 +340,23 @@ func runActionDestructive(ctx context.Context, s *Server, in any) bool {
 	return resolved.action.IsDestructive()
 }
 
+// runActionConfirmMode resolves the destructive_confirm mode of a run_action
+// call from the app's action, as the app's own MCP tools do (the surface
+// setting, the app's action.destructive_confirm, the calling key)
+func runActionConfirmMode(ctx context.Context, s *Server, in any) (string, bool, bool) {
+	req, ok := in.(mcpActionRunIn)
+	if !ok {
+		return "", false, false
+	}
+	resolved, err := s.resolveAction(ctx, req.Path, req.Action, req.Stage, false)
+	if err != nil {
+		return "", false, false
+	}
+	defer resolved.release()
+	mode, byKey := resolved.action.MCPConfirmMode(ctx)
+	return mode, byKey, true
+}
+
 // runActionPreviewError returns the param errors of a run_action validate
 // pass as the text of a tool error, "" when the args are valid
 func runActionPreviewError(preview any) string {

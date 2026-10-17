@@ -126,7 +126,10 @@ tests:
         - "2   closed"
         - "succeeded builtin:alice cli closed 2 true"
         - '{"id":1,"status":"closed"}'
-    stderr: "Built 2 rows"
+    stderr:
+      contains:
+        - "started, waiting for it to end"
+        - "Built 2 rows"
     exit-code: 0
   async0060: # a stream run: --follow prints the output as it is produced, the exit code follows
     # the command; the output is stored and paged by offset
@@ -279,12 +282,18 @@ tests:
       mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_action_runs","arguments":{"path":"/asyncapps/site","action":"rows","limit":1}}}' | jq -r '.result.structuredContent.runs | length'
       slow=$(mcp '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"run_action","arguments":{"path":"/asyncapps/site","action":"build","args":{"count":30}}}}' | jq -r '.result.structuredContent.run_id')
       sleep 1
-      mcp "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"cancel_action_run\",\"arguments\":{\"run_id\":\"$slow\"}}}" | jq -r '.result.structuredContent.run.status'
+      # cancel_action_run is destructive: a raw client, which cannot confirm, is refused
+      # (destructive_confirm defaults to require); the CLI cancels the run
+      mcp "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"cancel_action_run\",\"arguments\":{\"run_id\":\"$slow\"}}}" | jq -r '[.result.isError, .result.content[0].text] | join(" ")'
+      ../openrun action cancel "$slow" > /dev/null
+      ../openrun action runs -f jsonl /asyncapps/site build | jq -r "select(.id == \"$slow\") | .status"
     stdout:
       contains:
         - "running"
         - "succeeded TABLE 1"
         - "1"
+        - "true cancel_action_run on"
+        - "destructive_confirm=require"
         - "canceled"
     exit-code: 0
   async0140: # a run keeps executing on the app it started with when the app is reloaded

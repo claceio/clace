@@ -694,24 +694,29 @@ type Identity struct {
 // secret is stored only as a SHA-256 hash. Scopes nil means unscoped (RBAC
 // alone governs); non-nil is the ceiling
 type Credential struct {
-	Id               string     `json:"id"`
-	SecretHash       string     `json:"-"`
-	Type             string     `json:"type"`
-	IdentityId       string     `json:"identity_id"`
-	Scopes           []string   `json:"scopes,omitempty"`
-	Resources        []string   `json:"resources,omitempty"`
-	Description      string     `json:"description,omitempty"`
-	OAuthClientId    string     `json:"oauth_client_id,omitempty"`
-	GrantId          string     `json:"grant_id,omitempty"`
-	FamilyId         string     `json:"family_id,omitempty"`
-	ReplacedById     string     `json:"replaced_by_id,omitempty"`
-	ConsumedAt       *time.Time `json:"consumed_at,omitempty"`
-	RevokedAt        *time.Time `json:"revoked_at,omitempty"`
-	RevocationReason string     `json:"revocation_reason,omitempty"`
-	ExpiresAt        *time.Time `json:"expires_at,omitempty"` // nil = never expires
-	CreatedBy        string     `json:"created_by"`
-	CreateTime       time.Time  `json:"create_time"`
-	LastUsedAt       *time.Time `json:"last_used_at,omitempty"`
+	Id          string   `json:"id"`
+	SecretHash  string   `json:"-"`
+	Type        string   `json:"type"`
+	IdentityId  string   `json:"identity_id"`
+	Scopes      []string `json:"scopes,omitempty"`
+	Resources   []string `json:"resources,omitempty"`
+	Description string   `json:"description,omitempty"`
+	// DestructiveConfirm is DestructiveConfirmSkip for a key which runs
+	// destructive MCP tools without the confirmation prompt (openrun apikey
+	// create --confirm skip), "" otherwise. A key can only relax the ask
+	// mode of the surface or the app; it never overrides require
+	DestructiveConfirm string     `json:"destructive_confirm,omitempty"`
+	OAuthClientId      string     `json:"oauth_client_id,omitempty"`
+	GrantId            string     `json:"grant_id,omitempty"`
+	FamilyId           string     `json:"family_id,omitempty"`
+	ReplacedById       string     `json:"replaced_by_id,omitempty"`
+	ConsumedAt         *time.Time `json:"consumed_at,omitempty"`
+	RevokedAt          *time.Time `json:"revoked_at,omitempty"`
+	RevocationReason   string     `json:"revocation_reason,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"` // nil = never expires
+	CreatedBy          string     `json:"created_by"`
+	CreateTime         time.Time  `json:"create_time"`
+	LastUsedAt         *time.Time `json:"last_used_at,omitempty"`
 }
 
 // ApiKeyCreateRequest is the request to create an API key (PAT). User names
@@ -724,6 +729,9 @@ type ApiKeyCreateRequest struct {
 	Scopes      []string `json:"scopes"`      // permission globs; empty = unscoped (RBAC alone governs)
 	Resources   []string `json:"resources"`   // "rest", "mcp"; empty = rest
 	Description string   `json:"description"` //nolint:misspell
+	// DestructiveConfirm is "skip" for a key which runs destructive MCP
+	// tools without the confirmation prompt; "" keeps the surface setting
+	DestructiveConfirm string `json:"destructive_confirm,omitempty"`
 }
 
 // ApiKeyCreateResponse carries the one-time plaintext key. The secret is
@@ -735,20 +743,26 @@ type ApiKeyCreateResponse struct {
 	Scopes    []string   `json:"scopes,omitempty"`     // applied scope ceiling; empty = unscoped
 	Resources []string   `json:"resources,omitempty"`  // surfaces or the app's canonical MCP resource the key is bound to
 	ExpiresAt *time.Time `json:"expires_at,omitempty"` // nil = never expires
+	// DestructiveConfirm is "skip" when the key runs destructive MCP tools
+	// without the confirmation prompt
+	DestructiveConfirm string `json:"destructive_confirm,omitempty"`
 }
 
 // ApiKeyInfo is one API key's metadata (no secret material)
 type ApiKeyInfo struct {
-	Id          string     `json:"id"`
-	User        string     `json:"user"`
-	Type        string     `json:"type"` // pat | oauth_access | oauth_refresh
-	Scopes      []string   `json:"scopes,omitempty"`
-	Resources   []string   `json:"resources,omitempty"`
-	Description string     `json:"description,omitempty"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
-	CreatedBy   string     `json:"created_by"`
-	CreateTime  time.Time  `json:"create_time"`
-	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	Id          string   `json:"id"`
+	User        string   `json:"user"`
+	Type        string   `json:"type"` // pat | oauth_access | oauth_refresh
+	Scopes      []string `json:"scopes,omitempty"`
+	Resources   []string `json:"resources,omitempty"`
+	Description string   `json:"description,omitempty"`
+	// DestructiveConfirm is "skip" when the key runs destructive MCP tools
+	// without the confirmation prompt
+	DestructiveConfirm string     `json:"destructive_confirm,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	CreatedBy          string     `json:"created_by"`
+	CreateTime         time.Time  `json:"create_time"`
+	LastUsedAt         *time.Time `json:"last_used_at,omitempty"`
 }
 
 // ApiKeyListResponse lists API keys: the caller's own, or all with --all (admin)

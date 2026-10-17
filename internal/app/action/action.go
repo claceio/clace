@@ -148,6 +148,9 @@ func NewAction(logger *types.Logger, sourceFS *appfs.SourceFs, isDev bool, name,
 		actionConfig.MaxRequestBodyBytes = defaultMaxRequestBodyBytes
 	}
 	actionConfig = withRunDefaults(actionConfig)
+	if err := types.ValidateDestructiveConfirm(actionConfig.DestructiveConfirm); err != nil {
+		return nil, fmt.Errorf("action %s: action.%w", name, err)
+	}
 	runTimeout, err := runTimeoutOf(timeout, actionConfig)
 	if err != nil {
 		return nil, err

@@ -133,6 +133,11 @@ type apiOperation struct {
 	// confirmation of operations which are not destructive as a whole. The
 	// tool annotation stays that of Destructive
 	DestructiveWhen func(ctx context.Context, s *Server, in any) bool
+	// ConfirmMode resolves the destructive_confirm mode of a DestructiveWhen
+	// operation from its target (the app's action.destructive_confirm for
+	// run_action): the mode, whether a key relaxed it, and false when the
+	// target cannot be resolved (the surface mode then applies)
+	ConfirmMode func(ctx context.Context, s *Server, in any) (string, bool, bool)
 	// ConfirmMessage builds the confirmation prompt of a DestructiveWhen
 	// operation from the input and the dry-run preview, in place of the
 	// generic operation prompt
@@ -296,7 +301,7 @@ func init() {
 			Scope: types.PermissionAccess, ReadOnly: true,
 			Method: http.MethodGet, Path: "/actions/schema", ApiFunc: (*Handler).getAction},
 		API_RUN_ACTION: {Description: "Run an app action with the given args, as the calling user. dry_run=true validates the args without running. Use get_action for the params",
-			Scope: types.PermissionAccess, DestructiveWhen: runActionDestructive, ConfirmMessage: runActionConfirmMessage, PreviewError: runActionPreviewError,
+			Scope: types.PermissionAccess, DestructiveWhen: runActionDestructive, ConfirmMode: runActionConfirmMode, ConfirmMessage: runActionConfirmMessage, PreviewError: runActionPreviewError,
 			Method: http.MethodPost, Path: "/actions/run", ApiFunc: (*Handler).runAction, MaxBodyBytes: actionMaxBodyBytes},
 		API_SUGGEST_ACTION: {Description: "Get suggested arg values for an app action from its suggest handler, given a partial set of args",
 			Scope: types.PermissionAccess, ReadOnly: true,
@@ -635,8 +640,17 @@ func validateApiConfig(config *types.ServerConfig) error {
 			}
 		}
 	}
-	if config.Api.Rest.SkipDestructiveConfirm {
-		return fmt.Errorf("api.rest: skip_destructive_confirm applies to the mcp surface only")
+	if config.Api.Rest.SkipDestructiveConfirm || config.Api.Rest.DestructiveConfirm != "" {
+		return fmt.Errorf("api.rest: destructive_confirm applies to the mcp surface only")
+	}
+	if err := types.ValidateDestructiveConfirm(config.Api.MCP.DestructiveConfirm); err != nil {
+		return fmt.Errorf("api.mcp: %w", err)
+	}
+	// The embedded default leaves destructive_confirm unset (the mode is
+	// resolved by DestructiveConfirmMode), so a set value here is the
+	// user's own and may conflict with the deprecated flag
+	if config.Api.MCP.SkipDestructiveConfirm && config.Api.MCP.DestructiveConfirm != "" && config.Api.MCP.DestructiveConfirm != types.DestructiveConfirmSkip {
+		return fmt.Errorf("api.mcp: skip_destructive_confirm = true (deprecated, the same as destructive_confirm = \"skip\") conflicts with destructive_confirm = %q", config.Api.MCP.DestructiveConfirm)
 	}
 	return nil
 }

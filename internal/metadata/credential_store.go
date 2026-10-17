@@ -68,18 +68,41 @@ func (m *Metadata) insertCredential(ctx context.Context, ex credentialExecer, cr
 	if err != nil {
 		return fmt.Errorf("error marshalling credential resources: %w", err)
 	}
+	optionsJson, err := json.Marshal(credentialOptions{DestructiveConfirm: cred.DestructiveConfirm})
+	if err != nil {
+		return fmt.Errorf("error marshalling credential options: %w", err)
+	}
 	_, err = ex.ExecContext(ctx, system.RebindQuery(m.dbType,
 		`insert into credentials (id, secret_hash, type, identity_id, scopes, resources, description,`+
 			` oauth_client_id, grant_id, family_id, replaced_by_id, consumed_at, revoked_at, revocation_reason,`+
-			` expires_at, created_by, create_time, last_used_at)`+
-			` values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, NULL, '', ?, ?, `+system.FuncNow(m.dbType)+`, NULL)`),
+			` expires_at, created_by, create_time, last_used_at, options)`+
+			` values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, NULL, '', ?, ?, `+system.FuncNow(m.dbType)+`, NULL, ?)`),
 		cred.Id, cred.SecretHash, cred.Type, cred.IdentityId, scopesJson, string(resourcesJson),
 		cred.Description, cred.OAuthClientId, cred.GrantId, cred.FamilyId,
-		nullTime(cred.ExpiresAt), cred.CreatedBy)
+		nullTime(cred.ExpiresAt), cred.CreatedBy, string(optionsJson))
 	if err != nil {
 		return fmt.Errorf("error inserting credential: %w", err)
 	}
 	return nil
+}
+
+// credentialOptions is the options column of a credential row: the settings
+// of a key beyond its scopes and resources
+type credentialOptions struct {
+	DestructiveConfirm string `json:"destructive_confirm,omitempty"`
+}
+
+// parseCredentialOptions decodes the options column; a null column (a row
+// from before the column existed) has no options
+func parseCredentialOptions(column sql.NullString) (credentialOptions, error) {
+	var opts credentialOptions
+	if !column.Valid || column.String == "" {
+		return opts, nil
+	}
+	if err := json.Unmarshal([]byte(column.String), &opts); err != nil {
+		return opts, fmt.Errorf("error parsing credential options: %w", err)
+	}
+	return opts, nil
 }
 
 // CreateCredential inserts a credential row (the secret hash, never the secret)
@@ -93,7 +116,7 @@ func (m *Metadata) GetCredentialWithIdentity(ctx context.Context, id string) (*t
 	row := m.db.QueryRowContext(ctx, system.RebindQuery(m.dbType,
 		`select c.id, c.secret_hash, c.type, c.identity_id, c.scopes, c.resources, c.description,`+
 			` c.oauth_client_id, c.grant_id, c.family_id, c.replaced_by_id, c.consumed_at, c.revoked_at,`+
-			` c.revocation_reason, c.expires_at, c.created_by, c.create_time, c.last_used_at,`+
+			` c.revocation_reason, c.expires_at, c.created_by, c.create_time, c.last_used_at, c.options,`+
 			` i.id, i.provider, i.stable_subject, i.principal_name, i.groups, i.groups_observed_at, i.disabled_at, i.create_time, i.email`+
 			` from credentials c join identities i on c.identity_id = i.id where c.id = ?`), id)
 	cred, identity, err := scanCredentialWithIdentity(row)
@@ -112,7 +135,7 @@ func (m *Metadata) GetCredentialWithIdentity(ctx context.Context, id string) (*t
 // table as evidence but are dead for use, so the listing excludes them
 func (m *Metadata) ListCredentials(ctx context.Context, principal string) ([]types.ApiKeyInfo, error) {
 	query := `select c.id, c.type, c.scopes, c.resources, c.description, c.expires_at, c.created_by,` +
-		` c.create_time, c.last_used_at, i.principal_name` +
+		` c.create_time, c.last_used_at, i.principal_name, c.options` +
 		` from credentials c join identities i on c.identity_id = i.id` +
 		` where c.revoked_at is null and c.consumed_at is null`
 	args := []any{}
@@ -130,12 +153,17 @@ func (m *Metadata) ListCredentials(ctx context.Context, principal string) ([]typ
 	keys := []types.ApiKeyInfo{}
 	for rows.Next() {
 		var info types.ApiKeyInfo
-		var scopes, resources sql.NullString
+		var scopes, resources, options sql.NullString
 		var expiresAt, lastUsedAt sql.NullTime
 		if err := rows.Scan(&info.Id, &info.Type, &scopes, &resources, &info.Description,
-			&expiresAt, &info.CreatedBy, &info.CreateTime, &lastUsedAt, &info.User); err != nil {
+			&expiresAt, &info.CreatedBy, &info.CreateTime, &lastUsedAt, &info.User, &options); err != nil {
 			return nil, fmt.Errorf("error scanning credential: %w", err)
 		}
+		opts, err := parseCredentialOptions(options)
+		if err != nil {
+			return nil, err
+		}
+		info.DestructiveConfirm = opts.DestructiveConfirm
 		if scopes.Valid && scopes.String != "" {
 			if err := json.Unmarshal([]byte(scopes.String), &info.Scopes); err != nil {
 				return nil, fmt.Errorf("error parsing credential scopes: %w", err)
@@ -215,15 +243,20 @@ func scanIdentity(row *sql.Row) (*types.Identity, error) {
 func scanCredentialWithIdentity(row *sql.Row) (*types.Credential, *types.Identity, error) {
 	var cred types.Credential
 	var identity types.Identity
-	var scopes, resources, groups, email sql.NullString
+	var scopes, resources, groups, email, options sql.NullString
 	var consumedAt, revokedAt, expiresAt, lastUsedAt, groupsObservedAt, disabledAt sql.NullTime
 	if err := row.Scan(&cred.Id, &cred.SecretHash, &cred.Type, &cred.IdentityId, &scopes, &resources,
 		&cred.Description, &cred.OAuthClientId, &cred.GrantId, &cred.FamilyId, &cred.ReplacedById,
-		&consumedAt, &revokedAt, &cred.RevocationReason, &expiresAt, &cred.CreatedBy, &cred.CreateTime, &lastUsedAt,
+		&consumedAt, &revokedAt, &cred.RevocationReason, &expiresAt, &cred.CreatedBy, &cred.CreateTime, &lastUsedAt, &options,
 		&identity.Id, &identity.Provider, &identity.StableSubject, &identity.PrincipalName,
 		&groups, &groupsObservedAt, &disabledAt, &identity.CreateTime, &email); err != nil {
 		return nil, nil, err
 	}
+	opts, err := parseCredentialOptions(options)
+	if err != nil {
+		return nil, nil, err
+	}
+	cred.DestructiveConfirm = opts.DestructiveConfirm
 	if scopes.Valid && scopes.String != "" {
 		if err := json.Unmarshal([]byte(scopes.String), &cred.Scopes); err != nil {
 			return nil, nil, fmt.Errorf("error parsing credential scopes: %w", err)

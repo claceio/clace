@@ -40,7 +40,7 @@ func TestActionRunAsyncWait(t *testing.T) {
 	stdout, stderr, code := runActionCli(t, ats, "run", "--wait", "/site", "rebuild")
 	assertEq(t, "exit", "0", string(rune('0'+code)))
 	assertEq(t, "table", "id\n1\n2\n", stdout)
-	assertEq(t, "status line", "Built 2 rows\n", stderr)
+	assertEq(t, "status line", "Run arun_2 started, waiting for it to end (Ctrl-C leaves the run running)\nBuilt 2 rows\n", stderr)
 	if polls.Load() < 2 {
 		t.Fatalf("polls: %d", polls.Load())
 	}

@@ -74,6 +74,9 @@ type UploadedFile struct {
 type Invocation struct {
 	Op      Op
 	AuditOp string // audit operation name, see AuditOp
+	// AuditDetail is appended to the detail of the audit event of the
+	// invocation (how a destructive MCP call was confirmed)
+	AuditDetail string
 
 	// JSONArgs are the arg values keyed by param name. Params not present
 	// retain the app level param values. Used when IsForm is false
@@ -207,6 +210,9 @@ func (a *Action) invoke(ctx context.Context, inv Invocation) (retOutcome *Outcom
 			}
 			if a.auditInsert == nil {
 				return
+			}
+			if inv.AuditDetail != "" {
+				event.Detail = strings.TrimSpace(event.Detail + " " + inv.AuditDetail)
 			}
 			if err := a.auditInsert(&event); err != nil {
 				a.Error().Err(err).Msg("error inserting audit event")

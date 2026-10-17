@@ -666,34 +666,49 @@ func (t *MCPTool) handle(ctx context.Context, req *mcp.CallToolRequest) (*mcp.Ca
 		}
 	}
 
-	if op == OpRun && t.Action.IsDestructive() && !t.Action.mcpConfirmSkipped() && MCPConfirmSupported(req) {
+	auditDetail := ""
+	if op == OpRun && t.Action.IsDestructive() {
 		// A destructive action (ace.action destructive=True) is confirmed by
 		// the user first: the validate pass answers the first call with the
 		// confirmation request, the retry carries the answer. The client
-		// resends the arguments with the retry, nothing is kept in between
-		if answered, accepted := MCPConfirmAnswer(req); answered {
-			if !accepted {
-				t.Action.auditRejectedRequest(ctx, AuditOp(SourceMCP, OpRun), "confirm=declined")
-				return MCPDeclinedResult(), nil
+		// resends the arguments with the retry, nothing is kept in between.
+		// What happens with a client which cannot confirm is the
+		// destructive_confirm mode: refused (require), run at once (ask)
+		mode, byKey := t.Action.MCPConfirmMode(ctx)
+		supported, seen := MCPConfirmCapability(req)
+		switch {
+		case mode == types.DestructiveConfirmSkip || !supported:
+			if mode == types.DestructiveConfirmRequire {
+				t.Action.auditRejectedRequest(ctx, AuditOp(SourceMCP, OpRun), MCPConfirmRefusedDetail)
+				return mcpToolError("%s", MCPConfirmRefusedMessage(t.Action.name+" on "+t.Action.appPath, seen)), nil
 			}
-		} else {
-			preview, invErr := t.Action.Invoke(ctx, Invocation{Op: OpValidate, AuditOp: AuditOp(SourceMCP, OpValidate), JSONArgs: args})
-			if invErr != nil {
-				return mcpToolError("%s", invErr.Msg), nil
+			auditDetail = MCPConfirmAuditDetail(mode, byKey)
+		default:
+			if answered, accepted := MCPConfirmAnswer(req); answered {
+				if !accepted {
+					t.Action.auditRejectedRequest(ctx, AuditOp(SourceMCP, OpRun), "confirm=declined")
+					return MCPDeclinedResult(), nil
+				}
+				auditDetail = "confirm=accepted"
+			} else {
+				preview, invErr := t.Action.Invoke(ctx, Invocation{Op: OpValidate, AuditOp: AuditOp(SourceMCP, OpValidate), JSONArgs: args})
+				if invErr != nil {
+					return mcpToolError("%s", invErr.Msg), nil
+				}
+				doc, text, isError := t.Action.ResultDocument(ctx, preview, OpValidate, nil)
+				preview.Close()
+				if isError {
+					// Param errors are reported for correction, nothing to confirm yet
+					return &mcp.CallToolResult{IsError: true, StructuredContent: doc,
+						Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil
+				}
+				status, _ := doc["status"].(string)
+				return MCPConfirmRequest(t.Action.MCPConfirmMessage(args, status)), nil
 			}
-			doc, text, isError := t.Action.ResultDocument(ctx, preview, OpValidate, nil)
-			preview.Close()
-			if isError {
-				// Param errors are reported for correction, nothing to confirm yet
-				return &mcp.CallToolResult{IsError: true, StructuredContent: doc,
-					Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil
-			}
-			status, _ := doc["status"].(string)
-			return MCPConfirmRequest(t.Action.MCPConfirmMessage(args, status)), nil
 		}
 	}
 
-	outcome, invErr := t.Action.Invoke(ctx, Invocation{Op: op, AuditOp: AuditOp(SourceMCP, op), JSONArgs: args})
+	outcome, invErr := t.Action.Invoke(ctx, Invocation{Op: op, AuditOp: AuditOp(SourceMCP, op), AuditDetail: auditDetail, JSONArgs: args})
 	if invErr != nil {
 		return mcpToolError("%s", invErr.Msg), nil
 	}

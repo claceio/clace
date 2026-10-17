@@ -59,6 +59,14 @@ func handleStartedRun(cCtx *cli.Context, clientConfig *types.ClientConfig, start
 		fmt.Fprintln(cCtx.App.Writer, started.RunId) //nolint:errcheck
 		return nil
 	}
+	// The run id goes out at once: the wait can be long, and the id is
+	// what "openrun action output" or "action cancel" need if the CLI is
+	// interrupted
+	if follow {
+		status(fmt.Sprintf("Run %s started, following its output (Ctrl-C stops following and leaves the run running)", started.RunId))
+	} else {
+		status(fmt.Sprintf("Run %s started, waiting for it to end (Ctrl-C leaves the run running)", started.RunId))
+	}
 	client := newHttpClient(clientConfig)
 	defer client.CloseIdleConnections()
 	if follow {

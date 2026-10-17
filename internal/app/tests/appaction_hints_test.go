@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openrundev/openrun/internal/app"
 	"github.com/openrundev/openrun/internal/app/action"
+	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/testutil"
 	"github.com/openrundev/openrun/internal/types"
 )
@@ -101,7 +102,7 @@ func TestActionHintsDefinition(t *testing.T) {
 		t.Fatalf("an action without hint keywords declares no hints: %+v", defs["/plain"].Hints)
 	}
 	testutil.AssertEqualsString(t, "labels", "destructive", strings.Join(purge.Labels(), ","))
-	testutil.AssertEqualsString(t, "flag labels", "idem", strings.Join(flag.Labels(), ","))
+	testutil.AssertEqualsString(t, "flag labels", "idempotent", strings.Join(flag.Labels(), ","))
 	testutil.AssertEqualsBool(t, "is destructive", true, findAction(t, a, "purge").IsDestructive())
 	testutil.AssertEqualsBool(t, "not destructive", false, findAction(t, a, "plain").IsDestructive())
 
@@ -238,13 +239,20 @@ func TestActionsMCPDestructiveConfirm(t *testing.T) {
 	testutil.AssertStringContains(t, toolText(result), "report")
 	testutil.AssertEqualsString(t, "no prompt for a plain action", "", unexpected)
 
-	// A client without the elicitation capability runs at once, as before
+	// A client without the elicitation capability cannot confirm: the
+	// default mode (require) refuses the call with a tool error which names
+	// the action and the mode, nothing ran
 	plain := mcpSession(t, a, nil)
 	result, err = plain.CallTool(context.Background(), &mcp.CallToolParams{Name: "purge", Arguments: map[string]any{"count": 4}})
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringContains(t, toolText(result), "purged 4 orders")
+	testutil.AssertEqualsBool(t, "refused is a tool error", true, result.IsError)
+	testutil.AssertStringContains(t, toolText(result), "Purge Orders on /test is destructive")
+	testutil.AssertStringContains(t, toolText(result), "destructive_confirm=require")
+	if strings.Contains(toolText(result), "purged") {
+		t.Fatalf("a refused call ran: %s", toolText(result))
+	}
 
-	// So does a client whose elicitation supports the url mode only: it
+	// So is a client whose elicitation supports the url mode only: it
 	// cannot answer the form the confirmation uses
 	urlOnly := mcpSessionOptions(t, a, &mcp.ClientOptions{
 		Capabilities: &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
@@ -255,7 +263,13 @@ func TestActionsMCPDestructiveConfirm(t *testing.T) {
 	})
 	result, err = urlOnly.CallTool(context.Background(), &mcp.CallToolParams{Name: "purge", Arguments: map[string]any{"count": 5}})
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringContains(t, toolText(result), "purged 5 orders")
+	testutil.AssertEqualsBool(t, "url only is refused", true, result.IsError)
+	testutil.AssertStringContains(t, toolText(result), "destructive_confirm=require")
+
+	// dry_run from such a client needs no confirmation and is not refused
+	result, err = plain.CallTool(context.Background(), &mcp.CallToolParams{Name: "purge", Arguments: map[string]any{"count": 4, "dry_run": true}})
+	testutil.AssertNoError(t, err)
+	testutil.AssertStringContains(t, toolText(result), "would purge 4 orders")
 
 	// A capability naming no mode is form support (clients from before modes)
 	bare := mcpSessionOptions(t, a, &mcp.ClientOptions{
@@ -326,6 +340,112 @@ func TestActionsMCPReloadAndListTTL(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "mcp_list_ttl") {
 		t.Fatalf("expected an mcp_list_ttl error, got %v", err)
 	}
+}
+
+// mcpSessionAs is mcpSessionOptions with the request context of every call
+// decorated (the calling API key)
+func mcpSessionAs(t *testing.T, a *app.App, opts *mcp.ClientOptions, decorate func(context.Context) context.Context) *mcp.ClientSession {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), types.USER_ID, "builtin:alice")
+		a.ServeHTTP(w, r.WithContext(decorate(ctx)))
+	}))
+	t.Cleanup(server.Close)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, opts)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL + "/test/mcp"}, nil)
+	if err != nil {
+		t.Fatalf("mcp connect: %s", err)
+	}
+	t.Cleanup(func() { session.Close() }) //nolint:errcheck
+	return session
+}
+
+// The destructive_confirm modes: require (the default) refuses a client
+// which cannot confirm, ask runs the call at once for it, skip never asks; a
+// key with --confirm skip relaxes ask only; the app's own setting overrides
+// the surface's
+func TestActionsMCPConfirmModes(t *testing.T) {
+	config := &types.ServerConfig{}
+	withKey := func(ctx context.Context) context.Context {
+		return system.WithApiCredential(ctx, &types.Credential{Id: "k1", DestructiveConfirm: types.DestructiveConfirmSkip})
+	}
+	plainKey := func(ctx context.Context) context.Context {
+		return system.WithApiCredential(ctx, &types.Credential{Id: "k2"})
+	}
+	eliciting := func(prompted *string) *mcp.ClientOptions {
+		return &mcp.ClientOptions{ElicitationHandler: func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			*prompted = req.Params.Message
+			return &mcp.ElicitResult{Action: "accept"}, nil
+		}}
+	}
+	call := func(session *mcp.ClientSession, count int) (bool, string) {
+		t.Helper()
+		result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "purge", Arguments: map[string]any{"count": count}})
+		testutil.AssertNoError(t, err)
+		return result.IsError, toolText(result)
+	}
+
+	a := hintsApp(t, `{"source":"actions"}`)
+	a.SetConfigSource(func() *types.ServerConfig { return config })
+
+	// require (the default, also when the config says nothing): refused
+	// without a prompt, for a plain key too
+	isErr, text := call(mcpSession(t, a, nil), 1)
+	testutil.AssertEqualsBool(t, "require refuses", true, isErr)
+	testutil.AssertStringContains(t, text, "destructive_confirm=require")
+	isErr, text = call(mcpSessionAs(t, a, nil, withKey), 1)
+	testutil.AssertEqualsBool(t, "a skip key does not override require", true, isErr)
+	testutil.AssertStringContains(t, text, "destructive_confirm=require")
+	var prompted string
+	isErr, text = call(mcpSessionAs(t, a, eliciting(&prompted), withKey), 2)
+	testutil.AssertEqualsBool(t, "capable client under require", false, isErr)
+	testutil.AssertStringContains(t, text, "purged 2 orders")
+	testutil.AssertStringContains(t, prompted, "count=2")
+
+	// ask: a client which cannot confirm runs at once, a capable one is
+	// asked unless its key skips
+	config.Api.MCP.DestructiveConfirm = types.DestructiveConfirmAsk
+	isErr, text = call(mcpSession(t, a, nil), 3)
+	testutil.AssertEqualsBool(t, "ask runs at once", false, isErr)
+	testutil.AssertStringContains(t, text, "purged 3 orders")
+	prompted = ""
+	_, text = call(mcpSessionAs(t, a, eliciting(&prompted), plainKey), 4)
+	testutil.AssertStringContains(t, text, "purged 4 orders")
+	testutil.AssertStringContains(t, prompted, "count=4")
+	prompted = ""
+	_, text = call(mcpSessionAs(t, a, eliciting(&prompted), withKey), 5)
+	testutil.AssertStringContains(t, text, "purged 5 orders")
+	testutil.AssertEqualsString(t, "no prompt with a skip key under ask", "", prompted)
+
+	// skip: never asks
+	config.Api.MCP.DestructiveConfirm = types.DestructiveConfirmSkip
+	prompted = ""
+	_, text = call(mcpSessionAs(t, a, eliciting(&prompted), plainKey), 6)
+	testutil.AssertStringContains(t, text, "purged 6 orders")
+	testutil.AssertEqualsString(t, "no prompt under skip", "", prompted)
+
+	// The app's action.destructive_confirm overrides the surface: require on
+	// the app while the server says skip
+	fileData := map[string]string{"app.star": hintsTestApp, "params.star": hintsTestParams}
+	mcpConfig, err := types.ParseMCPConfig(`{"source":"actions"}`)
+	testutil.AssertNoError(t, err)
+	testMetadataHook = func(metadata *types.AppMetadata) { metadata.MCP = mcpConfig }
+	strict, _, err := CreateTestAppIntSystemConfig(testutil.TestLogger(), "/test", "", fileData, false, nil, nil, nil, "app_prd_strict", types.AppSettings{}, nil,
+		&types.AppConfig{Action: types.ActionConfig{DestructiveConfirm: types.DestructiveConfirmRequire}}, &testRBAC{}, testSystemConfig())
+	testMetadataHook = nil
+	testutil.AssertNoError(t, err)
+	t.Cleanup(func() { testutil.AssertNoError(t, strict.Close()) })
+	strict.SetConfigSource(func() *types.ServerConfig { return config })
+	isErr, text = call(mcpSession(t, strict, nil), 7)
+	testutil.AssertEqualsBool(t, "app require over server skip", true, isErr)
+	testutil.AssertStringContains(t, text, "destructive_confirm=require")
+
+	// An invalid app value is refused at load
+	testMetadataHook = func(metadata *types.AppMetadata) { metadata.MCP = mcpConfig }
+	_, _, err = CreateTestAppIntSystemConfig(testutil.TestLogger(), "/test", "", fileData, false, nil, nil, nil, "app_prd_bad", types.AppSettings{}, nil,
+		&types.AppConfig{Action: types.ActionConfig{DestructiveConfirm: "maybe"}}, &testRBAC{}, testSystemConfig())
+	testMetadataHook = nil
+	testutil.AssertErrorContains(t, err, `invalid destructive_confirm "maybe"`)
 }
 
 // The confirmation switch is read from the effective server config at call

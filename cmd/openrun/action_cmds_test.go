@@ -272,7 +272,7 @@ func TestActionSuggestListShow(t *testing.T) {
 	assertEq(t, "suggest status", "Suggesting values\n", stderr)
 
 	stdout, stderr, _ = runActionCli(t, ats, "list", "/orders")
-	for _, want := range []string{"App", "Action", "Hints", "/orders", "list_orders", "List Orders", "true", "List the orders", "destructive,idem"} {
+	for _, want := range []string{"App", "Action", "Hints", "/orders", "list_orders", "List Orders", "true", "List the orders", "destructive,idempotent"} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("list output must contain %q: %q", want, stdout)
 		}
@@ -290,7 +290,7 @@ func TestActionSuggestListShow(t *testing.T) {
 
 	stdout, _, _ = runActionCli(t, ats, "show", "/orders", "list_orders")
 	for _, want := range []string{"Action:      list_orders (List Orders)", "Url:         https://localhost/orders",
-		"Hints:       ro", "Name    Type", "count   int", "region  string", "us,eu", "data    string (file)",
+		"Hints:       readonly", "Name    Type", "count   int", "region  string", "us,eu", "data    string (file)",
 		"Usage: openrun action run /orders list_orders [count=<int>] region=<string> data=@<file>"} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("show output must contain %q:\n%s", want, stdout)

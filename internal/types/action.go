@@ -52,24 +52,24 @@ func (h *ActionHints) IsReadOnly() bool {
 	return h != nil && h.ReadOnly != nil && *h.ReadOnly
 }
 
-// Labels returns the declared hints as short labels (ro, destructive, idem,
-// open), for the CLI
+// Labels returns the declared hints as labels (readonly, destructive, idempotent,
+// open_world), for the CLI
 func (h *ActionHints) Labels() []string {
 	if h == nil {
 		return nil
 	}
 	labels := []string{}
 	if h.ReadOnly != nil && *h.ReadOnly {
-		labels = append(labels, "ro")
+		labels = append(labels, "readonly")
 	}
 	if h.Destructive != nil && *h.Destructive {
 		labels = append(labels, "destructive")
 	}
 	if h.Idempotent != nil && *h.Idempotent {
-		labels = append(labels, "idem")
+		labels = append(labels, "idempotent")
 	}
 	if h.OpenWorld != nil && *h.OpenWorld {
-		labels = append(labels, "open")
+		labels = append(labels, "open_world")
 	}
 	return labels
 }

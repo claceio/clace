@@ -49,7 +49,8 @@ func DetachedAuthContext(parent, caller context.Context) context.Context {
 	// broader-resource keys than their caller. Only these constraints are
 	// copied, and copied so later caller mutations do not reach the worker
 	if cred := system.GetContextApiCredential(caller); cred != nil {
-		attenuated := &types.Credential{Scopes: slices.Clone(cred.Scopes), Resources: slices.Clone(cred.Resources)}
+		attenuated := &types.Credential{Scopes: slices.Clone(cred.Scopes), Resources: slices.Clone(cred.Resources),
+			DestructiveConfirm: cred.DestructiveConfirm}
 		if cred.ExpiresAt != nil {
 			expiry := *cred.ExpiresAt
 			attenuated.ExpiresAt = &expiry

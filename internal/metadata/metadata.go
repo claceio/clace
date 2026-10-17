@@ -30,7 +30,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const CURRENT_DB_VERSION = 31
+const CURRENT_DB_VERSION = 32
 
 // ErrAppNotFound is returned when an app entry does not exist in the metadata store.
 var ErrAppNotFound = errors.New("app not found")
@@ -886,6 +886,26 @@ func (m *Metadata) VersionUpgrade(config *types.ServerConfig) error {
 			m.Info().Msg("Dynamic config initialized with the default RBAC config and the builtin users test1 and test2")
 		}
 		if _, err := tx.ExecContext(ctx, `update version set version=31, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
+			return err
+		}
+	}
+
+	if version < 32 {
+		m.Info().Msg("Upgrading to version 32")
+		// Per key options: destructive_confirm for keys which run destructive
+		// MCP tools without the confirmation prompt (apikey create --confirm skip)
+		// Idempotent: a database re-upgraded from an older version (tests
+		// reset the version) already has it
+		exists, err := m.columnExists(ctx, "credentials", "options")
+		if err != nil {
+			return err
+		}
+		if !exists {
+			if _, err := tx.ExecContext(ctx, `alter table credentials add column options `+system.MapDataType(m.dbType, "json")); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `update version set version=32, last_upgraded=`+system.FuncNow(m.dbType)); err != nil {
 			return err
 		}
 	}

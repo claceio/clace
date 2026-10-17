@@ -143,7 +143,7 @@ tests:
       amcp http://localhost:${MAIN_HTTP_PORT}/_openrun/app_mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > agg_list.json
       jq -r '[.result.tools[].name] | join(" ") | "tools=" + .' agg_list.json
       jq -r '.result.tools[] | select(.name == "aggapps_open-app__ping") | [.title, (.description | split("\n")[0])] | join(" / ")' agg_list.json
-      amcp http://localhost:${MAIN_HTTP_PORT}/_openrun/app_mcp -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"openrun_status","arguments":{}}}' | jq -r '.result.structuredContent | [.user, .auth, .apps, (.tool_count | tostring)] | join(" ")' | sed 's/^/status=/' 
+      amcp http://localhost:${MAIN_HTTP_PORT}/_openrun/app_mcp -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"openrun_status","arguments":{}}}' | jq -r '.result.structuredContent | [.user, .auth, .apps, (.tool_count | tostring), .destructive_confirm, (.can_confirm | tostring)] | join(" ")' | sed 's/^/status=/' 
       amcp http://localhost:${MAIN_HTTP_PORT}/_openrun/app_mcp -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"aggapps_open-app__ping","arguments":{}}}' | jq -r '.result.structuredContent.status'
       curl -sk -o /dev/null -w 'prm=%{http_code}\n' https://localhost:${MAIN_HTTPS_PORT}/.well-known/oauth-protected-resource/_openrun/app_mcp
       curl -sk -o /dev/null -w 'badtoken=%{http_code}\n' -X POST -H 'Authorization: Bearer orun_pat_bad' https://localhost:${MAIN_HTTPS_PORT}/_openrun/app_mcp
@@ -151,7 +151,7 @@ tests:
       contains:
         - "tools=aggapps_open-app__ping aggapps_routed__run openrun_status"
         - "Open: Ping / App /aggapps/open-app"
-        - "status=anonymous none all 2"
+        - "status=anonymous none all 2 require false"
         - "pong"
         - "prm=404"
         - "badtoken=401"

@@ -180,6 +180,42 @@ func TestRemoteApiRequiresRBAC(t *testing.T) {
 	}
 }
 
+// A pre-0.21 openrun.toml with skip_destructive_confirm = true loads over
+// the embedded defaults and must keep starting the server: the default
+// leaves destructive_confirm unset, and only a value the user set can
+// conflict with the deprecated flag.
+func TestApiConfigLegacySkipDestructiveConfirm(t *testing.T) {
+	_, _, config, err := system.GetDefaultConfigs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Api.MCP.DestructiveConfirm != "" {
+		t.Fatalf("the embedded default must leave destructive_confirm unset, got %q", config.Api.MCP.DestructiveConfirm)
+	}
+	if err := system.LoadServerConfig("[api.mcp]\nskip_destructive_confirm = true\n", config); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateApiConfig(config); err != nil {
+		t.Fatalf("the deprecated flag over the defaults must validate, got %v", err)
+	}
+	if mode := config.Api.MCP.DestructiveConfirmMode(); mode != types.DestructiveConfirmSkip {
+		t.Fatalf("skip_destructive_confirm = true must mean skip, got %q", mode)
+	}
+	// An explicit mode next to the flag is the user's own conflict
+	if err := system.LoadServerConfig("[api.mcp]\ndestructive_confirm = \"ask\"\n", config); err != nil {
+		t.Fatal(err)
+	}
+	err = validateApiConfig(config)
+	if err == nil || !strings.Contains(err.Error(), "skip_destructive_confirm = true") {
+		t.Fatalf("skip_destructive_confirm with destructive_confirm = ask must be rejected, got %v", err)
+	}
+	// Unset means require
+	plain := types.ApiSurfaceConfig{}
+	if mode := plain.DestructiveConfirmMode(); mode != types.DestructiveConfirmRequire {
+		t.Fatalf("an unset destructive_confirm must mean require, got %q", mode)
+	}
+}
+
 func TestRemoteApiInvokerOpPolicy(t *testing.T) {
 	server, ts, mintKey := newRemoteApiTestServer(t)
 

@@ -871,5 +871,10 @@ func TestActionsManagementMCPConfirm(t *testing.T) {
 	}
 	result, err = connect(t).CallTool(t.Context(), &mcp.CallToolParams{Name: "run_action", Arguments: runArgs("purge", 5)})
 	testutil.AssertNoError(t, err)
-	testutil.AssertStringContains(t, callToolText(t, result), "purged 5 orders")
+	// It cannot confirm, so the default mode (require) refuses the call
+	if !result.IsError {
+		t.Fatalf("a client which cannot confirm must be refused: %s", callToolText(t, result))
+	}
+	testutil.AssertStringContains(t, callToolText(t, result), "run_action on /apps/hints is destructive")
+	testutil.AssertStringContains(t, callToolText(t, result), "destructive_confirm=require")
 }

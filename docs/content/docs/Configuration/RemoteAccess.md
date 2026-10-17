@@ -124,7 +124,7 @@ claude mcp add --transport http openrun https://openrun.example.com:25223/_openr
 
 An MCP-only key with no explicit `--scopes` defaults to **`*:read app:read_detail`** — the AI client can inspect everything its user can read, including app details, versions, files and logs, but cannot change anything. Mint a write-capable key deliberately with `--scopes "*"`. A key bound to `mcp` is rejected at the REST surface and vice versa (`--resource all` for a key valid on both).
 
-Destructive tools (delete, promote, version switch, ...) support `dry_run`, and for clients that support elicitation the server runs a dry-run preview and asks for confirmation before applying the change. `[api.mcp] skip_destructive_confirm = true` disables the confirmation flow for headless automation.
+Destructive tools (delete, promote, version switch, ...) support `dry_run`, and for clients that support elicitation the server runs a dry-run preview and asks for confirmation before applying the change. A client which cannot confirm is refused by default (`[api.mcp] destructive_confirm = "require"`); `"ask"` runs the call at once for such clients and `"skip"` never asks. A key created with `openrun apikey create --confirm skip` skips the prompt where the mode is `ask`, for headless automation. See [side-effect hints]({{< ref "/docs/actions#mcp-tools" >}}) for the modes.
 
 ## API Keys
 
@@ -151,7 +151,7 @@ openrun apikey create --user builtin:alice --resource app_mcp:builtin --scopes a
 openrun apikey create --resource app:/orders                           # one app's own MCP endpoint
 ```
 
-Four layers decide whether a call succeeds, and their errors name themselves: the client's own approval policy (Codex and Claude Code ask before a tool runs, independently of OpenRun; `skip_destructive_confirm` only removes OpenRun's confirmation prompt), the credential's scopes (`credential scope ceiling`), the user's RBAC grants (`does not have ... permission`), and the operations disabled for the surface (`disabled for the mcp API surface`). Running an app's actions also needs the app's plugin permissions approved.
+Four layers decide whether a call succeeds, and their errors name themselves: the client's own approval policy (Codex and Claude Code ask before a tool runs, independently of OpenRun; `destructive_confirm = "skip"` only removes OpenRun's confirmation prompt), the credential's scopes (`credential scope ceiling`), the user's RBAC grants (`does not have ... permission`), and the operations disabled for the surface (`disabled for the mcp API surface`). Running an app's actions also needs the app's plugin permissions approved.
 
 ## What MCP Can Do
 
@@ -177,7 +177,7 @@ Operations can be opted back in, or additionally disabled, per surface:
 [api.mcp]
 enable_apis  = []                # opt default-disabled operations back in (logged at startup)
 disable_apis = ["secret_create"] # turn additional operations off
-skip_destructive_confirm = false
+destructive_confirm = "require"  # require, ask or skip for destructive tools called by clients which cannot confirm
 
 [api.rest]                       # the same overrides for the remote REST surface
 disable_apis = []
@@ -235,7 +235,7 @@ enable = false
 auth = ["admin"]                 # login mechanisms: "admin", "builtin", [auth.*]/[saml.*] names (never empty)
 enable_apis = []                 # default-disabled operations opted back in
 disable_apis = []                # additional operations turned off
-skip_destructive_confirm = false
+destructive_confirm = "require"  # what happens to a destructive tool call from a client which cannot confirm
 
 [api.rest]                       # the management REST API over TCP (remote CLI)
 enable = false

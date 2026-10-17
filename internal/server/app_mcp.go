@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -334,7 +335,7 @@ func (s *Server) buildAggMCPServer(r *http.Request) *mcp.Server {
 		maxTools = aggMCPDefaultMax
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "openrun-apps", Version: types.GetVersion()}, &mcp.ServerOptions{
-		Instructions: aggMCPInstructions(ctx, view),
+		Instructions: aggMCPInstructions(ctx, view, s.Config().Api.MCP.DestructiveConfirmMode()),
 		PageSize:     max(maxTools, mcp.DefaultPageSize),
 		// The list is per caller and the transport stateless: no change
 		// notifications, clients refresh within the ttl
@@ -415,7 +416,7 @@ const aggMCPStatusToolName = "openrun_status" // no separator: never the name of
 
 // aggMCPStatusHandler answers the status tool for a request's view
 func (s *Server) aggMCPStatusHandler(view *aggMCPView) mcp.ToolHandler {
-	return func(ctx context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		tools, err := s.aggMCPListTools(ctx, view)
 		if err != nil {
 			return aggMCPToolError("%s", err), nil
@@ -429,6 +430,12 @@ func (s *Server) aggMCPStatusHandler(view *aggMCPView) mcp.ToolHandler {
 			"stage":      view.stage,
 			"tool_count": len(tools),
 		}
+		// The destructive_confirm mode of the surface (an app may override it)
+		// and whether this connection's calls can confirm: why a destructive
+		// tool is refused, answered before the user asks
+		mode, byKey := action.MCPConfirmModeForCredential(ctx, s.Config().Api.MCP.DestructiveConfirmMode())
+		confirmFields, confirmText := action.MCPConfirmStatus(req, mode, byKey)
+		maps.Copy(status, confirmFields)
 		var b strings.Builder
 		fmt.Fprintf(&b, "Connected to OpenRun as %s with login %s; view apps=%s", user, view.mechanism, view.glob)
 		if view.stage {
@@ -444,6 +451,7 @@ func (s *Server) aggMCPStatusHandler(view *aggMCPView) mcp.ToolHandler {
 			b.WriteString(" No app in the view has an action you may run: an action needs app:access on its app and, when restricted, " +
 				"one of its permit permissions; apps with MCP disabled are not listed. Change the apps glob of the url, or deploy an app with actions.")
 		}
+		b.WriteString(" " + confirmText)
 		return &mcp.CallToolResult{StructuredContent: status, Content: []mcp.Content{&mcp.TextContent{Text: b.String()}}}, nil
 	}
 }
@@ -452,7 +460,7 @@ func (s *Server) aggMCPStatusHandler(view *aggMCPView) mcp.ToolHandler {
 // request: who is connected and what the view is, so that a client (and its
 // user) can tell an empty tool list from a failed connection and knows what
 // to change
-func aggMCPInstructions(ctx context.Context, view *aggMCPView) string {
+func aggMCPInstructions(ctx context.Context, view *aggMCPView, confirmMode string) string {
 	var b strings.Builder
 	b.WriteString("Tools are the actions of the apps deployed on this OpenRun server which you can run, " +
 		"named <app>" + aggMCPNameSep + "<action>; each tool description starts with its app. They run as the authenticated user. " +
@@ -475,6 +483,17 @@ func aggMCPInstructions(ctx context.Context, view *aggMCPView) string {
 		"A view with no action tools means no app in it has an action you may run: " +
 		"an action needs app:access on its app and, when restricted, one of its permit permissions; " +
 		"apps with MCP disabled are not listed. Change the apps glob or the auth param of the url to change the view.")
+	fmt.Fprintf(&b, "\nDestructive tools (actions declared destructive) are confirmed by the user before they run (destructive_confirm=%s", confirmMode)
+	switch confirmMode {
+	case types.DestructiveConfirmRequire:
+		b.WriteString("): a call which cannot confirm, because it carries no MCP 2026-07-28 per-request metadata with a form elicitation " +
+			"capability (the legacy initialize flow cannot), is refused; the refusal names what the request declared. ")
+	case types.DestructiveConfirmSkip:
+		b.WriteString(", no prompt here). ")
+	default:
+		b.WriteString("): a call which cannot confirm runs at once. ")
+	}
+	b.WriteString("The " + aggMCPStatusToolName + " tool reports whether this connection can confirm.")
 	return b.String()
 }
 

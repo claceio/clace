@@ -4,6 +4,8 @@
 package action
 
 import (
+	"cmp"
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openrundev/openrun/internal/app/apptype"
+	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/types"
 )
 
@@ -38,18 +41,35 @@ const MCPConfirmKey = "confirm"
 // form and runs at once, as a client without elicitation does. In stateless
 // mode the SDK fills the initialize params from the _meta of each request
 func MCPConfirmSupported(req *mcp.CallToolRequest) bool {
+	supported, _ := MCPConfirmCapability(req)
+	return supported
+}
+
+// MCPConfirmCapability is MCPConfirmSupported with a description of what
+// the request declared, for the refusal message and the status tool: the
+// protocol version (the _meta of a 2026-07-28 request, otherwise the
+// version of the legacy initialize flow, which the server answers with
+// 2025-11-25 whatever the client asked) and the elicitation capability
+func MCPConfirmCapability(req *mcp.CallToolRequest) (supported bool, seen string) {
 	if req == nil || req.Session == nil {
-		return false
+		return false, "no MCP request metadata"
 	}
 	iparams := req.Session.InitializeParams()
-	if iparams == nil || iparams.ProtocolVersion < "2026-07-28" || iparams.Capabilities == nil {
-		return false
+	if iparams == nil {
+		return false, "no MCP request metadata"
+	}
+	version := "protocol " + cmp.Or(iparams.ProtocolVersion, "unknown")
+	if iparams.ProtocolVersion < "2026-07-28" {
+		return false, version + " through the legacy initialize flow"
+	}
+	if iparams.Capabilities == nil || iparams.Capabilities.Elicitation == nil {
+		return false, version + " and no elicitation capability"
 	}
 	elicitation := iparams.Capabilities.Elicitation
-	if elicitation == nil {
-		return false
+	if elicitation.Form == nil && elicitation.URL != nil {
+		return false, version + " and a url-only elicitation capability (the confirmation is a form)"
 	}
-	return elicitation.Form != nil || elicitation.URL == nil
+	return true, version + " with form elicitation"
 }
 
 // MCPConfirmAnswer reports whether the call carries the answer to the
@@ -127,16 +147,97 @@ func (a *Action) isPasswordParam(name string) bool {
 	return false
 }
 
-// mcpConfirmSkipped reports whether the server config turns confirmation
-// off ([api.mcp] skip_destructive_confirm, shared with the management
-// tools). Read from the effective config at call time: the setting is
-// dynamic and the config the action was loaded with may be stale
-func (a *Action) mcpConfirmSkipped() bool {
+// MCPConfirmMode resolves the destructive_confirm mode of a call of this
+// action: the [api.mcp] setting (read from the effective config at call
+// time, the setting is dynamic and the config the action was loaded with may
+// be stale), overridden by the app's action.destructive_confirm, relaxed to
+// skip by a credential created with --confirm skip unless the mode is
+// require. byKey reports that the key did the relaxing, for the audit detail
+func (a *Action) MCPConfirmMode(ctx context.Context) (mode string, byKey bool) {
 	config := a.serverConfig
 	if a.configSource != nil {
 		config = a.configSource()
 	}
-	return config != nil && config.Api.MCP.SkipDestructiveConfirm
+	mode = types.DestructiveConfirmRequire
+	if config != nil {
+		mode = config.Api.MCP.DestructiveConfirmMode()
+	}
+	if a.config.DestructiveConfirm != "" {
+		mode = a.config.DestructiveConfirm
+	}
+	return MCPConfirmModeForCredential(ctx, mode)
+}
+
+// MCPConfirmModeForCredential applies the --confirm skip of the calling
+// credential, if any, to the mode the config resolved to: a key relaxes ask
+// to skip and never overrides require
+func MCPConfirmModeForCredential(ctx context.Context, mode string) (string, bool) {
+	if mode == types.DestructiveConfirmRequire || mode == types.DestructiveConfirmSkip {
+		return mode, false
+	}
+	if cred := system.GetContextApiCredential(ctx); cred != nil && cred.DestructiveConfirm == types.DestructiveConfirmSkip {
+		return types.DestructiveConfirmSkip, true
+	}
+	return mode, false
+}
+
+// MCPConfirmAuditDetail is the confirm= audit detail of a destructive call
+// which ran without a prompt: skipped by the config or by the key, or
+// unsupported by the client (the ask mode)
+func MCPConfirmAuditDetail(mode string, byKey bool) string {
+	switch {
+	case mode == types.DestructiveConfirmSkip && byKey:
+		return "confirm=skipped_by_key"
+	case mode == types.DestructiveConfirmSkip:
+		return "confirm=skipped"
+	}
+	return "confirm=unsupported"
+}
+
+// MCPConfirmRefusedDetail is the audit detail of a destructive call refused
+// because the client cannot confirm (the require mode)
+const MCPConfirmRefusedDetail = "confirm=refused"
+
+// MCPConfirmNeeds says what a request must carry to confirm, for the
+// refusal message and the status tool
+const MCPConfirmNeeds = "confirmation needs the MCP 2026-07-28 per-request metadata " +
+	"(_meta io.modelcontextprotocol/protocolVersion and io.modelcontextprotocol/clientCapabilities) with a form elicitation capability"
+
+// MCPConfirmRefusedMessage is the tool error of a destructive call refused
+// in the require mode: it names the action, says what the request declared
+// (seen, from MCPConfirmCapability) and what the caller can do instead
+func MCPConfirmRefusedMessage(what, seen string) string {
+	return what + " is destructive and this request cannot confirm it: it declared " + seen + "; " + MCPConfirmNeeds +
+		". The server will not run it (destructive_confirm=require). " +
+		"Pass dry_run=true to validate the arguments, use a client which can confirm, or run it from the CLI or the UI."
+}
+
+// MCPConfirmStatus describes, for the status tool of an endpoint, the
+// destructive_confirm mode of the connection and whether its calls can
+// confirm: the structured fields and a sentence
+func MCPConfirmStatus(req *mcp.CallToolRequest, mode string, byKey bool) (map[string]any, string) {
+	supported, seen := MCPConfirmCapability(req)
+	fields := map[string]any{"destructive_confirm": mode, "can_confirm": supported, "confirm_capability": seen}
+	if byKey {
+		fields["destructive_confirm_by_key"] = true
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Destructive tools: destructive_confirm=%s", mode)
+	if byKey {
+		b.WriteString(" (skip from the API key)")
+	}
+	switch {
+	case mode == types.DestructiveConfirmSkip:
+		b.WriteString("; they run without a confirmation prompt.")
+	case supported:
+		fmt.Fprintf(&b, "; this connection can confirm them (%s), each call is confirmed by the user first.", seen)
+	case mode == types.DestructiveConfirmRequire:
+		fmt.Fprintf(&b, "; this connection cannot confirm them (it declared %s; %s), so their calls are refused. "+
+			"Pass dry_run=true to validate arguments, or use a client which can confirm.", seen, MCPConfirmNeeds)
+	default:
+		fmt.Fprintf(&b, "; this connection cannot confirm them (it declared %s; %s), so they run at once.", seen, MCPConfirmNeeds)
+	}
+	return fields, b.String()
 }
 
 // mcpAnnotations maps the hints an action declares to its tool annotations;

@@ -41,7 +41,11 @@ per system.stage_at) until promote_apps pushes them to prod. Apps may use servic
 bindings. Sync entries keep apps in sync with git declaratively. Operations
 run as the authenticated user; RBAC decides what is allowed. Destructive
 tools (delete_apps, promote_apps, version_switch) support dry_run=true to
-preview the outcome first.`
+preview the outcome first, and are confirmed by the user before they run:
+a call which cannot confirm (no MCP 2026-07-28 per-request metadata with a
+form elicitation capability; the legacy initialize flow cannot) is refused
+unless [api.mcp] destructive_confirm is ask or skip. A refusal names what
+the request declared.`
 
 // getMCPServer returns the lazily built *mcp.Server; tools not enabled for
 // the MCP invoker (registry defaults + [api.mcp] config) are not registered,
@@ -177,14 +181,33 @@ func addMCPTool[In any](s *Server, srv *mcp.Server, operation API_NAME,
 		// twice - the first pass is the side-effect-free preview, the retry
 		// (carrying the user's answer) is the real run - so nothing with
 		// side effects may be added ahead of this block
-		confirmable := !s.Config().Api.MCP.SkipDestructiveConfirm && !mcpInputDryRun(in) && mcpConfirmSupported(req)
-		destructive := entry.Destructive
-		if confirmable && !destructive && entry.DestructiveWhen != nil {
+		mode, byKey := action.MCPConfirmModeForCredential(ctx, s.Config().Api.MCP.DestructiveConfirmMode())
+		if entry.ConfirmMode != nil {
+			// The app's own action.destructive_confirm (run_action)
+			if appMode, appByKey, ok := entry.ConfirmMode(ctx, s, in); ok {
+				mode, byKey = appMode, appByKey
+			}
+		}
+		destructive := !mcpInputDryRun(in) && entry.Destructive
+		if !destructive && !mcpInputDryRun(in) && entry.DestructiveWhen != nil {
 			// Destructive per call (run_action of an action declared
 			// destructive=True); errors surface from the handler itself
 			destructive = entry.DestructiveWhen(ctx, s, in)
 		}
-		if confirmable && destructive {
+		confirmSupported, confirmSeen := action.MCPConfirmCapability(req)
+		confirmable := destructive && mode != types.DestructiveConfirmSkip && confirmSupported
+		if destructive && !confirmable {
+			// No prompt: what happens is the destructive_confirm mode
+			if mode == types.DestructiveConfirmRequire {
+				event.Detail += " " + action.MCPConfirmRefusedDetail
+				if auditErr := s.InsertAuditEvent(&event); auditErr != nil {
+					s.Error().Err(auditErr).Msg("error inserting audit event for refused MCP call")
+				}
+				return nil, nil, fmt.Errorf("%s", action.MCPConfirmRefusedMessage(string(operation)+" on "+cmp.Or(event.Target, "the server"), confirmSeen))
+			}
+			event.Detail += " " + action.MCPConfirmAuditDetail(mode, byKey)
+		}
+		if confirmable {
 			if response, answered := req.Params.InputResponses[mcpConfirmKey]; answered {
 				elicit, ok := response.(*mcp.ElicitResult)
 				if !ok || elicit.Action != "accept" {
@@ -1164,14 +1187,6 @@ func (s *Server) mcpEventTarget(ctx context.Context, in any) string {
 // mcpConfirmKey is the input-request id used for destructive-op confirmation,
 // shared with the per-app action tools
 const mcpConfirmKey = action.MCPConfirmKey
-
-// mcpConfirmSupported reports whether the calling client can complete an
-// MRTR confirmation round trip in stateless mode (protocol 2026-07-28+ and a
-// declared elicitation capability). Older or non-eliciting clients skip
-// confirmation entirely and keep today's direct-execute behavior
-func mcpConfirmSupported(req *mcp.CallToolRequest) bool {
-	return action.MCPConfirmSupported(req)
-}
 
 // mcpInputWithDryRun returns a copy of the tool input with DryRun set true,
 // for the preview pass of a destructive-op confirmation. ok is false when
