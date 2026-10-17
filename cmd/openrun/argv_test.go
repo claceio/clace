@@ -102,3 +102,92 @@ func TestNormalizeInterspersedFlagsLeavesTrailingValueFlagAfterPositionals(t *te
 		t.Fatalf("normalized args mismatch\ngot:  %#v\nwant: %#v", got, want)
 	}
 }
+
+func globalFlagTestApp() *cli.App {
+	return &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "config-file", Aliases: []string{"c"}},
+			&cli.StringFlag{Name: "server-uri"},
+			&cli.StringFlag{Name: "as"},
+			&cli.BoolFlag{Name: "version", Aliases: []string{"v"}},
+		},
+		Commands: []*cli.Command{
+			{
+				Name: "action",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "list",
+						Flags: []cli.Flag{&cli.StringFlag{Name: "format", Aliases: []string{"f"}}},
+					},
+				},
+			},
+			{
+				Name: "service",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "create",
+						Flags: []cli.Flag{&cli.StringFlag{Name: "config", Aliases: []string{"c"}}},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestNormalizeInterspersedFlagsHoistsGlobalFlagsAfterCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		argv []string
+		want []string
+	}{
+		{
+			name: "global flag after leaf command",
+			argv: []string{"openrun", "action", "list", "--as", "builtin:test1"},
+			want: []string{"openrun", "--as", "builtin:test1", "action", "list"},
+		},
+		{
+			name: "global flag between commands",
+			argv: []string{"openrun", "action", "--server-uri=https://h:1", "list", "/app"},
+			want: []string{"openrun", "--server-uri=https://h:1", "action", "list", "/app"},
+		},
+		{
+			name: "global flag mixed with command flags and positionals",
+			argv: []string{"openrun", "action", "list", "/app", "--as", "builtin:test1", "-f", "json"},
+			want: []string{"openrun", "--as", "builtin:test1", "action", "list", "-f", "json", "/app"},
+		},
+		{
+			name: "existing root flags stay ahead of hoisted ones",
+			argv: []string{"openrun", "-c", "/etc/openrun.toml", "action", "list", "--as", "u"},
+			want: []string{"openrun", "-c", "/etc/openrun.toml", "--as", "u", "action", "list"},
+		},
+		{
+			name: "command flag shadows global alias",
+			argv: []string{"openrun", "service", "create", "-c", "cfg.toml", "mysvc"},
+			want: []string{"openrun", "service", "create", "-c", "cfg.toml", "mysvc"},
+		},
+		{
+			name: "version flag is not hoisted",
+			argv: []string{"openrun", "action", "list", "--version"},
+			want: []string{"openrun", "action", "list", "--version"},
+		},
+		{
+			name: "global flag after double dash stays positional",
+			argv: []string{"openrun", "action", "list", "--", "--as", "u"},
+			want: []string{"openrun", "action", "list", "--", "--as", "u"},
+		},
+		{
+			name: "global flag value matching a command name is not a command",
+			argv: []string{"openrun", "action", "--as", "list", "list"},
+			want: []string{"openrun", "--as", "list", "action", "list"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeInterspersedFlags(globalFlagTestApp(), tt.argv)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("normalized args mismatch\ngot:  %#v\nwant: %#v", got, tt.want)
+			}
+		})
+	}
+}

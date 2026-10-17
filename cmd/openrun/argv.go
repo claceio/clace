@@ -14,47 +14,64 @@ type cliFlagSpec struct {
 }
 
 // normalizeInterspersedFlags makes command flags work before or after
-// positional args. urfave/cli uses the standard flag package, which stops
-// parsing flags after the first positional arg.
+// positional args, and global flags work anywhere on the command line.
+// urfave/cli uses the standard flag package, which stops parsing flags after
+// the first positional arg and only accepts app level flags before the
+// command name.
 func normalizeInterspersedFlags(app *cli.App, argv []string) []string {
 	if len(argv) <= 1 {
 		return argv
 	}
 
+	globalSpecs := buildGlobalFlagSpecs(app.Flags)
 	normalized := make([]string, 0, len(argv))
 	normalized = append(normalized, argv[0])
-	normalized = append(normalized, normalizeCommandArgs(argv[1:], app.Commands, app.Flags)...)
+	levelArgs, hoisted := normalizeCommandArgs(argv[1:], app.Commands, app.Flags, globalSpecs)
+	// Global flags found after a command are placed before the command name,
+	// which is the only position urfave/cli accepts them in
+	if len(hoisted) > 0 {
+		rootFlags, rest := splitLeadingFlags(levelArgs, buildFlagSpecs(app.Flags))
+		normalized = append(normalized, rootFlags...)
+		normalized = append(normalized, hoisted...)
+		normalized = append(normalized, rest...)
+		return normalized
+	}
+	normalized = append(normalized, levelArgs...)
 	return normalized
 }
 
 // normalizeCommandArgs walks down the selected command path and normalizes
-// only the args that belong to each command level.
-func normalizeCommandArgs(args []string, commands []*cli.Command, flags []cli.Flag) []string {
+// only the args that belong to each command level. Global flags which are
+// not shadowed by a flag of the current command are removed from the level
+// and returned as hoisted, so the caller can move them to the root level.
+func normalizeCommandArgs(args []string, commands []*cli.Command, flags []cli.Flag, globalSpecs map[string]cliFlagSpec) ([]string, []string) {
 	if len(args) == 0 {
-		return args
+		return args, nil
 	}
 
 	flagSpecs := buildFlagSpecs(flags)
-	subcommandIndex, subcommand := findSubcommandArg(args, commands, flagSpecs)
+	subcommandIndex, subcommand := findSubcommandArg(args, commands, flagSpecs, globalSpecs)
 	if subcommand != nil {
+		levelArgs, hoisted := normalizeKnownFlags(args[:subcommandIndex], flagSpecs, globalSpecs)
+		subArgs, subHoisted := normalizeCommandArgs(args[subcommandIndex+1:], subcommand.Subcommands, subcommand.Flags, globalSpecs)
 		normalized := make([]string, 0, len(args))
-		normalized = append(normalized, normalizeKnownFlags(args[:subcommandIndex], flagSpecs)...)
+		normalized = append(normalized, levelArgs...)
 		normalized = append(normalized, args[subcommandIndex])
-		normalized = append(normalized, normalizeCommandArgs(args[subcommandIndex+1:], subcommand.Subcommands, subcommand.Flags)...)
-		return normalized
+		normalized = append(normalized, subArgs...)
+		return normalized, append(hoisted, subHoisted...)
 	}
 
-	return normalizeKnownFlags(args, flagSpecs)
+	return normalizeKnownFlags(args, flagSpecs, globalSpecs)
 }
 
 // findSubcommandArg skips over known flags and their values so a flag value
 // that matches a subcommand name is not treated as the next command.
-func findSubcommandArg(args []string, commands []*cli.Command, flagSpecs map[string]cliFlagSpec) (int, *cli.Command) {
+func findSubcommandArg(args []string, commands []*cli.Command, flagSpecs, globalSpecs map[string]cliFlagSpec) (int, *cli.Command) {
 	for i := 0; i < len(args); {
 		if args[i] == "--" {
 			return -1, nil
 		}
-		if _, consumed, ok := parseKnownFlagArg(args, i, flagSpecs); ok {
+		if _, consumed, _, ok := parseLevelFlagArg(args, i, flagSpecs, globalSpecs); ok {
 			i += consumed
 			continue
 		}
@@ -69,10 +86,12 @@ func findSubcommandArg(args []string, commands []*cli.Command, flagSpecs map[str
 }
 
 // normalizeKnownFlags moves recognized flags before positional args while
-// preserving the original relative order of flags and positionals.
-func normalizeKnownFlags(args []string, flagSpecs map[string]cliFlagSpec) []string {
+// preserving the original relative order of flags and positionals. Global
+// flags not known to the level are returned separately as hoisted.
+func normalizeKnownFlags(args []string, flagSpecs, globalSpecs map[string]cliFlagSpec) ([]string, []string) {
 	flagArgs := make([]string, 0, len(args))
 	positionArgs := make([]string, 0, len(args))
+	var hoisted []string
 
 	for i := 0; i < len(args); {
 		if args[i] == "--" {
@@ -80,8 +99,12 @@ func normalizeKnownFlags(args []string, flagSpecs map[string]cliFlagSpec) []stri
 			break
 		}
 
-		if parsed, consumed, ok := parseKnownFlagArg(args, i, flagSpecs); ok {
-			flagArgs = append(flagArgs, parsed...)
+		if parsed, consumed, isGlobal, ok := parseLevelFlagArg(args, i, flagSpecs, globalSpecs); ok {
+			if isGlobal {
+				hoisted = append(hoisted, parsed...)
+			} else {
+				flagArgs = append(flagArgs, parsed...)
+			}
 			i += consumed
 			continue
 		}
@@ -93,7 +116,34 @@ func normalizeKnownFlags(args []string, flagSpecs map[string]cliFlagSpec) []stri
 	normalized := make([]string, 0, len(args))
 	normalized = append(normalized, flagArgs...)
 	normalized = append(normalized, positionArgs...)
-	return normalized
+	return normalized, hoisted
+}
+
+// splitLeadingFlags splits args into the leading run of known flags and the
+// remainder, which starts at the first positional (the command name)
+func splitLeadingFlags(args []string, flagSpecs map[string]cliFlagSpec) ([]string, []string) {
+	i := 0
+	for i < len(args) {
+		_, consumed, ok := parseKnownFlagArg(args, i, flagSpecs)
+		if !ok {
+			break
+		}
+		i += consumed
+	}
+	return args[:i], args[i:]
+}
+
+// parseLevelFlagArg parses a flag known to the current command level, or
+// failing that a global flag. A command flag shadows a global flag with the
+// same name, so "-c" on "service create" stays a command flag.
+func parseLevelFlagArg(args []string, index int, flagSpecs, globalSpecs map[string]cliFlagSpec) ([]string, int, bool, bool) {
+	if parsed, consumed, ok := parseKnownFlagArg(args, index, flagSpecs); ok {
+		return parsed, consumed, false, true
+	}
+	if parsed, consumed, ok := parseKnownFlagArg(args, index, globalSpecs); ok {
+		return parsed, consumed, true, true
+	}
+	return nil, 0, false, false
 }
 
 // buildFlagSpecs records the names visible to the current command level.
@@ -105,6 +155,21 @@ func buildFlagSpecs(flags []cli.Flag) map[string]cliFlagSpec {
 		addFlagSpec(specs, flag)
 	}
 	addFlagSpec(specs, cli.HelpFlag)
+	return specs
+}
+
+// buildGlobalFlagSpecs records the app level flags which can be hoisted from
+// a command position to the root. The version flag is left out: it is only
+// acted on when no command is given, so hoisting it would make
+// "openrun app list --version" silently run the command instead of failing.
+func buildGlobalFlagSpecs(flags []cli.Flag) map[string]cliFlagSpec {
+	specs := map[string]cliFlagSpec{}
+	for _, flag := range flags {
+		if flag != nil && flag.Names()[0] == "version" {
+			continue
+		}
+		addFlagSpec(specs, flag)
+	}
 	return specs
 }
 
