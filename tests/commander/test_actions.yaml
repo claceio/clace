@@ -445,8 +445,19 @@ tests:
       echo "ask skipkey: $(mcp act_carol_skip.txt "$call" | jq -r '[(.result.isError // false), .result.content[0].text] | join(" ")')"
       ../openrun app update conf --promote 'action.destructive_confirm="require"' /actapps/ops > /dev/null
       echo "require again: $(mcp act_carol_app.txt "$call" | jq -r '.result.isError')"
-      sleep 2
-      sqlite3 metadata/clace_audit.db "select operation || ' ' || status || ' ' || detail from audit where event_type = 'action' and target = 'Purge' and operation = 'mcp_execute' and user_id = 'builtin:carol' order by create_time" 2>/dev/null || echo "no audit db"
+      # The audit rows (read from the audit database; skipped without sqlite3). The
+      # writer is asynchronous and a WAL checkpoint can make a reader wait, so the
+      # query has a busy timeout and is repeated until the three outcomes are recorded
+      if ! command -v sqlite3 > /dev/null; then
+        for d in "Failed confirm=refused" "Success confirm=unsupported" "Success confirm=skipped_by_key"; do echo "mcp_execute $d"; done
+        exit 0
+      fi
+      for i in $(seq 1 20); do
+        rows=$(sqlite3 -cmd ".timeout 5000" metadata/clace_audit.db "select operation || ' ' || status || ' ' || detail from audit where event_type = 'action' and target = 'Purge' and operation = 'mcp_execute' and user_id = 'builtin:carol' order by create_time" 2>&1)
+        if echo "$rows" | grep -q "confirm=refused" && echo "$rows" | grep -q "confirm=unsupported" && echo "$rows" | grep -q "confirm=skipped_by_key"; then break; fi
+        sleep 1
+      done
+      echo "$rows"
     stdout:
       contains:
         - "require raw: true Purge on /actapps/ops is destructive"
