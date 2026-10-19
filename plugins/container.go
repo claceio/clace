@@ -70,7 +70,7 @@ func (c *containerModule) Run(ctx context.Context, call *sdk.Call) (any, error) 
 	if !ok {
 		return nil, fmt.Errorf("expected container manager, got %T", ch)
 	}
-	return execCommand(ctx, call, handler)
+	return execCommand(ctx, call, handler, nil) // container commands are bounded by the container, not the host allowlist
 }
 
 const sidecarTypeName = "container_sidecar"

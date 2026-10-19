@@ -116,6 +116,7 @@ const (
 	TL_BRANCH                   = "TL_branch"
 	TL_DEV                      = "TL_dev"
 	TL_APP_URL                  = "TL_app_url"
+	TL_SERVER_CONFIG            = "TL_server_config" // host value: the app's *ServerConfig, for in-process plugins
 )
 
 const (
@@ -771,6 +772,13 @@ type SecurityConfig struct {
 	// definition and from metadata alike: "*" (the default) allows every
 	// image, other entries are exact references or regex: entries
 	AllowedJobImages []string `toml:"allowed_job_images"`
+	// AllowedExecCommands bounds the host executables the exec plugin may run,
+	// in addition to the per-app approval of the command: "*" allows any,
+	// other entries are bare names (PATH lookup), absolute paths or absolute
+	// globs (doublestar), and a "!" prefix excludes. Matching is on the
+	// resolved file, never on the string the app passed. Empty allows none.
+	// The OpenRun binary itself is always refused
+	AllowedExecCommands []string `toml:"allowed_exec_commands"`
 
 	// UnsafeAgentWithoutSandbox runs app builder agents as plain host
 	// processes instead of container sandboxes. The sandbox is the safety

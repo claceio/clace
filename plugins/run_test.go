@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openrundev/openrun/internal/system"
 	sdk "github.com/openrundev/openrun/pkg/plugin"
 )
 
@@ -40,7 +41,7 @@ func TestExecRunTempFileOwnership(t *testing.T) {
 				sdk.Kwarg{Name: "stream", Value: scenario == "stream"},
 			)
 			defer call.Session.End(context.Background()) //nolint:errcheck
-			result, err := execCommand(context.Background(), call, nil)
+			result, err := execCommand(context.Background(), call, nil, allowAllExec())
 			files, globErr := filepath.Glob(filepath.Join(dir, "openrun-exec-stdout-*"))
 			if globErr != nil {
 				t.Fatal(globErr)
@@ -72,6 +73,15 @@ func TestExecRunTempFileOwnership(t *testing.T) {
 	}
 }
 
+// allowAllExec is the allowlist for tests of the command runner itself
+func allowAllExec() *system.ExecAllowlist {
+	list, err := system.NewExecAllowlist([]string{"*"})
+	if err != nil {
+		panic(err)
+	}
+	return list
+}
+
 func execRunCall(kwargs ...sdk.Kwarg) *sdk.Call {
 	return &sdk.Call{Function: "run", Kwargs: kwargs, Session: sdk.NewSession("test")}
 }
@@ -84,7 +94,7 @@ func TestExecRunOmittedEnvIsEmpty(t *testing.T) {
 	result, err := execCommand(context.Background(), execRunCall(
 		sdk.Kwarg{Name: "path", Value: "env"},
 		sdk.Kwarg{Name: "args", Value: []any{}},
-	), nil)
+	), nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +115,7 @@ func TestExecRunExplicitEnv(t *testing.T) {
 	result, err := execCommand(context.Background(), execRunCall(
 		sdk.Kwarg{Name: "path", Value: "env"},
 		sdk.Kwarg{Name: "env", Value: []any{"RUN_TEST_VAR=explicit"}},
-	), nil)
+	), nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +149,7 @@ func TestExecCancellationReleasesInheritedPipes(t *testing.T) {
 				parent = context.Background()
 			} // Next's cancellation must suffice.
 			go func() {
-				result, err := execCommand(parent, call, nil)
+				result, err := execCommand(parent, call, nil, allowAllExec())
 				if err == nil && stream {
 					cursor := result.(*sdk.Cursor)
 					defer cursor.Close(context.Background()) //nolint:errcheck
@@ -196,7 +206,7 @@ func TestExecStreamPromptDeliveryAndExit(t *testing.T) {
 		sdk.Kwarg{Name: "stream", Value: true},
 	)
 	defer call.Session.End(context.Background()) //nolint:errcheck
-	result, err := execCommand(context.Background(), call, nil)
+	result, err := execCommand(context.Background(), call, nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +256,7 @@ func TestExecStreamLongLineAndCleanExit(t *testing.T) {
 		sdk.Kwarg{Name: "stream", Value: true},
 	)
 	defer call.Session.End(context.Background()) //nolint:errcheck
-	result, err := execCommand(context.Background(), call, nil)
+	result, err := execCommand(context.Background(), call, nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +294,7 @@ func TestExecStreamJSONLines(t *testing.T) {
 		sdk.Kwarg{Name: "parse", Value: "jsonlines"},
 	)
 	defer call.Session.End(context.Background()) //nolint:errcheck
-	result, err := execCommand(context.Background(), call, nil)
+	result, err := execCommand(context.Background(), call, nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +330,7 @@ func TestExecStreamCloseBeforeNextReaps(t *testing.T) {
 		sdk.Kwarg{Name: "stream", Value: true},
 	)
 	defer call.Session.End(context.Background()) //nolint:errcheck
-	result, err := execCommand(context.Background(), call, nil)
+	result, err := execCommand(context.Background(), call, nil, allowAllExec())
 	if err != nil {
 		t.Fatal(err)
 	}

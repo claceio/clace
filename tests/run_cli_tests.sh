@@ -965,14 +965,11 @@ unsafe_allow_system_plugins_anon = true
 # through the openrun_admin plugin, which counts as a remote caller; disk paths are
 # unix-socket only by default. The refusal itself is covered by Go tests
 unsafe_enable_remote_disk_read = true
+# The env_app/file_app/perms/actions suites run these host commands through exec.in
+allowed_exec_commands = ["sh", "wc", "echo", "nl"]
 
 [http]
 port = $MAIN_HTTP_PORT
-
-[permissions]
-# Clear the default disallow of exec.in: the env_app/file_app/perms suites
-# exercise exec plugin calls
-disallow = []
 EOF
 
   if contains_any "test_github_auth.yaml" && [[ -n "$CL_INFOCLACE_SSH" ]]; then

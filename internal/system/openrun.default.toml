@@ -158,6 +158,12 @@ allowed_container_args = { add-host = "regex:.*" } # the container args that are
 allowed_mounts = ["$OPENRUN_HOME/mounts"] # host paths that app volume sources are allowed to mount
 allowed_sidecar_images = [] # foreign images operator-set sidecars (--sidecar, app update sidecars, apps.star) may use; empty allows any, entries are exact refs or regex:
 allowed_job_images = ["*"]  # foreign images jobs (app.star ace.job, --job, app update jobs, apps.ace) may use; "*" allows any, entries are exact refs or regex:
+allowed_exec_commands = []  # host executables the exec plugin may run (each app still needs its own approval). Empty allows none.
+                                 # Entries: "*" allows any, a bare name ("du") is looked up on the server PATH, an absolute path, or an
+                                 # absolute glob ("/bin/*", "/opt/tools/**"; * does not cross a slash, ** does). A "!" prefix excludes
+                                 # ("!/bin/*sh"), applied after the allow entries. Commands are matched by the resolved file, not by name.
+                                 # Listing a shell, an interpreter or a directory of them grants everything they can run; commands run
+                                 # as the server user. The openrun binary itself is always refused: use the openrun_admin plugin.
 unsafe_agent_without_sandbox = false # run app builder agents directly on the host instead of inside a container sandbox.
                                  # NOT RECOMMENDED: the sandbox is the safety boundary for the agent's auto-approved
                                  # tool calls; without it the agent runs with full access as the server user.
@@ -320,9 +326,10 @@ arguments = ["regex:^<CONTAINER_URL>"]
 secrets = [] # no secrets allowed by default, use [["regex:.*"]] to allow all secrets
              # to be accessed by apps which are using the http plugin
 
-# Disallow exec plugin by default, since it can be used to run arbitrary commands on the host.
-[[permissions.disallow]]
-plugin = "exec.in"
+# permissions.disallow entries block matching plugin calls for every app, even when approved. For example:
+# [[permissions.disallow]]
+# plugin = "openrun_admin.in"
+# method = "secret_reveal"
 
 [app_config]
 # app config can be set at the app level using a metadata config update. For example:

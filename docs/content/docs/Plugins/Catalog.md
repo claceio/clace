@@ -67,7 +67,7 @@ ret = http.get("http://localhost:9999/test").value.json()
 
 ### run
 
-The `exec.in` plugin allows running external commands, starting a new process for the specified command. The APIs available are:
+The `exec.in` plugin allows running external commands, starting a new process for the specified command. The command runs on the server host as the server user, so two approvals apply: the app's `exec.in` permission for the command, and the server's `security.allowed_exec_commands` allowlist of executables (empty by default), which is matched on the resolved file. The OpenRun binary itself cannot be run. See [host commands]({{< ref "docs/configuration/security/#host-commands-exec-plugin" >}}). The APIs available are:
 
 |   API   |    Type    |               Notes               |
 | :-----: | :--------: | :-------------------------------: |

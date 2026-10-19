@@ -252,7 +252,7 @@ To schedule a background sync, commit your app declarations to Git and replace t
 openrun sync schedule --approve --promote github.com/myorg/platform/apps.star
 ```
 
-The disk-usage and file-listing examples require explicitly enabling `exec.in` in [default plugin permissions](https://openrun.dev/docs/configuration/security/#default-plugin-permissions). Their commands select `system` authentication because host command execution requires an authenticated caller. To install apps using the CLI, run
+The disk-usage and file-listing examples run host commands through `exec.in`, which requires listing those commands in the server's [allowed exec commands](https://openrun.dev/docs/configuration/security/#host-commands-exec-plugin) (`security.allowed_exec_commands`, empty by default). Their commands select `system` authentication because host command execution requires an authenticated caller. To install apps using the CLI, run
 
 ```
 openrun app create --approve --auth system github.com/openrundev/apps/system/list_files /files

@@ -150,7 +150,7 @@ To install apps, run `openrun app create --approve <source_url> <[domain:]app_pa
 openrun app create --approve --auth system github.com/openrundev/apps/system/disk_usage /disk_usage
 ```
 
-After enabling `exec.in` as described above, this installs the `system/disk_usage` app from the main branch of the `openrundev/apps` repo on GitHub. The app is installed for the default domain, to the `/disk_usage` path. Opening [https://localhost:25223/disk_usage](https://localhost:25223/disk_usage) will initialize the app and show the app home page.
+After listing `du` and `readlink` in `security.allowed_exec_commands` (see [host commands]({{< ref "configuration/security/#host-commands-exec-plugin" >}})), this installs the `system/disk_usage` app from the main branch of the `openrundev/apps` repo on GitHub. The app is installed for the default domain, to the `/disk_usage` path. Opening [https://localhost:25223/disk_usage](https://localhost:25223/disk_usage) will initialize the app and show the app home page.
 
 {{<callout type="warning" >}}
 The `/disk_usage/*` path is now reserved for APIs under this app. No new apps can be installed under the `/disk_usage/` path, but `/disk_usage2` is available. Similarly, installing an app under `/` path means no new apps can be installed for the default domain.

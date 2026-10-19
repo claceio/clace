@@ -116,7 +116,17 @@ func CreateTestAppIntSystemConfig(logger *types.Logger, path, domain string, fil
 	id string, settings types.AppSettings, params map[string]string, appConfig *types.AppConfig,
 	rbacApi rbac.RBACAPI, systemConfig types.SystemConfig) (*app.App, *appfs.WorkFs, error) {
 	return createTestAppFull(logger, path, domain, fileData, isDev, plugins, permissions, pluginConfig,
-		id, settings, params, appConfig, rbacApi, systemConfig, &types.ServerConfig{})
+		id, settings, params, appConfig, rbacApi, systemConfig, testServerConfig())
+}
+
+// testServerConfig is the server config of test apps that do not pass their
+// own: it lets the exec plugin run any host command, so tests of exec-backed
+// features (streaming, actions) are not gated by security.allowed_exec_commands,
+// whose own tests pass an explicit config
+func testServerConfig() *types.ServerConfig {
+	sc := &types.ServerConfig{}
+	sc.Security.AllowedExecCommands = []string{"*"}
+	return sc
 }
 
 // testMetadataHook, when set, adjusts the app metadata of the test apps

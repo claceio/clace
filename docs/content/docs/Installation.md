@@ -252,14 +252,14 @@ The service logs will be going to $OPENRUN_HOME/logs. The service will be starte
 
 ## Load an App
 
-The disk-usage example uses `exec.in`, which is blocked by default. To run this example, enable it explicitly in `openrun.toml` and restart the server:
+The disk-usage example uses `exec.in` to run `du` and `readlink` on the host. The server allows no host commands by default; list the two in `openrun.toml` and restart the server:
 
 ```toml {filename="openrun.toml"}
-[permissions]
-disallow = []
+[security]
+allowed_exec_commands = ["du", "readlink"]
 ```
 
-This removes the server-wide block; each command still needs app-level approval. See [default plugin permissions]({{< ref "configuration/security/#default-plugin-permissions" >}}). Then create the app with authentication:
+Each command still needs app-level approval. See [host commands]({{< ref "configuration/security/#host-commands-exec-plugin" >}}). Then create the app with authentication:
 
 ```shell
 openrun app create --dev --auth system "$HOME/openrun_source/openrun/examples/disk_usage" /disk_usage

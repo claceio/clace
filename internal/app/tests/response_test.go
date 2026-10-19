@@ -31,7 +31,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.html("/")])
 def handler(req):
 	return exec.run("sh", ["-c", 'echo "aa"; sleep 5; echo "bb"'], stream=True)
 `}
-	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, nil)
+	a, _, err := CreateTestAppPluginServerConfig(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, execAllowedServerConfig("sh", "ls"))
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -46,6 +46,14 @@ def handler(req):
 	testutil.AssertStringContains(t, response.Body.String(), "aa")
 }
 
+// execAllowedServerConfig is a server config whose exec allowlist holds the
+// given commands
+func execAllowedServerConfig(commands ...string) *types.ServerConfig {
+	sc := &types.ServerConfig{}
+	sc.Security.AllowedExecCommands = commands
+	return sc
+}
+
 func TestStreamResponseError(t *testing.T) {
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
@@ -57,7 +65,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/")])
 def handler(req):
 	return exec.run("ls", ["-l", "/tmp"], stream=True).value
 `}
-	a, _, err := CreateTestAppPlugin(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, nil)
+	a, _, err := CreateTestAppPluginServerConfig(logger, fileData, []string{"exec.in"}, []types.Permission{{Plugin: "exec.in", Method: "run"}}, execAllowedServerConfig("sh", "ls"))
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}

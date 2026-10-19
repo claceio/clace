@@ -268,6 +268,10 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	if err := validateApiSurfaceConfig(config); err != nil {
 		return nil, err
 	}
+	// The exec allowlist is parsed per call; refuse a malformed one up front
+	if err := system.ValidateExecAllowlist(config.Security.AllowedExecCommands); err != nil {
+		return nil, err
+	}
 	if apiExternalUrlIsDefault(config) {
 		l.Info().Str("external_url", defaultApiExternalUrl(config)).Msg("api.external_url and security.callback_url are not set: " +
 			"the HTTPS listener on system.default_domain is the OAuth issuer origin for MCP apps and API tokens (set api.external_url to override)")
@@ -750,6 +754,14 @@ func (s *Server) prepareDynamicConfig(ctx context.Context, config *types.Dynamic
 			return nil, fmt.Errorf("invalid api config, rejecting config update: %w", err)
 		}
 		s.Error().Err(err).Msg("dynamic api config is invalid, remote surfaces may be unavailable")
+	}
+	// security.allowed_exec_commands is dynamic; a malformed entry would make
+	// every exec call fail, so refuse the update (log at startup)
+	if err := system.ValidateExecAllowlist(effective.Security.AllowedExecCommands); err != nil {
+		if failOnBindError {
+			return nil, fmt.Errorf("invalid security config, rejecting config update: %w", err)
+		}
+		s.Error().Err(err).Msg("dynamic security.allowed_exec_commands is invalid, exec calls will fail")
 	}
 	// Deployed MCP apps advertise the issuer origin in their discovery
 	// documents: an update that clears or breaks it (api.external_url and

@@ -78,6 +78,8 @@ func createActionsTestApp(t *testing.T, server *Server, appPath, auth, mcpDoc st
 func newActionsTestServer(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
 	server, ts, _ := newMCPAppTestServer(t)
+	// The action test apps stream the output of sh through exec.in
+	server.staticConfig.Security.AllowedExecCommands = []string{"sh"}
 	if err := server.rbacManager.UpdateRBACConfig(&types.RBACConfig{
 		Roles: map[string][]types.RBACPermission{"ops": {"custom:ops_admin"}},
 		Grants: []types.RBACGrant{

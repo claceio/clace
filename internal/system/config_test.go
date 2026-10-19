@@ -122,9 +122,8 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsInt(t, "default container secrets", 0, len(c.Permissions.Allow[1].Secrets))
 	testutil.AssertEqualsString(t, "default http plugin", "http.in", c.Permissions.Allow[2].Plugin)
 	testutil.AssertEqualsInt(t, "default http secrets", 0, len(c.Permissions.Allow[2].Secrets))
-	testutil.AssertEqualsInt(t, "default disallow", 1, len(c.Permissions.Disallow))
-	testutil.AssertEqualsString(t, "default disallow plugin", "exec.in", c.Permissions.Disallow[0].Plugin)
-	testutil.AssertEqualsString(t, "default disallow method", "", c.Permissions.Disallow[0].Method)
+	testutil.AssertEqualsInt(t, "default disallow", 0, len(c.Permissions.Disallow))
+	testutil.AssertEqualsInt(t, "default allowed exec commands", 0, len(c.Security.AllowedExecCommands))
 
 	testutil.AssertEqualsString(t, "kubernetes namespace", "openrun", c.Kubernetes.Namespace)
 	testutil.AssertEqualsString(t, "builder mode", "auto", c.Builder.Mode)

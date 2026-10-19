@@ -32,7 +32,7 @@ This security model allows for the following:
 As an example, the disk usage analysis app requires [two permissions](https://github.com/openrundev/openrun/blob/8b8975cea2d650c9f80dab6eb70cc5b2ddbe5c40/examples/disk_usage/app.star#L42)
 
 {{<callout type="warning" >}}
-**Note:** The `exec.in` plugin is disallowed by default at the server level (`permissions.disallow`) since it runs commands on the server host, and it requires an authenticated caller. To run apps that use it, like this example, see [default plugin permissions]({{< ref "/docs/configuration/security/#default-plugin-permissions" >}}).
+**Note:** The `exec.in` plugin runs commands on the server host, so the server keeps its own allowlist of permitted executables (`security.allowed_exec_commands`, empty by default) in addition to the per-app approval shown below, and it requires an authenticated caller. To run apps that use it, like this example, list the commands in the server config: see [host commands]({{< ref "/docs/configuration/security/#host-commands-exec-plugin" >}}).
 {{</callout>}}
 
 ```python {filename="app.star"}

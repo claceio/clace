@@ -318,9 +318,20 @@ func (a *App) getLocalHostSession(thread *starlark.Thread, providerName string) 
 // host-bound in-process modules (sdk.HostServices).
 type threadHostServices struct {
 	thread *starlark.Thread
+	app    *App
 }
 
+// Value returns a host-scoped value for an in-process plugin: the live
+// server config under types.TL_SERVER_CONFIG (the exec plugin reads its
+// allowlist from it, so a dynamic update applies to the next call of an
+// already-loaded app), otherwise the thread local of that key
 func (t threadHostServices) Value(key string) any {
+	if key == types.TL_SERVER_CONFIG {
+		if t.app == nil {
+			return nil
+		}
+		return t.app.effectiveServerConfig()
+	}
 	return t.thread.Local(key)
 }
 
@@ -382,7 +393,7 @@ func (a *App) localPluginFunc(pluginInfo *plugin.PluginInfo, modulePath, account
 			Kwargs:    goKwargs,
 			Thread:    a.buildSDKThreadState(thread),
 			SessionId: sessionId,
-			Host:      threadHostServices{thread: thread},
+			Host:      threadHostServices{thread: thread, app: a},
 		})
 		if result != nil {
 			// Mirror the session's strict deferred-cleanup keys as strict
@@ -468,7 +479,7 @@ func (a *App) localFuncRefFn(host *sdk.Host, pluginInfo *plugin.PluginInfo, acco
 				Args:      args,
 				Thread:    a.buildSDKThreadState(thread),
 				SessionId: sessionId,
-				Host:      threadHostServices{thread: thread},
+				Host:      threadHostServices{thread: thread, app: a},
 			})
 			if result != nil {
 				syncExtStrictDefers(thread, "local:"+pluginInfo.ProviderName, pluginInfo.PluginPath, result.StrictKeys)

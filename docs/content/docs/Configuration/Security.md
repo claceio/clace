@@ -76,14 +76,33 @@ secrets = []
 
 The `http.in` default only auto-allows outbound HTTP calls to the app's own container (`<CONTAINER_URL>...`), so a Starlark frontend can call its own backend without an approval. The pattern is anchored with `^` because the argument matcher is unanchored — without it an app could embed `<CONTAINER_URL>` inside an external URL to bypass the restriction. Calls to any other host fall back to requiring an approved `http.in` permission. To allow all outbound HTTP (which opens an SSRF surface, since these calls originate from the server's network position and can reach internal or metadata endpoints), use `arguments = ["regex:.*"]`; to allow specific hosts, list them, e.g. `arguments = ["regex:^https://api\\.example\\.com/.*"]`.
 
-`permissions.disallow` blocks matching plugin calls for **every app**, even when the app's approved permissions (or the `permissions.allow` list) would permit them. Entries match with the same options as `allow`: an empty `method` matches every method of the plugin, and `arguments` (exact or `regex:`) narrow the block to matching calls. By default the `exec.in` plugin is disallowed, since it runs arbitrary commands on the server host:
+`permissions.disallow` blocks matching plugin calls for **every app**, even when the app's approved permissions (or the `permissions.allow` list) would permit them. Entries match with the same options as `allow`: an empty `method` matches every method of the plugin, and `arguments` (exact or `regex:`) narrow the block to matching calls. For example, to stop every app from revealing secret values through the admin plugin:
 
 ```toml {filename="openrun.toml"}
 [[permissions.disallow]]
-plugin = "exec.in"
+plugin = "openrun_admin.in"
+method = "secret_reveal"
 ```
 
-To enable exec for apps, override the list in `openrun.toml` — an empty list clears the default (`disallow = []` under `[permissions]`). The exec plugin is additionally a privileged system plugin: like `openrun_admin` and `build`, it requires an authenticated (non-anonymous) caller unless `security.unsafe_allow_system_plugins_anon` is set.
+### Host commands (exec plugin)
+
+The `exec.in` plugin runs commands on the server host, as the server user. Besides the per-app approval of each command, the server keeps an allowlist of the executables any app may run, `security.allowed_exec_commands`. It is empty by default, so no host command runs until the operator lists it:
+
+```toml {filename="openrun.toml"}
+[security]
+allowed_exec_commands = [
+  "du",                      # bare name, looked up on the server PATH
+  "/usr/local/bin/ffmpeg",   # absolute path
+  "/opt/tools/*",            # glob: * does not cross a slash, ** does
+  "!/opt/tools/*sh",         # exclusion, applied after the allow entries
+]
+```
+
+Both layers apply: the server list says which executables the host permits at all, and the app's approved `exec.in` permission says which of them that app may call, with which arguments. An app approved for `exec.in run` without argument restrictions is still bounded by the server list. `"*"` allows every executable, restoring the behavior of a server with no allowlist.
+
+Commands are matched on the file that would actually run, not on the string the app passes: a bare name is resolved on the server's `PATH`, a relative path against the call's `cwd`, and symlinks are followed before matching. Exact entries match by file identity (a hardlink or a symlink under another name is the same program); globs match the resolved path, and the literal directory prefix of a glob is itself resolved, so `/bin/*` also covers `/usr/bin` on Linux distributions where `/bin` is a symlink. Environment variables in entries are expanded. Globs must be absolute. The OpenRun binary itself is always refused, whatever the list says: an app that needs management operations uses the `openrun_admin.in` plugin, which is subject to authentication and RBAC.
+
+Listing a shell, an interpreter, or a directory that contains one (`/bin/*` on most systems) grants everything they can run, including reading the server's own configuration and database as the server user. Prefer listing the specific programs an app needs, and use the `!` form to carve interpreters out of a broad glob. For untrusted workloads run the command inside the app's container with `container.in` instead, which the host allowlist does not govern. The exec plugin is additionally a privileged system plugin: like `openrun_admin` and `build`, it requires an authenticated (non-anonymous) caller unless `security.unsafe_allow_system_plugins_anon` is set. A malformed entry is rejected at startup and on dynamic config updates.
 
 The default OpenRun server config already includes two implicit approvals used by containerized apps:
 

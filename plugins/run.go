@@ -25,8 +25,11 @@ import (
 // execCommand runs a command (on the host, or in the app's container when
 // containerHandler is set) and returns its output: a list of lines (or
 // parsed JSON), the name of a temp file holding stdout, or a stream cursor.
-// Shared by the exec and container modules.
-func execCommand(ctx context.Context, call *sdk.Call, containerHandler *app.ContainerHandler) (any, error) {
+// Shared by the exec and container modules. On the host the command must
+// pass the server's exec allowlist (security.allowed_exec_commands), which
+// resolves it to the file actually executed; commands inside a container are
+// bounded by the container instead.
+func execCommand(ctx context.Context, call *sdk.Call, containerHandler *app.ContainerHandler, allowlist *system.ExecAllowlist) (any, error) {
 	var path, parse, cwd string
 	var cmdArgs, env []string
 	var processPartial, stdoutToFile, stream bool
@@ -64,7 +67,17 @@ func execCommand(ctx context.Context, call *sdk.Call, containerHandler *app.Cont
 		}
 		// cwd is not supported in container mode
 	} else {
-		cmd = exec.CommandContext(ctx, path, cmdArgs...)
+		if allowlist == nil {
+			return nil, errors.New("exec: host command allowlist is not configured")
+		}
+		resolved, err := allowlist.Resolve(path, cwd)
+		if err != nil {
+			return nil, err
+		}
+		// Execute the file the allowlist checked, keeping the requested name
+		// as argv[0] for programs that dispatch on it
+		cmd = exec.CommandContext(ctx, resolved, cmdArgs...)
+		cmd.Args[0] = path
 		system.SetProcessGroup(cmd)
 		cmd.Env = env
 		if cwd != "" {
