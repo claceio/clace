@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/openrundev/openrun/internal/bindings"
+	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/types"
 )
 
@@ -609,7 +610,8 @@ app("/two",   "/tmp/app2", dev=True)
 		t.Fatalf("write config: %v", err)
 	}
 
-	formatted, err := server.PrettyPrint(context.Background(), configFile)
+	// a disk config file is read for unix socket (trusted) callers
+	formatted, err := server.PrettyPrint(system.WithTrustedOperation(context.Background()), configFile)
 	if err != nil {
 		t.Fatalf("pretty print: %v", err)
 	}

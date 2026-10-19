@@ -58,6 +58,7 @@ var (
 	apiScopesKey     any = types.API_SCOPES
 	apiInvokerKey    any = types.API_INVOKER
 	apiCredentialKey any = types.API_CREDENTIAL
+	diskSourceKey    any = types.DISK_SOURCE
 )
 
 // WithApiScopes attaches a bearer credential's scope ceiling (permission
@@ -97,6 +98,28 @@ func GetContextApiCredential(ctx context.Context) *types.Credential {
 		return nil
 	}
 	return cred
+}
+
+// WithDiskSourceAccess records whether the caller may name paths on the
+// server's disk (app sources, apply and sync files). true is set for calls
+// over the unix domain socket and for server-owned flows over directories
+// the server manages; false marks a run on behalf of a remote creator (a
+// sync entry created over the remote API), overriding the trusted marker a
+// background context carries. Unset falls back to the trusted marker, see
+// Server.diskSourceAllowed
+func WithDiskSourceAccess(ctx context.Context, allowed bool) context.Context {
+	return context.WithValue(ctx, diskSourceKey, allowed)
+}
+
+// GetContextDiskSourceAccess returns the disk source decision and whether
+// one is set
+func GetContextDiskSourceAccess(ctx context.Context) (allowed bool, set bool) {
+	value := ctx.Value(diskSourceKey)
+	if value == nil {
+		return false, false
+	}
+	allowed, ok := value.(bool)
+	return allowed, ok
 }
 
 // WithApiInvoker marks which front end dispatched this management API call:

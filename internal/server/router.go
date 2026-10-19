@@ -474,6 +474,14 @@ func (h *Handler) apiHandler(w http.ResponseWriter, r *http.Request, remote bool
 		}
 	}
 
+	if !remote {
+		// Paths on the server's disk (app sources, apply/sync files) are
+		// accepted from the unix domain socket, --as calls included: the
+		// caller already has the server user's file access. Remote calls
+		// get this only with security.unsafe_enable_remote_disk_read
+		r = r.WithContext(system.WithDiskSourceAccess(r.Context(), true))
+	}
+
 	if asUser := r.Header.Get(types.OPENRUN_HEADER_AS_USER); asUser != "" && !remote {
 		// The CLI --as flag, over the unix domain socket only: the caller is
 		// the administrator (unix file permissions), who chooses to run this

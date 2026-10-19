@@ -396,10 +396,20 @@ func (s *Server) validateStaticFromDisk(appEntry *types.AppEntry) error {
 }
 
 // validateCreateSource checks the source url of an app being created and makes
-// a disk source path absolute. Shared by the create transaction and its
-// pre-pass
-func (s *Server) validateCreateSource(appEntry *types.AppEntry) error {
+// a disk source path absolute. A disk source needs disk access on the
+// context (checkDiskSource); the check covers every create path, the
+// sources declared in apply files included. Shared by the create
+// transaction and its pre-pass
+func (s *Server) validateCreateSource(ctx context.Context, appEntry *types.AppEntry) error {
+	if appEntry.SourceUrl == "" {
+		// Never resolved against the working directory (filepath.Abs(""))
+		return types.CreateRequestError("source url is required: a git url, a directory on the server, or - for no source",
+			http.StatusBadRequest)
+	}
 	if err := s.validateStaticFromDisk(appEntry); err != nil {
+		return err
+	}
+	if err := s.checkDiskSource(ctx, appEntry.SourceUrl, "app source"); err != nil {
 		return err
 	}
 
@@ -420,7 +430,7 @@ func (s *Server) validateCreateSource(appEntry *types.AppEntry) error {
 
 func (s *Server) createApp(ctx context.Context, tx types.Transaction,
 	appEntry *types.AppEntry, opts DeployOptions, applyInfo *types.CreateAppRequest, repoCache *RepoCache, prep *appPrep) (*types.AppCreateResponse, error) {
-	if err := s.validateCreateSource(appEntry); err != nil {
+	if err := s.validateCreateSource(ctx, appEntry); err != nil {
 		return nil, err
 	}
 
@@ -1662,7 +1672,25 @@ func mainAppPathDomain(inpApp types.AppPathDomain, mainApp types.AppId, linkedAp
 
 const REPO_FOLDER_SEPERATOR = "//"
 
+// parseGitUrl splits a git source url into the repo to clone and the folder
+// within the checkout. The folder is joined onto the checkout directory, so
+// it must stay inside it: parent components are refused (a url like
+// host/org/repo/../../x would otherwise select a directory outside the
+// checkout, bypassing the disk source rules)
 func parseGitUrl(sourceUrl string, usingSSH bool) (repo, folder string, err error) {
+	repo, folder, err = splitGitUrl(sourceUrl, usingSSH)
+	if err != nil {
+		return "", "", err
+	}
+	for _, part := range strings.Split(folder, "/") {
+		if part == ".." {
+			return "", "", fmt.Errorf("invalid git url %s: the folder within the repo cannot contain parent (..) components", sourceUrl)
+		}
+	}
+	return repo, folder, nil
+}
+
+func splitGitUrl(sourceUrl string, usingSSH bool) (repo, folder string, err error) {
 	if !strings.HasSuffix(sourceUrl, "/") {
 		sourceUrl = sourceUrl + "/"
 	}

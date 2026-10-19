@@ -38,6 +38,9 @@ func DetachedAuthContext(parent, caller context.Context) context.Context {
 	if system.IsTrustedOperation(caller) {
 		ctx = system.WithTrustedOperation(ctx)
 	}
+	if allowed, set := system.GetContextDiskSourceAccess(caller); set {
+		ctx = system.WithDiskSourceAccess(ctx, allowed)
+	}
 	if scopes, present := system.GetContextApiScopes(caller); present {
 		ctx = system.WithApiScopes(ctx, slices.Clone(scopes))
 	}

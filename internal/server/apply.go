@@ -286,6 +286,11 @@ func jobEntries(appDef *starlarkstruct.Struct) ([]string, error) {
 
 func (s *Server) setupSource(ctx context.Context, applyPath string, ref GitRef, repoCache *RepoCache, isDev bool) (string, string, error) {
 	if !system.IsGit(applyPath) {
+		// A disk apply file is read as the server user: unix socket callers
+		// and server-owned flows only, see checkDiskSource
+		if err := s.checkDiskSource(ctx, applyPath, "apply file"); err != nil {
+			return "", "", err
+		}
 		return filepath.Dir(applyPath), filepath.Base(applyPath), nil
 	}
 

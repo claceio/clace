@@ -374,6 +374,7 @@ func TestStaticOnlySettingKeys(t *testing.T) {
 		{"security", "unsafe_disable_rbac"},
 		{"security", "unsafe_allow_system_plugins_anon"},
 		{"security", "trusted_proxies"}, // dynamic:"-" tag
+		{"security", "remote_disk_read_paths"},
 	}
 	for _, pair := range staticOnly {
 		if !staticOnlySettingKey(pair[0], pair[1]) {

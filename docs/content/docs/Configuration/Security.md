@@ -128,6 +128,28 @@ unsafe_allow_system_plugins_anon = true
 
 This is an unsafe, development-only escape hatch. In production, serve the console with an auth type that requires login and leave this off.
 
+## Disk Paths Over The Remote API
+
+An app source, apply file or sync path which is not a git url is a path on the server's disk, read as the server user. Over the [remote management surfaces]({{< ref "remoteaccess" >}}) (the REST API, the MCP endpoint and the console's in-process `openrun_admin` calls) that would let any caller with `app:create` or `app:apply` fetch any file the server can read, by creating an app from it. So by default, disk paths are accepted over the unix domain socket only: `openrun app create ./myapp /myapp`, `openrun apply ./apps.star`, `openrun sync schedule ./apps.star` and `openrun apply --pretty-print` work on the server itself, while the same commands over a remote client (or the console) are refused with an error saying so. Remote callers deploy from git urls. Dev mode apps and `static_from_disk` apps need a disk source, so remotely they can only be created from a git url (dev mode) or on the server.
+
+Only naming a new path is gated. Reloading, promoting or running a sync of an app or sync entry whose disk path was recorded by a caller on the server stays possible from anywhere: the path was chosen by someone with the server's file access. A sync entry created remotely keeps that standing for its scheduled runs, so a git hosted apply file it syncs cannot declare disk sources either.
+
+Directories listed in `security.remote_disk_read_paths` are exempt: paths under them are accepted from any caller. The default is the server's own publish and checkout area, `$OPENRUN_HOME/app_src`, where the [app builder]({{< ref "appbuilder" >}}) publishes apps in local mode and dev mode apps created from a git url are checked out. So a console user can create an app from `$OPENRUN_HOME/app_src/myapp` or re-apply `$OPENRUN_HOME/app_src/apps.star`, while the rest of the disk stays off limits. Entries are expanded with environment variables, symlinks are resolved before the check, and the list is static config only (a `config:update` holder cannot widen it). Set it to `[]` to exempt nothing:
+
+```toml {filename="openrun.toml"}
+[security]
+remote_disk_read_paths = []
+```
+
+To lift the restriction entirely, for example on a trusted single-user host:
+
+```toml {filename="openrun.toml"}
+[security]
+unsafe_enable_remote_disk_read = true
+```
+
+Like every `unsafe_` setting this is static config only, not settable through the dynamic config API.
+
 ## CSRF Protection
 
 CSRF protection is automatically enabled for OpenRun internal APIs and for API calls to apps. This uses the [CrossOriginProtection](https://pkg.go.dev/net/http#CrossOriginProtection) middleware. Use `app_config.security.disable_csrf_protection = true` in `openrun.toml` to disable globally for all apps. CSRF protection can be disabled individually for apps by running `openrun app update conf --promote 'security.disable_csrf_protection=true' /myapp`

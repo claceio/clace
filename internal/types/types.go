@@ -83,8 +83,12 @@ const (
 	// API_CREDENTIAL holds the *Credential the request authenticated with
 	// (bearer invokers only). Used to enforce attenuation: a credential can
 	// only mint credentials at most as powerful as itself.
-	API_CREDENTIAL  ContextKey = "api_credential"
-	SYNC_ID         ContextKey = "sync_id"         // id of the sync entry driving the current apply
+	API_CREDENTIAL ContextKey = "api_credential"
+	SYNC_ID        ContextKey = "sync_id" // id of the sync entry driving the current apply
+	// DISK_SOURCE records whether the caller may name server disk paths as
+	// sources (set for unix socket calls, server-owned flows and sync runs
+	// of locally created entries), see system.WithDiskSourceAccess
+	DISK_SOURCE     ContextKey = "disk_source"
 	APPLY_OPERATION ContextKey = "apply_operation" // set when the current operation is a declarative apply
 	// SYNC_RBAC holds the frozen creator authorization (rbac.SyncAuthorizer) for
 	// background sync runs. Set only when the sync entry carries an RBAC snapshot
@@ -794,6 +798,25 @@ type SecurityConfig struct {
 	// dynamic config API, and it excludes the remote API surfaces
 	// (an enabled api.rest / api.mcp surface requires enforcement)
 	UnsafeDisableRBAC bool `toml:"unsafe_disable_rbac"`
+
+	// UnsafeEnableRemoteDiskRead lets remote callers (the REST and MCP
+	// management surfaces, the console's in-process plugins) name paths on
+	// the server's disk as app sources, apply/sync files and pretty-print
+	// input. Off by default: those paths are accepted over the unix domain
+	// socket only, since any readable file of the server user could
+	// otherwise be fetched through an app created from it. Static config
+	// only, like every unsafe_ field
+	UnsafeEnableRemoteDiskRead bool `toml:"unsafe_enable_remote_disk_read"`
+
+	// RemoteDiskReadPaths are the server disk directories remote callers may
+	// name paths under (app sources, apply/sync files) with
+	// UnsafeEnableRemoteDiskRead off. The default is the server's own
+	// publish and checkout area, $OPENRUN_HOME/app_src (builder local
+	// publishes, dev mode git checkouts). Entries are env expanded like
+	// AllowedMounts; symlinks are resolved before the containment check.
+	// Static config only: a config:update holder must not be able to widen
+	// what the remote API can read
+	RemoteDiskReadPaths []string `toml:"remote_disk_read_paths" dynamic:"-"`
 }
 
 // MetadataConfig is the configuration for the Metadata persistence layer
@@ -1683,6 +1706,11 @@ type SyncMetadata struct {
 	ScheduleFrequency int    `json:"schedule_frequency"` // for scheduled: the frequency of the sync, every N minutes
 
 	RBAC *RBACSnapshot `json:"rbac,omitempty"` // creator authorization frozen at create time, nil means unrestricted
+	// RemoteCreated is set when the entry was created by a caller without
+	// server disk access (a remote API or console call): its runs then refuse
+	// disk paths unless security.unsafe_enable_remote_disk_read is set.
+	// Entries from before the field exists read as locally created
+	RemoteCreated bool `json:"remote_created,omitempty"`
 }
 
 type SyncJobStatus struct {

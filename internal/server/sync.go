@@ -60,6 +60,10 @@ func (s *Server) CreateSyncEntry(ctx context.Context, path string, opts SyncCrea
 		return nil, err
 	}
 	sync.RBAC = rbacSnapshot
+	// Runs of the entry read disk paths with the creator's standing: a
+	// remote creator's runs refuse them (the path itself, and app sources a
+	// git hosted apply file declares), see syncRunContext
+	sync.RemoteCreated = !callerHasDiskAccess(ctx)
 
 	// Check out the sync source before the transaction is opened, so the git
 	// network operations do not run while the transaction below is held. The
@@ -184,6 +188,7 @@ func (s *Server) RunSync(ctx context.Context, id string, dryRun bool) (_ *types.
 		return nil, err
 	}
 	defer repoCache.Cleanup()
+	ctx = s.syncRunContext(ctx, syncEntry)
 	if _, _, _, _, err := s.checkoutApplySource(ctx, syncEntry.Path, syncApplyOptions(&syncEntry.Metadata), repoCache); err != nil {
 		s.Debug().Err(err).Msgf("git prefetch: error warming apply source for sync run %s", id)
 	}
@@ -340,6 +345,23 @@ func (s *Server) attachSyncRBAC(ctx context.Context, entry *types.SyncEntry) con
 	return rbac.WithSyncAuthorizer(ctx, rbac.NewSyncAuthorizer(entry.Metadata.RBAC))
 }
 
+// syncRunContext sets the disk source decision of a sync run from the entry:
+// a locally created entry's runs may read its disk paths from any caller (the
+// path was recorded by a caller with disk access, like a reload of a disk
+// sourced app), a remotely created entry's runs may not, the trusted marker
+// of the scheduler's background context notwithstanding. A caller with disk
+// access of its own keeps it
+func (s *Server) syncRunContext(ctx context.Context, entry *types.SyncEntry) context.Context {
+	if !entry.Metadata.RemoteCreated {
+		return system.WithDiskSourceAccess(ctx, true)
+	}
+	if allowed, set := system.GetContextDiskSourceAccess(ctx); set && allowed {
+		// explicit access (unix socket caller), not the background trusted marker
+		return ctx
+	}
+	return system.WithDiskSourceAccess(ctx, false)
+}
+
 // enforceSyncReloadPerms authorizes everything a skipped-apply reload pass will
 // do before any app is mutated: app:apply, app:approve (when the entry
 // approves) and app:promote (when promoting) on every app
@@ -412,7 +434,7 @@ func (s *Server) runSyncJobs(ctx context.Context) error {
 		// trace id even though there is no HTTP request behind the run. The
 		// run is attributed to the user who created the sync and authorized
 		// against the creator's frozen RBAC snapshot when one is present
-		jobCtx := s.attachSyncRBAC(backgroundOperationContext(ctx, cmp.Or(entry.UserID, "scheduler")), entry)
+		jobCtx := s.syncRunContext(s.attachSyncRBAC(backgroundOperationContext(ctx, cmp.Or(entry.UserID, "scheduler")), entry), entry)
 		_, updatedApps, err := s.runSyncJob(jobCtx, types.Transaction{}, entry, syncRunOptions{CheckCommitHash: true}, repoCache) // each sync runs in its own transaction
 		if err != nil {
 			s.Error().Err(err).Msgf("Error running sync job %s", entry.Id)

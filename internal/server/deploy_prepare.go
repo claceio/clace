@@ -508,7 +508,10 @@ func (s *Server) prepareCreate(ctx context.Context, appPath string, opts DeployO
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validateCreateSource(appEntry); err != nil {
+	if err := s.validateCreateSource(ctx, appEntry); err != nil {
+		if reqErr, ok := err.(types.RequestError); ok {
+			return nil, reqErr
+		}
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 	appEntry.Id = appId

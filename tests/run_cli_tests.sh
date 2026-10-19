@@ -961,6 +961,10 @@ callback_url = "https://localhost:$MAIN_HTTPS_PORT"
 # console testenv does. The env_app/file_app/perms suites also use the exec
 # system plugin
 unsafe_allow_system_plugins_anon = true
+# The rbac suite's test app creates apps from disk paths (source_url="./rbac_child_app")
+# through the openrun_admin plugin, which counts as a remote caller; disk paths are
+# unix-socket only by default. The refusal itself is covered by Go tests
+unsafe_enable_remote_disk_read = true
 
 [http]
 port = $MAIN_HTTP_PORT

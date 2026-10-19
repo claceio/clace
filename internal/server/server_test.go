@@ -17,10 +17,12 @@ func TestParseGitUrl(t *testing.T) {
 		wantFolder string
 		wantError  error
 	}{
-		"blank":                    {url: "", wantRepo: "", wantFolder: "", wantError: fmt.Errorf("invalid github url: https:///, expected github.com/orgName/repoName or github.com/orgName/repoName/folder")},
-		"org and repo only":        {url: "github.com/orgName/repoName", wantRepo: "https://github.com/orgName/repoName", wantFolder: "", wantError: nil},
-		"org, repo and folder":     {url: "http://github.com/orgName/repoName/folderName", wantRepo: "http://github.com/orgName/repoName", wantFolder: "folderName/", wantError: nil},
-		"org, repo and subfolders": {url: "https://github.com/orgName/repoName/folderName/sub", wantRepo: "https://github.com/orgName/repoName", wantFolder: "folderName/sub/", wantError: nil},
+		"blank":                                     {url: "", wantRepo: "", wantFolder: "", wantError: fmt.Errorf("invalid github url: https:///, expected github.com/orgName/repoName or github.com/orgName/repoName/folder")},
+		"org and repo only":                         {url: "github.com/orgName/repoName", wantRepo: "https://github.com/orgName/repoName", wantFolder: "", wantError: nil},
+		"org, repo and folder":                      {url: "http://github.com/orgName/repoName/folderName", wantRepo: "http://github.com/orgName/repoName", wantFolder: "folderName/", wantError: nil},
+		"org, repo and subfolders":                  {url: "https://github.com/orgName/repoName/folderName/sub", wantRepo: "https://github.com/orgName/repoName", wantFolder: "folderName/sub/", wantError: nil},
+		"parent folder refused":                     {url: "https://github.com/orgName/repoName/../../etc", wantError: fmt.Errorf("invalid git url https://github.com/orgName/repoName/../../etc: the folder within the repo cannot contain parent (..) components")},
+		"parent folder refused //":                  {url: "github.com/orgName/repoName//sub/../../../etc", wantError: fmt.Errorf("invalid git url github.com/orgName/repoName//sub/../../../etc: the folder within the repo cannot contain parent (..) components")},
 		"gitlab group and subgroup and subfolders":  {url: "gitlab.com/g16004341/g2/pr1//app1", wantRepo: "https://gitlab.com/g16004341/g2/pr1", wantFolder: "app1/", wantError: nil},
 		"gitlab group and subgroup and subfolders2": {url: "gitlab.com/g16004341/pr1//app1", wantRepo: "https://gitlab.com/g16004341/pr1", wantFolder: "app1/", wantError: nil},
 		"gitlab group and subgroup and subfolders3": {url: "gitlab.com/g16004341/g2/pr1//", wantRepo: "https://gitlab.com/g16004341/g2/pr1", wantFolder: "", wantError: nil},

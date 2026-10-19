@@ -193,7 +193,9 @@ func TestStageAppPathDomain(t *testing.T) {
 
 func newAppAPIMetadataTestServer(t *testing.T) (*Server, *metadata.Metadata, context.Context) {
 	t.Helper()
-	ctx := context.Background()
+	// Trusted context, the UDS semantics these credential-less calls stand
+	// for (disk source paths are accepted from it)
+	ctx := system.WithTrustedOperation(context.Background())
 	logger := types.NewLogger(&types.LogConfig{Level: "WARN"})
 	config := &types.ServerConfig{
 		Metadata: types.MetadataConfig{

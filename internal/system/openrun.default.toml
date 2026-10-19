@@ -169,6 +169,14 @@ unsafe_allow_system_plugins_anon = false # allow anonymous (unauthenticated) cal
                                  # plugins (openrun_admin, build). By default these require an authenticated user
                                  # regardless of RBAC, so a console served with none auth cannot run admin/builder
                                  # operations. The read-only openrun plugin is never gated. Dev-only escape hatch.
+unsafe_enable_remote_disk_read = false # allow remote callers (the REST/MCP management APIs, the console's plugin
+                                 # calls) to name paths on the server's disk as app sources, apply/sync files and
+                                 # pretty-print input. By default such paths are accepted over the unix domain
+                                 # socket only: any file the server user can read could otherwise be fetched
+                                 # through an app created from it. Remote callers use git urls instead.
+remote_disk_read_paths = ["$OPENRUN_HOME/app_src"] # server directories remote callers may name paths under even with
+                                 # unsafe_enable_remote_disk_read off. The default is the server's own publish and
+                                 # checkout area (app builder local publishes, dev mode git checkouts). Static config only.
 
 # Logging related Config
 [logging]

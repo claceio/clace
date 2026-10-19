@@ -1086,7 +1086,10 @@ func (s *Server) builderPublishLocal(ctx context.Context, session *types.Builder
 	// Apply expands relative (trailing ".") declared domains to the default
 	// domain when loading the file, so the target filter must use the
 	// RESOLVED path - the relative form would match nothing
-	resp, _, err := s.Apply(ctx, types.Transaction{}, appsFile, resolvedPath, ApplyOptions{
+	// The apps file and the published source dir are server-managed paths
+	// under OPENRUN_HOME, not caller-named: the apply reads them whatever
+	// the caller's transport (the console's plugin calls are remote)
+	resp, _, err := s.Apply(system.WithDiskSourceAccess(ctx, true), types.Transaction{}, appsFile, resolvedPath, ApplyOptions{
 		DeployOptions: DeployOptions{Approve: true},
 		Reload:        types.AppReloadOptionUpdated,
 	}, nil)

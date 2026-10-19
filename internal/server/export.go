@@ -433,6 +433,9 @@ func (s *Server) PrettyPrint(ctx context.Context, applyPath string) (string, err
 	if system.IsGit(applyPath) {
 		return "", fmt.Errorf("pretty-print supports local files only, not git urls")
 	}
+	if err := s.checkDiskSource(ctx, applyPath, "config file"); err != nil {
+		return "", err
+	}
 	fileInfo, err := os.Stat(applyPath)
 	if err != nil {
 		return "", err
