@@ -175,3 +175,41 @@ tests:
   apply_git0210: # cleanup
     command: ../openrun app delete /applytest/c109 && rm -f /tmp/apply_109c.ace
     stdout: "app(s) deleted"
+
+  ## --- #110: an apps.ace entry without git_branch defaults to main, so
+  ## applying it over an app created through the CLI (which stores main)
+  ## does not clear the stored branch. An empty branch broke the webhook
+  ## branch check ("branch mismatch, found main, expected ")
+  apply_git0300: # setup: the app is created through the CLI, no apply record
+    command: ../openrun app create --approve github.com/openrundev/apps/system/disk_usage /applytest/b110
+    stdout: "App created"
+  apply_git0301:
+    command: ../openrun app list --internal "/applytest/b110*" | grep -c "main:"
+    stdout:
+      exactly: "2"
+  apply_git0302: # apply an entry with no git_branch over it, including --clobber
+    command: >-
+      printf 'app("/applytest/b110", "github.com/openrundev/apps/system/disk_usage")\n' > /tmp/apply_110.ace && ../openrun apply --approve --promote --clobber /tmp/apply_110.ace
+    stdout: "0 app(s) created"
+  apply_git0303: # the stored branch is still main on both stage and prod
+    command: ../openrun app list --internal "/applytest/b110*" | grep -c "main:"
+    stdout:
+      exactly: "2"
+  apply_git0304: # a reload webhook push for main is accepted (no branch mismatch)
+    command: >-
+      ../openrun app-webhook create reload /applytest/b110 > /tmp/apply_110_hook.txt &&
+      TOKEN=$(awk '/^Token:/{print $2}' /tmp/apply_110_hook.txt) &&
+      curl -s -XPOST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"
+      -d '{"ref": "refs/heads/main"}' "http://localhost:${MAIN_HTTP_PORT}/_openrun_webhook/reload?appPath=%2Fapplytest%2Fb110"
+    stdout:
+      not-contains:
+        - "branch mismatch"
+  apply_git0305: # a push for another branch is still rejected with the stored branch named
+    command: >-
+      TOKEN=$(awk '/^Token:/{print $2}' /tmp/apply_110_hook.txt) &&
+      curl -s -XPOST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"
+      -d '{"ref": "refs/heads/other"}' "http://localhost:${MAIN_HTTP_PORT}/_openrun_webhook/reload?appPath=%2Fapplytest%2Fb110"
+    stdout: "branch mismatch, found other, expected main"
+  apply_git0310: # cleanup
+    command: ../openrun app delete /applytest/b110 && rm -f /tmp/apply_110.ace /tmp/apply_110_hook.txt
+    stdout: "app(s) deleted"

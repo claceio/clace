@@ -132,6 +132,13 @@ func appDefToApplyInfo(appDef *starlarkstruct.Struct) (*types.CreateAppRequest, 
 	if err != nil {
 		return nil, err
 	}
+	if system.IsGit(source) && gitCommit == "" {
+		// Default to main, matching the CLI --branch default, so an entry
+		// without git_branch does not clear the branch stored on an app
+		// created through the CLI (issue #110). Disk sources and commit
+		// pinned apps store an empty branch, so those are left as is
+		gitBranch = cmp.Or(gitBranch, "main")
+	}
 	spec, err := apptype.GetStringAttr(appDef, "spec")
 	if err != nil {
 		return nil, err

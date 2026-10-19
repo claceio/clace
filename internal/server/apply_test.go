@@ -1870,3 +1870,39 @@ func TestMergeSidecars(t *testing.T) {
 		}
 	})
 }
+
+// Issue #110: an app() entry without git_branch must default to main, matching
+// the CLI --branch default, so re-applying a CLI-created app does not clear
+// the stored branch and break the reload webhook branch check.
+func TestAppDefGitBranchDefaultsToMain(t *testing.T) {
+	server := &Server{
+		Logger:       types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		staticConfig: &types.ServerConfig{},
+	}
+	config := `
+app("/nobranch", "github.com/openrundev/apps/misc/hello")
+app("/withbranch", "github.com/openrundev/apps/misc/hello", git_branch="dev")
+app("/pinned", "github.com/openrundev/apps/misc/hello", git_commit="abcd1234")
+app("/disk", "/tmp/hello")
+`
+	apps, _, err := server.loadApplyInfo("branch.ace", []byte(config), "", false)
+	if err != nil {
+		t.Fatalf("loadApplyInfo: %v", err)
+	}
+	if len(apps) != 4 {
+		t.Fatalf("parsed %d apps, want 4", len(apps))
+	}
+	if apps[0].GitBranch != "main" {
+		t.Errorf("app without git_branch: got %q, want main", apps[0].GitBranch)
+	}
+	if apps[1].GitBranch != "dev" {
+		t.Errorf("app with git_branch: got %q, want dev", apps[1].GitBranch)
+	}
+	// commit pinned and disk sourced apps store an empty branch, no default
+	if apps[2].GitBranch != "" {
+		t.Errorf("commit pinned app: got %q, want empty", apps[2].GitBranch)
+	}
+	if apps[3].GitBranch != "" {
+		t.Errorf("disk app: got %q, want empty", apps[3].GitBranch)
+	}
+}
