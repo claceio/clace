@@ -112,7 +112,11 @@ type ContainerHandler struct {
 	// resolved for foreign sidecar images, guarded by its own mutex: it is
 	// read on paths that already hold stateLock (the deploy request is built
 	// under it) and RWMutex is not reentrant
-	sidecars        []sidecarConfig
+	sidecars []sidecarConfig
+	// activeSwap is the stop-first swap of the reload in progress, which
+	// records the containers the reload starts (ensureSidecars reports its
+	// starts through it); nil outside a stop-first reload
+	activeSwap      *deploySwap
 	sidecarDigests  map[string]string
 	sidecarDigestMu sync.RWMutex
 }
@@ -450,7 +454,12 @@ func (h *ContainerHandler) idleAppShutdown(ctx context.Context) {
 		if currentState != ContainerStateRunning {
 			continue
 		}
-		if h.idlePaused.Load() {
+		// A stop-first deploy holds this container stopped; its epoch
+		// decides below whether a deploy began since this check, in which
+		// case the container is the deploy's business (restarted by its
+		// rollback, say), not an idle one to stop
+		swapping, swapEpoch := h.swapState()
+		if h.idlePaused.Load() || swapping {
 			h.Trace().Msgf("Idle shutdown paused for app %s", h.app.Id)
 			continue
 		}
@@ -490,41 +499,58 @@ func (h *ContainerHandler) idleAppShutdown(ctx context.Context) {
 			select {
 			case h.app.notifyClose <- h.app.AppPathDomain():
 			case <-h.closeCh:
-				// Handler closed while waiting for the server to receive, give up
+				// Handler closed while waiting for the server to receive:
+				// the instance is gone (a deploy replaced it, say) and the
+				// container is no longer this checker's to stop
+				return
 			}
 		}
 
-		h.stateLock.Lock()
-		// Re-check right before the point of no return: idlePaused may have
-		// been set after the fast-path check above (line 310) while this
-		// goroutine was doing the getAppHash/staleInPlaceHandler/notifyClose
-		// work, so a PauseIdleShutdown landing in that window would otherwise
-		// be silently missed and the container stopped anyway
-		if h.idlePaused.Load() {
+		// Stop the containers only if no deploy began since the check above
+		// (and none can begin before the stops are over): a deploy's
+		// rollback may have had this very container, or its sidecars,
+		// started again for the next instance, and the litestream sidecar
+		// is the app's across versions, so a deploy which took the app
+		// meanwhile owns them all
+		stoppedContainer := false
+		h.withoutSwap(swapEpoch, func() {
+			h.stateLock.Lock()
+			// Re-check right before the point of no return: idlePaused may
+			// have been set after the fast-path check above while this
+			// goroutine was doing the getAppHash/staleInPlaceHandler/
+			// notifyClose work, so a PauseIdleShutdown landing in that
+			// window would otherwise be silently missed and the container
+			// stopped anyway
+			if h.idlePaused.Load() {
+				h.stateLock.Unlock()
+				return
+			}
+			h.currentState = ContainerStateIdleShutdown
+
+			// Bounded, stateLock is held: a hung stop would block the app
+			stopCtx, stopCancel := context.WithTimeout(ctx, containerStopTimeout)
+			if err := h.manager.StopContainer(stopCtx, containerName); err != nil {
+				h.Error().Err(err).Msgf("Error stopping idle app %s", h.app.Id)
+			}
+			stopCancel()
 			h.stateLock.Unlock()
+			stoppedContainer = true
+
+			// With the app stopped there are no more writes: stop the
+			// replication sidecar after its final sync. It is restarted
+			// with the app
+			if err := h.stopLitestreamSidecar(ctx); err != nil {
+				h.Error().Err(err).Msgf("Error stopping litestream sidecar for idle app %s", h.app.Id)
+			}
+			// App sidecars stop after the app (nothing is mid-request
+			// against a vanishing companion); always_on sidecars keep running
+			if err := h.stopIdleSidecars(ctx, versionHash); err != nil {
+				h.Error().Err(err).Msgf("Error stopping sidecars for idle app %s", h.app.Id)
+			}
+		})
+		if !stoppedContainer {
 			h.Trace().Msgf("Idle shutdown paused for app %s, skipping container stop", h.app.Id)
 			continue
-		}
-		h.currentState = ContainerStateIdleShutdown
-
-		// Bounded, stateLock is held: a hung stop would block the app
-		stopCtx, stopCancel := context.WithTimeout(ctx, containerStopTimeout)
-		err = h.manager.StopContainer(stopCtx, containerName)
-		stopCancel()
-		if err != nil {
-			h.Error().Err(err).Msgf("Error stopping idle app %s", h.app.Id)
-		}
-		h.stateLock.Unlock()
-
-		// With the app stopped there are no more writes: stop the replication
-		// sidecar after its final sync. It is restarted with the app
-		if err := h.stopLitestreamSidecar(ctx); err != nil {
-			h.Error().Err(err).Msgf("Error stopping litestream sidecar for idle app %s", h.app.Id)
-		}
-		// App sidecars stop after the app (nothing is mid-request against a
-		// vanishing companion); always_on sidecars keep running
-		if err := h.stopIdleSidecars(ctx, versionHash); err != nil {
-			h.Error().Err(err).Msgf("Error stopping sidecars for idle app %s", h.app.Id)
 		}
 		return
 	}
@@ -561,20 +587,52 @@ func (h *ContainerHandler) healthChecker(ctx context.Context) {
 			h.Trace().Msgf("Health checker waiting for app %s to start", h.app.Id)
 			continue
 		}
+		// A stop-first deploy of a newer version holds this container
+		// stopped: a failure seen while (or since) a swap is in progress is
+		// the deploy's doing, not the app's, and must not evict the app
+		// (which would restart the previous version mid-deploy) or stop a
+		// container the deploy's rollback has just restored
+		swapping, swapEpoch := h.swapState()
+		if swapping {
+			h.Trace().Msgf("Health checker paused for app %s during a deploy", h.app.Id)
+			continue
+		}
 		if h.staleInPlaceHandler(ctx, containerName, versionHash) {
 			return
 		}
 
-		err := h.WaitForHealth(h.containerConfig.StatusHealthAttempts, containerName, "")
+		// The background probe leaves the handler's state alone: a failure
+		// may be a deploy's doing (below) and the instance must keep
+		// proxying to its container
+		err := h.waitForHealth(h.containerConfig.StatusHealthAttempts, containerName, "", false)
 		if err == nil {
 			continue
 		}
-		h.Info().Msgf("Health check failed for app %s: %s", h.app.Id, err)
 		if h.staleInPlaceHandler(ctx, containerName, versionHash) {
 			return
 		}
 		if h.manager.SupportsInPlaceUpdate() {
 			h.Info().Msgf("Leaving app %s running after background health failure; Kubernetes readiness controls traffic", h.app.Id)
+			continue
+		}
+
+		// Stop the container only if no swap began since the probe started
+		// (and none can begin before the stop is over): the container is
+		// then down for a reason of its own, not stopped (or restored) by
+		// a deploy
+		stopped := h.withoutSwap(swapEpoch, func() {
+			h.Info().Msgf("Health check failed for app %s: %s", h.app.Id, err)
+			h.stateLock.Lock()
+			defer h.stateLock.Unlock()
+			h.currentState = ContainerStateHealthFailure
+			stopCtx, stopCancel := context.WithTimeout(ctx, containerStopTimeout)
+			defer stopCancel()
+			if err := h.manager.StopContainer(stopCtx, containerName); err != nil {
+				h.Error().Err(err).Msgf("Error stopping app %s after health failure", h.app.Id)
+			}
+		})
+		if !stopped {
+			h.Info().Msgf("Ignoring health check failure for app %s during a deploy: %s", h.app.Id, err)
 			continue
 		}
 
@@ -586,17 +644,6 @@ func (h *ContainerHandler) healthChecker(ctx context.Context) {
 				// Handler closed while waiting for the server to receive, give up
 			}
 		}
-
-		h.stateLock.Lock()
-		h.currentState = ContainerStateHealthFailure
-
-		stopCtx, stopCancel := context.WithTimeout(ctx, containerStopTimeout)
-		err = h.manager.StopContainer(stopCtx, containerName)
-		stopCancel()
-		if err != nil {
-			h.Error().Err(err).Msgf("Error stopping app %s after health failure", h.app.Id)
-		}
-		h.stateLock.Unlock()
 		return
 	}
 }
@@ -1301,6 +1348,13 @@ func healthRetryBudget(attempts int, maxSleepMillis float64) time.Duration {
 }
 
 func (h *ContainerHandler) WaitForHealth(attempts int, containerName container.ContainerName, expectHash string) error {
+	return h.waitForHealth(attempts, containerName, expectHash, true)
+}
+
+// waitForHealth is WaitForHealth with the state update optional: the deploy
+// waits record the container's state and address on the handler, the
+// background status check (whose result may be discarded) does not
+func (h *ContainerHandler) waitForHealth(attempts int, containerName container.ContainerName, expectHash string, updateState bool) error {
 	if attempts <= 0 {
 		return fmt.Errorf("health check did not complete")
 	}
@@ -1349,12 +1403,14 @@ func (h *ContainerHandler) WaitForHealth(attempts int, containerName container.C
 		if err != nil {
 			return fmt.Errorf("error getting running containers: %w", err)
 		}
-		if running {
-			h.currentState = ContainerStateRunning
-			h.hostNamePort = hostNamePort
-		} else {
-			h.currentState = ContainerStateUnknown
-			h.hostNamePort = ""
+		if updateState {
+			if running {
+				h.currentState = ContainerStateRunning
+				h.hostNamePort = hostNamePort
+			} else {
+				h.currentState = ContainerStateUnknown
+				h.hostNamePort = ""
+			}
 		}
 
 		if !running {
@@ -1725,7 +1781,18 @@ func (h *ContainerHandler) registerDeployImage(ctx context.Context, imageName co
 // an irreversible update. prepare marks the deploy pre-pass (see
 // ReloadOptions.Prepare): the version is started and registered for rollback
 // only, the later reload of the same version registers the commit actions
-func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify bool, prepare bool) error {
+func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify bool, prepare bool) (retErr error) {
+	// finishSwap ends a stop-first deploy without a deploy transaction (a
+	// lazy start): restarts the previous version on failure, releases the
+	// held requests either way. Deferred first, so it runs after stateLock
+	// is released below
+	var finishSwap func(error)
+	defer func() {
+		if finishSwap != nil {
+			finishSwap(retErr)
+		}
+	}()
+
 	var err error
 
 	// For image-spec apps (where the operator supplied an upstream image
@@ -1803,7 +1870,17 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 
 	containerName := container.GenContainerName(h.app.Id, fullHash, false)
 	startedExisting := false
+	var swap *deploySwap
 	if h.lifetime != types.CONTAINER_LIFETIME_COMMAND {
+		// Stop-first deploy: this deploy owns the app from before it looks
+		// at the version's container, so an overlapping deploy neither
+		// reuses a container this one is still verifying nor replaces the
+		// containers this one replaces
+		if swap, finishSwap, err = h.beginDeploySwap(ctx, containerName, fullHash); err != nil {
+			return err
+		}
+		h.activeSwap = swap
+		defer func() { h.activeSwap = nil }()
 		hostNamePort, running, err := h.manager.GetContainerState(ctx, containerName, fullHash)
 		if err != nil {
 			return fmt.Errorf("error getting running containers: %w", err)
@@ -1828,9 +1905,13 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 			// Nothing was started, so nothing to roll back; still register so
 			// superseded version containers are removed at operation commit
 			h.registerDeployTxn(ctx, containerName, false, prepare)
+			swap.registerCommitEnd(ctx)
 			return nil
 		}
 		if hostNamePort != "" && !running {
+			if err := swap.stopPrevious(ctx); err != nil {
+				return err
+			}
 			// Sidecars come up (and become ready) before the app container,
 			// the app may depend on them at startup
 			if err := h.ensureSidecars(ctx, fullHash, "", containerName, false); err != nil {
@@ -1839,6 +1920,7 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 			if err := h.manager.StartContainer(ctx, containerName); err != nil {
 				return fmt.Errorf("error starting stopped container: %w", err)
 			}
+			swap.markStarted(containerName)
 			startedExisting = true
 			// Register before the health wait below, so a later failure in
 			// this operation stops the container again on rollback
@@ -1886,6 +1968,14 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 		return err
 	}
 
+	if !startedExisting && h.lifetime != types.CONTAINER_LIFETIME_COMMAND {
+		// Stop-first deploy: the previous version leaves the volumes before
+		// the new version's sidecars and container start on them
+		if err := swap.stopPrevious(ctx); err != nil {
+			return err
+		}
+	}
+
 	// Restore any replicated sqlite databases missing from the volumes and
 	// start the replication sidecar, before the app container starts
 	if err = h.ensureLitestream(ctx, true); err != nil {
@@ -1913,6 +2003,7 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 			nil); err != nil {
 			return fmt.Errorf("error starting container after update: %w", err)
 		}
+		swap.markStarted(containerName)
 		// Register before the health wait, so a health failure (or a later
 		// app's failure in the same operation) stops this container on rollback
 		h.registerDeployTxn(ctx, containerName, true, prepare)
@@ -1958,7 +2049,200 @@ func (h *ContainerHandler) ProdReload(ctx context.Context, dryRun bool, verify b
 			}
 		}
 	}
+	// After the container's registration: the release of the app on commit
+	// runs after the container's cleanup of the superseded versions
+	swap.registerCommitEnd(ctx)
 	return nil
+}
+
+// deploySwap is a stop-first deploy's ownership of its app on Docker/Podman
+// (container.blue_green_deploy = false, or auto with a persistent volume):
+// the running containers of the app's previous version (app and sidecars,
+// not the per app litestream companion) are stopped before the new
+// version's containers start, so the app's volumes never have two running
+// versions on them. The server's DeploySwapGate (when wired) holds the
+// app's requests from the begin until the swap is over, the live
+// instance's background checks stand down meanwhile, and an overlapping
+// deploy of the app waits for the end: the ownership is taken before the
+// reload decides whether the version's container runs already, so no
+// deploy reuses a container another deploy is still verifying, and
+// released after the deploy's cleanup of the superseded versions, so no
+// deploy removes a container another deploy started.
+//
+// A failed deploy does not restart the previous version itself: its undo
+// stops what the deploy started and, with a deploy transaction, the
+// rollback drops the app's cached live instance. The next request then
+// initializes the app on the version the metadata names (the previous
+// one after a rollback), whose own reload finds its container stopped and
+// starts it, waiting with that version's own health configuration. With
+// a deploy transaction the undo is registered on it before the version's
+// container, so the rollback runs after the transaction stopped the new
+// version's containers; the release on commit is registered at the end of
+// the reload, after the container's cleanup. Without one (a lazy start),
+// the finish returned by beginDeploySwap runs at the end of the reload:
+// on failure it undoes the swap, then releases the gate
+type deploySwap struct {
+	h             *ContainerHandler
+	containerName container.ContainerName
+	versionHash   string
+	stopper       container.SupersededContainerStopper
+	// stopped is the previous version's containers this deploy stopped;
+	// empty when nothing of the previous version ran
+	stopped []container.SupersededContainer
+	// started is the containers this deploy started, in start order: the
+	// undo of a lazy start stops them, and nothing else (a deploy
+	// transaction's entries do the same for an operation). A container the
+	// reload found running and reused (the version's own, an always_on
+	// sidecar) is not this deploy's to stop, nor is anything when the
+	// reload failed before starting
+	started []container.ContainerName
+	endOnce sync.Once
+}
+
+// beginDeploySwap takes ownership of the app for a stop-first deploy: nil
+// (and a nil finish) in blue-green mode and with a manager that cannot
+// stop by version (Kubernetes, test fakes). The swap is owned by the
+// operation (its deploy transaction: the pre-pass and the in-transaction
+// reload nest) or by this lazy start. An operation waits for an
+// overlapping deploy of the app to end; a lazy start fails instead, the
+// request is refused and retried (a commit of that deploy closes this
+// instance, and waits for this reload to return)
+func (h *ContainerHandler) beginDeploySwap(ctx context.Context, containerName container.ContainerName, versionHash string) (*deploySwap, func(error), error) {
+	if !h.stopFirstDeploy() {
+		return nil, nil, nil
+	}
+	stopper, ok := container.AsSupersededContainerStopper(h.manager)
+	if !ok {
+		return nil, nil, nil
+	}
+	s := &deploySwap{h: h, containerName: containerName, versionHash: versionHash, stopper: stopper}
+	dt := container.DeployTxnFromContext(ctx)
+	if gate := h.app.deploySwapGate; gate != nil {
+		var owner any = dt
+		if dt == nil {
+			owner = standaloneSwapOwners.Add(1)
+		}
+		if err := gate.BeginSwap(ctx, h.app.AppPathDomain(), owner, h.swapWaitBudget(), dt != nil); err != nil {
+			return nil, nil, fmt.Errorf("error deploying app %s: %w", h.app.Id, err)
+		}
+	}
+	if dt != nil {
+		// The transaction's own entries stop the containers this reload
+		// starts (registered as they start, see registerDeployTxn and
+		// registerSidecarDeployTxn), before this rollback runs
+		dt.Register(h.app.Id, "", func(c context.Context) error {
+			defer s.end()
+			if len(s.stopped) > 0 && h.app.deploySwapGate != nil {
+				// The live instance's container is stopped: drop the
+				// instance, the next request starts the previous version
+				// again (a restarted container publishes a new host port)
+				h.app.deploySwapGate.PreviousVersionStopped(h.app.AppPathDomain())
+			}
+			return nil
+		}, nil)
+		return s, nil, nil
+	}
+	return s, func(reloadErr error) {
+		if reloadErr != nil {
+			s.undo(context.WithoutCancel(ctx))
+		}
+		s.end()
+	}, nil
+}
+
+// stopPrevious stops the previous version's containers before the new
+// version's start. No-op without a swap
+func (s *deploySwap) stopPrevious(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	stopped, err := s.stopper.StopSupersededContainers(ctx, s.h.app.Id, s.containerName)
+	s.stopped = stopped
+	if err != nil {
+		return fmt.Errorf("error stopping previous version of app %s: %w", s.h.app.Id, err)
+	}
+	return nil
+}
+
+// markStarted records a container this deploy started. No-op without a swap
+func (s *deploySwap) markStarted(name container.ContainerName) {
+	if s != nil {
+		s.started = append(s.started, name)
+	}
+}
+
+// undo stops the containers a failed lazy start started, the app
+// container before the sidecars it may depend on: a failed one must not
+// be found running, and reused without a health check, by the next start
+// of the version (an operation's deploy transaction does this). Each is
+// stopped whatever state the manager reports: a crashed sidecar about to
+// restart is not running, and the stop cancels the restart. Nothing to
+// undo when the deploy started nothing (a reused container, a failure
+// before the start), which may be the healthy container serving the app.
+// The previous version is not restarted here: the next start of the app
+// does that, on that version's own reload, and refuses to while a
+// container of this version still runs
+func (s *deploySwap) undo(ctx context.Context) {
+	for i := len(s.started) - 1; i >= 0; i-- {
+		name := s.started[i]
+		if err := s.h.manager.StopContainer(ctx, name); err != nil {
+			s.h.Warn().Err(err).Msgf("error stopping new version container %s of app %s after a failed deploy", name, s.h.app.Id)
+		}
+	}
+}
+
+// registerCommitEnd registers the release of the app on the deploy
+// transaction's commit, after the entries registered so far (the version's
+// container, whose commit removes the superseded containers). No-op
+// without a swap or a transaction
+func (s *deploySwap) registerCommitEnd(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	if dt := container.DeployTxnFromContext(ctx); dt != nil {
+		dt.Register(s.h.app.Id, "", nil, func(context.Context) error {
+			s.end()
+			return nil
+		})
+	}
+}
+
+// end releases the app, once
+func (s *deploySwap) end() {
+	s.endOnce.Do(func() {
+		if gate := s.h.app.deploySwapGate; gate != nil {
+			gate.EndSwap(s.h.app.AppPathDomain())
+		}
+	})
+}
+
+// standaloneSwapOwners numbers the swaps of lazy starts, each its own owner
+var standaloneSwapOwners atomic.Uint64
+
+// stopFirstDeploy reports whether the app deploys stop-first on
+// Docker/Podman: container.blue_green_deploy "false", or "auto" (the
+// default) with a persistent volume on the app or a sidecar, the rule the
+// Kubernetes manager applies to choose the Recreate strategy. A sqlite
+// binding's volume is a named volume of the app
+func (h *ContainerHandler) stopFirstDeploy() bool {
+	switch h.containerConfig.BlueGreenDeploy {
+	case types.BlueGreenDeployFalse:
+		return true
+	case types.BlueGreenDeployTrue:
+		return false
+	default:
+		return container.HasPersistentVolume(h.allVolumes())
+	}
+}
+
+// swapWaitBudget bounds how long requests are held during a stop-first
+// deploy: the health wait of the app container and of each sidecar at the
+// slowest backoff, plus a margin for the container starts. The gate is
+// released as soon as the swap is over; this only limits a hung deploy
+func (h *ContainerHandler) swapWaitBudget() time.Duration {
+	attempts := max(h.containerConfig.DeployHealthAttempts, 1)
+	perAttempt := 2*time.Second + time.Duration(max(h.containerConfig.HealthTimeoutSecs, 1))*time.Second
+	return time.Duration(1+len(h.sidecars))*time.Duration(attempts)*perAttempt + 30*time.Second
 }
 
 func (h *ContainerHandler) prodReloadKubernetes(ctx context.Context, fullHash string, verify bool, prepare bool) error {
@@ -2138,6 +2422,31 @@ func (h *ContainerHandler) PauseIdleShutdown() {
 // ResumeIdleShutdown re-enables idle-based container shutdown for this app
 func (h *ContainerHandler) ResumeIdleShutdown() {
 	h.idlePaused.Store(false)
+}
+
+// swapState reports whether a stop-first deploy of this app is in progress
+// and the swap epoch, see DeploySwapGate; never swapping without a server
+func (h *ContainerHandler) swapState() (bool, uint64) {
+	if h.app == nil || h.app.deploySwapGate == nil {
+		return false, 0
+	}
+	return h.app.deploySwapGate.SwapState(h.app.AppPathDomain())
+}
+
+func (h *ContainerHandler) swapInProgress() bool {
+	swapping, _ := h.swapState()
+	return swapping
+}
+
+// withoutSwap runs fn unless a deploy swap is in progress or one happened
+// since epoch, see DeploySwapGate.WithoutSwap; always runs it without a
+// server
+func (h *ContainerHandler) withoutSwap(epoch uint64, fn func()) bool {
+	if h.app == nil || h.app.deploySwapGate == nil {
+		fn()
+		return true
+	}
+	return h.app.deploySwapGate.WithoutSwap(h.app.AppPathDomain(), epoch, fn)
 }
 
 func (h *ContainerHandler) Close() error {

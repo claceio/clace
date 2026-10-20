@@ -671,6 +671,19 @@ type Container struct {
 	// newer than the current one are always kept. Docker/Podman only
 	RetainPreviousImages int `toml:"retain_previous_images"`
 
+	// BlueGreenDeploy (Docker/Podman) selects the deploy strategy of a new
+	// version: "true" starts the new version's container beside the running
+	// one and stops the previous version once the new one is healthy and
+	// the deploy commits; "false" stops the previous version's containers
+	// first, then starts the new version, holding requests while it starts
+	// and restarting the previous version if the new one fails; "auto"
+	// (the default) is "false" for apps with a persistent volume (a named
+	// or unnamed volume of the app or a sidecar, which includes a sqlite
+	// binding) and "true" otherwise, the rule Kubernetes applies. Ignored
+	// on Kubernetes, where persistent-volume apps use the Recreate strategy
+	// and stateless apps a rolling update. Bare TOML booleans are accepted
+	BlueGreenDeploy BlueGreenDeployMode `toml:"blue_green_deploy"`
+
 	// Idle shutdown related config
 	IdleShutdownSecs       int  `toml:"idle_shutdown_secs"`
 	IdleShutdownDevApps    bool `toml:"idle_shutdown_dev_apps"`
@@ -679,6 +692,52 @@ type Container struct {
 	// Status check related config
 	StatusCheckIntervalSecs int `toml:"status_check_interval_secs"`
 	StatusHealthAttempts    int `toml:"status_health_attempts"`
+}
+
+// BlueGreenDeployMode is the Container.BlueGreenDeploy value: "auto",
+// "true" or "false". It decodes from a TOML string or a bare boolean
+type BlueGreenDeployMode string
+
+const (
+	BlueGreenDeployAuto  BlueGreenDeployMode = "auto"
+	BlueGreenDeployTrue  BlueGreenDeployMode = "true"
+	BlueGreenDeployFalse BlueGreenDeployMode = "false"
+)
+
+// UnmarshalTOML accepts "auto", "true", "false" (case insensitive) and the
+// booleans true and false
+func (m *BlueGreenDeployMode) UnmarshalTOML(value any) error {
+	switch v := value.(type) {
+	case bool:
+		if v {
+			*m = BlueGreenDeployTrue
+		} else {
+			*m = BlueGreenDeployFalse
+		}
+		return nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "auto", "":
+			*m = BlueGreenDeployAuto
+		case "true":
+			*m = BlueGreenDeployTrue
+		case "false":
+			*m = BlueGreenDeployFalse
+		default:
+			return fmt.Errorf("invalid blue_green_deploy value %q, expected auto, true or false", v)
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid blue_green_deploy value %v, expected auto, true or false", value)
+	}
+}
+
+// MarshalText encodes the mode as its string, for TOML and JSON encoders
+func (m BlueGreenDeployMode) MarshalText() ([]byte, error) {
+	if m == "" {
+		return []byte(BlueGreenDeployAuto), nil
+	}
+	return []byte(m), nil
 }
 
 // Kubernetes related settings in the App Config

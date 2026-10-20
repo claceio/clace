@@ -716,6 +716,7 @@ func (s *Server) newApp(appEntry *types.AppEntry, sourceFS *appfs.SourceFs, bind
 	}
 	application.SetRunServices(s.runServices())
 	application.SetConfigSource(s.Config)
+	application.SetDeploySwapGate(s)
 	return application, nil
 }
 
@@ -774,6 +775,14 @@ func (s *Server) GetAppEntry(ctx context.Context, tx types.Transaction, pathDoma
 }
 
 func (s *Server) GetApp(ctx context.Context, pathDomain types.AppPathDomain, init bool) (*app.App, error) {
+	if init {
+		// A stop-first deploy of the app holds its requests while the
+		// previous version is stopped and the new one starts. Initializing
+		// the app meanwhile would start the previous version again
+		if err := s.waitSwap(ctx, pathDomain); err != nil {
+			return nil, err
+		}
+	}
 	var application *app.App
 	for attempt := 0; ; attempt++ {
 		var err error

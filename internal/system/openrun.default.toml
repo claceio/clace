@@ -387,6 +387,14 @@ container.deploy_progress_deadline_secs = 0 # 0 lets OpenRun choose a safe Kuber
 # -1 keeps all images. The images of each app copy's current version are always kept
 container.retain_previous_images = 1
 
+# Deploy strategy (Docker/Podman). "true" starts the new version beside the
+# running one and stops the previous version after the new one is healthy.
+# "false" stops the previous version first, holds requests while the new
+# version starts and restarts the previous version if the new one fails.
+# "auto" is "false" for apps with a persistent volume (including a sqlite
+# binding) and "true" otherwise, as on Kubernetes
+container.blue_green_deploy = "auto"
+
 # Idle Shutdown Config
 container.idle_shutdown_secs = 180
 container.idle_shutdown_dev_apps = false

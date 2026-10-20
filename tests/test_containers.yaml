@@ -115,6 +115,48 @@ tests:
   container0129c: # restore the shared flask source for the verification apps below
     command: perl -i -pe 's/"updated2"/"updated"/g' flaskapp/app.py
 
+  # Stop-first deploy (container.blue_green_deploy = false): the previous
+  # version's container is stopped before the new one starts, requests are
+  # held meanwhile, and the previous version is restarted if the new one fails
+  container0129d: # switch the app (stage and prod) to stop-first deploys
+    command: ../openrun app update conf --promote container.blue_green_deploy=false /cont_flaskprod
+  container0129e: # prod serves after the conf deploy
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout:
+      exactly: "updated2"
+    config:
+      retries: 5
+      interval: 2s
+  container0129f: # deploy the restored source stop-first, verified: the previous version is stopped before the new one starts
+    command: ../openrun app reload --verify --promote /cont_flaskprod
+    stdout: "2 app(s) reloaded, 0 app(s) skipped, 0 app(s) approved, 1 app(s) promoted."
+  container0129g: # prod serves the new version; the previous version's container was removed at commit
+    command: bash -c 'id=$(cat flaskprod_id.txt); curl -sS localhost:${HTTP_PORT}/cont_flaskprod; echo " prod=$(${OPENRUN_CONTAINER_COMMAND} ps -aq --filter "label=dev.openrun.app.id=$id" | wc -l | tr -d " ")"'
+    stdout:
+      exactly: "updated prod=1"
+    config:
+      retries: 10
+      interval: 2s
+  container0129h: # break the source
+    command: printf '\nthis is invalid python\n' >> flaskapp/app.py
+  container0129i: # the broken version fails verification (stage, which is deployed first)
+    command: bash -c '../openrun app reload --verify --promote /cont_flaskprod 2>&1'
+    stdout: "verify failed for app /cont_flaskprod_cl_stage:"
+    exit-code: 1
+  container0129j: # the stopped previous version of stage was restarted on rollback and serves again
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod_cl_stage
+    stdout:
+      exactly: "updated"
+    config:
+      retries: 5
+      interval: 2s
+  container0129k: # prod was not touched
+    command: curl -sS localhost:${HTTP_PORT}/cont_flaskprod
+    stdout:
+      exactly: "updated"
+  container0129l: # restore the source and the auto default (quoted string form)
+    command: perl -i -ne 'print unless /invalid python/' flaskapp/app.py && ../openrun app update conf --promote 'container.blue_green_deploy="auto"' /cont_flaskprod
+
   # Test reload verification for container apps
   container0130: # setup verification app sources
     command: rm -rf ./flaskverify_ok ./flaskverify_fail && cp -r ./flaskapp ./flaskverify_ok && cp -r ./flaskapp ./flaskverify_fail

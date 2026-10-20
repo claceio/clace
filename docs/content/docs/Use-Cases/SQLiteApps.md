@@ -77,7 +77,7 @@ An app can have at most one SQLite binding and a SQLite binding attaches to only
 
 ## How Updates Work on a Single Node
 
-App updates preserve the volume. When a new app version deploys, the running container is stopped and a new container for the new version starts with the same volume attached, so the database carries over. Because there is one volume and one app container, there is never more than one writer.
+App updates preserve the volume. When a new app version deploys, the running container is stopped first and a container for the new version then starts with the same volume attached, so the database carries over and there is never more than one app container on it. On Kubernetes this is the `Recreate` rollout of persistent-volume apps. On Docker/Podman it is the stop-first deploy that `container.blue_green_deploy = "auto"` (the default) selects for apps with a persistent volume, which a SQLite binding is: requests to the app are held while the new container starts (a delay, not errors) and, if the new one fails to start, the previous container is started again by the next request. An app can opt back into a blue-green deploy with `container.blue_green_deploy = true`; the two versions then briefly share the volume, which SQLite's file lock makes safe for the database itself. See [deploy strategy]({{< ref "docs/container/config/#deploy-strategy" >}}).
 
 [Staged deployment]({{< ref "docs/applications/lifecycle/#staging-apps" >}}) makes updates safe to verify first. The staging version of an app is a separate app with its own volume: staged changes run against staging data, not the production database. With replication enabled, production and staging replicate to separate locations. Verify the change at the staging URL, then promote:
 

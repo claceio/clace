@@ -25,6 +25,10 @@ container.idle_bytes_high_watermark = 1500 # bytes high watermark for idle shutd
 # Number of older versions whose images are kept after a deploy (Docker/Podman)
 container.retain_previous_images = 1
 
+# Deploy strategy (Docker/Podman): "auto", "true" (start the new version
+# beside the running one) or "false" (stop the previous version first)
+container.blue_green_deploy = "auto"
+
 # Status check Config
 container.status_check_interval_secs = 20
 container.status_health_attempts = 10
@@ -47,6 +51,22 @@ In the running state, a status check is done on the app every `container.status_
 If an app does not receive any REST API request for 180 seconds and the total data transfer from/to the app is below 1500 bytes over 180 seconds, the app is assumed to be idle and the container is stopped. The idle shutdown does not apply for dev apps, only for prod mode apps. For frameworks like Streamlit where WebSockets is used for communication between the UI and app, there will not be any REST API calls. The data transfer is used to determine whether the app is idle.
 
 Set `container.idle_shutdown_secs = 0` to disable idle shutdown. Dev apps skip idle shutdown by default; set `container.idle_shutdown_dev_apps = true` to enable it for them. Kubernetes replica minimums do not override idle shutdown; see [resources and autoscaling]({{< ref "docs/container/kubernetes/#resources-and-autoscaling" >}}).
+
+## Deploy strategy
+
+On Docker/Podman, `container.blue_green_deploy` selects how a new version of a prod or stage app replaces the running one.
+
+With a **blue-green** deploy (`"true"`), the new version's sidecars and container start beside the running ones, the previous version keeps serving until the new container passes its health check and the operation commits, and only then is the previous version's container stopped and removed. A failed deploy stops the new container and leaves the previous version running. There is no downtime, but the two versions briefly run at the same time, including on any named volume they share (the volume of an app or sidecar is reused across versions).
+
+With a **stop-first** deploy (`"false"`), the previous version's app container and sidecars are stopped before the new version's sidecars and container start, so a volume never has two running versions on it. Requests to the app are held while the new version starts and are served by it once the deploy commits, so clients see a delay rather than errors. If the new version fails to start, or the operation fails for another app, the new version's containers are stopped and the held requests are released; the first of them starts the previous version's containers again, with that version's own health check, and the requests are served by them. Requests are held for at most the deploy health budget (`container.deploy_health_attempts` with the health timeout, per container); past that, requests are refused with a 503 until the deploy ends, since starting the previous version again would undo it. A second deploy of the same app which overlaps a stop-first deploy waits for it to end (at most that same budget) before replacing the containers, so two deploys never leave two versions running on a volume.
+
+The default `"auto"` applies the rule Kubernetes uses: apps with a persistent volume (a named or unnamed volume of the app or of a sidecar, which includes the volume of a [SQLite binding]({{< ref "docs/use-cases/sqliteapps/" >}})) deploy stop-first, so the database never has two app containers on it, and apps without one deploy blue-green. Bind mounts and mounted secrets or config files do not count as persistent volumes. The per-app litestream replication container is not restarted by either strategy. Set the value explicitly to override the rule, for example to keep a blue-green deploy for an app whose volume only holds a cache:
+
+```sh
+openrun app update conf --promote container.blue_green_deploy=true /myapp
+```
+
+A bare `true` or `false` is accepted in place of the quoted string. The setting is ignored on Kubernetes: apps with persistent volumes use the `Recreate` strategy and stateless apps a rolling update, see [Kubernetes]({{< ref "docs/container/kubernetes/#architecture" >}}).
 
 ## Image and container cleanup
 

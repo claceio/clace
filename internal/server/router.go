@@ -5,10 +5,12 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -369,6 +371,13 @@ func (h *Handler) callApp(w http.ResponseWriter, r *http.Request) {
 		r = newReq
 		serveApp, err = h.server.GetApp(r.Context(), matchedApp.AppPathDomain, true)
 		if err != nil {
+			if errors.Is(err, ErrDeployInProgress) {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+			if errors.Is(err, context.Canceled) {
+				return // client gone while held by a deploy
+			}
 			h.Error().Err(err).Str("path", r.URL.Path).Msg("Error getting app")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

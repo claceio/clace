@@ -12,7 +12,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -1276,6 +1278,64 @@ func TestIdleAppShutdownRechecksPauseBeforeStoppingContainer(t *testing.T) {
 	}
 }
 
+func TestIdleAppShutdownSkipsTheStopAfterADeploy(t *testing.T) {
+	t.Parallel()
+
+	manager := &blockingVersionManager{
+		arrived: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	closeCh := make(chan struct{})
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	gate := &recordingSwapGate{}
+	app := &App{
+		Logger:   types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_PROD + "idle_deploy_test"), Path: "/idle-deploy", IsDev: true},
+	}
+	app.SetDeploySwapGate(gate)
+	h := &ContainerHandler{
+		Logger:             types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		app:                app,
+		manager:            manager,
+		containerConfig:    types.Container{IdleShutdownSecs: 1},
+		currentState:       ContainerStateRunning,
+		activeVersionHash:  "some-version",
+		idleShutdownTicker: ticker,
+		closeCh:            closeCh,
+	}
+	h.app.lastRequestTime.Store(time.Now().Add(-time.Hour).Unix())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		h.idleAppShutdown(context.Background())
+	}()
+	select {
+	case <-manager.arrived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("idleAppShutdown did not reach staleInPlaceHandler in time")
+	}
+	// A deploy of the app begins and ends (its rollback may have restarted
+	// this very container) while the idle check is mid-decision: the stop
+	// decided before the deploy is dropped
+	pd := h.app.AppPathDomain()
+	if err := gate.BeginSwap(context.Background(), pd, uint64(1), time.Minute, false); err != nil {
+		t.Fatalf("BeginSwap: %v", err)
+	}
+	gate.EndSwap(pd)
+	close(manager.release)
+	close(closeCh)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("idleAppShutdown goroutine did not exit after closeCh was closed")
+	}
+	if manager.stopContainerCalls != 0 {
+		t.Fatalf("StopContainer called %d times after a deploy moved the epoch, want none", manager.stopContainerCalls)
+	}
+}
+
 // blockingStopManager blocks StopContainer until release is closed,
 // signaling arrived first. The idle runner calls StopContainer while holding
 // stateLock, so this pins the runner inside a committed container stop
@@ -1426,5 +1486,625 @@ func TestProdReloadCommandDoesNotRecordImageNameForImageSpecApps(t *testing.T) {
 	}
 	if names := dt.ImageNames(); len(names) != 0 {
 		t.Fatalf("deploy txn images = %v, want none", names)
+	}
+}
+
+// stopFirstTestManager adds the stop-by-version capability of the
+// Docker/Podman manager, recording the order of the container operations
+type stopFirstTestManager struct {
+	healthTestManager
+	previous []container.ContainerName // what StopSupersededContainers reports
+	runErr   error
+	stateErr error // returned by the next GetContainerState, once
+	ops      []string
+	// sidecars is the app's sidecar containers by name suffix ("-worker"),
+	// with whether each runs; a sidecar listed before the reload exists
+	// and matches its config, so the reload reuses it
+	sidecars map[string]bool
+}
+
+func (m *stopFirstTestManager) sidecarKey(name container.ContainerName) (string, bool) {
+	for key := range m.sidecars {
+		if strings.HasSuffix(string(name), key) {
+			return key, true
+		}
+	}
+	return "", false
+}
+
+func (m *stopFirstTestManager) GetContainerState(ctx context.Context, name container.ContainerName, hash string) (string, bool, error) {
+	if m.stateErr != nil {
+		err := m.stateErr
+		m.stateErr = nil
+		return "", false, err
+	}
+	if key, ok := m.sidecarKey(name); ok {
+		return "", m.sidecars[key], nil
+	}
+	return m.healthTestManager.GetContainerState(ctx, name, hash)
+}
+
+func (m *stopFirstTestManager) EnsureSidecarNetwork(context.Context, types.AppId) error { return nil }
+
+func (m *stopFirstTestManager) GetSidecarInfo(_ context.Context, name container.ContainerName, _ string) (bool, bool, string, bool, error) {
+	key, ok := m.sidecarKey(name)
+	if !ok {
+		return false, false, "", false, nil
+	}
+	return true, true, "", m.sidecars[key], nil
+}
+
+func (m *stopFirstTestManager) RunSidecar(_ context.Context, _ *types.AppEntry, _ string, _ container.ContainerName,
+	name container.ContainerName, sidecar *container.ResolvedSidecar, _ map[string]string, _ map[string]string, _, _ string) error {
+	m.ops = append(m.ops, "run-sidecar:"+string(name))
+	if m.sidecars == nil {
+		m.sidecars = map[string]bool{}
+	}
+	m.sidecars["-"+sidecar.Name] = true
+	return nil
+}
+
+func (m *stopFirstTestManager) RemoveContainerIfExists(context.Context, container.ContainerName) error {
+	return nil
+}
+
+func (m *stopFirstTestManager) StopSupersededContainers(_ context.Context, _ types.AppId, keep container.ContainerName) ([]container.SupersededContainer, error) {
+	m.ops = append(m.ops, "stop-previous:"+string(keep))
+	stopped := make([]container.SupersededContainer, 0, len(m.previous))
+	for _, name := range m.previous {
+		cont := container.SupersededContainer{Name: name}
+		if strings.HasSuffix(string(name), "-db") {
+			cont.IsSidecar = true
+		}
+		stopped = append(stopped, cont)
+	}
+	return stopped, nil
+}
+
+func (m *stopFirstTestManager) RunContainer(ctx context.Context, appEntry *types.AppEntry, sourceDir string, name container.ContainerName,
+	image container.ImageName, port int32, env map[string]string, volumes []*container.VolumeInfo, opts map[string]string, params map[string]string,
+	hash string, isImageSpec bool, probe *container.HealthProbe) error {
+	m.ops = append(m.ops, "run:"+string(name))
+	if m.runErr != nil {
+		return m.runErr
+	}
+	return m.healthTestManager.RunContainer(ctx, appEntry, sourceDir, name, image, port, env, volumes, opts, params, hash, isImageSpec, probe)
+}
+
+func (m *stopFirstTestManager) StopContainer(_ context.Context, name container.ContainerName) error {
+	m.ops = append(m.ops, "stop:"+string(name))
+	if key, ok := m.sidecarKey(name); ok {
+		m.sidecars[key] = false
+		return nil
+	}
+	m.running = false
+	// The app's sidecars crash when the app stops: listed as restarting by
+	// the manager, not running, until stopped
+	for key := range m.sidecars {
+		m.sidecars[key] = false
+	}
+	return nil
+}
+
+func (m *stopFirstTestManager) RemoveSupersededContainers(_ context.Context, _ types.AppId, keep container.ContainerName) error {
+	m.ops = append(m.ops, "remove-superseded:"+string(keep))
+	return nil
+}
+
+// recordingSwapGate records the DeploySwapGate calls
+type recordingSwapGate struct {
+	mu     sync.Mutex
+	events []string
+	active int
+	epoch  uint64
+	onEnd  func() // called on EndSwap, to order it against the manager's ops
+}
+
+func (g *recordingSwapGate) BeginSwap(_ context.Context, pathDomain types.AppPathDomain, owner any, _ time.Duration, waitForOthers bool) error {
+	if owner == nil {
+		return errors.New("BeginSwap without an owner")
+	}
+	if _, isTxn := owner.(*container.DeployTxn); isTxn != waitForOthers {
+		return fmt.Errorf("BeginSwap owner %T waits for others %v", owner, waitForOthers)
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.events = append(g.events, "begin:"+pathDomain.String())
+	g.active++
+	g.epoch++
+	return nil
+}
+
+func (g *recordingSwapGate) EndSwap(pathDomain types.AppPathDomain) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.events = append(g.events, "end:"+pathDomain.String())
+	g.active--
+	g.epoch++
+	if g.onEnd != nil {
+		g.onEnd()
+	}
+}
+
+func (g *recordingSwapGate) SwapState(types.AppPathDomain) (bool, uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.active > 0, g.epoch
+}
+
+func (g *recordingSwapGate) WithoutSwap(_ types.AppPathDomain, epoch uint64, fn func()) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.active > 0 || epoch != g.epoch {
+		return false
+	}
+	fn()
+	return true
+}
+
+func (g *recordingSwapGate) PreviousVersionStopped(pathDomain types.AppPathDomain) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.events = append(g.events, "stopped:"+pathDomain.String())
+}
+
+func (g *recordingSwapGate) Events() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return slices.Clone(g.events)
+}
+
+func newStopFirstTestHandler(manager container.ContainerManager, gate DeploySwapGate) *ContainerHandler {
+	serverConfig := &types.ServerConfig{Http: types.HttpConfig{Port: 8080}}
+	app := &App{AppEntry: &types.AppEntry{Id: types.AppId(types.ID_PREFIX_APP_PROD + "stop_first"), Path: "/stopfirst", Domain: ""}, serverConfig: serverConfig}
+	app.SetDeploySwapGate(gate)
+	return &ContainerHandler{
+		Logger:          types.NewLogger(&types.LogConfig{Level: "WARN"}),
+		app:             app,
+		serverConfig:    serverConfig,
+		manager:         manager,
+		sourceFS:        &imageNameTestFS{hash: "source-hash"},
+		containerFile:   "Dockerfile",
+		containerConfig: types.Container{BlueGreenDeploy: types.BlueGreenDeployFalse, DeployHealthAttempts: 3, HealthTimeoutSecs: 1},
+	}
+}
+
+func TestProdReloadStopFirstStopsPreviousVersionBeforeStartingTheNew(t *testing.T) {
+	t.Parallel()
+
+	manager := &stopFirstTestManager{
+		healthTestManager: healthTestManager{imageExists: true},
+		previous:          []container.ContainerName{"old-db", "old-app"},
+	}
+	gate := &recordingSwapGate{}
+	h := newStopFirstTestHandler(manager, gate)
+
+	if err := h.ProdReload(context.Background(), false, false, false); err != nil {
+		t.Fatalf("ProdReload returned error: %v", err)
+	}
+	newName := string(container.GenContainerName(h.app.Id, h.activeVersionHash, false))
+	wantOps := []string{"stop-previous:" + newName, "run:" + newName, "remove-superseded:" + newName}
+	if !slices.Equal(manager.ops, wantOps) {
+		t.Fatalf("ops = %v, want %v", manager.ops, wantOps)
+	}
+	// The gate is held from before the stop until the reload is over
+	if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.events, want) {
+		t.Fatalf("gate events = %v, want %v", gate.events, want)
+	}
+}
+
+func TestProdReloadStopFirstStopsTheNewVersionWhenItFails(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		runErr  error
+		health  string
+		wantErr string
+		wantOps []string // NEW is the new version's container
+	}{
+		// The container never started: nothing of the new version to stop
+		{name: "the container fails to start", runErr: errors.New("boom"), wantErr: "boom",
+			wantOps: []string{"stop-previous:NEW", "run:NEW"}},
+		// The container runs but never serves: it is stopped, so the next
+		// start of the app does not find it running and reuse it
+		{name: "the container fails its health check", health: "health", wantErr: "error waiting for health",
+			wantOps: []string{"stop-previous:NEW", "run:NEW", "stop:NEW"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := &stopFirstTestManager{
+				healthTestManager: healthTestManager{imageExists: true},
+				previous:          []container.ContainerName{"old-db", "old-app"},
+				runErr:            tc.runErr,
+			}
+			gate := &recordingSwapGate{}
+			h := newStopFirstTestHandler(manager, gate)
+			h.health = tc.health // the fake serves no HTTP: a health wait fails
+			h.containerConfig.DeployHealthAttempts = 1
+
+			err := h.ProdReload(context.Background(), false, false, false)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("ProdReload error = %v, want %q", err, tc.wantErr)
+			}
+			// Without a deploy transaction the new version's running
+			// containers are stopped at the end of the reload; the requests
+			// are then released, and the next one starts the previous
+			// version on its own reload
+			newName := strings.TrimPrefix(manager.ops[0], "stop-previous:") // the failed reload records no active version
+			wantOps := make([]string, 0, len(tc.wantOps))
+			for _, op := range tc.wantOps {
+				wantOps = append(wantOps, strings.ReplaceAll(op, "NEW", newName))
+			}
+			if !slices.Equal(manager.ops, wantOps) {
+				t.Fatalf("ops = %v, want %v", manager.ops, wantOps)
+			}
+			if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.events, want) {
+				t.Fatalf("gate events = %v, want %v", gate.events, want)
+			}
+		})
+	}
+}
+
+func TestProdReloadStopFirstDeploysThroughTheDeployTxn(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		rollback   bool
+		wantOps    []string
+		wantEvents []string
+	}{
+		// The transaction stops the new container; the live instance of
+		// the stopped previous version is dropped before the release, so the
+		// released requests start that version again
+		{name: "rollback stops the new version and drops the previous version's instance", rollback: true,
+			wantOps:    []string{"stop:NEW", "end-swap"},
+			wantEvents: []string{"begin:/stopfirst", "stopped:/stopfirst", "end:/stopfirst"}},
+		// The app is released only after the superseded containers are
+		// removed: a deploy waiting for the release never has its new
+		// container removed by this one's cleanup
+		{name: "commit removes the previous version then releases the gate", rollback: false,
+			wantOps:    []string{"remove-superseded:NEW", "end-swap"},
+			wantEvents: []string{"begin:/stopfirst", "end:/stopfirst"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := &stopFirstTestManager{
+				healthTestManager: healthTestManager{imageExists: true},
+				previous:          []container.ContainerName{"old-db", "old-app"},
+			}
+			gate := &recordingSwapGate{}
+			gate.onEnd = func() { manager.ops = append(manager.ops, "end-swap") }
+			h := newStopFirstTestHandler(manager, gate)
+			dt := container.NewDeployTxn()
+			defer dt.ReleaseImages()
+			ctx := container.ContextWithDeployTxn(context.Background(), dt)
+
+			if err := h.ProdReload(ctx, false, false, false); err != nil {
+				t.Fatalf("ProdReload returned error: %v", err)
+			}
+			newName := string(container.GenContainerName(h.app.Id, h.activeVersionHash, false))
+			if want := []string{"stop-previous:" + newName, "run:" + newName}; !slices.Equal(manager.ops, want) {
+				t.Fatalf("ops before commit = %v, want %v", manager.ops, want)
+			}
+			// The gate stays held until the operation commits or rolls back
+			if want := []string{"begin:/stopfirst"}; !slices.Equal(gate.events, want) {
+				t.Fatalf("gate events before commit = %v, want %v", gate.events, want)
+			}
+			manager.ops = nil
+
+			var err error
+			if tc.rollback {
+				err = dt.RollbackAll(context.Background())
+			} else {
+				err = dt.CommitAll(context.Background())
+			}
+			if err != nil {
+				t.Fatalf("deploy txn error: %v", err)
+			}
+			wantOps := make([]string, 0, len(tc.wantOps))
+			for _, op := range tc.wantOps {
+				wantOps = append(wantOps, strings.ReplaceAll(op, "NEW", newName))
+			}
+			if !slices.Equal(manager.ops, wantOps) {
+				t.Fatalf("ops = %v, want %v", manager.ops, wantOps)
+			}
+			if !slices.Equal(gate.events, tc.wantEvents) {
+				t.Fatalf("gate events = %v, want %v", gate.events, tc.wantEvents)
+			}
+		})
+	}
+}
+
+func TestProdReloadStopFirstOwnsTheAppBeforeReusingItsContainer(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		rollback bool
+		wantOps  []string
+	}{
+		// Nothing was stopped: the rollback restarts nothing, the release
+		// still comes after the entries of the reload
+		{name: "rollback", rollback: true, wantOps: []string{"end-swap"}},
+		{name: "commit", rollback: false, wantOps: []string{"remove-superseded:NEW", "end-swap"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The version's container runs already (an overlapping deploy of
+			// the same version started it, or this operation's pre-pass)
+			manager := &stopFirstTestManager{
+				healthTestManager: healthTestManager{imageExists: true, running: true, hostNamePort: "container:5000"},
+				previous:          []container.ContainerName{"old-db", "old-app"},
+			}
+			gate := &recordingSwapGate{}
+			gate.onEnd = func() { manager.ops = append(manager.ops, "end-swap") }
+			h := newStopFirstTestHandler(manager, gate)
+			dt := container.NewDeployTxn()
+			defer dt.ReleaseImages()
+			ctx := container.ContextWithDeployTxn(context.Background(), dt)
+
+			if err := h.ProdReload(ctx, false, false, false); err != nil {
+				t.Fatalf("ProdReload returned error: %v", err)
+			}
+			// The app is owned before the container is found and reused;
+			// the previous version is not stopped (the reuse replaces nothing)
+			if len(manager.ops) != 0 {
+				t.Fatalf("ops = %v, want none for a reused container", manager.ops)
+			}
+			if want := []string{"begin:/stopfirst"}; !slices.Equal(gate.events, want) {
+				t.Fatalf("gate events = %v, want %v", gate.events, want)
+			}
+			var err error
+			if tc.rollback {
+				err = dt.RollbackAll(context.Background())
+			} else {
+				err = dt.CommitAll(context.Background())
+			}
+			if err != nil {
+				t.Fatalf("deploy txn error: %v", err)
+			}
+			newName := string(container.GenContainerName(h.app.Id, h.activeVersionHash, false))
+			wantOps := make([]string, 0, len(tc.wantOps))
+			for _, op := range tc.wantOps {
+				wantOps = append(wantOps, strings.ReplaceAll(op, "NEW", newName))
+			}
+			if !slices.Equal(manager.ops, wantOps) {
+				t.Fatalf("ops = %v, want %v", manager.ops, wantOps)
+			}
+			if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.events, want) {
+				t.Fatalf("gate events = %v, want %v", gate.events, want)
+			}
+		})
+	}
+
+	// A lazy start reuses the running container under the same ownership
+	manager := &stopFirstTestManager{
+		healthTestManager: healthTestManager{imageExists: true, running: true, hostNamePort: "container:5000"},
+	}
+	gate := &recordingSwapGate{}
+	h := newStopFirstTestHandler(manager, gate)
+	if err := h.ProdReload(context.Background(), false, false, false); err != nil {
+		t.Fatalf("standalone ProdReload returned error: %v", err)
+	}
+	if len(manager.ops) != 0 {
+		t.Fatalf("standalone ops = %v, want none for a reused container", manager.ops)
+	}
+	if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.events, want) {
+		t.Fatalf("standalone gate events = %v, want %v", gate.events, want)
+	}
+}
+
+func TestProdReloadStopFirstLeavesAContainerItDidNotStartAlone(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		txn  bool
+	}{{name: "deploy transaction rollback", txn: true}, {name: "lazy start", txn: false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The version's healthy container serves the app; the reload
+			// fails before deciding to reuse it (a transient manager error)
+			manager := &stopFirstTestManager{
+				healthTestManager: healthTestManager{imageExists: true, running: true, hostNamePort: "container:5000"},
+				stateErr:          errors.New("docker ps: connection reset"),
+			}
+			gate := &recordingSwapGate{}
+			gate.onEnd = func() { manager.ops = append(manager.ops, "end-swap") }
+			h := newStopFirstTestHandler(manager, gate)
+			ctx := context.Background()
+			var dt *container.DeployTxn
+			if tc.txn {
+				dt = container.NewDeployTxn()
+				defer dt.ReleaseImages()
+				ctx = container.ContextWithDeployTxn(ctx, dt)
+			}
+			err := h.ProdReload(ctx, false, false, false)
+			if err == nil || !strings.Contains(err.Error(), "connection reset") {
+				t.Fatalf("ProdReload error = %v, want the state error", err)
+			}
+			if tc.txn {
+				if err := dt.RollbackAll(context.Background()); err != nil {
+					t.Fatalf("rollback: %v", err)
+				}
+			}
+			// The container this deploy never started is not stopped; the
+			// instance still serves it
+			if want := []string{"end-swap"}; !slices.Equal(manager.ops, want) {
+				t.Fatalf("ops = %v, want %v", manager.ops, want)
+			}
+			if !manager.running {
+				t.Fatal("the serving container was stopped")
+			}
+			if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.Events(), want) {
+				t.Fatalf("gate events = %v, want %v", gate.Events(), want)
+			}
+		})
+	}
+}
+
+func TestProdReloadStopFirstStopsOnlyTheSidecarsItStarted(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		existing map[string]bool // sidecars running before the reload
+		txn      bool
+		wantOps  []string
+	}{
+		// An always_on worker kept running through the idle shutdown: the
+		// reload reuses it, and a failed app start leaves it alone
+		{name: "reused worker on a lazy start", existing: map[string]bool{"-worker": true},
+			wantOps: []string{"stop-previous:NEW", "run:NEW", "stop:NEW", "end-swap"}},
+		{name: "reused worker on a rollback", existing: map[string]bool{"-worker": true}, txn: true,
+			wantOps: []string{"stop:NEW", "end-swap"}},
+		// A worker this reload started is stopped with the app, even though
+		// the manager no longer lists it running (crashed, about to restart)
+		{name: "started worker on a lazy start",
+			wantOps: []string{"stop-previous:NEW", "run-sidecar:WORKER", "run:NEW", "stop:NEW", "stop:WORKER", "end-swap"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := &stopFirstTestManager{
+				healthTestManager: healthTestManager{imageExists: true},
+				sidecars:          tc.existing,
+			}
+			gate := &recordingSwapGate{}
+			gate.onEnd = func() { manager.ops = append(manager.ops, "end-swap") }
+			h := newStopFirstTestHandler(manager, gate)
+			h.sidecars = []sidecarConfig{{spec: types.SidecarSpec{Name: "worker", Image: "image:worker"}}}
+			h.health = "health" // the fake serves no HTTP: the health wait fails
+			h.containerConfig.DeployHealthAttempts = 1
+			ctx := context.Background()
+			var dt *container.DeployTxn
+			if tc.txn {
+				dt = container.NewDeployTxn()
+				defer dt.ReleaseImages()
+				ctx = container.ContextWithDeployTxn(ctx, dt)
+			}
+			if err := h.ProdReload(ctx, false, false, false); err == nil {
+				t.Fatal("ProdReload succeeded without a health endpoint")
+			}
+			newName := strings.TrimPrefix(manager.ops[0], "stop-previous:")
+			hash := strings.TrimPrefix(newName, "clc-"+string(h.app.Id)+"-")
+			worker := string(container.SidecarContainerName(h.app.Id, hash, "worker"))
+			if tc.txn {
+				manager.ops = nil
+				if err := dt.RollbackAll(context.Background()); err != nil {
+					t.Fatalf("rollback: %v", err)
+				}
+			}
+			wantOps := make([]string, 0, len(tc.wantOps))
+			for _, op := range tc.wantOps {
+				wantOps = append(wantOps, strings.NewReplacer("NEW", newName, "WORKER", worker).Replace(op))
+			}
+			if !slices.Equal(manager.ops, wantOps) {
+				t.Fatalf("ops = %v, want %v", manager.ops, wantOps)
+			}
+		})
+	}
+}
+
+func TestProdReloadStopFirstStopsAFailedFirstVersion(t *testing.T) {
+	t.Parallel()
+
+	// No previous version runs: nothing to restore, but the container which
+	// failed its health check is stopped, so the next start does not find
+	// it running and reuse it unchecked
+	manager := &stopFirstTestManager{healthTestManager: healthTestManager{imageExists: true}}
+	gate := &recordingSwapGate{}
+	h := newStopFirstTestHandler(manager, gate)
+	h.health = "health" // the fake serves no HTTP: the health wait fails
+	h.containerConfig.DeployHealthAttempts = 1
+
+	if err := h.ProdReload(context.Background(), false, false, false); err == nil {
+		t.Fatal("ProdReload succeeded without a health endpoint")
+	}
+	newName := strings.TrimPrefix(manager.ops[0], "stop-previous:")
+	if want := []string{"stop-previous:" + newName, "run:" + newName, "stop:" + newName}; !slices.Equal(manager.ops, want) {
+		t.Fatalf("ops = %v, want %v", manager.ops, want)
+	}
+	if manager.running {
+		t.Fatal("the failed container is still running")
+	}
+	if want := []string{"begin:/stopfirst", "end:/stopfirst"}; !slices.Equal(gate.events, want) {
+		t.Fatalf("gate events = %v, want %v", gate.events, want)
+	}
+}
+
+func TestProdReloadBlueGreenDoesNotStopThePreviousVersionFirst(t *testing.T) {
+	t.Parallel()
+
+	manager := &stopFirstTestManager{
+		healthTestManager: healthTestManager{imageExists: true},
+		previous:          []container.ContainerName{"old-app"},
+	}
+	gate := &recordingSwapGate{}
+	h := newStopFirstTestHandler(manager, gate)
+	h.containerConfig.BlueGreenDeploy = types.BlueGreenDeployTrue
+
+	if err := h.ProdReload(context.Background(), false, false, false); err != nil {
+		t.Fatalf("ProdReload returned error: %v", err)
+	}
+	newName := string(container.GenContainerName(h.app.Id, h.activeVersionHash, false))
+	if want := []string{"run:" + newName, "remove-superseded:" + newName}; !slices.Equal(manager.ops, want) {
+		t.Fatalf("ops = %v, want %v", manager.ops, want)
+	}
+	if len(gate.events) != 0 {
+		t.Fatalf("gate events = %v, want none", gate.events)
+	}
+}
+
+func TestStopFirstDeployAutoFollowsPersistentVolumes(t *testing.T) {
+	t.Parallel()
+
+	named := &container.VolumeInfo{VolumeName: "data", TargetPath: "/data"}
+	unnamed := &container.VolumeInfo{VolumeName: container.UNNAMED_VOLUME, TargetPath: "/cache"}
+	bind := &container.VolumeInfo{SourcePath: "/host/dir", TargetPath: "/mnt"}
+	secret := &container.VolumeInfo{IsSecret: true, VolumeName: "x", SourcePath: "s.tmpl", TargetPath: "/app/s"}
+	for _, tc := range []struct {
+		name     string
+		mode     types.BlueGreenDeployMode
+		volumes  []*container.VolumeInfo
+		sidecars []*container.VolumeInfo
+		want     bool
+	}{
+		{name: "auto without volumes is blue-green", mode: types.BlueGreenDeployAuto, want: false},
+		{name: "zero value is auto", mode: "", volumes: []*container.VolumeInfo{named}, want: true},
+		{name: "auto with a named volume is stop-first", mode: types.BlueGreenDeployAuto, volumes: []*container.VolumeInfo{named}, want: true},
+		{name: "auto with an unnamed volume is stop-first", mode: types.BlueGreenDeployAuto, volumes: []*container.VolumeInfo{unnamed}, want: true},
+		{name: "auto with a sidecar volume is stop-first", mode: types.BlueGreenDeployAuto, sidecars: []*container.VolumeInfo{named}, want: true},
+		{name: "auto ignores bind mounts and secrets", mode: types.BlueGreenDeployAuto, volumes: []*container.VolumeInfo{bind, secret}, want: false},
+		{name: "true with a volume stays blue-green", mode: types.BlueGreenDeployTrue, volumes: []*container.VolumeInfo{named}, want: false},
+		{name: "false without volumes is stop-first", mode: types.BlueGreenDeployFalse, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := &ContainerHandler{containerConfig: types.Container{BlueGreenDeploy: tc.mode}, volumeInfo: tc.volumes}
+			if tc.sidecars != nil {
+				h.sidecars = []sidecarConfig{{volumes: tc.sidecars}}
+			}
+			if got := h.stopFirstDeploy(); got != tc.want {
+				t.Fatalf("stopFirstDeploy() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSwapStateFollowsTheDeployGate(t *testing.T) {
+	t.Parallel()
+
+	h := &ContainerHandler{app: &App{AppEntry: &types.AppEntry{Id: "app_prd_swap", Path: "/swap"}}}
+	if h.swapInProgress() {
+		t.Fatal("swap reported without a gate")
+	}
+	gate := &recordingSwapGate{}
+	h.app.SetDeploySwapGate(gate)
+	_, epoch0 := h.swapState()
+	if err := gate.BeginSwap(context.Background(), h.app.AppPathDomain(), uint64(1), time.Minute, false); err != nil {
+		t.Fatalf("BeginSwap: %v", err)
+	}
+	if swapping, epoch := h.swapState(); !swapping || epoch == epoch0 {
+		t.Fatalf("after begin: swapping=%v epoch=%d (was %d), want swapping with a new epoch", swapping, epoch, epoch0)
+	}
+	gate.EndSwap(h.app.AppPathDomain())
+	if swapping, epoch := h.swapState(); swapping || epoch == epoch0 {
+		t.Fatalf("after end: swapping=%v epoch=%d, want idle with the epoch moved on", swapping, epoch)
 	}
 }

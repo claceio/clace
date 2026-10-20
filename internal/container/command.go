@@ -553,7 +553,7 @@ func (c *CommandCM) RemoveSupersededContainers(ctx context.Context, appId types.
 			// version that started them; the job runner removes them
 			continue
 		}
-		if cont.State == "running" {
+		if containerActive(cont.State) {
 			c.Info().Msgf("Stopping superseded container %s for app %s", name, appId)
 			if err := c.StopContainer(ctx, name); err != nil {
 				errs = append(errs, err)
@@ -563,6 +563,64 @@ func (c *CommandCM) RemoveSupersededContainers(ctx context.Context, appId types.
 		errs = append(errs, c.RemoveContainer(ctx, name))
 	}
 	return errors.Join(errs...)
+}
+
+// containerActive reports whether a listed container runs, or is about to
+// again: a sidecar runs with a restart policy, and one listed as
+// restarting (crashed, the daemon about to start it again) is as much on
+// the app's volumes as a running one. A stop cancels the pending restart
+func containerActive(state string) bool {
+	return state == "running" || state == "restarting"
+}
+
+// StopSupersededContainers implements SupersededContainerStopper: the app
+// containers of the other versions are stopped first, then their sidecars
+// (the reverse of the start order, an app may depend on its sidecars). The
+// stopped containers are returned sidecars first, the order to restart them
+func (c *CommandCM) StopSupersededContainers(ctx context.Context, appId types.AppId, keep ContainerName) ([]SupersededContainer, error) {
+	containers, err := c.listContainers(ctx, []string{fmt.Sprintf("label=%sapp.id=%s", LABEL_PREFIX, appId)}, true)
+	if err != nil {
+		return nil, err
+	}
+	var apps, sidecars []ContainerName
+	for _, cont := range containers {
+		name := ContainerName(cont.Names)
+		if name == "" || name == keep || !containerActive(cont.State) {
+			continue
+		}
+		if cont.HasLabel(LABEL_PREFIX+litestreamRoleLabel, litestreamRoleValue) ||
+			cont.LabelValue(LABEL_PREFIX+JobRunLabel) != "" {
+			// Per app (litestream) or per run (jobs), not per version
+			continue
+		}
+		if sidecarApp := cont.LabelValue(LABEL_PREFIX + sidecarAppLabel); sidecarApp != "" {
+			if sidecarApp == string(keep) {
+				continue // the new version's own sidecar
+			}
+			sidecars = append(sidecars, name)
+			continue
+		}
+		apps = append(apps, name)
+	}
+
+	var errs []error
+	stopped := make([]SupersededContainer, 0, len(apps)+len(sidecars))
+	stop := func(name ContainerName, sidecar bool) {
+		c.Info().Msgf("Stopping previous version container %s of app %s before the new version starts", name, appId)
+		// Stopped or not, the container is reported: a failed stop may have
+		// left it running
+		stopped = append(stopped, SupersededContainer{Name: name, IsSidecar: sidecar})
+		if err := c.StopContainer(ctx, name); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, name := range apps {
+		stop(name, false)
+	}
+	for _, name := range sidecars {
+		stop(name, true)
+	}
+	return stopped, errors.Join(errs...)
 }
 
 // RemoveAppContainers force-removes every container of a deleted app: all

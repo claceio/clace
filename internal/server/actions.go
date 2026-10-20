@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -258,6 +259,9 @@ func (s *Server) actionApp(ctx context.Context, appPath string, stage, initializ
 		application, release, err = s.definitionApp(ctx, entry)
 	}
 	if err != nil {
+		if errors.Is(err, ErrDeployInProgress) {
+			return nil, nil, nil, types.CreateRequestError(err.Error(), http.StatusServiceUnavailable)
+		}
 		return nil, nil, nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 	return application, appCtx, release, nil

@@ -213,6 +213,44 @@ func AsSupersededContainerRemover(cm ContainerManager) (SupersededContainerRemov
 	return nil, false
 }
 
+// SupersededContainerStopper is an optional manager capability of the
+// stop-first deploy (container.blue_green_deploy = false): stopping the
+// running containers of an app's other versions before the new version
+// starts, so a volume is never shared by two running versions. Implemented
+// by the command-based (Docker/Podman) manager; on Kubernetes the Recreate
+// strategy of persistent-volume apps covers it.
+type SupersededContainerStopper interface {
+	// StopSupersededContainers stops the running app and sidecar containers
+	// of the app's versions other than keep (the per-app litestream
+	// companion and job containers are left alone) and returns the
+	// containers it stopped, or tried to. The returned list is valid even
+	// when an error is returned
+	StopSupersededContainers(ctx context.Context, appId types.AppId, keep ContainerName) ([]SupersededContainer, error)
+}
+
+// SupersededContainer is a previous version container stopped by
+// StopSupersededContainers
+type SupersededContainer struct {
+	Name      ContainerName
+	IsSidecar bool
+}
+
+// AsSupersededContainerStopper unwraps any decorating container managers and
+// returns the underlying SupersededContainerStopper if one is present.
+func AsSupersededContainerStopper(cm ContainerManager) (SupersededContainerStopper, bool) {
+	for cm != nil {
+		if s, ok := cm.(SupersededContainerStopper); ok {
+			return s, true
+		}
+		u, ok := cm.(interface{ Unwrap() ContainerManager })
+		if !ok {
+			break
+		}
+		cm = u.Unwrap()
+	}
+	return nil, false
+}
+
 // DevRunOptions carries the dev-mode fast reload options for RunDevContainer.
 type DevRunOptions struct {
 	// RunHash identifies the full runtime config of the dev container. It is

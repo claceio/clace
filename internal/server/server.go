@@ -150,6 +150,7 @@ type Server struct {
 	samlManager  *SAMLManager
 	formLogin    *FormLoginManager
 	notifyClose  chan types.AppPathDomain
+	swapGates    swapGates // request gates of stop-first deploys in progress
 	// secretsManager is swapped when a dynamic config change modifies the
 	// [secret] config; read it through secretsMgr(), never capture the
 	// manager (or one of its method values) in a long-lived object

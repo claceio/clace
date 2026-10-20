@@ -653,3 +653,54 @@ func TestImageRepoAppId(t *testing.T) {
 		}
 	}
 }
+
+func TestStopSupersededContainersStopsAppThenSidecarsOfOtherVersions(t *testing.T) {
+	dir := t.TempDir()
+	commandPath := filepath.Join(dir, "docker")
+	stopLogPath := filepath.Join(dir, "stop.log")
+	script := `#!/bin/sh
+if [ "$1" = "stop" ] && [ "$2" = "-t" ]; then
+	echo "$4" >> ` + stopLogPath + `
+	exit 0
+fi
+if [ "$1" = "ps" ]; then
+	echo '{"ID":"1","Names":"clc-app_prd_x-keep","Image":"cli-x:new","State":"created","Status":"Created","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"2","Names":"clc-app_prd_x-old","Image":"cli-x:old","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"3","Names":"clc-app_prd_x-older","Image":"cli-x:older","State":"exited","Status":"Exited","Ports":"","Labels":"dev.openrun.app.id=app_prd_x"}'
+	echo '{"ID":"4","Names":"cls-app_prd_x-keep-cache","Image":"redis","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.sidecar.app=clc-app_prd_x-keep"}'
+	echo '{"ID":"5","Names":"cls-app_prd_x-old-db","Image":"postgres","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.sidecar.app=clc-app_prd_x-old"}'
+	echo '{"ID":"8","Names":"cls-app_prd_x-old-cache","Image":"redis","State":"restarting","Status":"Restarting (1) 2 seconds ago","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.sidecar.app=clc-app_prd_x-old"}'
+	echo '{"ID":"6","Names":"cll-app_prd_x","Image":"litestream","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.role=litestream"}'
+	echo '{"ID":"7","Names":"clj-app_prd_x-migrate-1","Image":"cli-x:old","State":"running","Status":"Up","Ports":"","Labels":"dev.openrun.app.id=app_prd_x,dev.openrun.job.run=run1"}'
+	exit 0
+fi
+echo "unexpected args: $*" >&2
+exit 64
+`
+	if err := os.WriteFile(commandPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake container command: %v", err)
+	}
+	manager := NewCommandCM(testutil.TestLogger(), &types.ServerConfig{
+		System: types.SystemConfig{ContainerCommand: commandPath},
+	}, "", "")
+
+	stopped, err := manager.StopSupersededContainers(context.Background(), "app_prd_x", "clc-app_prd_x-keep")
+	if err != nil {
+		t.Fatalf("StopSupersededContainers returned error: %v", err)
+	}
+	// The app container is stopped before its sidecars (a crashed sidecar
+	// about to restart included); the exited version, the new version's
+	// sidecar, litestream and the job are left alone
+	stopLog, err := os.ReadFile(stopLogPath)
+	if err != nil {
+		t.Fatalf("read stop log: %v", err)
+	}
+	if want := "clc-app_prd_x-old\ncls-app_prd_x-old-db\ncls-app_prd_x-old-cache\n"; string(stopLog) != want {
+		t.Fatalf("stopped containers:\n%s\nwant:\n%s", stopLog, want)
+	}
+	// The stopped containers are reported, in stop order
+	want := []SupersededContainer{{Name: "clc-app_prd_x-old"}, {Name: "cls-app_prd_x-old-db", IsSidecar: true}, {Name: "cls-app_prd_x-old-cache", IsSidecar: true}}
+	if !slices.Equal(stopped, want) {
+		t.Fatalf("stopped = %v, want %v", stopped, want)
+	}
+}

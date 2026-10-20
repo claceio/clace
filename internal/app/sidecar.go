@@ -334,6 +334,7 @@ func (h *ContainerHandler) ensureSidecars(ctx context.Context, versionHash, sour
 		}
 		if started {
 			h.registerSidecarDeployTxn(ctx, name)
+			h.activeSwap.markStarted(name)
 		}
 		if err := h.waitForSidecarReady(ctx, name, sidecar); err != nil {
 			if h.containerConfig.ShowLogsForFailure {

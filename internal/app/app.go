@@ -156,6 +156,9 @@ type App struct {
 	secretEvalFunc func([][]string, string, string) (string, error)
 	auditInsert    func(*types.AuditEvent) error
 	runServices    *RunServices // the server services async action runs need, nil in tests without a server
+	// deploySwapGate coordinates a stop-first container deploy of this app
+	// with the server (held requests, paused checks); nil without a server
+	deploySwapGate DeploySwapGate
 	AppRunPath     string       // path to the app run directory
 	rbacApi        rbac.RBACAPI // the rbac api to use
 
@@ -487,6 +490,48 @@ func (a *App) ResumeIdleShutdown() {
 	if a.containerHandler != nil {
 		a.containerHandler.ResumeIdleShutdown()
 	}
+}
+
+// DeploySwapGate coordinates a stop-first container deploy (see
+// ContainerHandler.stopFirstDeploy) with the live app. From BeginSwap until
+// the matching EndSwap the server holds the app's initializing requests
+// instead of proxying them to the stopped previous version (refusing them
+// once maxWait has passed), and the live instance's background checks
+// consult SwapState and stand down, so neither a request nor the health
+// checker restarts the previous version while the new one starts. A swap
+// belongs to an owner (the deploy transaction of an operation, a lazy
+// start): the owner's further swaps of the app nest, the gate stays held
+// until every BeginSwap has its EndSwap. A swap by another owner (an
+// overlapping deploy of the app) waits until the gate is released when
+// waitForOthers is set, at most maxWait, and otherwise returns an error:
+// two deploys never replace the app's containers at the same time, which
+// would run two versions on its volumes. SwapState reports whether a swap is in progress
+// and an epoch which changes on every begin and end, so a check that
+// started before a swap can tell its result is stale. WithoutSwap runs fn
+// only when no swap is in progress and the epoch is unchanged, and a
+// BeginSwap waits for fn to return: the live instance stops its container
+// after a health failure through it, so a swap never finds the container
+// stopped from under it, and a container restored by a rollback is never
+// stopped by a check from before the swap. BeginSwap, EndSwap, SwapState
+// and WithoutSwap must not block on the app store: a reload calls them
+// holding the app's init mutex, which closing an app (under the store
+// lock) waits for. PreviousVersionStopped drops the cached live instance
+// after a rolled back deploy stopped the previous version's containers:
+// the next request initializes the app again and starts them (a restarted
+// container publishes a new host port, so the instance must be rebuilt);
+// it closes that instance and is called from the rollback of a deploy
+// transaction only, never from a reload
+type DeploySwapGate interface {
+	BeginSwap(ctx context.Context, pathDomain types.AppPathDomain, owner any, maxWait time.Duration, waitForOthers bool) error
+	EndSwap(pathDomain types.AppPathDomain)
+	SwapState(pathDomain types.AppPathDomain) (active bool, epoch uint64)
+	WithoutSwap(pathDomain types.AppPathDomain, epoch uint64, fn func()) bool
+	PreviousVersionStopped(pathDomain types.AppPathDomain)
+}
+
+// SetDeploySwapGate wires the server's gate for stop-first deploys
+func (a *App) SetDeploySwapGate(gate DeploySwapGate) {
+	a.deploySwapGate = gate
 }
 
 // PrepareContainerBuild computes the build plan for the app's container image:
