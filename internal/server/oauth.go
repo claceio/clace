@@ -54,8 +54,9 @@ import (
 // 7. Redirects to the OAuth provider's login page, with sessionid in state
 // 8. Login API calls gothic.BeginAuthHandler to redirect to the OAuth provider's login page
 // 9. OAuth provider's login page redirects to the callback api on the callback domain, with sessionid in state
-// 10. Callback api validates the sessionid, and updates the state map in the DB with the user id and groups info
-// 11. Callback api redirects to the redirect API on the app domain, again passing the sessionid in the state parameter
+// 10. Callback api validates the sessionid, deletes that DB entry and stores the state map with the user id and groups
+//     info under a new short-lived sessionid (the pre-login sessionid is known to whoever started the flow)
+// 11. Callback api redirects to the redirect API on the app domain, passing the new sessionid in the state parameter
 // 12. redirect API validates the passed sessionid, nonce from DB statemap against nonce from cookie,
 // 13. redirect stores the authenticated session, with the user id and groups info and deletes the DB entry
 // 14. Redirects back to original app url, which will again call CheckAuth and find the authenticated cookie
@@ -552,16 +553,6 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the state map, set to authenticated and add the user id and groups
-	stateMap[AUTH_KEY] = true
-	stateMap[USER_KEY] = userId
-	stateMap[GROUPS_KEY] = groups
-	err = s.db.UpdateKV(r.Context(), string(sessionId), stateMap)
-	if err != nil {
-		http.Error(w, "error updating KV state: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	redirectUrl, ok := stateValueString(stateMap, REDIRECT_URL)
 	if !ok {
 		http.Error(w, "error matching session state", http.StatusBadRequest)
@@ -573,9 +564,59 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mark the state authenticated under a NEW key. The pre-login state token
+	// is visible to whoever initiated the flow (it is in the login URL that
+	// beginLogin redirects to), so it must not stay valid once the IdP has
+	// vouched for a user: an attacker could start a login (keeping the
+	// app-domain nonce cookie), hand the login URL to a victim and, after the
+	// victim authenticates, call redirect with the known state to mint a
+	// session under the victim's identity. The fresh completion token is only
+	// ever sent to the browser that completed the IdP step, and redirect
+	// additionally requires the nonce cookie of the browser that initiated the
+	// flow - in the legitimate flow the same browser holds both. Consuming the
+	// old key first is the atomic gate: a replayed or concurrent callback for
+	// the same state cannot mint a second completion token
+	completeId, err := s.rotateLoginState(r, string(sessionId), stateMap, userId, groups)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if completeId == "" {
+		http.Error(w, "error matching session state, login already completed", http.StatusBadRequest)
+		return
+	}
+	state = base64.URLEncoding.EncodeToString([]byte(completeId))
+
 	// Redirect to the auth/redirect url on the original app domain, so that the required cookie can be set on the app domain
 	redirectAppDomain := redirectParsed.Scheme + "://" + redirectParsed.Host + types.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/redirect?state=" + state
 	http.Redirect(w, r, redirectAppDomain, http.StatusFound)
+}
+
+// rotateLoginState atomically consumes the pre-login state entry and stores the
+// authenticated state (user id and groups added) under a fresh random key with
+// a short expiry, returning the new key. It returns "" with a nil error when
+// the pre-login entry was already consumed (replayed or concurrent callback)
+func (s *OAuthManager) rotateLoginState(r *http.Request, sessionId string, stateMap map[string]any, userId string, groups []string) (string, error) {
+	consumed, err := s.db.DeleteKVIfPresent(r.Context(), sessionId)
+	if err != nil {
+		return "", fmt.Errorf("error updating state: %w", err)
+	}
+	if !consumed {
+		return "", nil
+	}
+	completeKey, err := passwd.GenerateRandomKey(24)
+	if err != nil {
+		return "", fmt.Errorf("error generating state: %w", err)
+	}
+	completeId := types.OAUTH_SESSION_KV_PREFIX + base64.URLEncoding.EncodeToString(completeKey)
+	stateMap[AUTH_KEY] = true
+	stateMap[USER_KEY] = userId
+	stateMap[GROUPS_KEY] = groups
+	expireAt := time.Now().Add(completeTokenMaxAge)
+	if err := s.db.StoreKV(r.Context(), completeId, stateMap, &expireAt); err != nil {
+		return "", fmt.Errorf("error storing state: %w", err)
+	}
+	return completeId, nil
 }
 
 // emailVerifiedClaim reports whether the IdP's email claim can be trusted as an

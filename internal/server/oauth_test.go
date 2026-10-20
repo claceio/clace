@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
 	"github.com/openrundev/openrun/internal/testutil"
 	"github.com/openrundev/openrun/internal/types"
 )
@@ -737,5 +739,140 @@ func TestOAuthRedirectState(t *testing.T) {
 			testutil.AssertEqualsString(t, "user subject", "subject-123", info.UserSubject)
 			testutil.AssertEqualsString(t, "user email", "test@example.com", info.UserEmail)
 		})
+	}
+}
+
+// oauthNonceCookies returns the app-domain pre-auth cookies beginLogin would
+// have set for the browser that started a login with the given nonce
+func oauthNonceCookies(t *testing.T, manager *OAuthManager, nonce, redirectURL string) []*http.Cookie {
+	t.Helper()
+	setupReq := httptest.NewRequest(http.MethodGet, "/auth/github/redirect", nil)
+	setupRec := httptest.NewRecorder()
+	session, err := manager.cookieStore.Get(setupReq, genCookieName("github"))
+	testutil.AssertNoError(t, err)
+	session.Values[NONCE_KEY], session.Values[REDIRECT_URL] = nonce, redirectURL
+	testutil.AssertNoError(t, session.Save(setupReq, setupRec))
+	return setupRec.Result().Cookies()
+}
+
+// TestOAuthCallbackRotatesState covers the session fixation reported in
+// GHSA-rw93-hw9g-vc3m. The pre-login state token is visible to whoever
+// started the flow, so an attacker could start a login (keeping the nonce
+// cookie), hand the IdP link to a victim and, once the victim had
+// authenticated, finish the login with the known state. The callback must
+// consume the pre-login state and hand the browser that completed the IdP
+// step a fresh single-use token
+func TestOAuthCallbackRotatesState(t *testing.T) {
+	const nonce, redirectURL = "attacker-nonce", "https://app.example.com/dashboard"
+	preAuthID := types.OAUTH_SESSION_KV_PREFIX + "attacker-started-login"
+	preAuthState := base64.URLEncoding.EncodeToString([]byte(preAuthID))
+	manager, db := newOAuthSessionTestManager(t)
+	originalComplete := gothic.CompleteUserAuth
+	gothic.CompleteUserAuth = func(http.ResponseWriter, *http.Request) (goth.User, error) {
+		return goth.User{UserID: "victim-subject", Email: "victim@example.com", NickName: "victim",
+			RawData: map[string]any{"groups": []any{"admins"}}}, nil
+	}
+	t.Cleanup(func() { gothic.CompleteUserAuth = originalComplete })
+
+	// The attacker starts a login: pre-auth state in the keystore, nonce cookie
+	// in the attacker's jar, state token in the login URL they hand the victim
+	expireAt := time.Now().Add(preAuthStateMaxAge)
+	testutil.AssertNoError(t, db.StoreKV(t.Context(), preAuthID, map[string]any{
+		AUTH_KEY: false, PROVIDER_NAME_KEY: "github", REDIRECT_URL: redirectURL, NONCE_KEY: nonce,
+	}, &expireAt))
+	attackerCookies := oauthNonceCookies(t, manager, nonce, redirectURL)
+	// The browser of the legitimate flow (checked below) holds the same nonce
+	// in its own cookie session; a rejected redirect drops the caller's
+	// pre-auth session, so the two scenarios must not share a jar
+	browserCookies := oauthNonceCookies(t, manager, nonce, redirectURL)
+
+	// 1. The victim completes the IdP step with the attacker's state
+	w := httptest.NewRecorder()
+	manager.authCallback(w, oauthProviderRequest("/auth/github/callback?state="+preAuthState))
+	testutil.AssertEqualsInt(t, "callback status", http.StatusFound, w.Code)
+	location, err := url.Parse(w.Header().Get("Location"))
+	testutil.AssertNoError(t, err)
+	testutil.AssertEqualsString(t, "redirect host", "app.example.com", location.Host)
+	testutil.AssertEqualsString(t, "redirect path", types.INTERNAL_URL_PREFIX+"/auth/github/redirect", location.Path)
+	newState := location.Query().Get("state")
+	if newState == "" || newState == preAuthState {
+		t.Fatalf("state not rotated by the callback: %s", location)
+	}
+	newIDBytes, err := base64.URLEncoding.DecodeString(newState)
+	testutil.AssertNoError(t, err)
+	newID := string(newIDBytes)
+	if !strings.HasPrefix(newID, types.OAUTH_SESSION_KV_PREFIX) {
+		t.Fatalf("unexpected completion key %q", newID)
+	}
+	if _, err := db.FetchKV(t.Context(), preAuthID); err == nil {
+		t.Fatal("pre-login state survived the callback")
+	}
+	completeState, err := db.FetchKV(t.Context(), newID)
+	testutil.AssertNoError(t, err)
+	testutil.AssertEqualsBool(t, "authenticated", true, completeState[AUTH_KEY] == true)
+	testutil.AssertEqualsString(t, "user", "victim@example.com", completeState[USER_KEY].(string))
+	testutil.AssertEqualsString(t, "nonce carried over", nonce, completeState[NONCE_KEY].(string))
+	if deleteAt := db.deleteAt[newID]; deleteAt == nil || deleteAt.After(time.Now().Add(completeTokenMaxAge+time.Second)) {
+		t.Fatalf("completion token expiry %v not bounded by %v", deleteAt, completeTokenMaxAge)
+	}
+
+	// 2. The attacker, holding the nonce cookie and the leaked pre-login state,
+	// must not be able to finish the victim's login
+	r := oauthProviderRequest("/auth/github/redirect?state=" + preAuthState)
+	for _, cookie := range attackerCookies {
+		r.AddCookie(cookie)
+	}
+	w = httptest.NewRecorder()
+	manager.redirect(w, r)
+	if w.Code == http.StatusFound {
+		t.Fatal("leaked pre-login state minted a session for the victim")
+	}
+	if len(w.Result().Cookies()) > 0 && w.Result().Cookies()[0].MaxAge != -1 {
+		t.Fatal("rejected redirect issued a session cookie")
+	}
+
+	// 3. Replaying the callback with the consumed state fails and does not
+	// mint a second completion token
+	w = httptest.NewRecorder()
+	manager.authCallback(w, oauthProviderRequest("/auth/github/callback?state="+preAuthState))
+	if w.Code == http.StatusFound {
+		t.Fatal("replayed callback accepted")
+	}
+	keys := 0
+	for key := range db.store {
+		if strings.HasPrefix(key, types.OAUTH_SESSION_KV_PREFIX) {
+			keys++
+		}
+	}
+	testutil.AssertEqualsInt(t, "login state entries", 1, keys)
+
+	// 4. In the legitimate flow the same browser holds the nonce cookie and
+	// receives the rotated state, and completes the login
+	r = oauthProviderRequest("/auth/github/redirect?state=" + newState)
+	for _, cookie := range browserCookies {
+		r.AddCookie(cookie)
+	}
+	w = httptest.NewRecorder()
+	manager.redirect(w, r)
+	testutil.AssertEqualsInt(t, "redirect status", http.StatusFound, w.Code)
+	testutil.AssertEqualsString(t, "redirect location", redirectURL, w.Header().Get("Location"))
+	authed := httptest.NewRequest(http.MethodGet, "/some-path", nil)
+	for _, cookie := range w.Result().Cookies() {
+		authed.AddCookie(cookie)
+	}
+	info, err := manager.CheckAuthInfo(httptest.NewRecorder(), authed, "github")
+	testutil.AssertNoError(t, err)
+	testutil.AssertEqualsString(t, "user", "github:victim@example.com", info.UserId)
+	testutil.AssertEqualsString(t, "user subject", "victim-subject", info.UserSubject)
+
+	// 5. The rotated state is single use
+	r = oauthProviderRequest("/auth/github/redirect?state=" + newState)
+	for _, cookie := range browserCookies {
+		r.AddCookie(cookie)
+	}
+	w = httptest.NewRecorder()
+	manager.redirect(w, r)
+	if w.Code == http.StatusFound {
+		t.Fatal("completion token reused")
 	}
 }

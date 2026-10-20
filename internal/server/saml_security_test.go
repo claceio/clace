@@ -83,18 +83,24 @@ func TestSAMLManager_SignedAssertionReplayAndLogoutValidation(t *testing.T) {
 		if err := db.StoreKV(context.Background(), stateID, state, nil); err != nil {
 			t.Fatal(err)
 		}
-		initial := httptest.NewRequest("GET", "https://sp.example/app", nil)
-		cookieWriter := httptest.NewRecorder()
-		session, err := store.Get(initial, genSAMLCookieName(provider))
-		if err != nil {
-			t.Fatal(err)
+		// nonceCookies mints the app-domain pre-login cookie session login
+		// would have set for a browser starting this flow
+		nonceCookies := func() []*http.Cookie {
+			initial := httptest.NewRequest("GET", "https://sp.example/app", nil)
+			cookieWriter := httptest.NewRecorder()
+			session, err := store.Get(initial, genSAMLCookieName(provider))
+			if err != nil {
+				t.Fatal(err)
+			}
+			session.Values[NONCE_KEY] = "browser-owned-nonce"
+			session.Values[REDIRECT_URL] = "https://sp.example/app"
+			session.Values[PROVIDER_NAME_KEY] = provider
+			if err := session.Save(initial, cookieWriter); err != nil {
+				t.Fatal(err)
+			}
+			return cookieWriter.Result().Cookies()
 		}
-		session.Values[NONCE_KEY] = "browser-owned-nonce"
-		session.Values[REDIRECT_URL] = "https://sp.example/app"
-		session.Values[PROVIDER_NAME_KEY] = provider
-		if err := session.Save(initial, cookieWriter); err != nil {
-			t.Fatal(err)
-		}
+		browserCookies := nonceCookies()
 		raw := wrap(requestID)
 		encoded := base64.StdEncoding.EncodeToString([]byte(raw))
 		validated, err := sp.ValidateEncodedResponse(encoded)
@@ -125,8 +131,42 @@ func TestSAMLManager_SignedAssertionReplayAndLogoutValidation(t *testing.T) {
 		if w.Code != http.StatusFound {
 			t.Fatalf("ACS rejected: %d %s", w.Code, w.Body.String())
 		}
-		redirect := httptest.NewRequest("GET", w.Header().Get("Location"), nil)
-		for _, cookie := range cookieWriter.Result().Cookies() {
+		// The pre-login relay is known to whoever started the flow, so the ACS
+		// must consume it and hand the browser a fresh completion token; the
+		// leaked relay plus the initiator's nonce cookie must not mint a
+		// session for the user the IdP vouched for (GHSA-rw93-hw9g-vc3m)
+		location, err := url.Parse(w.Header().Get("Location"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		originalRelay := base64.URLEncoding.EncodeToString([]byte(stateID))
+		if relay := location.Query().Get("relay"); relay == "" || relay == originalRelay {
+			t.Fatalf("relay not rotated by the ACS: %s", location)
+		}
+		if _, err := db.FetchKV(context.Background(), stateID); err == nil {
+			t.Fatal("pre-login state survived the ACS")
+		}
+		// the attacker holds a nonce cookie of their own (they started the
+		// flow); a rejected redirect drops that pre-login session, so it must
+		// not be the one the legitimate completion below relies on
+		attacker := httptest.NewRequest("GET", "https://sp.example/_openrun/sso/"+provider+"/redirect?relay="+originalRelay, nil)
+		for _, cookie := range nonceCookies() {
+			attacker.AddCookie(cookie)
+		}
+		w = httptest.NewRecorder()
+		mux.ServeHTTP(w, attacker)
+		if w.Code == http.StatusFound {
+			t.Fatal("leaked pre-login relay minted a session")
+		}
+		replay := httptest.NewRequest("POST", acs, strings.NewReader(form.Encode()))
+		replay.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w = httptest.NewRecorder()
+		mux.ServeHTTP(w, replay)
+		if w.Code == http.StatusFound {
+			t.Fatal("replayed ACS post with the consumed relay accepted")
+		}
+		redirect := httptest.NewRequest("GET", location.String(), nil)
+		for _, cookie := range browserCookies {
 			redirect.AddCookie(cookie)
 		}
 		w = httptest.NewRecorder()
@@ -293,11 +333,31 @@ func TestSAMLManager_SignedAssertionReplayAndLogoutValidation(t *testing.T) {
 				t.Fatalf("wanted %s, got %d %s", tc.reason, w.Code, w.Body.String())
 			}
 			remaining, err := db.FetchKV(context.Background(), stateID)
+			if tc.reason == "" {
+				// a successful ACS consumes the pre-login state and redirects
+				// with a fresh, authenticated completion token
+				if err == nil {
+					t.Fatal("pre-login state survived a successful ACS")
+				}
+				location, err := url.Parse(w.Header().Get("Location"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				completeID, err := base64.URLEncoding.DecodeString(location.Query().Get("relay"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				complete, err := db.FetchKV(context.Background(), string(completeID))
+				if err != nil || complete[AUTH_KEY] != true || complete[USER_KEY] != "victim@example.com" {
+					t.Fatalf("completion state: %+v %v", complete, err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			if remaining[AUTH_KEY] != (tc.reason == "") {
-				t.Fatal("unexpected authentication state")
+			if remaining[AUTH_KEY] != false {
+				t.Fatal("rejected assertion authenticated the login state")
 			}
 		})
 	}

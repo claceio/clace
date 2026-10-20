@@ -49,8 +49,9 @@ import (
 // 5. Login creates a sessionid and nonce. Saves entry in DB with sessionid as key and state map as value
 // 6. Login creates a cookie with the nonce and redirect url. Redirects to the SAML provider's login page, with sessionid in RelayState
 // 7. SAML provider's login page redirects to the ACS api on the callback domain, with sessionid in RelayState
-// 8. ACS api validates the sessionid, and updates the state map in the DB with the user id and groups info
-// 9. ACS api redirects to the redirect API on the app domain, again passing the sessionid in the relay parameter
+// 8. ACS api validates the sessionid, deletes that DB entry and stores the state map with the user id and groups
+//    info under a new short-lived sessionid (the pre-login sessionid is known to whoever started the flow)
+// 9. ACS api redirects to the redirect API on the app domain, passing the new sessionid in the relay parameter
 // 10. redirect API validates the passed sessionid, nonce from DB statemap against nonce from cookie,
 // 11. redirect stores the authenticated session, with the user id and groups info and deletes the DB entry
 // 12. Redirects back to original app url, which will again call CheckSAMLAuth and find the authenticated cookie
@@ -721,25 +722,52 @@ func (s *SAMLManager) acs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the state map, set to authenticated and add the user id and groups
-	stateMap[AUTH_KEY] = true
-	stateMap[USER_KEY] = ai.NameID
-	stateMap[GROUPS_KEY] = groups
-	stateMap[SESSION_INDEX_KEY] = ai.SessionIndex
-	err = s.db.UpdateKV(r.Context(), sessionId, stateMap)
-	if err != nil {
-		http.Error(w, "error updating KV state: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	redirectParsed, err := url.Parse(redirectUrl)
 	if err != nil {
 		http.Error(w, "error parsing relay: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Mark the state authenticated under a NEW key. The pre-login relay state
+	// is visible to whoever initiated the flow (it is in the AuthnRequest URL
+	// or form that login sends the browser to), so it must not stay valid once
+	// the IdP has vouched for a user: an attacker could start a login (keeping
+	// the app-domain nonce cookie), hand the IdP link to a victim and, after
+	// the victim authenticates, call redirect with the known relay to mint a
+	// session under the victim's identity. The fresh completion token is only
+	// ever sent to the browser that posted the assertion, and redirect
+	// additionally requires the nonce cookie of the browser that initiated the
+	// flow - in the legitimate flow the same browser holds both. Consuming the
+	// old key first is the atomic gate: a replayed or concurrent ACS post for
+	// the same relay cannot mint a second completion token
+	consumed, err := s.db.DeleteKVIfPresent(r.Context(), sessionId)
+	if err != nil {
+		http.Error(w, "error updating state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !consumed {
+		http.Error(w, "error matching session state, login already completed", http.StatusBadRequest)
+		return
+	}
+	completeKey, err := passwd.GenerateRandomKey(24)
+	if err != nil {
+		http.Error(w, "error generating state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	completeId := types.SAML_SESSION_KV_PREFIX + base64.URLEncoding.EncodeToString(completeKey)
+	stateMap[AUTH_KEY] = true
+	stateMap[USER_KEY] = ai.NameID
+	stateMap[GROUPS_KEY] = groups
+	stateMap[SESSION_INDEX_KEY] = ai.SessionIndex
+	expireAt := time.Now().Add(completeTokenMaxAge)
+	if err := s.db.StoreKV(r.Context(), completeId, stateMap, &expireAt); err != nil {
+		http.Error(w, "error storing state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	relayState := base64.URLEncoding.EncodeToString([]byte(completeId))
+
 	// Redirect to the sso/redirect url on the original app domain, so that the required cookie can be set on the app domain
-	redirectAppDomain := redirectParsed.Scheme + "://" + redirectParsed.Host + types.INTERNAL_URL_PREFIX + "/sso/" + providerName + "/redirect?relay=" + r.PostFormValue("RelayState")
+	redirectAppDomain := redirectParsed.Scheme + "://" + redirectParsed.Host + types.INTERNAL_URL_PREFIX + "/sso/" + providerName + "/redirect?relay=" + relayState
 	http.Redirect(w, r, redirectAppDomain, http.StatusFound)
 }
 
