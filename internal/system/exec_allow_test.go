@@ -244,7 +244,7 @@ func TestExecEnvAllowlist(t *testing.T) {
 	if err := list.CheckEnv([]string{"HOME=/tmp", "MYAPP_MODE=fast", "MYAPP_EMPTY=", "MYAPP_EQ=a=b"}); err != nil {
 		t.Fatalf("listed variables: %v", err)
 	}
-	for _, env := range []string{"LD_PRELOAD=/tmp/x.so", "BASH_FUNC_date%%=() { :; }", "MYAPP=1", "myapp_x=1", "=1", ""} {
+	for _, env := range []string{"LD_PRELOAD=/tmp/x.so", "BASH_FUNC_date%%=() { :; }", "MYAPP=1", "=1", ""} {
 		if err := list.CheckEnv([]string{"HOME=/", env}); err == nil {
 			t.Errorf("env %q passed", env)
 		}
@@ -279,8 +279,13 @@ func TestExecEnvAllowlist(t *testing.T) {
 		if err := list.CheckEnv([]string{"myapp_secret=1"}); err == nil || !strings.Contains(err.Error(), "excluded") {
 			t.Errorf("windows exclusion by other case: %v", err)
 		}
-	} else if err := all.CheckEnv([]string{"Ld_Preload=x"}); err != nil {
-		t.Errorf("unix names are case-sensitive: %v", err)
+	} else {
+		if err := all.CheckEnv([]string{"Ld_Preload=x"}); err != nil {
+			t.Errorf("unix names are case-sensitive: %v", err)
+		}
+		if err := list.CheckEnv([]string{"myapp_x=1"}); err == nil || !strings.Contains(err.Error(), "not in security.allowed_exec_env") {
+			t.Errorf("unix allow entry by other case: %v", err)
+		}
 	}
 	for _, name := range []string{"Path", "path", "PATH"} {
 		if matchesAnyEnvPattern([]string{"PATH"}, name, false) != (name == "PATH") {
