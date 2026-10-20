@@ -162,12 +162,15 @@ func (c *CommandCM) RunJob(ctx context.Context, req JobRunRequest) (int, error) 
 				c.Debug().Err(err).Msgf("stopping canceled job container %s", req.ContainerName)
 			}
 			select {
-			case <-waitDone:
+			case err := <-waitDone:
+				if err != nil {
+					c.Debug().Err(err).Msgf("run command for canceled job container %s exited", req.ContainerName)
+				}
 				break stopping
 			case <-deadline:
 				c.Warn().Msgf("canceled job container %s did not stop, killing the run command", req.ContainerName)
 				_ = cmd.Process.Kill()
-				<-waitDone
+				<-waitDone //nolint:errcheck // the kill makes the exit status meaningless
 				break stopping
 			case <-time.After(time.Second):
 			}

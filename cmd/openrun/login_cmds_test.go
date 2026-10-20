@@ -40,7 +40,7 @@ func TestLoginCallbackDuplicatesDoNotBlock(t *testing.T) {
 					default:
 					}
 					select {
-					case <-errs:
+					case <-errs: //nolint:errcheck // draining a blocked handler before failing
 					default:
 					}
 					t.Fatal("duplicate callback blocked without a login waiter")

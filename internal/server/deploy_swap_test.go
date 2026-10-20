@@ -35,8 +35,8 @@ func TestSwapGatesHoldRequestsUntilTheLastOwnerEnds(t *testing.T) {
 		t.Fatal("the first end released a gate with another owner")
 	}
 	select {
-	case <-released:
-		t.Fatal("wait returned while an owner remains")
+	case err := <-released:
+		t.Fatalf("wait returned while an owner remains: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
 	if !g.end(pd) {
