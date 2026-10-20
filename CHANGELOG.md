@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [v0.20.4] - 2026-10-20
+
 ### Security
 
 - OAuth/OIDC and SAML logins no longer complete with the state token the login started with (GHSA-rw93-hw9g-vc3m, session fixation). That token is visible to whoever started the login, and the final app-domain step checked only that browser's nonce cookie, so an attacker could start a login, hand the identity provider link to a victim and, once the victim had signed in, finish the login themselves with a session as the victim. The provider callback and the SAML ACS now consume the pre-login state and redirect with a fresh single-use token that expires after a minute, as form login already did.
