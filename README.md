@@ -27,6 +27,7 @@
 - [Features](#features)
 - [Roadmap](#roadmap)
 - [Setup](#setup)
+- [One-Click Deploy](#one-click-deploy)
 - [Documentation](#documentation)
 - [Getting help](#getting-help)
 - [Contributing](#contributing)
@@ -299,6 +300,10 @@ openrun server start
 ```
 
 The `password` command writes the initial config and prints the generated admin password to the terminal. Save it for the console and apps using `system` authentication. App specs are bundled in the binary; no separate clone is required. See [installation](https://openrun.dev/docs/installation/#install-from-source) for persistent shell configuration.
+
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/OpenRun/)
 
 ## Documentation
 
