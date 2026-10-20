@@ -128,15 +128,16 @@ func TestUpdateRBACConfigAtomic(t *testing.T) {
 	}
 	assertOldConfigLive(t)
 
-	// Failure in the first resolution step (undefined group reference):
-	// no partially updated state may be published
+	// Failure in the first resolution step (circular group reference; a
+	// group: member naming no config group is a sign-in group, not an
+	// error): no partially updated state may be published
 	badGroups := &types.RBACConfig{
-		Groups: map[string][]string{"g1": {"group:undefined"}},
+		Groups: map[string][]string{"g1": {"group:g2"}, "g2": {"group:g1"}},
 		Roles:  map[string][]types.RBACPermission{},
 		Grants: []types.RBACGrant{},
 	}
 	if err := manager.UpdateRBACConfig(badGroups); err == nil {
-		t.Fatal("expected error for undefined group reference")
+		t.Fatal("expected error for circular group reference")
 	}
 	assertOldConfigLive(t)
 

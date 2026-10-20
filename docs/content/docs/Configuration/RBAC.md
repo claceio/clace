@@ -53,7 +53,7 @@ The RBAC configuration is managed through [dynamic config]({{< ref "docs/configu
 }
 ```
 
-`groups` is a map of group name to group members. Members are user ids, prefixed with the auth provider name. Group composition is supported, for example group2 includes all group1 users. `roles` is a map of role name to permissions. Roles also can be composed, for example role `fullaccess` gets all permissions of role `accessor`.
+`groups` is a map of group name to group members. Members are user ids, prefixed with the auth provider name. Group composition is supported, for example group2 includes all group1 users. A `group:` member can also name a group that comes from the user's sign-in (see [Group Info](#group-info)) instead of a group defined in the config: `"reporting-users": ["group:finance-analysts", "group:sales-ops"]` matches any user whose login groups include `finance-analysts` or `sales-ops`, checked on each request. A `group:` member has the same meaning as in a grant: it matches the config group of that name if one is defined and the sign-in group of that name. `roles` is a map of role name to permissions. Roles also can be composed, for example role `fullaccess` gets all permissions of role `accessor`.
 
 ## Built-in Roles
 
@@ -78,7 +78,7 @@ Beyond the default grant (the `openrun-user` role for every principal), users ha
 - `roles` which is list of roles granted
 - `targets` which is the list of targets the grant's scoped permissions apply to. A plain entry is an app [glob path]({{< ref "/docs/applications/overview/#glob-pattern" >}}) (`domain:path` format) matching apps. A `service:<glob>` entry matches service ids in the `<type>/<name>` form, without a leading slash: `service:postgres/*` matches `postgres/main`, `service:**` matches all services. A `binding:<glob>` entry matches binding paths: `binding:/apps/team1/**`. The `all` keyword (or `*:**`) matches every app, service and binding.
 
-The group name referenced in a grant can be a group which is seen at runtime in the user profile. This works for [OIDC]({{< ref "/docs/configuration/authentication/#openid-connect-oidc" >}}) based auth, like Okta.
+The group name referenced in a grant (or as a `group:` member of a config group) can be a group which is seen at runtime in the user profile. This works for [OIDC]({{< ref "/docs/configuration/authentication/#openid-connect-oidc" >}}) based auth, like Okta.
 
 ## Permission Scope
 

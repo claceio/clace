@@ -37,10 +37,13 @@ type RBACManager struct {
 }
 
 // resolvedGroup is a group's membership resolved into lookup structures at
-// config update time: direct user ids as a set, regex: members precompiled
+// config update time: direct user ids as a set, regex: members precompiled,
+// and the group names its group: members refer to (through the whole group
+// hierarchy), matched against the sign-in groups of the request
 type resolvedGroup struct {
-	members map[string]bool
-	regexes []*regexp.Regexp
+	members      map[string]bool
+	regexes      []*regexp.Regexp
+	signInGroups map[string]bool
 }
 
 // resolvedGrant is the per-grant state resolved at config update time, so
@@ -235,8 +238,9 @@ func (h *RBACManager) checkGrants(inputUser string, appPathDomain types.AppPathD
 
 // grantUserMatchesLocked reports whether the grant's Users list matches
 // inputUser: a direct user id, a group: reference (matched against the SSO
-// context groups and the resolved config groups, including regex: members) or
-// a regex: pattern. Callers must hold h.mu
+// context groups and the resolved config groups, including regex: members and
+// the sign-in groups the config group refers to) or a regex: pattern. Callers
+// must hold h.mu
 func (h *RBACManager) grantUserMatchesLocked(grant types.RBACGrant, inputUser string, groups []string) (bool, error) {
 	for _, user := range grant.Users {
 		if user == "*" {
@@ -259,6 +263,13 @@ func (h *RBACManager) grantUserMatchesLocked(grant types.RBACGrant, inputUser st
 				// Check the group's regex members
 				for _, regex := range refGroup.regexes {
 					if regex.MatchString(inputUser) {
+						return true, nil
+					}
+				}
+				// Check the sign-in groups the config group includes through
+				// its group: members against the groups from the SSO login
+				for _, group := range groups {
+					if refGroup.signInGroups[group] {
 						return true, nil
 					}
 				}
@@ -355,8 +366,13 @@ func compileUserRegex(cache map[string]*regexp.Regexp, pattern string) error {
 }
 
 // initGroupInfo resolves the group hierarchy into membership lookup
-// structures, compiling regex: members into regexCache. Pure: on error no
-// state has been published to the manager
+// structures, compiling regex: members into regexCache. A group: member names
+// another config group, a group from the user's sign-in (OIDC/SAML/builtin
+// groups, known only at request time), or both: the config group's members
+// are flattened in when one is defined, and the name is always kept as a
+// sign-in group to match against the request's groups - the same meaning
+// group: has in a grant's users list. Pure: on error no state has been
+// published to the manager
 func (h *RBACManager) initGroupInfo(rbacConfig *types.RBACConfig, regexCache map[string]*regexp.Regexp) (map[string]*resolvedGroup, error) {
 	groupMembers := make(map[string]*resolvedGroup)
 
@@ -367,23 +383,30 @@ func (h *RBACManager) initGroupInfo(rbacConfig *types.RBACConfig, regexCache map
 			return nil, fmt.Errorf("circular group reference detected for group: %s", groupName)
 		}
 
-		users, exists := rbacConfig.Groups[groupName]
-		if !exists {
-			return nil, fmt.Errorf("group: %s is not defined", groupName)
-		}
+		users := rbacConfig.Groups[groupName]
 
 		visited[groupName] = true
 		defer func() { visited[groupName] = false }()
 
+		// Members keep their prefix here: group: entries name a sign-in
+		// group, regex: entries a pattern. They are split into the lookup
+		// structures by the caller
 		var members []string
 		for _, user := range users {
 			if strings.HasPrefix(user, RBAC_GROUP_PREFIX) {
 				refGroupName := user[len(RBAC_GROUP_PREFIX):]
-				refMembers, err := resolveGroup(refGroupName, visited)
-				if err != nil {
-					return nil, err
+				if refGroupName == "" {
+					return nil, fmt.Errorf("group %s: empty group reference %q", groupName, user)
 				}
-				members = append(members, refMembers...)
+				if _, defined := rbacConfig.Groups[refGroupName]; defined {
+					refMembers, err := resolveGroup(refGroupName, visited)
+					if err != nil {
+						return nil, err
+					}
+					members = append(members, refMembers...)
+				}
+				// The name may also be (or only be) a group from the sign-in
+				members = append(members, user)
 			} else {
 				if strings.HasPrefix(user, RBAC_REGEX_PREFIX) {
 					if err := compileUserRegex(regexCache, user[len(RBAC_REGEX_PREFIX):]); err != nil {
@@ -406,10 +429,12 @@ func (h *RBACManager) initGroupInfo(rbacConfig *types.RBACConfig, regexCache map
 		if err != nil {
 			return nil, err
 		}
-		resolved := &resolvedGroup{members: make(map[string]bool, len(members))}
+		resolved := &resolvedGroup{members: make(map[string]bool, len(members)), signInGroups: map[string]bool{}}
 		for _, member := range members {
 			if strings.HasPrefix(member, RBAC_REGEX_PREFIX) {
 				resolved.regexes = append(resolved.regexes, regexCache[member[len(RBAC_REGEX_PREFIX):]])
+			} else if strings.HasPrefix(member, RBAC_GROUP_PREFIX) {
+				resolved.signInGroups[member[len(RBAC_GROUP_PREFIX):]] = true
 			} else {
 				resolved.members[member] = true
 			}

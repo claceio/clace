@@ -42,10 +42,34 @@ func TestNewRBACHandler(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid group reference",
+			// a group: member naming no config group is a sign-in group,
+			// matched against the login groups at request time
+			name: "sign-in group reference in group",
 			rbacConfig: &types.RBACConfig{
 				Groups: map[string][]string{
-					"developers": {"group:nonexistent"},
+					"developers": {"group:sso-developers"},
+				},
+				Roles:  map[string][]types.RBACPermission{},
+				Grants: []types.RBACGrant{},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty group reference in group",
+			rbacConfig: &types.RBACConfig{
+				Groups: map[string][]string{
+					"developers": {"group:"},
+				},
+				Roles:  map[string][]types.RBACPermission{},
+				Grants: []types.RBACGrant{},
+			},
+			expectError: true,
+		},
+		{
+			name: "self group reference",
+			rbacConfig: &types.RBACConfig{
+				Groups: map[string][]string{
+					"developers": {"group:developers"},
 				},
 				Roles:  map[string][]types.RBACPermission{},
 				Grants: []types.RBACGrant{},
@@ -568,6 +592,92 @@ func TestAuthorizeAccessWithGroupHierarchy(t *testing.T) {
 
 			if result != tt.expectedResult {
 				t.Errorf("expected result %v, got %v", tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+// TestAuthorizeAccessWithSignInGroupsInGroups covers group definitions whose
+// group: members are groups from the sign-in rather than config groups
+// (https://github.com/openrundev/openrun/issues/112): the config group matches
+// a user whose login groups include any of them, through the group hierarchy,
+// and a name that is both a config group and a sign-in group matches either way
+func TestAuthorizeAccessWithSignInGroupsInGroups(t *testing.T) {
+	t.Parallel()
+
+	rbacConfig := &types.RBACConfig{
+		Groups: map[string][]string{
+			// both members are sign-in groups, not defined in the config
+			"reporting-users": {"group:finance-analysts", "group:sales-ops"},
+			// nested: inherits the sign-in groups of reporting-users, adds a user
+			"all-reporting": {"group:reporting-users", "user5"},
+			// name shared by a config group and a sign-in group
+			"devs":      {"user2"},
+			"dev-tools": {"group:devs"},
+		},
+		Roles: map[string][]types.RBACPermission{
+			"read": {types.PermissionRead},
+		},
+		Grants: []types.RBACGrant{
+			{
+				Description: "reporting app",
+				Users:       []string{"group:reporting-users"},
+				Roles:       []string{"read"},
+				Targets:     []string{"/reports"},
+			},
+			{
+				Description: "all reporting app",
+				Users:       []string{"group:all-reporting"},
+				Roles:       []string{"read"},
+				Targets:     []string{"/all-reports"},
+			},
+			{
+				Description: "dev tools app",
+				Users:       []string{"group:dev-tools"},
+				Roles:       []string{"read"},
+				Targets:     []string{"/tools"},
+			},
+		},
+	}
+
+	logger := testutil.TestLogger()
+	serverConfig := &types.ServerConfig{
+		GlobalConfig: types.GlobalConfig{AdminUser: "admin"},
+	}
+	rbacManager, err := NewRBACHandler(logger, rbacConfig, serverConfig)
+	if err != nil {
+		t.Fatalf("failed to create RBACManager: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		user    string
+		path    string
+		groups  []string
+		allowed bool
+	}{
+		{"sign-in group member allowed", "user1", "/reports", []string{"sales-ops"}, true},
+		{"other sign-in group member allowed", "user1", "/reports", []string{"other", "finance-analysts"}, true},
+		{"no sign-in groups denied", "user1", "/reports", nil, false},
+		{"unrelated sign-in group denied", "user1", "/reports", []string{"engineering"}, false},
+		{"config group name as sign-in group does not match itself through the grant only", "user1", "/reports", []string{"finance"}, false},
+		{"nested group inherits sign-in groups", "user1", "/all-reports", []string{"finance-analysts"}, true},
+		{"nested group direct user", "user5", "/all-reports", nil, true},
+		{"nested group denied without sign-in group", "user1", "/all-reports", nil, false},
+		{"sign-in group does not leak to other target", "user1", "/tools", []string{"sales-ops"}, false},
+		{"config group member via group reference", "user2", "/tools", nil, true},
+		{"sign-in group with the config group's name", "user1", "/tools", []string{"devs"}, true},
+		{"sign-in group with the referencing group's name", "user1", "/tools", []string{"dev-tools"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allowed, err := rbacManager.AuthorizeInt(tt.user, types.AppPathDomain{Path: tt.path}, types.PermissionRead, tt.groups, false)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if allowed != tt.allowed {
+				t.Fatalf("expected allowed=%t, got %t", tt.allowed, allowed)
 			}
 		})
 	}
