@@ -27,8 +27,9 @@ import (
 // parsed JSON), the name of a temp file holding stdout, or a stream cursor.
 // Shared by the exec and container modules. On the host the command must
 // pass the server's exec allowlist (security.allowed_exec_commands), which
-// resolves it to the file actually executed; commands inside a container are
-// bounded by the container instead.
+// resolves it to the file actually executed, and its environment the
+// variable allowlist (security.allowed_exec_env); commands inside a container
+// are bounded by the container instead.
 func execCommand(ctx context.Context, call *sdk.Call, containerHandler *app.ContainerHandler, allowlist *system.ExecAllowlist) (any, error) {
 	var path, parse, cwd string
 	var cmdArgs, env []string
@@ -72,6 +73,11 @@ func execCommand(ctx context.Context, call *sdk.Call, containerHandler *app.Cont
 		}
 		resolved, err := allowlist.Resolve(path, cwd)
 		if err != nil {
+			return nil, err
+		}
+		// The environment decides what an allowed program does (LD_PRELOAD,
+		// exported shell functions, GIT_SSH_COMMAND): only listed names pass
+		if err := allowlist.CheckEnv(env); err != nil {
 			return nil, err
 		}
 		// Execute the file the allowlist checked, keeping the requested name

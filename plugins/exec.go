@@ -20,7 +20,8 @@ func init() {
 	// (anonymous callers are blocked unless security.unsafe_allow_system_plugins_anon
 	// is set), and every command must be in the server's
 	// security.allowed_exec_commands allowlist (empty by default) as well as
-	// approved for the app
+	// approved for the app, and may receive only the environment variables
+	// security.allowed_exec_env names
 	app.RegisterLocalProvider("exec", &sdk.ServeConfig{
 		ProviderVersion: "builtin",
 		Modules: map[string]sdk.ModuleDef{
@@ -69,5 +70,5 @@ func execAllowlist(call *sdk.Call) (*system.ExecAllowlist, error) {
 	if config == nil {
 		return nil, errors.New("exec.run: server config is not available")
 	}
-	return system.NewExecAllowlist(config.Security.AllowedExecCommands)
+	return system.NewExecAllowlist(config.Security.AllowedExecCommands, config.Security.AllowedExecEnv)
 }

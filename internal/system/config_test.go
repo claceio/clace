@@ -124,6 +124,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsInt(t, "default http secrets", 0, len(c.Permissions.Allow[2].Secrets))
 	testutil.AssertEqualsInt(t, "default disallow", 0, len(c.Permissions.Disallow))
 	testutil.AssertEqualsInt(t, "default allowed exec commands", 0, len(c.Security.AllowedExecCommands))
+	testutil.AssertEqualsInt(t, "default allowed exec env", 0, len(c.Security.AllowedExecEnv))
 
 	testutil.AssertEqualsString(t, "kubernetes namespace", "openrun", c.Kubernetes.Namespace)
 	testutil.AssertEqualsString(t, "builder mode", "auto", c.Builder.Mode)

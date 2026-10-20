@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -16,10 +18,12 @@ import (
 )
 
 // ExecAllowlist decides which host executables the exec plugin may run, from
-// the security.allowed_exec_commands server config. The requested command is
-// resolved to the real file (PATH lookup, then symlinks) and every decision is
-// made on that file, never on the string the app passed, so a renamed symlink
-// or a relative path cannot stand in for a different program.
+// the security.allowed_exec_commands server config, and which environment
+// variables an app may hand them, from security.allowed_exec_env. The
+// requested command is resolved to the real file (PATH lookup, then symlinks)
+// and every decision is made on that file, never on the string the app
+// passed, so a renamed symlink or a relative path cannot stand in for a
+// different program.
 //
 // Entry forms:
 //   - "*" allows every executable
@@ -32,13 +36,28 @@ import (
 //   - a "!" prefix makes an exclusion ("!/bin/*sh"), applied after the allow
 //     entries, so a broad glob can carve interpreters back out
 //
-// Exact entries match the real file (os.SameFile, so hardlinks count); globs
-// match the real path. Environment variables in entries are expanded. The
-// OpenRun server binary itself is always refused, whatever the list says.
+// An exact allow entry matches when the requested command is the same file
+// (os.SameFile) and has the same base name as the entry. The file check stops
+// a symlink or relative path from standing in for another program; the name
+// check stops one program from standing in for another when the two are one
+// file, as every command of a multi-call binary is (busybox on Alpine, uutils
+// coreutils on recent Ubuntu): listing "ls" there must not admit "sh". An
+// exact exclusion is broader, matching by file or by name. Globs match the
+// real path. Environment variables in entries are expanded. The OpenRun server
+// binary itself is always refused, whatever the list says.
+//
+// The environment the app passes is checked against the allowed_exec_env
+// names separately (CheckEnv): the loader and most programs take variables
+// such as LD_PRELOAD, BASH_FUNC_* or GIT_SSH_COMMAND as instructions to run
+// other code, so an allowed command is only as safe as its environment.
 type ExecAllowlist struct {
 	allowAll bool
 	allow    []execAllowEntry
 	deny     []execAllowEntry
+
+	envAll   bool
+	envAllow []string // glob patterns (path.Match syntax) on the variable name
+	envDeny  []string
 }
 
 type execAllowEntry struct {
@@ -52,9 +71,37 @@ func isGlobPattern(entry string) bool {
 }
 
 // NewExecAllowlist parses and validates the security.allowed_exec_commands
-// entries. An empty list allows nothing
-func NewExecAllowlist(entries []string) (*ExecAllowlist, error) {
+// entries and the security.allowed_exec_env variable names. An empty list
+// allows nothing: no command, or no environment variable
+func NewExecAllowlist(entries []string, envEntries []string) (*ExecAllowlist, error) {
 	list := &ExecAllowlist{}
+	for _, raw := range envEntries {
+		entry := strings.TrimSpace(raw)
+		negate := strings.HasPrefix(entry, "!")
+		if negate {
+			entry = strings.TrimSpace(entry[1:])
+		}
+		if entry == "" {
+			return nil, fmt.Errorf("security.allowed_exec_env: empty entry %q", raw)
+		}
+		if entry == "*" && negate {
+			return nil, fmt.Errorf("security.allowed_exec_env: %q is not a valid entry", raw)
+		}
+		if strings.ContainsAny(entry, "=/\\") {
+			return nil, fmt.Errorf("security.allowed_exec_env: %q is not a variable name", raw)
+		}
+		if _, err := path.Match(entry, ""); err != nil {
+			return nil, fmt.Errorf("security.allowed_exec_env: invalid pattern %q", raw)
+		}
+		switch {
+		case negate:
+			list.envDeny = append(list.envDeny, entry)
+		case entry == "*":
+			list.envAll = true
+		default:
+			list.envAllow = append(list.envAllow, entry)
+		}
+	}
 	for _, raw := range entries {
 		entry := strings.TrimSpace(raw)
 		negate := strings.HasPrefix(entry, "!")
@@ -94,11 +141,50 @@ func NewExecAllowlist(entries []string) (*ExecAllowlist, error) {
 	return list, nil
 }
 
-// ValidateExecAllowlist reports whether the entries parse, for config
-// validation at startup and on dynamic config updates
-func ValidateExecAllowlist(entries []string) error {
-	_, err := NewExecAllowlist(entries)
+// ValidateExecAllowlist reports whether the command and env entries parse,
+// for config validation at startup and on dynamic config updates
+func ValidateExecAllowlist(entries []string, envEntries []string) error {
+	_, err := NewExecAllowlist(entries, envEntries)
 	return err
+}
+
+// CheckEnv reports whether every variable in the environment an app passes
+// to a host command is permitted by security.allowed_exec_env. Entries are
+// KEY=VALUE; only the name is checked. An exclusion wins over an allow
+// entry. Names are compared case-insensitively on Windows, where the child
+// sees "Path" as PATH, so an exclusion cannot be spelled around
+func (l *ExecAllowlist) CheckEnv(env []string) error {
+	foldCase := runtime.GOOS == "windows"
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if name == "" {
+			return fmt.Errorf("exec: invalid environment entry %q", kv)
+		}
+		if matchesAnyEnvPattern(l.envDeny, name, foldCase) {
+			return fmt.Errorf("exec: environment variable %q is excluded by security.allowed_exec_env", name)
+		}
+		if !l.envAll && !matchesAnyEnvPattern(l.envAllow, name, foldCase) {
+			return fmt.Errorf("exec: environment variable %q is not in security.allowed_exec_env", name)
+		}
+	}
+	return nil
+}
+
+// matchesAnyEnvPattern reports whether the variable name matches any
+// pattern, ignoring case when foldCase is set
+func matchesAnyEnvPattern(patterns []string, name string, foldCase bool) bool {
+	if foldCase {
+		name = strings.ToUpper(name)
+	}
+	for _, pattern := range patterns {
+		if foldCase {
+			pattern = strings.ToUpper(pattern)
+		}
+		if matched, _ := path.Match(pattern, name); matched {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -156,10 +242,10 @@ func (l *ExecAllowlist) Resolve(command, cwd string) (string, error) {
 		return "", ErrExecSelf
 	}
 
-	if !l.allowAll && !matchesAnyExecEntry(l.allow, real, info) {
+	if !l.allowAll && !matchesAnyExecEntry(l.allow, lookedUp, real, info, false) {
 		return "", fmt.Errorf("exec: command %q (%s) is not in security.allowed_exec_commands", command, real)
 	}
-	if matchesAnyExecEntry(l.deny, real, info) {
+	if matchesAnyExecEntry(l.deny, lookedUp, real, info, true) {
 		return "", fmt.Errorf("exec: command %q (%s) is excluded by security.allowed_exec_commands", command, real)
 	}
 	return real, nil
@@ -188,11 +274,14 @@ func lookupCommand(command, cwd string) (string, error) {
 	return filepath.Abs(filepath.Join(base, command))
 }
 
-// matchesAnyExecEntry reports whether the real path (and its file info) matches
-// any entry: by file identity for exact entries, by glob on the real path for
-// patterns. An exact entry naming a program that is not installed matches
-// nothing
-func matchesAnyExecEntry(entries []execAllowEntry, real string, info os.FileInfo) bool {
+// matchesAnyExecEntry reports whether the requested command matches any
+// entry. lookedUp is the command after PATH or cwd resolution and before
+// symlinks are followed, real the file that would run. A glob entry matches
+// the real path. An exact entry compares the entry's own looked-up file with
+// the command's: as an allow entry it must be the same file under the same
+// base name, as an exclusion (broad) either suffices. An exact entry naming a
+// program that is not installed matches nothing
+func matchesAnyExecEntry(entries []execAllowEntry, lookedUp, real string, info os.FileInfo, broad bool) bool {
 	for _, entry := range entries {
 		if entry.isGlob {
 			if globMatchesExec(entry.value, real) {
@@ -204,9 +293,16 @@ func matchesAnyExecEntry(entries []execAllowEntry, real string, info os.FileInfo
 		if filepath.Base(target) == target {
 			found, err := exec.LookPath(target)
 			if err != nil {
+				if broad && sameBaseName(target, lookedUp) {
+					return true
+				}
 				continue
 			}
 			target = found
+		}
+		sameName := sameBaseName(target, lookedUp)
+		if broad && sameName {
+			return true
 		}
 		targetReal, err := filepath.EvalSymlinks(target)
 		if err != nil {
@@ -216,11 +312,20 @@ func matchesAnyExecEntry(entries []execAllowEntry, real string, info os.FileInfo
 		if err != nil {
 			continue
 		}
-		if os.SameFile(targetInfo, info) {
+		if os.SameFile(targetInfo, info) && (broad || sameName) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameBaseName compares the file names of two paths, ignoring case on
+// Windows where the file system does
+func sameBaseName(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(filepath.Base(a), filepath.Base(b))
+	}
+	return filepath.Base(a) == filepath.Base(b)
 }
 
 // globMatchesExec matches a glob entry against the real path of a command. The

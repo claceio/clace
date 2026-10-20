@@ -161,9 +161,17 @@ allowed_job_images = ["*"]  # foreign images jobs (app.star ace.job, --job, app 
 allowed_exec_commands = []  # host executables the exec plugin may run (each app still needs its own approval). Empty allows none.
                                  # Entries: "*" allows any, a bare name ("du") is looked up on the server PATH, an absolute path, or an
                                  # absolute glob ("/bin/*", "/opt/tools/**"; * does not cross a slash, ** does). A "!" prefix excludes
-                                 # ("!/bin/*sh"), applied after the allow entries. Commands are matched by the resolved file, not by name.
-                                 # Listing a shell, an interpreter or a directory of them grants everything they can run; commands run
-                                 # as the server user. The openrun binary itself is always refused: use the openrun_admin plugin.
+                                 # ("!/bin/*sh"), applied after the allow entries. An exact entry matches the resolved file under the
+                                 # entry's own name, so "ls" does not admit "sh" where both are busybox; a glob matches every name of
+                                 # the files it covers, so "/bin/*" on such systems admits the shell. Every entry is a grant of code
+                                 # execution as the server user to the apps approved for exec.in: a program that runs other programs
+                                 # (a shell, an interpreter, find, tar, git, env, xargs, awk) grants everything they can run. List the
+                                 # specific programs an app needs and restrict their arguments in the app's approval. The openrun
+                                 # binary itself is always refused: use the openrun_admin plugin.
+allowed_exec_env = []            # environment variable names an app may pass to a host command (name, pattern like "MYAPP_*", "*" for
+                                 # any, "!" prefix excludes). Empty allows none: a call passing an unlisted variable is refused. Never
+                                 # allow LD_*, DYLD_*, BASH_FUNC_*, BASH_ENV, ENV, GIT_*, PERL5OPT or PYTHON*: they make an allowed
+                                 # program run other code.
 unsafe_agent_without_sandbox = false # run app builder agents directly on the host instead of inside a container sandbox.
                                  # NOT RECOMMENDED: the sandbox is the safety boundary for the agent's auto-approved
                                  # tool calls; without it the agent runs with full access as the server user.

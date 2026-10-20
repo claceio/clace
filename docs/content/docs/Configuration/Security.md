@@ -86,7 +86,11 @@ method = "secret_reveal"
 
 ### Host commands (exec plugin)
 
-The `exec.in` plugin runs commands on the server host, as the server user. Besides the per-app approval of each command, the server keeps an allowlist of the executables any app may run, `security.allowed_exec_commands`. It is empty by default, so no host command runs until the operator lists it:
+The `exec.in` plugin runs commands on the server host, as the server user. Besides the per-app approval of each command, the server keeps an allowlist of the executables any app may run, `security.allowed_exec_commands`, and of the environment variables an app may pass them, `security.allowed_exec_env`. Both are empty by default, so no host command runs until the operator lists it.
+
+{{<callout type="error" >}}
+**Every entry in these lists is a grant of code execution on the host, as the server user, to each app approved for `exec.in`.** The allowlist bounds which program starts, not what the program does: the app chooses the arguments, and a program that runs other programs hands the app everything those can do. There is no safe way to allowlist a shell, an interpreter, or a general-purpose tool, and the lists do not substitute for trusting the apps and everyone who can change their code. Before adding an entry, assume the apps will use it in every way the program allows. For workloads that are not trusted to that degree, run the command inside the app's container with `container.in` instead, which the host lists do not govern. Adding the openrun binary to the allow list can allow app code to do admin operations against the openrun server, so it is not recommended.
+{{</callout>}}
 
 ```toml {filename="openrun.toml"}
 [security]
@@ -98,11 +102,31 @@ allowed_exec_commands = [
 ]
 ```
 
-Both layers apply: the server list says which executables the host permits at all, and the app's approved `exec.in` permission says which of them that app may call, with which arguments. An app approved for `exec.in run` without argument restrictions is still bounded by the server list. `"*"` allows every executable, restoring the behavior of a server with no allowlist.
+Both layers apply: the server list says which executables the host permits at all, and the app's approved `exec.in` permission says which of them that app may call, with which arguments. An app approved for `exec.in run` without argument restrictions is still bounded by the server list, but its arguments are then entirely up to the app's code. `"*"` allows every executable, restoring the behavior of a server with no allowlist.
 
-Commands are matched on the file that would actually run, not on the string the app passes: a bare name is resolved on the server's `PATH`, a relative path against the call's `cwd`, and symlinks are followed before matching. Exact entries match by file identity (a hardlink or a symlink under another name is the same program); globs match the resolved path, and the literal directory prefix of a glob is itself resolved, so `/bin/*` also covers `/usr/bin` on Linux distributions where `/bin` is a symlink. Environment variables in entries are expanded. Globs must be absolute. The OpenRun binary itself is always refused, whatever the list says: an app that needs management operations uses the `openrun_admin.in` plugin, which is subject to authentication and RBAC.
+Commands are matched on the file that would actually run, not on the string the app passes: a bare name is resolved on the server's `PATH`, a relative path against the call's `cwd`, and symlinks are followed before matching. An exact entry (a bare name or an absolute path) matches when the requested command is the same file **and** has the same name as the entry, so a symlink or a relative path cannot stand in for another program, and one command of a multi-call binary cannot stand in for another: on Alpine (the base of the official container image) `ls`, `sh` and nearly every other command are the single `busybox` file, and on recent Ubuntu the coreutils are one `uutils` file, so matching the file alone would make an entry of `ls` admit `sh` or `env`. Globs match the resolved path under any name, and the literal directory prefix of a glob is itself resolved, so `/bin/*` also covers `/usr/bin` on Linux distributions where `/bin` is a symlink. A `!` exclusion is broader than an allow entry: it matches by file or by name, so excluding one name of a multi-call binary excludes the file, and with it every command it provides. Environment variables in entries are expanded. Globs must be absolute. The OpenRun binary itself is always refused, whatever the list says: an app that needs management operations uses the `openrun_admin.in` plugin, which is subject to authentication and RBAC.
 
-Listing a shell, an interpreter, or a directory that contains one (`/bin/*` on most systems) grants everything they can run, including reading the server's own configuration and database as the server user. Prefer listing the specific programs an app needs, and use the `!` form to carve interpreters out of a broad glob. For untrusted workloads run the command inside the app's container with `container.in` instead, which the host allowlist does not govern. The exec plugin is additionally a privileged system plugin: like `openrun_admin` and `build`, it requires an authenticated (non-anonymous) caller unless `security.unsafe_allow_system_plugins_anon` is set. A malformed entry is rejected at startup and on dynamic config updates.
+When choosing entries, avoid:
+
+- **Shells and interpreters** (`sh`, `bash`, `python`, `perl`, `node`, `awk`): they run whatever the app passes.
+- **Programs that start other programs**: `env`, `xargs`, `find` (`-exec`), `tar` (`--to-command`), `git` (`-c core.sshCommand=...`, hooks), `make`, `nohup`, `timeout`, `nice`, `watch`, `sudo`, `su`. Many utilities have such an option; check before listing one.
+- **Globs over system directories** (`/bin/*`, `/usr/bin/*`): they contain all of the above, and on a multi-call system the glob covers every name of the binary, so `/bin/*` admits the shell whether or not `!/bin/*sh` is listed, since `busybox sh` is also a shell. A glob is for a directory the operator populates with specific tools, such as `/opt/tools/*`.
+- **Programs that read or write arbitrary paths** when the arguments are not restricted: `cat`, `cp`, `tee`, `dd` and `curl` reach the server's configuration, database and secrets as the server user.
+
+List the specific programs an app needs, by name or absolute path, and restrict the call in the app's `exec.in` approval: `ace.permission("exec.in", "run", ["du"])` pins the command, and a second `regex:` entry can constrain the text of the arguments list. The exec plugin is additionally a privileged system plugin: like `openrun_admin` and `build`, it requires an authenticated (non-anonymous) caller unless `security.unsafe_allow_system_plugins_anon` is set. A malformed entry is rejected at startup and on dynamic config updates.
+
+The environment an app passes to a host command (the `env` argument of `exec.run`) is bounded by `security.allowed_exec_env`, a list of variable names:
+
+```toml {filename="openrun.toml"}
+[security]
+allowed_exec_env = [
+  "TZ",          # a name
+  "MYAPP_*",     # a pattern: * ? and [...] on the name
+  "!MYAPP_AUTH", # an exclusion, applied after the allow entries
+]
+```
+
+The list is empty by default: a call that passes any variable is refused, while a call that passes none runs with an empty environment (the server's own environment is never inherited). `"*"` allows every name. Names are compared case-insensitively on Windows, where the child sees `Path` as `PATH`, and exactly elsewhere. The environment is the usual way to make an allowed program run other code even when the file that runs is the right one: the dynamic loader honors `LD_PRELOAD` and `LD_LIBRARY_PATH` (`DYLD_*` on macOS) for every dynamically linked program, `bash` imports function definitions from `BASH_FUNC_*` variables and runs `BASH_ENV` and `ENV` files, `git` runs the programs in `GIT_SSH_COMMAND`, `GIT_EXTERNAL_DIFF` and `GIT_CONFIG_*`, `PERL5OPT` and `PYTHONSTARTUP` load code into interpreters, and `PATH` decides which helpers a script finds. Never list these, and prefer the variables the program is documented to read over `"*"`.
 
 The default OpenRun server config already includes two implicit approvals used by containerized apps:
 

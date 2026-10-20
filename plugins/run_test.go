@@ -75,7 +75,7 @@ func TestExecRunTempFileOwnership(t *testing.T) {
 
 // allowAllExec is the allowlist for tests of the command runner itself
 func allowAllExec() *system.ExecAllowlist {
-	list, err := system.NewExecAllowlist([]string{"*"})
+	list, err := system.NewExecAllowlist([]string{"*"}, []string{"*"})
 	if err != nil {
 		panic(err)
 	}
@@ -110,7 +110,8 @@ func TestExecRunOmittedEnvIsEmpty(t *testing.T) {
 	}
 }
 
-// An explicit env is passed through as the complete environment.
+// An explicit env is passed through as the complete environment, when every
+// variable is in security.allowed_exec_env
 func TestExecRunExplicitEnv(t *testing.T) {
 	result, err := execCommand(context.Background(), execRunCall(
 		sdk.Kwarg{Name: "path", Value: "env"},
@@ -122,6 +123,37 @@ func TestExecRunExplicitEnv(t *testing.T) {
 	lines := result.([]any)
 	if len(lines) != 1 || lines[0] != "RUN_TEST_VAR=explicit" {
 		t.Fatalf("unexpected environment: %v", lines)
+	}
+
+	// An unlisted variable refuses the call before the command starts: the
+	// environment is how an allowed program is made to run other code
+	named, err := system.NewExecAllowlist([]string{"*"}, []string{"RUN_TEST_VAR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = execCommand(context.Background(), execRunCall(
+		sdk.Kwarg{Name: "path", Value: "env"},
+		sdk.Kwarg{Name: "env", Value: []any{"RUN_TEST_VAR=explicit", "LD_PRELOAD=/tmp/evil.so"}},
+	), nil, named)
+	if err == nil || !strings.Contains(err.Error(), `"LD_PRELOAD" is not in security.allowed_exec_env`) {
+		t.Fatalf("unlisted variable: %v", err)
+	}
+	// The default (no list) refuses any variable, while an omitted env runs
+	noEnv, err := system.NewExecAllowlist([]string{"*"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = execCommand(context.Background(), execRunCall(
+		sdk.Kwarg{Name: "path", Value: "env"},
+		sdk.Kwarg{Name: "env", Value: []any{"RUN_TEST_VAR=explicit"}},
+	), nil, noEnv)
+	if err == nil || !strings.Contains(err.Error(), "not in security.allowed_exec_env") {
+		t.Fatalf("default env list: %v", err)
+	}
+	if _, err := execCommand(context.Background(), execRunCall(
+		sdk.Kwarg{Name: "path", Value: "env"},
+	), nil, noEnv); err != nil {
+		t.Fatalf("omitted env with default list: %v", err)
 	}
 }
 

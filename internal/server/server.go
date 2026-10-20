@@ -269,7 +269,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		return nil, err
 	}
 	// The exec allowlist is parsed per call; refuse a malformed one up front
-	if err := system.ValidateExecAllowlist(config.Security.AllowedExecCommands); err != nil {
+	if err := system.ValidateExecAllowlist(config.Security.AllowedExecCommands, config.Security.AllowedExecEnv); err != nil {
 		return nil, err
 	}
 	if apiExternalUrlIsDefault(config) {
@@ -755,13 +755,14 @@ func (s *Server) prepareDynamicConfig(ctx context.Context, config *types.Dynamic
 		}
 		s.Error().Err(err).Msg("dynamic api config is invalid, remote surfaces may be unavailable")
 	}
-	// security.allowed_exec_commands is dynamic; a malformed entry would make
-	// every exec call fail, so refuse the update (log at startup)
-	if err := system.ValidateExecAllowlist(effective.Security.AllowedExecCommands); err != nil {
+	// security.allowed_exec_commands and allowed_exec_env are dynamic; a
+	// malformed entry would make every exec call fail, so refuse the update
+	// (log at startup)
+	if err := system.ValidateExecAllowlist(effective.Security.AllowedExecCommands, effective.Security.AllowedExecEnv); err != nil {
 		if failOnBindError {
 			return nil, fmt.Errorf("invalid security config, rejecting config update: %w", err)
 		}
-		s.Error().Err(err).Msg("dynamic security.allowed_exec_commands is invalid, exec calls will fail")
+		s.Error().Err(err).Msg("dynamic security.allowed_exec_commands/allowed_exec_env is invalid, exec calls will fail")
 	}
 	// Deployed MCP apps advertise the issuer origin in their discovery
 	// documents: an update that clears or breaks it (api.external_url and

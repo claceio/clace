@@ -775,10 +775,17 @@ type SecurityConfig struct {
 	// AllowedExecCommands bounds the host executables the exec plugin may run,
 	// in addition to the per-app approval of the command: "*" allows any,
 	// other entries are bare names (PATH lookup), absolute paths or absolute
-	// globs (doublestar), and a "!" prefix excludes. Matching is on the
-	// resolved file, never on the string the app passed. Empty allows none.
-	// The OpenRun binary itself is always refused
+	// globs (doublestar), and a "!" prefix excludes. An exact entry matches
+	// the resolved file under the entry's own name (so one command of a
+	// multi-call binary does not admit the others), a glob the resolved
+	// path. Empty allows none. The OpenRun binary itself is always refused
 	AllowedExecCommands []string `toml:"allowed_exec_commands"`
+	// AllowedExecEnv bounds the environment variables an app may pass to a
+	// host command through the exec plugin: names or name patterns ("*",
+	// "MYAPP_*"), with a "!" prefix excluding. Empty allows none: a call
+	// passing an unlisted variable is refused. Variables such as LD_PRELOAD,
+	// BASH_FUNC_* and GIT_SSH_COMMAND make an allowed program run other code
+	AllowedExecEnv []string `toml:"allowed_exec_env"`
 
 	// UnsafeAgentWithoutSandbox runs app builder agents as plain host
 	// processes instead of container sandboxes. The sandbox is the safety
