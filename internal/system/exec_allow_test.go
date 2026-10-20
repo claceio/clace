@@ -6,6 +6,7 @@ package system
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -101,8 +102,17 @@ func TestExecAllowlistBareNameAndWildcard(t *testing.T) {
 	if !filepath.IsAbs(path) {
 		t.Fatalf("resolved path %q is not absolute", path)
 	}
-	// The same program by its absolute path is the same file
-	resolveOK(t, list, path, "")
+	// The same program by its absolute path is the same file under the same
+	// name. The resolved path may carry another name (sh -> bash on some
+	// distributions), which an entry of "sh" does not cover
+	lookedUp, err := exec.LookPath("sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveOK(t, list, lookedUp, "")
+	if filepath.Base(path) != "sh" {
+		resolveDenied(t, list, path, "", "not in security.allowed_exec_commands")
+	}
 	resolveDenied(t, list, "ls", "", "not in security.allowed_exec_commands")
 	resolveDenied(t, list, "no-such-command-openrun", "", "not found")
 	resolveDenied(t, list, "", "", "empty")
