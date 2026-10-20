@@ -19,6 +19,22 @@ import (
 	"github.com/openrundev/openrun/internal/types"
 )
 
+// claimAppForSync records the running sync entry as the one that last applied
+// to appEntry (the stage or dev entry) when the sync skipped it as unchanged.
+// A sync deleted and scheduled again finds its apps up to date, so without
+// this the apps kept the deleted entry's id and the console listed them as
+// unmanaged until something changed (#111). The metadata is written only when
+// the id differs, once per app after a replacement; a run outside a sync
+// leaves the id alone, as the reload and update paths do
+func (s *Server) claimAppForSync(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry) error {
+	syncId := system.GetContextValue(ctx, types.SYNC_ID)
+	if syncId == "" || appEntry.Metadata.AppliedSyncId == syncId {
+		return nil
+	}
+	appEntry.Metadata.AppliedSyncId = syncId
+	return s.db.UpdateAppMetadata(ctx, tx, appEntry)
+}
+
 // ReloadApp reloads one app's code on the caller's transaction: the new
 // source is loaded as a new version of the stage (or dev) instance, which is
 // audited and reloaded with its container, and promoted to prod when asked.
@@ -47,6 +63,9 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 		return nil, err
 	}
 	if !reloaded {
+		if err := s.claimAppForSync(ctx, tx, appEntry); err != nil {
+			return nil, err
+		}
 		ret := &types.AppReloadResult{
 			DryRun:         opts.DryRun,
 			ApproveResult:  nil,

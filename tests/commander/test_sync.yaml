@@ -131,3 +131,46 @@ tests:
   sync0306:
     command: ../openrun app delete /sync109/app && rm -f /tmp/sync_109.ace
     stdout: "app(s) deleted"
+
+  ## --- #111: a sync deleted and scheduled again claims the apps it finds up
+  ## to date, so the console lists them under the new entry instead of as
+  ## unmanaged
+  sync0400: # setup: the first run creates the git app
+    command: >-
+      printf 'app("/sync111/app", "github.com/openrundev/apps/system/disk_usage", stage_at="path")\n' > /tmp/sync_111.ace && ../openrun sync schedule --approve --promote /tmp/sync_111.ace
+    stdout:
+      contains:
+        - "1 app(s) created"
+        - "Sync job created with Id"
+  sync0401:
+    command: ../openrun sync list -f json | jq -r '.[] | select(.path == "/tmp/sync_111.ace") | .id' > sync111_id.tmp
+  sync0402: # the stage app records the sync that created it
+    command: >-
+      sh -c 'id=$(cat sync111_id.tmp); got=$(../openrun app list -i -f json "/sync111/*" | jq -r ".[] | select(.path == \"/sync111/app_cl_stage\") | .metadata.applied_sync_id"); [ -n "$id" ] && [ "$got" = "$id" ] && echo "stage-sync-id-current" || echo "stage-sync-id-STALE: $got vs $id"'
+    stdout: "stage-sync-id-current"
+  sync0403: # replace the sync: delete it and schedule the same file again
+    command: sh -c 'id=$(cat sync111_id.tmp); ../openrun sync delete "$id"'
+    stdout: "deleted"
+  sync0404: # the new entry finds the app up to date
+    command: ../openrun sync schedule --approve --promote /tmp/sync_111.ace
+    stdout:
+      contains:
+        - "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+        - "Sync job created with Id"
+  sync0405: # the new entry has a different id
+    command: >-
+      sh -c 'old=$(cat sync111_id.tmp); ../openrun sync list -f json | jq -r ".[] | select(.path == \"/tmp/sync_111.ace\") | .id" > sync111_id.tmp; new=$(cat sync111_id.tmp); [ -n "$new" ] && [ "$new" != "$old" ] && echo "sync-id-replaced" || echo "sync-id-SAME: $new"'
+    stdout: "sync-id-replaced"
+  sync0406: # the skipped app now carries the new entry's id
+    command: >-
+      sh -c 'id=$(cat sync111_id.tmp); got=$(../openrun app list -i -f json "/sync111/*" | jq -r ".[] | select(.path == \"/sync111/app_cl_stage\") | .metadata.applied_sync_id"); [ -n "$id" ] && [ "$got" = "$id" ] && echo "stage-sync-id-current" || echo "stage-sync-id-STALE: $got vs $id"'
+    stdout: "stage-sync-id-current"
+  sync0407: # a later run still skips the app
+    command: sh -c 'id=$(cat sync111_id.tmp); ../openrun sync run "$id"'
+    stdout: "0 app(s) created, 0 app(s) updated, 0 app(s) reloaded, 1 app(s) skipped"
+  sync0408: # cleanup
+    command: sh -c 'id=$(cat sync111_id.tmp); ../openrun sync delete "$id" && rm -f sync111_id.tmp'
+    stdout: "deleted"
+  sync0409:
+    command: ../openrun app delete /sync111/app && rm -f /tmp/sync_111.ace
+    stdout: "app(s) deleted"

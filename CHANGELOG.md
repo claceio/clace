@@ -26,6 +26,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A sync that was deleted and scheduled again now claims the apps it finds up to date on its first run, so the console lists them under the new entry ([#111](https://github.com/openrundev/openrun/issues/111)). Previously an app recorded the sync that last reloaded or updated it only, so after a replacement every unchanged app kept the deleted entry's id and showed as unmanaged until its repo got a new commit or its declaration changed. The id is written once per app, when it differs; imperative reloads still leave it alone.
 - `apply` and scheduled syncs now save a declaration-only change (a param, container option, spec, auth or other `app()` setting) to an app whose git repo has no new commit ([#109](https://github.com/openrundev/openrun/issues/109)). With `--reload=matched` (the default) or `--reload=updated`, the up-to-date check skipped the code reload and the merged declaration was dropped with it, so the app was reported as both updated and skipped and every later sync run found the same difference.
 
 ### Added

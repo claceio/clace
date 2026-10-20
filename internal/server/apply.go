@@ -1024,6 +1024,9 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		if promoteApp, err = s.saveAppUpdate(ctx, tx, liveApp, prodApp, opts.Promote); err != nil {
 			return nil, err
 		}
+	} else if err := s.claimAppForSync(ctx, tx, liveApp); err != nil {
+		// Neither reloaded nor updated: the sync still claims the app (#111)
+		return nil, err
 	}
 
 	ret.Updated = updatedApps
