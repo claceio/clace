@@ -163,8 +163,18 @@ func (h *httpModule) request(ctx context.Context, call *sdk.Call, method string)
 		}
 	}
 
+	// The permission checks saw the url argument alone. The params values
+	// are merged into its query, adding to or replacing what an approved
+	// argument pattern or a disallow rule matched, so the url the request
+	// goes out with is checked again as the url argument of the call
+	urlArg := rawurl
 	if err := setQueryParams(&rawurl, params); err != nil {
 		return nil, err
+	}
+	if rawurl != urlArg {
+		if err := checkTargetUrl(call, "", rawurl, containerProxyUrl); err != nil {
+			return nil, fmt.Errorf("url with params not permitted: %w", err)
+		}
 	}
 
 	if timeout <= 0 {
@@ -489,26 +499,36 @@ func sameOrigin(rawurl string, origin *url.URL) bool {
 // container is checked as <CONTAINER_URL>..., the form the url argument and
 // the permission patterns use
 func checkRedirectTarget(call *sdk.Call, req *http.Request, containerProxyUrl *url.URL) error {
-	target := req.URL
+	// The error names the target's scheme and host only: its path and query
+	// may carry request values, including resolved secrets, that the
+	// redirecting server echoed
+	shown := originOf(req.URL)
+	if err := checkTargetUrl(call, strings.ToLower(req.Method), req.URL.String(), containerProxyUrl); err != nil {
+		return fmt.Errorf("redirect to %s not followed: %w", shown, err)
+	}
+	return nil
+}
+
+// checkTargetUrl runs the plugin call permission checks on a url the plugin
+// derived from the call (a redirect target, the url with the params merged
+// in) through the host's argument check, as the url argument of a call of
+// the given function (empty for the current one). A url on the app's own
+// container is checked as <CONTAINER_URL>..., the form the url argument and
+// the permission patterns use. The errors do not name the url, which may
+// hold resolved secrets
+func checkTargetUrl(call *sdk.Call, function, target string, containerProxyUrl *url.URL) error {
 	var check types.PluginArgCheckFunc
 	if call.Host != nil {
 		check, _ = call.Host.Value(types.TL_PLUGIN_ARG_CHECK).(types.PluginArgCheckFunc)
 	}
-	// The error names the target's scheme and host only: its path and query
-	// may carry request values, including resolved secrets, that the
-	// redirecting server echoed
-	shown := originOf(target)
 	if check == nil {
-		return fmt.Errorf("redirect to %s not followed: redirect targets cannot be checked against the app permissions", shown)
+		return fmt.Errorf("the url cannot be checked against the app permissions")
 	}
-	arg := target.String()
+	arg := target
 	if containerProxyUrl != nil && sameOrigin(arg, containerProxyUrl) {
 		arg = apptype.CONTAINER_URL + strings.TrimPrefix(arg, containerProxyUrl.String())
 	}
-	if err := check(strings.ToLower(req.Method), arg); err != nil {
-		return fmt.Errorf("redirect to %s not followed: %w", shown, err)
-	}
-	return nil
+	return check(function, arg)
 }
 
 func setHeaders(req *http.Request, headers map[string]any) error {

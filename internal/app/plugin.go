@@ -229,7 +229,7 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 			// Add the server config allowed permissions to the list
 			permsList = append(permsList, a.serverConfig.Permissions.Allow...)
 		}
-		lastError, secrets, matched, err := checkPermissions(GetContext(thread), a, modulePath, functionName, args, pluginInfo, permsList, false)
+		lastError, secrets, matched, err := checkPermissions(GetContext(thread), a, modulePath, functionName, args, pluginInfo, permsList, false, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -272,10 +272,18 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 		// passed as arguments and keyword arguments. Plain strings are never
 		// template evaluated, so request data an app forwards to a plugin
 		// cannot resolve the app's secrets
+		// The secrets the templates resolved, as the key lists of the
+		// secret/secret_from calls, for the checks on derived targets
+		var usedSecrets [][]string
+		recordSecret := func(keys []string) {
+			if !slices.ContainsFunc(usedSecrets, func(used []string) bool { return slices.Equal(used, keys) }) {
+				usedSecrets = append(usedSecrets, slices.Clone(keys))
+			}
+		}
 		if a.secretEvalFunc != nil {
 			changed := false
 			for i, arg := range args {
-				evalValue, argChanged, err := a.evalArgSecrets(secrets, arg)
+				evalValue, argChanged, err := a.evalArgSecrets(secrets, arg, recordSecret)
 				if err != nil {
 					return nil, err
 				}
@@ -283,7 +291,7 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 				changed = changed || argChanged
 			}
 			for i, kwarg := range kwargs {
-				evalValue, argChanged, err := a.evalArgSecrets(secrets, kwarg[1])
+				evalValue, argChanged, err := a.evalArgSecrets(secrets, kwarg[1], recordSecret)
 				if err != nil {
 					return nil, err
 				}
@@ -311,7 +319,11 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 		// plugin following a redirect) check each one as if it were the
 		// first argument of a fresh call, through this thread local. The
 		// plugin names the function the derived call corresponds to (a 303
-		// turns a post into a get), empty for the current one
+		// turns a post into a get), empty for the current one. The secrets
+		// the call resolved (in headers, body) go along to the derived
+		// target, so the permission approving the target must grant each of
+		// them: a redirect cannot carry a secret to a host the app may only
+		// call without it
 		argCheck := types.PluginArgCheckFunc(func(checkFunction, arg string) error {
 			if checkFunction == "" {
 				checkFunction = functionName
@@ -325,7 +337,7 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 			}
 			// The remaining positionals are template-resolved by now and
 			// may hold secrets, so the errors leave argument values out
-			lastError, _, matched, err := checkPermissions(GetContext(thread), a, modulePath, checkFunction, checkArgs, pluginInfo, permsList, true)
+			lastError, _, matched, err := checkPermissions(GetContext(thread), a, modulePath, checkFunction, checkArgs, pluginInfo, permsList, true, usedSecrets)
 			if err != nil {
 				return err
 			}
@@ -376,21 +388,21 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 // replaced by a resolved copy: the original may be a frozen module level
 // value, and must not end up holding the resolved secret. It reports whether
 // any value was resolved
-func (a *App) evalArgSecrets(secrets [][]string, value starlark.Value) (starlark.Value, bool, error) {
-	return a.evalArgSecretsDepth(secrets, value, 0)
+func (a *App) evalArgSecrets(secrets [][]string, value starlark.Value, record func(secretKeys []string)) (starlark.Value, bool, error) {
+	return a.evalArgSecretsDepth(secrets, value, record, 0)
 }
 
 // evalArgSecretsDepth is evalArgSecrets with the nesting depth, bounded by
 // the plugin value depth limit so a cyclic collection is an argument error
 // rather than unbounded recursion
-func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, depth int) (starlark.Value, bool, error) {
+func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, record func(secretKeys []string), depth int) (starlark.Value, bool, error) {
 	if depth > sdk.MaxValueDepth {
 		return nil, false, fmt.Errorf("plugin argument nesting exceeds max depth %d (cyclic value?)", sdk.MaxValueDepth)
 	}
 	depth++
 	if t, ok := starlark_type.TemplateValue(value); ok {
 		s, err := t.Resolve(func(text string, strict bool) (string, error) {
-			return a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, text, strict)
+			return a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, text, strict, record)
 		})
 		if err != nil {
 			return nil, false, err
@@ -399,7 +411,7 @@ func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, dept
 	}
 	switch arg := value.(type) {
 	case *starlark.List:
-		elems, changed, err := a.evalElemSecrets(secrets, slices.Collect(arg.Elements()), depth)
+		elems, changed, err := a.evalElemSecrets(secrets, slices.Collect(arg.Elements()), record, depth)
 		if err != nil {
 			return nil, false, err
 		}
@@ -407,7 +419,7 @@ func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, dept
 			return starlark.NewList(elems), true, nil
 		}
 	case starlark.Tuple:
-		elems, changed, err := a.evalElemSecrets(secrets, arg, depth)
+		elems, changed, err := a.evalElemSecrets(secrets, arg, record, depth)
 		if err != nil {
 			return nil, false, err
 		}
@@ -418,7 +430,7 @@ func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, dept
 		var resolved *starlark.Dict
 		items := arg.Items()
 		for i, item := range items {
-			entry, changed, err := a.evalArgSecretsDepth(secrets, item[1], depth)
+			entry, changed, err := a.evalArgSecretsDepth(secrets, item[1], record, depth)
 			if err != nil {
 				return nil, false, err
 			}
@@ -451,10 +463,10 @@ func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, dept
 
 // evalElemSecrets resolves the templates in a list or tuple's elements,
 // returning the resolved elements and whether any changed
-func (a *App) evalElemSecrets(secrets [][]string, elems []starlark.Value, depth int) ([]starlark.Value, bool, error) {
+func (a *App) evalElemSecrets(secrets [][]string, elems []starlark.Value, record func(secretKeys []string), depth int) ([]starlark.Value, bool, error) {
 	var resolved []starlark.Value
 	for i, elem := range elems {
-		value, changed, err := a.evalArgSecretsDepth(secrets, elem, depth)
+		value, changed, err := a.evalArgSecretsDepth(secrets, elem, record, depth)
 		if err != nil {
 			return nil, false, err
 		}
@@ -576,8 +588,11 @@ func (a *App) checkMatchedArgs(modulePath, functionName string, args starlark.Tu
 // passes a restricted argument by keyword is not approved by a patterned
 // entry. With redactValues the rejection reasons name the argument and the
 // pattern but not the argument's value, for args that may hold resolved
-// secrets (the errors reach the app's response and logs)
-func checkPermissions(ctx context.Context, a *App, modulePath string, functionName string, args starlark.Tuple, pluginInfo *plugin.PluginInfo, permsList []types.Permission, redactValues bool) (error, [][]string, *types.Permission, error) {
+// secrets (the errors reach the app's response and logs). A candidate that
+// does not grant every secret in requiredSecrets (the key lists of the
+// secrets a derived call carries from the call that was approved) is
+// rejected like one whose argument patterns do not match
+func checkPermissions(ctx context.Context, a *App, modulePath string, functionName string, args starlark.Tuple, pluginInfo *plugin.PluginInfo, permsList []types.Permission, redactValues bool, requiredSecrets [][]string) (error, [][]string, *types.Permission, error) {
 	var lastError error
 	secrets := [][]string{}
 	var matched *types.Permission
@@ -611,6 +626,11 @@ func checkPermissions(ctx context.Context, a *App, modulePath string, functionNa
 					}
 					continue
 				}
+			}
+
+			if !secretsCovered(requiredSecrets, p.Secrets) {
+				lastError = fmt.Errorf("app %s is not permitted to call %s.%s: the matching permission does not allow the secrets the call resolved (%s). Update the app or audit and approve permissions", a.Path, modulePath, functionName, types.Permission{Secrets: requiredSecrets}.SecretsString())
+				continue
 			}
 
 			if a.MainApp != "" {

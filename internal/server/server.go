@@ -711,8 +711,8 @@ func (s *Server) secretsMgr() *system.SecretManager {
 // secrets manager. Apps hold this server method instead of a manager-bound
 // method value, so a dynamic secret provider change (key rotation, new
 // provider) takes effect for already cached apps without a reload
-func (s *Server) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string, strict bool) (string, error) {
-	return s.secretsMgr().AppEvalTemplate(appSecrets, defaultProvider, input, strict)
+func (s *Server) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string, strict bool, record func(secretKeys []string)) (string, error) {
+	return s.secretsMgr().AppEvalTemplateRecord(appSecrets, defaultProvider, input, strict, record)
 }
 
 // applyDynamicConfig recomputes the effective config from the static config

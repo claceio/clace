@@ -321,6 +321,14 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 		}
 	}
 
+	// The param values are shared by every handler, action and job run of
+	// the app, so a list or dict value is frozen: a handler mutating it would
+	// otherwise leak the change into later requests and race with concurrent
+	// ones. The params.star defaults are not frozen by the file evaluation
+	// (the param() result is not a module global), so the freeze covers them
+	// as well as the configured values
+	paramDict.Freeze()
+
 	paramModule := starlarkstruct.Module{
 		Name:    apptype.PARAM_MODULE,
 		Members: paramDict,
@@ -1694,8 +1702,8 @@ func (a *App) loadLibraryInfo() ([]types.JSLibrary, error) {
 // wrapParamTemplates returns the app level param value with each string
 // containing {{ replaced by a lenient template value: the string itself, or
 // the strings inside a list or dict param (dict keys are left alone). A
-// collection holding such strings is replaced by a copy, as a params.star
-// default is frozen. It reports whether anything was wrapped
+// collection holding such strings is replaced by a copy, leaving the
+// params.star default value untouched. It reports whether anything was wrapped
 func wrapParamTemplates(value starlark.Value, depth int) (starlark.Value, bool) {
 	if depth > sdk.MaxValueDepth {
 		return value, false

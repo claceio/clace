@@ -153,7 +153,7 @@ type App struct {
 	// configSource returns the effective server config, for the settings
 	// which change dynamically; nil in tests without a server
 	configSource   func() *types.ServerConfig
-	secretEvalFunc func([][]string, string, string, bool) (string, error)
+	secretEvalFunc func([][]string, string, string, bool, func([]string)) (string, error)
 	auditInsert    func(*types.AuditEvent) error
 	runServices    *RunServices // the server services async action runs need, nil in tests without a server
 	// deploySwapGate coordinates a stop-first container deploy of this app
@@ -191,7 +191,7 @@ type SSEMessage struct {
 func NewApp(sourceFS *appfs.SourceFs, workFS *appfs.WorkFs, logger *types.Logger,
 	appEntry *types.AppEntry, systemConfig *types.SystemConfig,
 	plugins map[string]types.PluginSettings, appConfig types.AppConfig, notifyClose chan<- types.AppPathDomain,
-	secretEvalFunc func([][]string, string, string, bool) (string, error),
+	secretEvalFunc func([][]string, string, string, bool, func([]string)) (string, error),
 	auditInsert func(*types.AuditEvent) error, serverConfig *types.ServerConfig,
 	rbacApi rbac.RBACAPI, bindings []*types.Binding) (*App, error) {
 	newApp := &App{

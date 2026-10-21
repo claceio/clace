@@ -198,7 +198,7 @@ func createTestAppFull(logger *types.Logger, path, domain string, fileData map[s
 	workFS := appfs.NewWorkFs("", &TestWriteFS{TestReadFS: &TestReadFS{fileData: map[string]string{}}})
 	a, err := app.NewApp(sourceFS, workFS, logger,
 		createTestAppEntry(id, path, domain, isDev, metadata), &systemConfig, pluginConfig, *appConfig,
-		nil, secretManager.AppEvalTemplate, nil, serverConfig, rbacApi, []*types.Binding{})
+		nil, secretManager.AppEvalTemplateRecord, nil, serverConfig, rbacApi, []*types.Binding{})
 	if err != nil {
 		return nil, nil, err
 	}

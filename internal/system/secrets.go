@@ -264,6 +264,14 @@ func (s *SecretManager) parseSecretRefTemplate(input string) *template.Template 
 // arbitrary operator strings) only templates referencing secrets are
 // executed and anything else passes through literally
 func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string, strict bool) (string, error) {
+	return s.AppEvalTemplateRecord(appSecrets, defaultProvider, input, strict, nil)
+}
+
+// AppEvalTemplateRecord is AppEvalTemplate reporting each secret the
+// template resolves, as the key list of the secret/secret_from call, to
+// record (nil for no reporting). The caller learns which secrets the
+// evaluated value holds, e.g. to check a derived plugin call against them
+func (s *SecretManager) AppEvalTemplateRecord(appSecrets [][]string, defaultProvider, input string, strict bool, record func(secretKeys []string)) (string, error) {
 	if len(input) < 4 {
 		return input, nil
 	}
@@ -280,11 +288,19 @@ func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, 
 	}
 
 	secretFunc := func(secretKeys ...string) string {
-		return s.appTemplateSecretFunc(true, appSecrets, defaultProvider, "", secretKeys...)
+		value := s.appTemplateSecretFunc(true, appSecrets, defaultProvider, "", secretKeys...)
+		if record != nil {
+			record(secretKeys)
+		}
+		return value
 	}
 
 	secretFromFunc := func(providerName string, secretKeys ...string) string {
-		return s.appTemplateSecretFunc(true, appSecrets, defaultProvider, providerName, secretKeys...)
+		value := s.appTemplateSecretFunc(true, appSecrets, defaultProvider, providerName, secretKeys...)
+		if record != nil {
+			record(secretKeys)
+		}
+		return value
 	}
 
 	funcMap["secret"] = secretFunc

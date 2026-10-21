@@ -50,7 +50,7 @@ func createDiskDevApp(t *testing.T, dir string) *app.App {
 	}
 	a, err := app.NewApp(sourceFS, workFS, logger, appEntry, &systemConfig,
 		map[string]types.PluginSettings{}, types.AppConfig{}, nil,
-		secretManager.AppEvalTemplate, nil, &types.ServerConfig{}, nil, []*types.Binding{})
+		secretManager.AppEvalTemplateRecord, nil, &types.ServerConfig{}, nil, []*types.Binding{})
 	if err != nil {
 		t.Fatalf("create app: %v", err)
 	}

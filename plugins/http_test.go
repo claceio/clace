@@ -425,7 +425,7 @@ func TestRedirectTargetChecked(t *testing.T) {
 		var urls []string
 		module := recordingModule(&urls, redirectThen("https://other.example/next"))
 		_, err := module.request(context.Background(), testCall("https://example.com/start"), "get")
-		if err == nil || !strings.Contains(err.Error(), "redirect targets cannot be checked") {
+		if err == nil || !strings.Contains(err.Error(), "cannot be checked against the app permissions") {
 			t.Fatalf("expected refused redirect error, got %v", err)
 		}
 		if len(urls) != 1 {
@@ -475,6 +475,84 @@ func TestRedirectTargetChecked(t *testing.T) {
 		}
 		if len(checked) != 1 || checked[0] != "get https://example.com/result" {
 			t.Fatalf("expected the target to be checked as a get, got %v", checked)
+		}
+	})
+}
+
+// The params values are merged into the url's query after the permission
+// checks saw the url argument, so the url the request goes out with is
+// checked through the host as the url argument of the call
+func TestParamsUrlChecked(t *testing.T) {
+	t.Run("merged url checked as the call's url", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, nil)
+		call := testCall("https://example.com/items?mode=safe", map[string]any{"mode": "admin"})
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			checked = append(checked, function+"|"+arg)
+			return nil
+		})}
+		if _, err := module.request(context.Background(), call, "get"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 1 || checked[0] != "|https://example.com/items?mode=admin" {
+			t.Fatalf("expected the merged url to be checked, got %v", checked)
+		}
+		if len(urls) != 1 || urls[0] != "https://example.com/items?mode=admin" {
+			t.Fatalf("unexpected request urls %v", urls)
+		}
+	})
+
+	t.Run("refused merged url not requested", func(t *testing.T) {
+		var urls []string
+		module := recordingModule(&urls, nil)
+		call := testCall("https://example.com/items", map[string]any{"k": "s3cr3t"})
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			return errors.New("blocked by test")
+		})}
+		_, err := module.request(context.Background(), call, "get")
+		if err == nil || !strings.Contains(err.Error(), "url with params not permitted: blocked by test") {
+			t.Fatalf("expected refused error, got %v", err)
+		}
+		if strings.Contains(err.Error(), "s3cr3t") {
+			t.Fatalf("param value leaked in error: %v", err)
+		}
+		if len(urls) != 0 {
+			t.Fatalf("expected no request, got %v", urls)
+		}
+	})
+
+	t.Run("no params leaves the url unchecked", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, nil)
+		call := testCall("https://example.com/items?a=b")
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			checked = append(checked, arg)
+			return nil
+		})}
+		if _, err := module.request(context.Background(), call, "get"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 0 {
+			t.Fatalf("expected no check, got %v", checked)
+		}
+	})
+
+	t.Run("container url checked as <CONTAINER_URL>", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, nil)
+		call := testCall(apptype.CONTAINER_URL+"/items", map[string]any{"x": "1"})
+		call.Host = testHost{
+			types.TL_CONTAINER_URL: "http://127.0.0.1:9000",
+			types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+				checked = append(checked, arg)
+				return nil
+			}),
+		}
+		if _, err := module.request(context.Background(), call, "get"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 1 || checked[0] != apptype.CONTAINER_URL+"/items?x=1" {
+			t.Fatalf("expected the container form to be checked, got %v", checked)
 		}
 	})
 }

@@ -841,3 +841,169 @@ def handler(req):
 		t.Fatalf("resolved secret leaked in error: %s", body)
 	}
 }
+
+// TestHttpPluginParamsChecked verifies that the url with the params values
+// merged into its query is checked against the approved argument patterns
+// and the disallow list, as the url argument alone was: params can add to or
+// replace the query the patterns matched
+func TestHttpPluginParamsChecked(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "mode="+r.URL.Query().Get("mode")) //nolint:errcheck
+	}))
+	defer server.Close()
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load ("http.in", "http")
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/", type=ace.TEXT)],
+    permissions=[ace.permission("http.in", "get")])
+
+def handler(req):
+	return http.get("` + server.URL + `/items?mode=safe", params={"mode": req.Query["mode"][0]}).value.body()
+`,
+	}
+	tests := []struct {
+		name     string
+		perms    []types.Permission
+		disallow []types.Permission
+		mode     string
+		code     int
+		contains string
+	}{
+		{"params within the pattern",
+			[]types.Permission{{Plugin: "http.in", Method: "get", Arguments: []string{"regex:^" + server.URL + "/items"}}},
+			nil, "adm1n-value", 200, "mode=adm1n-value"},
+		{"params replacing a query value the pattern matched",
+			[]types.Permission{{Plugin: "http.in", Method: "get", Arguments: []string{"regex:^" + server.URL + `/items\?mode=safe$`}}},
+			nil, "adm1n-value", 500, "url with params not permitted: app /test is not permitted to call http.in.get: argument 0 does not match the approved pattern"},
+		{"params keeping the query the pattern matched",
+			[]types.Permission{{Plugin: "http.in", Method: "get", Arguments: []string{"regex:^" + server.URL + `/items\?mode=safe$`}}},
+			nil, "safe", 200, "mode=safe"},
+		{"params hitting the disallow list",
+			[]types.Permission{{Plugin: "http.in", Method: "get"}},
+			[]types.Permission{{Plugin: "http.in", Method: "get", Arguments: []string{"regex:mode=adm1n"}}},
+			"adm1n-value", 500, "url with params not permitted: app /test is not permitted to call http.in.get: the target is disallowed by the server config (permissions.disallow)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := &types.ServerConfig{}
+			sc.Permissions.Disallow = tt.disallow
+			a, _, err := CreateTestAppPluginServerConfig(logger, fileData, []string{"http.in"}, tt.perms, sc)
+			if err != nil {
+				t.Fatalf("Error %s", err)
+			}
+			request := httptest.NewRequest("GET", "/test?mode="+tt.mode, nil)
+			response := httptest.NewRecorder()
+			a.ServeHTTP(response, request)
+			testutil.AssertEqualsInt(t, "code", tt.code, response.Code)
+			testutil.AssertStringContains(t, response.Body.String(), tt.contains)
+			if tt.code == 500 && strings.Contains(response.Body.String(), tt.mode) {
+				t.Fatalf("param value printed in error: %s", response.Body.String())
+			}
+		})
+	}
+}
+
+// TestHttpPluginRedirectSecretsNotForwarded verifies that a redirect is
+// followed only when the permission approving the target grants each secret
+// the call resolved: custom headers and a 307/308 body go along to the
+// target, so a host the app may call without a secret must not receive one
+// through a redirect from a host it may call with it. The check is on the
+// secrets actually resolved, not the source permission's grants, and a
+// template without a secret carries nothing
+func TestHttpPluginRedirectSecretsNotForwarded(t *testing.T) {
+	t.Setenv("HOSTSECRET", "s3cr3t-value")
+	t.Setenv("OTHERSECRET", "0ther-value")
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "target got key="+r.Header.Get("X-Key")) //nolint:errcheck
+	}))
+	defer target.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/internal", http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"app.star": `
+load ("http.in", "http")
+app = ace.app("testApp", custom_layout=True, routes = [ace.api("/", type=ace.TEXT)],
+    permissions=[ace.permission("http.in", "get", secrets=[["HOSTSECRET"], ["OTHERSECRET"]])])
+
+def handler(req):
+	headers = {"X-Key": "plain"}
+	s = req.Query.get("secret")
+	if s == ["tmpl"]:
+		headers = {"X-Key": ace.eval('{{ "no-secret" }}')}
+	elif s:
+		headers = {"X-Key": ace.eval('{{secret "' + s[0] + '"}}')}
+	return http.get("` + redirector.URL + `/start", headers=headers).value.body()
+`,
+	}
+	source := func(secrets ...string) types.Permission {
+		p := types.Permission{Plugin: "http.in", Method: "get", Arguments: []string{"regex:^" + redirector.URL}}
+		for _, s := range secrets {
+			p.Secrets = append(p.Secrets, []string{s})
+		}
+		return p
+	}
+	dest := func(secrets ...string) types.Permission {
+		p := types.Permission{Plugin: "http.in", Method: "get", Arguments: []string{"regex:^" + target.URL}}
+		for _, s := range secrets {
+			p.Secrets = append(p.Secrets, []string{s})
+		}
+		return p
+	}
+	refused := "not followed: app /test is not permitted to call http.in.get: the matching permission does not allow the secrets the call resolved ("
+	tests := []struct {
+		name     string
+		perms    []types.Permission
+		secret   string
+		code     int
+		contains string
+	}{
+		{"target permission without the secret refuses the redirect",
+			[]types.Permission{source("HOSTSECRET"), dest()}, "HOSTSECRET", 500, refused + "HOSTSECRET)"},
+		{"target permission with the secret follows the redirect",
+			[]types.Permission{source("HOSTSECRET"), dest("HOSTSECRET")}, "HOSTSECRET", 200, "target got key=s3cr3t-value"},
+		{"target permission with a wider secret pattern follows the redirect",
+			[]types.Permission{source("HOSTSECRET"), dest("regex:HOST.*")}, "HOSTSECRET", 200, "target got key=s3cr3t-value"},
+		{"a later permission with the secret approves the target",
+			[]types.Permission{source("HOSTSECRET"), dest(), {Plugin: "http.in", Method: "get", Secrets: [][]string{{"HOSTSECRET"}}}},
+			"HOSTSECRET", 200, "target got key=s3cr3t-value"},
+		{"call without templates follows the redirect",
+			[]types.Permission{source("HOSTSECRET"), dest()}, "", 200, "target got key=plain"},
+		// only the secrets resolved count, not every grant of the source permission
+		{"target granting the resolved secret but not the other source grants follows",
+			[]types.Permission{source("HOSTSECRET", "OTHERSECRET"), dest("HOSTSECRET")}, "HOSTSECRET", 200, "target got key=s3cr3t-value"},
+		{"template without a secret follows the redirect",
+			[]types.Permission{source("HOSTSECRET"), dest()}, "tmpl", 200, "target got key=no-secret"},
+		// the resolved key is matched against the target's patterns, never the source pattern text
+		{"target pattern matching the source pattern text but not the resolved key refuses",
+			[]types.Permission{source("regex:HOSTSECRET|OTHERSECRET"), dest("regex:HOSTSECRET")}, "OTHERSECRET", 500, refused + "OTHERSECRET)"},
+		{"target pattern matching the resolved key follows",
+			[]types.Permission{source("regex:HOSTSECRET|OTHERSECRET"), dest("regex:OTHER.*")}, "OTHERSECRET", 200, "target got key=0ther-value"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, _, err := CreateTestAppPluginServerConfig(logger, fileData, []string{"http.in"}, tt.perms, &types.ServerConfig{})
+			if err != nil {
+				t.Fatalf("Error %s", err)
+			}
+			path := "/test"
+			if tt.secret != "" {
+				path += "?secret=" + tt.secret
+			}
+			request := httptest.NewRequest("GET", path, nil)
+			response := httptest.NewRecorder()
+			a.ServeHTTP(response, request)
+			testutil.AssertEqualsInt(t, "code", tt.code, response.Code)
+			body := response.Body.String()
+			testutil.AssertStringContains(t, body, tt.contains)
+			if tt.code == 500 && (strings.Contains(body, "s3cr3t-value") || strings.Contains(body, "0ther-value")) {
+				t.Fatalf("resolved secret leaked in error: %s", body)
+			}
+		})
+	}
+}
