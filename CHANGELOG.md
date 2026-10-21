@@ -7,6 +7,10 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The console now lists apps under a replacement sync as soon as its first run claims them ([#115](https://github.com/openrundev/openrun/issues/115)). The claim added for #111 wrote the new sync id to the database only, so the in-memory app list used by the console (and the sync detail page's app list) kept the deleted entry's id until a server reload, and the apps showed as unmanaged. Claimed apps are now cleared from the caches on commit like reloaded apps, on every server of a cluster.
+
 ## [v0.20.4] - 2026-10-20
 
 ### Security

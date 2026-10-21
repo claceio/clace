@@ -590,6 +590,7 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 	reloadResults := make([]types.AppPathDomain, 0, len(lastRunApps))
 	approveResults := make([]types.ApproveResult, 0, len(lastRunApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(lastRunApps))
+	claimedResults := make([]types.AppPathDomain, 0, len(lastRunApps))
 
 	if applyErr == nil && applyInfo.SkippedApply && entry.Metadata.Reload == string(types.AppReloadOptionMatched) {
 		if len(applyInfo.FilteredApps) == 0 {
@@ -654,8 +655,12 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 					approveResults = append(approveResults, *reloadResult.ApproveResult)
 				}
 				promoteResults = append(promoteResults, reloadResult.PromoteResults...)
+				claimedResults = append(claimedResults, reloadResult.ClaimedResults...)
 			}
 
+			applyInfo.ReloadResults = reloadResults
+			applyInfo.ApproveResults = approveResults
+			applyInfo.PromoteResults = promoteResults
 			if reloadErr != nil {
 				status.Error = reloadErr.Error()
 				status.FailureCount = entry.Status.FailureCount + 1
@@ -664,9 +669,14 @@ func (s *Server) runSyncJob(ctx context.Context, inputTx types.Transaction, entr
 				} else {
 					status.State = "Failing"
 				}
-				applyInfo.ReloadResults = reloadResults
-				applyInfo.ApproveResults = approveResults
-				applyInfo.PromoteResults = promoteResults
+			} else {
+				// The apps this pass reloaded, promoted, approved or claimed
+				// are cleared from the in-memory caches on commit, as the
+				// apply path does for its results: the skipped apply reported
+				// none, so the reloaded apps kept serving their previous
+				// version from the cache and the console showed stale app
+				// info (and the run reported no reloads) until a server reload
+				updatedApps = syncPassUpdatedApps(reloadResults, promoteResults, claimedResults, approveResults)
 			}
 		}
 	}
@@ -872,4 +882,26 @@ func (s *Server) prepareSyncDeploys(ctx context.Context, entry *types.SyncEntry,
 	opts := syncApplyOptions(&entry.Metadata)
 	opts.Reload = reload
 	return s.prepareApplyDeploys(ctx, applyConfig, apps, opts, repoCache)
+}
+
+// syncPassUpdatedApps is the deduplicated list of apps a skipped-apply reload
+// pass changed, for the post-commit cache clear
+func syncPassUpdatedApps(reloaded, promoted, claimed []types.AppPathDomain, approved []types.ApproveResult) []types.AppPathDomain {
+	seen := map[types.AppPathDomain]bool{}
+	ret := make([]types.AppPathDomain, 0, len(reloaded)+len(promoted)+len(claimed)+len(approved))
+	add := func(apps ...types.AppPathDomain) {
+		for _, app := range apps {
+			if !seen[app] {
+				seen[app] = true
+				ret = append(ret, app)
+			}
+		}
+	}
+	add(reloaded...)
+	add(promoted...)
+	add(claimed...)
+	for _, approve := range approved {
+		add(approve.AppPathDomain)
+	}
+	return ret
 }

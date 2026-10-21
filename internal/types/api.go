@@ -231,6 +231,11 @@ type AppReloadResult struct {
 	ApproveResult  *ApproveResult  `json:"approve_result"`
 	PromoteResults []AppPathDomain `json:"promote_results"`
 	SkippedResults []AppPathDomain `json:"skipped_results"`
+	// ClaimedResults are the skipped apps whose applied sync id was updated to
+	// the running sync's (#111), to be cleared from the in-memory caches on
+	// commit like the reloaded apps: a stale cache listed them under the
+	// deleted sync (#115)
+	ClaimedResults []AppPathDomain `json:"claimed_results"`
 }
 
 type AppReloadResponse struct {
@@ -249,6 +254,7 @@ type AppApplyResult struct {
 	Reloaded      []AppPathDomain   `json:"reloaded"`
 	Skipped       []AppPathDomain   `json:"skipped"`
 	Promoted      bool              `json:"promoted"`
+	Claimed       []AppPathDomain   `json:"claimed"` // skipped apps now stamped with the sync id, see AppReloadResult
 }
 
 type AppApplyResponse struct {

@@ -25,14 +25,21 @@ import (
 // this the apps kept the deleted entry's id and the console listed them as
 // unmanaged until something changed (#111). The metadata is written only when
 // the id differs, once per app after a replacement; a run outside a sync
-// leaves the id alone, as the reload and update paths do
-func (s *Server) claimAppForSync(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry) error {
+// leaves the id alone, as the reload and update paths do. Returns whether the
+// entry was written: the caller must then clear the app from the in-memory
+// caches on commit (through CompleteTransaction, like a reloaded app), else
+// the cached app info keeps the old id and the console lists the app as
+// unmanaged until a server reload (#115)
+func (s *Server) claimAppForSync(ctx context.Context, tx types.Transaction, appEntry *types.AppEntry) (bool, error) {
 	syncId := system.GetContextValue(ctx, types.SYNC_ID)
 	if syncId == "" || appEntry.Metadata.AppliedSyncId == syncId {
-		return nil
+		return false, nil
 	}
 	appEntry.Metadata.AppliedSyncId = syncId
-	return s.db.UpdateAppMetadata(ctx, tx, appEntry)
+	if err := s.db.UpdateAppMetadata(ctx, tx, appEntry); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ReloadApp reloads one app's code on the caller's transaction: the new
@@ -63,7 +70,8 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 		return nil, err
 	}
 	if !reloaded {
-		if err := s.claimAppForSync(ctx, tx, appEntry); err != nil {
+		claimed, err := s.claimAppForSync(ctx, tx, appEntry)
+		if err != nil {
 			return nil, err
 		}
 		ret := &types.AppReloadResult{
@@ -72,6 +80,10 @@ func (s *Server) ReloadApp(ctx context.Context, tx types.Transaction, appEntry *
 			ReloadResults:  []types.AppPathDomain{},
 			PromoteResults: []types.AppPathDomain{},
 			SkippedResults: []types.AppPathDomain{appEntry.AppPathDomain()},
+			ClaimedResults: []types.AppPathDomain{},
+		}
+		if claimed {
+			ret.ClaimedResults = append(ret.ClaimedResults, appEntry.AppPathDomain())
 		}
 		return ret, nil
 	}
@@ -279,6 +291,7 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, opts Deploy
 	approveResults := make([]types.ApproveResult, 0, len(filteredApps))
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	skippedResults := make([]types.AppPathDomain, 0, len(filteredApps))
+	claimedResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
 	// Track the staging and prod apps
 	for _, appInfo := range filteredApps {
@@ -304,11 +317,15 @@ func (s *Server) ReloadApps(ctx context.Context, appPathGlob string, opts Deploy
 		}
 		promoteResults = append(promoteResults, ret.PromoteResults...)
 		skippedResults = append(skippedResults, ret.SkippedResults...)
+		claimedResults = append(claimedResults, ret.ClaimedResults...)
 	}
 
-	// Commit the transaction if not dry run and update the in memory app store
-	updatedApps := make([]types.AppPathDomain, 0, len(reloadResults))
+	// Commit the transaction if not dry run and update the in memory app store.
+	// Claimed apps (skipped, but stamped with the sync id) are cleared too,
+	// else the cached app info keeps the previous sync id (#115)
+	updatedApps := make([]types.AppPathDomain, 0, len(reloadResults)+len(claimedResults))
 	updatedApps = append(updatedApps, reloadResults...)
+	updatedApps = append(updatedApps, claimedResults...)
 	if err := s.CompleteTransaction(ctx, tx, updatedApps, opts.DryRun, "reload"); err != nil {
 		return nil, err
 	}

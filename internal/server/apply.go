@@ -541,6 +541,7 @@ func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath
 	promoteResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	reloadResults := make([]types.AppPathDomain, 0, len(filteredApps))
 	skippedResults := make([]types.AppPathDomain, 0, len(filteredApps))
+	claimedResults := make([]types.AppPathDomain, 0, len(filteredApps))
 
 	allApps, err := s.apps.GetAllAppsInfo()
 	if err != nil {
@@ -689,6 +690,7 @@ func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath
 		}
 		reloadResults = append(reloadResults, applyResult.Reloaded...)
 		skippedResults = append(skippedResults, applyResult.Skipped...)
+		claimedResults = append(claimedResults, applyResult.Claimed...)
 		if applyResult.ApproveResult != nil {
 			approveResults = append(approveResults, *applyResult.ApproveResult)
 		}
@@ -700,11 +702,13 @@ func (s *Server) Apply(ctx context.Context, inputTx types.Transaction, applyPath
 		}
 	}
 
-	// Get list of all updated apps
+	// Get list of all updated apps. Claimed apps were skipped but had their
+	// sync id stamped: they are cleared from the caches as well (#115)
 	allUpdatedApps := []types.AppPathDomain{}
 	allUpdatedApps = append(allUpdatedApps, updateResults...)
 	allUpdatedApps = append(allUpdatedApps, reloadResults...)
 	allUpdatedApps = append(allUpdatedApps, promoteResults...)
+	allUpdatedApps = append(allUpdatedApps, claimedResults...)
 	for _, app := range approveResults {
 		allUpdatedApps = append(allUpdatedApps, app.AppPathDomain)
 	}
@@ -1008,6 +1012,7 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		ret.ApproveResult = reloadResult.ApproveResult
 		ret.Reloaded = reloadResult.ReloadResults
 		ret.Skipped = reloadResult.SkippedResults
+		ret.Claimed = reloadResult.ClaimedResults
 		promoteApp = len(reloadResult.PromoteResults) > 0
 		if updated && len(reloadResult.ReloadResults) == 0 {
 			// The code is up to date, so the reload was skipped and nothing was
@@ -1024,9 +1029,15 @@ func (s *Server) applyAppUpdate(ctx context.Context, tx types.Transaction, appPa
 		if promoteApp, err = s.saveAppUpdate(ctx, tx, liveApp, prodApp, opts.Promote); err != nil {
 			return nil, err
 		}
-	} else if err := s.claimAppForSync(ctx, tx, liveApp); err != nil {
+	} else {
 		// Neither reloaded nor updated: the sync still claims the app (#111)
-		return nil, err
+		claimed, err := s.claimAppForSync(ctx, tx, liveApp)
+		if err != nil {
+			return nil, err
+		}
+		if claimed {
+			ret.Claimed = []types.AppPathDomain{liveApp.AppPathDomain()}
+		}
 	}
 
 	ret.Updated = updatedApps
