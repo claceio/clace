@@ -184,6 +184,7 @@ func TestPredefinedRoles(t *testing.T) {
 		},
 		"openrun-operator": {
 			{types.PermissionDelete, false, true},         // app:manage
+			{types.PermissionTokenRead, false, true},      // app:manage covers the webhook token permissions
 			{types.PermissionApprove, true, true},         // operator holds approve
 			{types.PermissionSecretReveal, true, false},   // reveal is admin-only
 			{types.PermissionConfigBasicRead, true, true}, // implied by config:read

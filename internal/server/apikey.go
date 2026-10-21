@@ -245,6 +245,7 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 	// the key to that MCP app's canonical resource; such a key is valid for
 	// exactly one app and its scopes are the app's own vocabulary
 	var mcpApp *types.AppInfo
+	var aggMechanisms []string // the login mechanisms of app_mcp resources
 	for i, resource := range resources {
 		if resource == ApiResourceRest || resource == ApiResourceMCP {
 			continue
@@ -252,11 +253,12 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 		if name, auth, _ := strings.Cut(resource, ":"); name == ApiResourceAppMCP {
 			// app_mcp or app_mcp:<auth>: the aggregate app actions endpoint,
 			// for the login mechanism (default: the app default auth)
-			uri, err := s.aggMCPKeyResource(auth)
+			uri, mechanism, err := s.aggMCPKeyResource(auth)
 			if err != nil {
 				return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 			}
 			resources[i] = uri
+			aggMechanisms = append(aggMechanisms, mechanism)
 			continue
 		}
 		info, uri, err := s.resolveAppReference(resource)
@@ -336,6 +338,24 @@ func (s *Server) CreateApiKey(ctx context.Context, req *types.ApiKeyCreateReques
 			}); err != nil {
 				return nil, types.CreateRequestError(
 					fmt.Sprintf("cannot bind an API key for %s to app %s: %s", target, mcpApp.AppPathDomain, err), http.StatusBadRequest)
+			}
+		}
+	}
+
+	if len(aggMechanisms) > 0 && s.rbacManager.ConfigEnabled() {
+		// A key for the app actions endpoint of a login mechanism is
+		// refused there when the key's user is not of that mechanism
+		// (aggMCPPrincipalMatch); refuse to mint it, as for an app-bound key
+		groups, err := s.apiIdentityGroups(ctx, identity)
+		if err != nil {
+			return nil, err
+		}
+		for _, mechanism := range aggMechanisms {
+			if err := s.aggMCPPrincipalMatch(target, mechanism, func() (bool, error) {
+				return s.rbacManager.AuthorizeUserPerm(target, groups, types.PermissionAdmin)
+			}); err != nil {
+				return nil, types.CreateRequestError(
+					fmt.Sprintf("cannot bind an API key for %s to %s:%s: %s", target, ApiResourceAppMCP, mechanism, err), http.StatusBadRequest)
 			}
 		}
 	}

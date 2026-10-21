@@ -35,3 +35,37 @@ func TestAppEvalTemplateSecretAccessErrors(t *testing.T) {
 		t.Fatalf("allowed secret: got %q, err %v", got, err)
 	}
 }
+
+// A multi entry secret pattern names the joined secret: it covers a secret
+// call with at least as many keys, each matching, never a prefix of itself
+func TestAppEvalTemplateMultiKeyPatterns(t *testing.T) {
+	t.Setenv("PROD", "prod-alone")
+	t.Setenv("PROD_PUBLIC_KEY", "prod-public")
+	t.Setenv("PROD_PUBLIC_KEY_V2", "prod-public-v2")
+	s, err := NewSecretManager(context.Background(), map[string]types.SecretConfig{"env": {}}, "env", &types.ServerConfig{})
+	if err != nil {
+		t.Fatalf("new secret manager: %v", err)
+	}
+	perms := [][]string{{"PROD", "PUBLIC_KEY"}}
+	for _, tc := range []struct {
+		tmpl string
+		want string
+	}{
+		{`{{secret "PROD" "PUBLIC_KEY"}}`, "prod-public"},
+		{`{{secret "PROD" "PUBLIC_KEY" "V2"}}`, "prod-public-v2"},
+		{`{{secret "PROD"}}`, ""},
+		{`{{secret}}`, ""},
+		{`{{secret "OTHER" "PUBLIC_KEY"}}`, ""},
+	} {
+		got, err := s.AppEvalTemplate(perms, "", tc.tmpl, true)
+		if tc.want == "" {
+			if !errors.Is(err, ErrSecretNotAllowed) {
+				t.Fatalf("%s: err = %v, want ErrSecretNotAllowed", tc.tmpl, err)
+			}
+			continue
+		}
+		if err != nil || got != tc.want {
+			t.Fatalf("%s: got %q, err %v, want %q", tc.tmpl, got, err, tc.want)
+		}
+	}
+}

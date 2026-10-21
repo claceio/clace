@@ -152,20 +152,45 @@ func (s *Server) aggMCPResourceMechanism(resource string) (mechanism string, isA
 }
 
 // aggMCPKeyResource returns the canonical resource for an API key bound to
-// the endpoint (--resource app_mcp[:<auth>])
-func (s *Server) aggMCPKeyResource(auth string) (string, error) {
+// the endpoint (--resource app_mcp[:<auth>]) and the login mechanism it is
+// for
+func (s *Server) aggMCPKeyResource(auth string) (uri, mechanism string, err error) {
 	if !aggMCPEnabled(s.Config()) {
-		return "", fmt.Errorf("the %s endpoint is not enabled (api.app_mcp enable)", ApiResourceAppMCP)
+		return "", "", fmt.Errorf("the %s endpoint is not enabled (api.app_mcp enable)", ApiResourceAppMCP)
 	}
-	mechanism, err := s.aggMCPMechanism(auth)
+	mechanism, err = s.aggMCPMechanism(auth)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	uri := s.aggMCPResourceURI(mechanism)
+	uri = s.aggMCPResourceURI(mechanism)
 	if uri == "" {
-		return "", fmt.Errorf("the %s endpoint needs the OAuth issuer origin (api.external_url)", ApiResourceAppMCP)
+		return "", "", fmt.Errorf("the %s endpoint needs the OAuth issuer origin (api.external_url)", ApiResourceAppMCP)
 	}
-	return uri, nil
+	return uri, mechanism, nil
+}
+
+// aggMCPPrincipalMatch checks that the principal of a credential presented
+// for the endpoint of a login mechanism is one that login produces: the
+// admin account for system, a user of the provider otherwise; the mechanism
+// none takes any (a key bound to it identifies its user). An admin passes
+// for every mechanism, as on an app's provider match. A login flow yields
+// such a principal by construction; an API key is bound to the resource
+// without one, so the check keeps api.app_mcp allowed_auth (which pins the
+// mechanisms the endpoint serves) effective for keys too
+func (s *Server) aggMCPPrincipalMatch(principal, mechanism string, isAdmin func() (bool, error)) error {
+	if principal == types.ADMIN_USER || mechanism == string(types.AppAuthnNone) {
+		return nil
+	}
+	if admin, err := isAdmin(); err == nil && admin {
+		return nil
+	}
+	if mechanism == string(types.AppAuthnSystem) {
+		return fmt.Errorf("auth system of the %s endpoint is for the admin account, the user is %s", ApiResourceAppMCP, principal)
+	}
+	if provider, _, _ := strings.Cut(principal, ":"); provider != mechanism {
+		return fmt.Errorf("auth %s of the %s endpoint is for %s logins, the user is %s", mechanism, ApiResourceAppMCP, mechanism, principal)
+	}
+	return nil
 }
 
 // aggMCPLoginMechanisms maps the mechanism of the resource to the login
@@ -287,6 +312,13 @@ func (s *Server) aggMCPHTTPHandler() http.Handler {
 				}
 				s.Warn().Str("path", r.URL.Path).Msg("app_mcp bearer auth failed: " + detail)
 				challenge("invalid_token", detail)
+				return
+			}
+			if err := s.aggMCPPrincipalMatch(principal, mechanism, func() (bool, error) {
+				return s.rbacManager.AuthorizeUserPerm(principal, groups, types.PermissionAdmin)
+			}); err != nil {
+				s.insertAuthFailureEvent(r, ApiResourceAppMCP, err.Error())
+				http.Error(w, "Forbidden: "+err.Error(), http.StatusForbidden)
 				return
 			}
 			ctx = s.apiTokenIdentityContext(r.Context(), principal, groups, scopes, InvokerMCP, cred, identity)

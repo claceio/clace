@@ -151,7 +151,7 @@ The `serve_tmp_file` API supports the following parameters:
 
 - **path** (string, required) : the file path to serve
 - **name** (string, optional, default basename of path) : the file name to use (when serving the API)
-- **visibility** (string, optional, default `fs.USER`) : the API access level for the file (`fs.USER` or `fs.APP`)
+- **visibility** (string, optional, default `fs.USER`) : the API access level for the file: `fs.USER` serves it to the user who registered it only (anyone, for an app without authentication), `fs.APP` to anyone who has access to the app. The file is served by the app that registered it
 - **mime_type** (string, optional, default `application/octet-stream`) : the mime type to use when serving the file
 - **expiry_minutes** (int, optional, default 60 minutes) : how long to keep the file metadata, set to zero for no deletion
 - **single_access** (bool, optional, default `True`) : whether to serve the file just once and then automatically delete it

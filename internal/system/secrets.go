@@ -135,8 +135,16 @@ func (s *SecretManager) appTemplateSecretFunc(checkAppPerms bool, appPerms [][]s
 			panic(ErrNoSecretAccess)
 		}
 
+		// A pattern covers a secret when each of its entries matches the
+		// key at that position. A pattern with more entries than the keys
+		// names a different (joined) secret and does not cover a prefix of
+		// itself: [["PROD", "PUBLIC_KEY"]] allows PROD_PUBLIC_KEY, not PROD.
+		// Fewer entries cover any longer key as a prefix, as before
 		permMatched := false
 		for _, appPerm := range appPerms {
+			if len(secretKeys) == 0 || len(appPerm) > len(secretKeys) {
+				continue
+			}
 			matched := true
 			for i, entry := range secretKeys {
 				if i >= len(appPerm) {

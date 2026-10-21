@@ -633,3 +633,31 @@ func TestMCPAuditEvents(t *testing.T) {
 		"select count(*) from audit where event_type = 'http' and (target like '%/mcp' or target like '%/app_mcp')").Scan(&httpEvents))
 	testutil.AssertEqualsInt(t, "http events for mcp requests", 0, httpEvents)
 }
+
+// A credential presented for the endpoint of a login mechanism must carry a
+// principal of that mechanism: the admin for system, a user of the provider
+// otherwise, anyone for none; an admin passes everywhere
+func TestAggMCPPrincipalMatch(t *testing.T) {
+	s := &Server{}
+	isAdmin := func(admin bool) func() (bool, error) { return func() (bool, error) { return admin, nil } }
+	for _, tc := range []struct {
+		principal, mechanism string
+		admin, ok            bool
+	}{
+		{types.ADMIN_USER, "system", false, true},
+		{types.ADMIN_USER, "github", false, true},
+		{"builtin:alice", "builtin", false, true},
+		{"builtin:alice", "none", false, true},
+		{"builtin:alice", "system", false, false},
+		{"builtin:alice", "github", false, false},
+		{"github:alice", "github", false, true},
+		{"github:alice", "builtin", false, false},
+		{"builtin:alice", "github", true, true},
+		{"builtin:alice", "system", true, true},
+	} {
+		err := s.aggMCPPrincipalMatch(tc.principal, tc.mechanism, isAdmin(tc.admin))
+		if (err == nil) != tc.ok {
+			t.Errorf("%s on %s (admin %v): err %v, want ok %v", tc.principal, tc.mechanism, tc.admin, err, tc.ok)
+		}
+	}
+}

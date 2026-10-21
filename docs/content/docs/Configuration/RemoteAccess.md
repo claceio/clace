@@ -248,7 +248,7 @@ disable_apis = []
 enable = true                    # on by default
 list_ttl = "3m"                  # freshness hint of the tool list
 max_tools = 300                  # the tool list fails above this, narrow the apps glob
-allowed_auth = []                # logins the auth url param may name; empty = any configured one
+allowed_auth = []                # logins the auth url param may name; empty = any configured one. A key for app_mcp:<auth> needs a user of that login
 ```
 
 `[api.app_mcp]` is the [MCP endpoint for the actions of all apps]({{< ref "actions/#one-endpoint-for-all-apps" >}}). It has no `auth` list: the login comes from the url (`?auth=`), by default `security.app_default_auth_type`. Unlike the two management surfaces it is on by default: it gives a user nothing the apps' own pages do not, each action runs under the app's checks. It is not served with `security.unsafe_disable_rbac` set, and a login needs an OAuth issuer origin (https, or http on localhost for development); without one only the token-less `auth=none` view works. With it on, the OAuth authorization server endpoints (`/_openrun/oauth/*`) are active on the server.

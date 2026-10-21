@@ -63,11 +63,36 @@ func (s *Server) enforceAppPerm(ctx context.Context, perm types.RBACPermission,
 // the authorizer count as not allowed: the caller already passed the app:read
 // check, so the basic view is the safe fallback
 func (s *Server) appDetailAllowed(ctx context.Context, target types.AppPathDomain, owner string) bool {
+	return s.appPermAllowed(ctx, types.PermissionReadDetail, target, owner)
+}
+
+// appPermAllowed reports whether the caller holds perm on the app, for
+// shaping a response rather than refusing a call (an error counts as denied)
+func (s *Server) appPermAllowed(ctx context.Context, perm types.RBACPermission, target types.AppPathDomain, owner string) bool {
 	if !s.rbacManager.APIEnforced(ctx) {
 		return true
 	}
-	authorized, err := s.rbacManager.AuthorizeAPI(ctx, types.PermissionReadDetail, target, owner)
+	authorized, err := s.rbacManager.AuthorizeAPI(ctx, perm, target, owner)
 	return err == nil && authorized
+}
+
+// appEntryView returns the app entry as the caller may see it: the full
+// entry with app:read_detail, identity and status only without it. The
+// webhook tokens in the settings are the credentials of the app's webhook
+// endpoints, gated by app:token_read like the token list API, so they are
+// cleared for a detail reader without it. The entry itself is never
+// modified, it may be a cached one
+func (s *Server) appEntryView(ctx context.Context, appEntry *types.AppEntry, target types.AppPathDomain, owner string) *types.AppEntry {
+	if !s.appPermAllowed(ctx, types.PermissionReadDetail, target, owner) {
+		basic := appEntry.BasicInfo()
+		return &basic
+	}
+	if s.appPermAllowed(ctx, types.PermissionTokenRead, target, owner) {
+		return appEntry
+	}
+	view := *appEntry
+	view.Settings.WebhookTokens = types.WebhookTokens{}
+	return &view
 }
 
 // appDetailAllowedEntry is appDetailAllowed for a loaded app entry (main app

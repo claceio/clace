@@ -69,6 +69,12 @@ func TestSecretsCovered(t *testing.T) {
 		{"every request needs cover", [][]string{{"a"}, {"b"}}, [][]string{{"a"}}, false},
 		{"allowed prefix covers longer request", [][]string{{"db", "pass"}}, [][]string{{"db"}}, true},
 		{"multi entry mismatch", [][]string{{"db", "pass"}}, [][]string{{"db", "user"}}, false},
+		// a longer allowed pattern names a different (joined) secret
+		{"longer allowed does not cover its prefix", [][]string{{"PROD"}}, [][]string{{"PROD", "PUBLIC_KEY"}}, false},
+		{"empty request never covered", [][]string{{}}, [][]string{{"PROD"}}, false},
+		// a requested regex is compared as a pattern, not matched as text
+		{"regex text not matched by a narrower regex", [][]string{{"regex:HOSTSECRET|OTHER"}}, [][]string{{"regex:HOSTSECRET"}}, false},
+		{"regex text not matched by a regex matching its spelling", [][]string{{"regex:^db_.*"}}, [][]string{{"regex:re.*"}}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

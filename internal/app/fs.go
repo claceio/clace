@@ -235,6 +235,9 @@ func (f *fsModule) ServeTmpFile(ctx context.Context, call *sdk.Call) (any, error
 		"mime_type?", &mimeType, "expiry_minutes?", &expiryMinutes, "single_access?", &singleAccess); err != nil {
 		return nil, err
 	}
+	if visibility != string(UserAccess) && visibility != string(AppAccess) {
+		return nil, fmt.Errorf("invalid visibility %q, expected fs.USER or fs.APP", visibility)
+	}
 
 	pathStr, err := filepath.Abs(pathVal)
 	if err != nil {

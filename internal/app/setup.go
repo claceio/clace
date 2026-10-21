@@ -1587,8 +1587,18 @@ func (a *App) userFileHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "404 Not Found", http.StatusNotFound)
 		return
 	}
+	if fileEntry.AppId != string(a.Id) {
+		// The file store is shared by every app on the server: a file is
+		// served by the app that registered it only, under that app's
+		// authentication, never through another app's route
+		http.Error(w, "404 Not Found", http.StatusNotFound)
+		return
+	}
 
-	if fileEntry.Visibility == "private" && fileEntry.CreatedBy != types.ANONYMOUS_USER {
+	// App level visibility: the file is accessible to anyone the app is.
+	// Otherwise (user level, the default) only the user who registered it,
+	// unless that was an anonymous user on an app without authentication
+	if fileEntry.Visibility != string(AppAccess) && fileEntry.CreatedBy != types.ANONYMOUS_USER {
 		// Check if the user is authorized to access the file
 		reqUser := r.Context().Value(types.USER_ID)
 		if reqUser == nil {
@@ -1607,7 +1617,6 @@ func (a *App) userFileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// For app level visibility, the file is accessible if the API is accessible
 
 	switch {
 	case strings.HasPrefix(fileEntry.FilePath, "file://"):

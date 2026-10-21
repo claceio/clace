@@ -234,3 +234,55 @@ func TestReadDetailJobListBasicView(t *testing.T) {
 		t.Errorf("alice full job view must carry the command and env: %+v", aliceJobs.Jobs[0].Spec)
 	}
 }
+
+// TestReadDetailHidesWebhookTokens verifies that the webhook tokens in the
+// app settings, the credentials of the webhook endpoints (which run with a
+// trusted context), are returned by get_app and list_apps only to a caller
+// holding app:token_read, the permission of the token list API: a detail
+// reader without it (openrun-monitor, the MCP default read-only scope) gets
+// the rest of the entry with the tokens cleared
+func TestReadDetailHidesWebhookTokens(t *testing.T) {
+	server, ts, mintKey := newRemoteApiTestServer(t)
+	if err := server.rbacManager.UpdateRBACConfig(&types.RBACConfig{
+		Roles: map[string][]types.RBACPermission{
+			"tokenreader": {types.PermissionRead, types.PermissionReadDetail, types.PermissionTokenRead},
+		},
+		Grants: []types.RBACGrant{
+			{Description: "alice tokens", Users: []string{"builtin:alice"}, Roles: []string{"tokenreader"},
+				Targets: []string{"/apps/**"}},
+			{Description: "bob monitor", Users: []string{"builtin:bob"}, Roles: []string{"openrun-monitor"},
+				Targets: []string{"/apps/**"}},
+			{Description: "carol user", Users: []string{"builtin:carol"}, Roles: []string{"openrun-user"},
+				Targets: []string{"/apps/**"}},
+		},
+	}); err != nil {
+		t.Fatalf("rbac config update: %v", err)
+	}
+	if _, err := server.TokenCreate(system.WithTrustedOperation(context.Background()), "/apps/remote-test", types.WebhookReload, false); err != nil {
+		t.Fatalf("create webhook token: %v", err)
+	}
+
+	for _, tc := range []struct {
+		user          string
+		detail, token bool
+	}{
+		{"builtin:alice", true, true},
+		{"builtin:bob", true, false},
+		{"builtin:carol", false, false},
+	} {
+		client := remoteClient(ts, mintKey(t, &types.ApiKeyCreateRequest{User: tc.user}))
+		var get types.AppGetResponse
+		if err := client.Get("/_openrun/app", url.Values{"appPath": {"/apps/remote-test"}}, &get); err != nil {
+			t.Fatalf("%s get app: %v", tc.user, err)
+		}
+		var list types.AppListResponse
+		if err := client.Get("/_openrun/apps", url.Values{"appPathGlob": {"/apps/remote-test"}}, &list); err != nil {
+			t.Fatalf("%s list apps: %v", tc.user, err)
+		}
+		testutil.AssertEqualsInt(t, tc.user+" listed", 1, len(list.Apps))
+		for name, entry := range map[string]types.AppEntry{"get": get.AppEntry, "list": list.Apps[0].AppEntry} {
+			testutil.AssertEqualsBool(t, tc.user+" "+name+" detail", tc.detail, entry.SourceUrl != "")
+			testutil.AssertEqualsBool(t, tc.user+" "+name+" token", tc.token, entry.Settings.WebhookTokens.Reload != "")
+		}
+	}
+}

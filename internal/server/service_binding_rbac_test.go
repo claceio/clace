@@ -548,3 +548,83 @@ func TestPreviewAndBuilderBindingRBAC(t *testing.T) {
 		t.Fatalf("exported stanza should carry the binding, got %q", stanza)
 	}
 }
+
+// TestServiceStagingLinkRBAC verifies that linking a staging service, at
+// create or by a later update, requires service:bind on the staging service
+// (the permission a binding creation checks on it), and that the link cannot
+// change while the service has bindings
+func TestServiceStagingLinkRBAC(t *testing.T) {
+	server, db, ctx := newSyncRBACTestServer(t)
+	defer db.Close()
+	registerApplyTestBinding(t, db, ctx)
+
+	tx, err := db.BeginTransaction(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	if err := db.CreateService(ctx, tx, &types.Service{Id: types.ID_PREFIX_SERVICE + "prodsvc", Name: "prodsvc",
+		ServiceType: "applytest", Config: map[string]string{}}); err != nil {
+		t.Fatalf("create prod service: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	makeConfig := func(serviceTarget string) *types.RBACConfig {
+		return &types.RBACConfig{
+			Roles: map[string][]types.RBACPermission{
+				"teamdev": {types.PermissionServiceCreate, types.PermissionServiceUpdate,
+					types.PermissionServiceBind, types.PermissionBindingCreate},
+			},
+			Grants: []types.RBACGrant{
+				{Description: "teamdev", Users: []string{"teamdev"}, Roles: []string{"teamdev"},
+					Targets: []string{"binding:/apps/**", serviceTarget}},
+			},
+		}
+	}
+	if err := server.rbacManager.UpdateRBACConfig(makeConfig("service:applytest/teamsvc")); err != nil {
+		t.Fatalf("rbac config update: %v", err)
+	}
+	teamCtx := rbacEnforcedCtx(ctx, "teamdev")
+	teamService := func(staging string) *types.Service {
+		return &types.Service{Name: "teamsvc", ServiceType: "applytest", Staging: staging, Config: map[string]string{}}
+	}
+	expectBindDenial := func(err error) {
+		t.Helper()
+		if err == nil || !strings.Contains(err.Error(), "applytest/prodsvc") ||
+			!strings.Contains(err.Error(), string(types.PermissionServiceBind)) {
+			t.Fatalf("expected service:bind denial on the staging service, got %v", err)
+		}
+	}
+
+	// Creating with a staging service the caller holds nothing on is denied,
+	// as is linking it with an update
+	expectBindDenial(server.CreateService(teamCtx, teamService("prodsvc"), false))
+	if err := server.CreateService(teamCtx, teamService(""), false); err != nil {
+		t.Fatalf("create team service: %v", err)
+	}
+	expectBindDenial(server.UpdateService(teamCtx, teamService("prodsvc"), false))
+
+	// With service:bind on the staging service the link is accepted
+	if err := server.rbacManager.UpdateRBACConfig(makeConfig("service:applytest/*")); err != nil {
+		t.Fatalf("rbac config update: %v", err)
+	}
+	if err := server.UpdateService(teamCtx, teamService("prodsvc"), false); err != nil {
+		t.Fatalf("link staging service with both granted: %v", err)
+	}
+
+	// Once the service has bindings, the link cannot change (their staged
+	// accounts are on the current staging service); an update keeping it
+	// is fine
+	if _, err := server.CreateBinding(teamCtx, &types.CreateBindingRequest{
+		Path: "/apps/sl1", Source: "applytest/teamsvc"}, false); err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	err = server.UpdateService(teamCtx, teamService(""), false)
+	if err == nil || !strings.Contains(err.Error(), "cannot change while it has bindings (/apps/sl1)") {
+		t.Fatalf("expected the staging change to be refused, got %v", err)
+	}
+	if err := server.UpdateService(teamCtx, teamService("prodsvc"), false); err != nil {
+		t.Fatalf("update keeping the staging service: %v", err)
+	}
+}

@@ -44,6 +44,13 @@ func createActionsTestApp(t *testing.T, rbacApi rbac.RBACAPI) *app.App {
 // createActionsTestAppAt is createActionsTestApp mounted at the given path
 func createActionsTestAppAt(t *testing.T, rbacApi rbac.RBACAPI, appPath string) *app.App {
 	t.Helper()
+	return createActionsTestAppId(t, rbacApi, appPath, "app_prd_actionstest")
+}
+
+// createActionsTestAppId is createActionsTestAppAt with the app id, for a
+// test needing a second, distinct app on the shared stores
+func createActionsTestAppId(t *testing.T, rbacApi rbac.RBACAPI, appPath, id string) *app.App {
+	t.Helper()
 	logger := testutil.TestLogger()
 
 	root := filepath.Join("..", "..", "..", "tests", "actions_tests")
@@ -90,7 +97,7 @@ func createActionsTestAppAt(t *testing.T, rbacApi rbac.RBACAPI, appPath string) 
 	appConfig := &types.AppConfig{FS: types.FS{FileAccess: []string{"$TEMPDIR", "/tmp"}}}
 
 	a, _, err := CreateTestAppInt(logger, appPath, "", fileData, false, plugins, permissions,
-		pluginConfig, "app_prd_actionstest", types.AppSettings{}, nil, appConfig, rbacApi)
+		pluginConfig, id, types.AppSettings{}, nil, appConfig, rbacApi)
 	if err != nil {
 		t.Fatalf("Error creating actions_tests app: %s", err)
 	}

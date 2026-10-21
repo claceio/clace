@@ -759,11 +759,7 @@ func (s *Server) GetAppApi(ctx context.Context, appPath string, stage bool) (*ty
 	if err := s.enforceAppPermEntry(ctx, types.PermissionRead, appEntry); err != nil {
 		return nil, err
 	}
-	if !s.appDetailAllowedEntry(ctx, appEntry) {
-		// app:read without app:read_detail: identity and status only
-		basic := appEntry.BasicInfo()
-		appEntry = &basic
-	}
+	appEntry = s.appEntryView(ctx, appEntry, mainAppPathDomain(appEntry.AppPathDomain(), appEntry.MainApp, appEntry.LinkedAppPath), appEntry.UserID)
 
 	return &types.AppGetResponse{
 		AppEntry: *appEntry,
@@ -2056,11 +2052,7 @@ func (s *Server) GetApps(ctx context.Context, appPathGlob string, internal bool)
 				stagedChanges = true
 			}
 		}
-		if !s.appDetailAllowed(ctx, mainAppPathDomain(app.AppPathDomain, app.MainApp, app.LinkedAppPath), app.UserID) {
-			// app:read without app:read_detail: identity and status only
-			basic := retApp.BasicInfo()
-			retApp = &basic
-		}
+		retApp = s.appEntryView(ctx, retApp, mainAppPathDomain(app.AppPathDomain, app.MainApp, app.LinkedAppPath), app.UserID)
 		ret = append(ret, types.AppResponse{AppEntry: *retApp, StagedChanges: stagedChanges})
 	}
 	return ret, nil

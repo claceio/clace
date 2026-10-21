@@ -22,7 +22,25 @@ func newPrefixedId(prefix string) (string, error) {
 	return system.NewPrefixedId(prefix)
 }
 
-func (s *Server) validateStagingService(ctx context.Context, tx types.Transaction, service *types.Service) error {
+// validateStagingService checks the staging service link of a service being
+// created or updated (existing is nil on create). The staging service must
+// be another existing service, and the caller needs service:bind on it: the
+// bindings of the service provision their staged accounts on it, the
+// operation a binding creation checks service:bind on the staging service
+// for, so the link must not be a way to reach a service the caller holds
+// nothing on. The link cannot change while the service has bindings, their
+// staged accounts live on the current staging service
+func (s *Server) validateStagingService(ctx context.Context, tx types.Transaction, service *types.Service, existing *types.Service) error {
+	if existing != nil && existing.Staging != service.Staging {
+		bindingPaths, err := s.db.GetBindingPathsForService(ctx, tx, service.ServiceType, service.Name)
+		if err != nil {
+			return err
+		}
+		if len(bindingPaths) > 0 {
+			return fmt.Errorf("staging service of %s/%s cannot change while it has bindings (%s), delete the bindings first",
+				service.ServiceType, service.Name, strings.Join(bindingPaths, ", "))
+		}
+	}
 	if service.Staging == "" {
 		return nil
 	}
@@ -30,14 +48,12 @@ func (s *Server) validateStagingService(ctx context.Context, tx types.Transactio
 		return fmt.Errorf("staging service %s/%s cannot refer to itself", service.ServiceType, service.Name)
 	}
 
-	exists, err := s.db.ServiceExists(ctx, tx, service.ServiceType, service.Staging)
+	staging, err := s.db.GetService(ctx, tx, service.ServiceType, service.Staging)
 	if err != nil {
-		return err
-	}
-	if !exists {
 		return fmt.Errorf("staging service %s/%s not found", service.ServiceType, service.Staging)
 	}
-	return nil
+	return s.enforceServicePerm(ctx, types.PermissionServiceBind,
+		serviceRBACId(staging.ServiceType, staging.Name), staging.CreatedBy)
 }
 
 // serviceRBACId is the service identity RBAC target globs are matched
@@ -118,7 +134,7 @@ func (s *Server) CreateService(ctx context.Context, service *types.Service, dryR
 		}
 	}
 
-	if err := s.validateStagingService(ctx, tx, service); err != nil {
+	if err := s.validateStagingService(ctx, tx, service, nil); err != nil {
 		return err
 	}
 
@@ -161,7 +177,7 @@ func (s *Server) UpdateService(ctx context.Context, service *types.Service, dryR
 		}
 	}
 
-	if err := s.validateStagingService(ctx, tx, service); err != nil {
+	if err := s.validateStagingService(ctx, tx, service, existing); err != nil {
 		return err
 	}
 

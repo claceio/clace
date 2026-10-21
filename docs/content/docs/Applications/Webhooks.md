@@ -21,7 +21,7 @@ openrun app-webhook create reload example.com:/myapp
 openrun app-webhook list example.com:/myapp
 ```
 
-Creating and deleting webhook tokens requires `app:token_manage` on the app; listing them requires `app:token_read`, which reveals the tokens. Creation prints a token and URL. Use the URL on your externally reachable HTTPS origin, for example `https://openrun.example.com/_openrun_webhook/reload?appPath=example.com%3A%2Fmyapp`. The `appPath` query parameter identifies the app and must be URL-encoded.
+Creating and deleting webhook tokens requires `app:token_manage` on the app; listing them requires `app:token_read`, which reveals the tokens (the app get and list APIs include the tokens in the app settings for a caller with `app:token_read` only). Creation prints a token and URL. Use the URL on your externally reachable HTTPS origin, for example `https://openrun.example.com/_openrun_webhook/reload?appPath=example.com%3A%2Fmyapp`. The `appPath` query parameter identifies the app and must be URL-encoded.
 
 The token authorizes its configured operation on that app without a separate user login or user RBAC check. Keep it in your CI secret store. Creating the same webhook type again replaces its token immediately; deleting it disables the endpoint for that app:
 

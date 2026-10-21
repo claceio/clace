@@ -562,12 +562,13 @@ func allowedSecrets(plugin, method string, permLists ...[]types.Permission) [][]
 	return ret
 }
 
-// secretsCovered reports whether every requested secret pattern is matched
-// by an allowed one. An allowed pattern is matched against a requested one
-// the way the runtime check matches a secret name (types.RegexMatch per
-// entry, the allowed entry as a prefix), so an allowed regex:.* covers any
-// request while a requested regex is covered only by the same regex or by a
-// wider one
+// secretsCovered reports whether every requested secret (a pattern an app
+// declares, or a key list a call resolved) is matched by an allowed one. An
+// allowed pattern is matched against a requested one the way the runtime
+// check matches a secret name (patternCovers per entry, the allowed entries
+// as a prefix of the requested ones, never longer), so an allowed regex:.*
+// covers any request while a requested regex is covered only by the same
+// regex or by a universal one
 func secretsCovered(requested, allowed [][]string) bool {
 	for _, req := range requested {
 		if !slices.ContainsFunc(allowed, func(a []string) bool { return secretPatternCovers(a, req) }) {
@@ -578,15 +579,14 @@ func secretsCovered(requested, allowed [][]string) bool {
 }
 
 func secretPatternCovers(allowed, requested []string) bool {
+	if len(requested) == 0 || len(allowed) > len(requested) {
+		return false
+	}
 	for i, entry := range requested {
 		if i >= len(allowed) {
 			continue
 		}
-		if allowed[i] == entry {
-			continue
-		}
-		match, err := types.RegexMatch(allowed[i], entry)
-		if err != nil || !match {
+		if !patternCovers(allowed[i], entry) {
 			return false
 		}
 	}
