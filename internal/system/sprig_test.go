@@ -9,11 +9,10 @@ import (
 	"testing"
 )
 
-// TestAppEvalTemplatePassthrough guards the plugin-argument path: arbitrary
-// user text with {{ }} braces (chat messages, params holding template or
-// code snippets) must pass through literally; only templates actually
-// calling secret/secret_from are executed. A crash here surfaced as a hard
-// handler error on any console form whose value contained braces
+// TestAppEvalTemplatePassthrough guards the lenient path (container env and
+// build args): arbitrary operator strings with {{ }} braces must pass
+// through literally; only templates actually calling secret/secret_from are
+// executed. Plugin arguments use the strict path (ace.eval values only)
 func TestAppEvalTemplatePassthrough(t *testing.T) {
 	s := &SecretManager{funcMap: GetFuncMap()}
 	s.funcMap["secret"] = s.templateSecretFunc
@@ -26,7 +25,7 @@ func TestAppEvalTemplatePassthrough(t *testing.T) {
 		"upper {{ upper \"a\" }}",                         // sprig-only action, no secrets
 		"plain text",                                      // no braces fast path
 	} {
-		got, err := s.AppEvalTemplate(nil, "", input)
+		got, err := s.AppEvalTemplate(nil, "", input, false)
 		if err != nil {
 			t.Fatalf("input %q: unexpected error %v", input, err)
 		}
@@ -37,7 +36,7 @@ func TestAppEvalTemplatePassthrough(t *testing.T) {
 
 	// A real secret reference still evaluates (and errors: no provider
 	// configured) - references must not silently become literal text
-	if _, err := s.AppEvalTemplate(nil, "prop", `{{secret "k"}}`); err == nil {
+	if _, err := s.AppEvalTemplate(nil, "prop", `{{secret "k"}}`, false); err == nil {
 		t.Fatal("a real secret reference must still be evaluated")
 	}
 }

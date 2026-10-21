@@ -223,7 +223,7 @@ func NewContainerHandler(logger *types.Logger, app *App, containerFile string,
 
 	// Evaluate secrets in the paramMap
 	for k, v := range paramMap {
-		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
+		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v, false)
 		if err != nil {
 			return nil, secretEvalError(app, "param", k, err)
 		}
@@ -242,7 +242,7 @@ func NewContainerHandler(logger *types.Logger, app *App, containerFile string,
 
 	// Evaluate secrets in the build args
 	for k, v := range cargs_map {
-		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v)
+		val, err := app.secretEvalFunc(secretsAllowed, app.AppConfig.Security.DefaultSecretsProvider, v, false)
 		if err != nil {
 			return nil, secretEvalError(app, "build arg", k, err)
 		}

@@ -72,6 +72,10 @@ func starlarkToGo(v starlark.Value, depth int, mode valueMode) (any, error) {
 		return float64(x), nil
 	case starlark.String:
 		return string(x), nil
+	case Template:
+		return x.Text(), nil // the unresolved reference text, never a secret
+	case *Template:
+		return x.Text(), nil
 	case starlark.Bytes:
 		return []byte(x), nil
 	case startime.Time:

@@ -256,13 +256,21 @@ func (s *SecretManager) parseSecretRefTemplate(input string) *template.Template 
 	return tmpl
 }
 
-// EvalTemplate evaluates the input string and replaces any secret placeholders with the actual secret value
-func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string) (string, error) {
+// AppEvalTemplate evaluates a template on behalf of an app, with the
+// secret/secret_from functions limited to the secrets the app (plugin call)
+// is allowed. In strict mode (templates the app explicitly asked to evaluate:
+// ace.eval values) the input must parse and is always
+// executed. In lenient mode (container env and build args, where values are
+// arbitrary operator strings) only templates referencing secrets are
+// executed and anything else passes through literally
+func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, input string, strict bool) (string, error) {
 	if len(input) < 4 {
 		return input, nil
 	}
 
-	if !strings.Contains(input, "{{") || !strings.Contains(input, "}}") {
+	// Strict mode parses anything with an opening delimiter, so an
+	// unclosed action is reported instead of passing through
+	if !strings.Contains(input, "{{") || (!strict && !strings.Contains(input, "}}")) {
 		return input, nil
 	}
 
@@ -282,16 +290,14 @@ func (s *SecretManager) AppEvalTemplate(appSecrets [][]string, defaultProvider, 
 	funcMap["secret"] = secretFunc
 	funcMap["secret_from"] = secretFromFunc
 
-	// Plugin arguments are arbitrary user strings (chat messages, params
-	// holding code or template snippets): only strings that are real
-	// templates REFERENCING secrets are executed. Anything that does not
-	// parse, or parses without a secret/secret_from call, passes through
-	// literally instead of failing the plugin call
 	tmpl, err := template.New("secret template").Funcs(funcMap).Parse(input)
 	if err != nil {
+		if strict {
+			return "", err
+		}
 		return input, nil
 	}
-	if !templateReferencesSecrets(tmpl) {
+	if !strict && !templateReferencesSecrets(tmpl) {
 		return input, nil
 	}
 	var doc bytes.Buffer

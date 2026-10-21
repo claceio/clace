@@ -51,6 +51,7 @@ The `app.star` file defines the app and its handler functions. The predefined bu
 |   `ace.audit`    |            Sets the audit event details from a handler                 |         [Custom Events]({{< ref "docs/applications/audit/#custom-events" >}})          |
 |   `ace.output`   |          Wraps a value or error returned by a Starlark function        | [Returning Errors]({{< ref "docs/plugins/overview/#returning-errors-from-functions" >}}) |
 |   `ace.config`   |     Reads a value from the server `[node_config]`, with a default      | [Config Access from Code]({{< ref "docs/configuration/overview/#config-access-from-code" >}}) |
+|    `ace.eval`    | Wraps a template string built in app code, resolved for secrets when passed to a plugin | [Secrets in Plugin Arguments]({{< ref "docs/configuration/secrets/#secrets-in-plugin-arguments" >}}) |
 
 In `app.star`, `ace.config` supports the special key `_app_url`, which resolves to the url the app is served at.
 

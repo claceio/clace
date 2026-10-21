@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -201,39 +202,184 @@ def handler(req):
 	testutil.AssertErrorContains(t, err, "entry 0 in secrets list is not a list")
 }
 
+// TestSecretsAccess covers which plugin arguments are template evaluated:
+// ace.eval values and app level param values containing {{ are, with the
+// secrets the call is approved for; plain strings never are, so request data
+// forwarded to a plugin cannot resolve the app's secrets
 func TestSecretsAccess(t *testing.T) {
+	t.Setenv("abc", "secret-value")
+	t.Setenv("abc2", "other-value")
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "test contents") //nolint:errcheck
+		out := r.URL.Path + "|" + r.Header.Get("X-Test")
+		if user, pass, ok := r.BasicAuth(); ok {
+			out += "basic " + user + ":" + pass
+		}
+		if r.Method == "POST" {
+			body, _ := io.ReadAll(r.Body)
+			out += string(body)
+		}
+		io.WriteString(w, out) //nolint:errcheck
 	}))
+	defer testServer.Close()
 
 	logger := testutil.TestLogger()
 	fileData := map[string]string{
+		"params.star": `
+param("key", default='{{ secret_from "env" "abc"}}')
+param("other")
+param("braces", default="not {{ a template")
+param("plain", default="plain value")
+param("creds", type=DICT, default={"token": '{{ secret_from "env" "abc"}}', "user": "u1"})
+param("hosts", type=LIST, default=["h1", '{{ secret_from "env" "abc"}}'])
+`,
 		"app.star": `
 
 load ("http.in", "http")
 
-
-def test1(req):
-	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret_from "env" "abc"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+def header(req, value):
+	resp = http.get("` + testServer.URL + `/path", headers={"X-Test": value})
 	return resp.value.body()
 
-def test2(req):
-	resp = http.get("` + testServer.URL + `?a=b", headers={"X-Test": '{{ secret_from "env" "abc2"}}'}, params={"c": "d"}, auth_basic=("user", "pass"))
+def eval_ok(req):
+	return header(req, ace.eval('{{ secret_from "env" "abc"}}'))
+
+def eval_denied(req):
+	return header(req, ace.eval('{{ secret_from "env" "abc2"}}'))
+
+def plain_string(req):
+	return header(req, '{{ secret_from "env" "abc"}}')
+
+def request_data(req):
+	return header(req, req.Query["q"][0])
+
+def positional(req):
+	resp = http.get(ace.eval("` + testServer.URL + `/{{ secret_from \"env\" \"abc\"}}"))
 	return resp.value.body()
 
-app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler=test1, type=ace.TEXT), ace.api("/api2", handler=test2, type=ace.TEXT)],
+def in_list(req):
+	resp = http.get("` + testServer.URL + `/path", headers={"X-Test": "x"}, params={"q": "y"})
+	return resp.value.body()
+
+def eval_param(req):
+	return header(req, ace.eval(param.key))
+
+def eval_twice(req):
+	return header(req, ace.eval(ace.eval(ace.eval('{{ secret_from "env" "abc"}}'))))
+
+def eval_concat(req):
+	return header(req, ace.eval("Bearer " + ace.eval(param.key)))
+
+def eval_param_value(req):
+	return header(req, ace.eval(param.other))
+
+def auto_param(req):
+	return header(req, param.key)
+
+def auto_param_value(req):
+	return header(req, param.other)
+
+def braces_param(req):
+	return header(req, param.braces)
+
+def plain_param(req):
+	return header(req, param.plain)
+
+def concat(req):
+	return header(req, "Bearer " + param.key + "/" + param.other)
+
+def concat_request(req):
+	return header(req, req.Query["q"][0] + ":" + param.key)
+
+def str_param(req):
+	return header(req, str(param.key))
+
+def format_param(req):
+	return header(req, "%s" % param.key)
+
+def dict_param(req):
+	return header(req, param.creds["token"] + ":" + param.creds["user"])
+
+def list_param(req):
+	return header(req, param.hosts[0] + ":" + param.hosts[1])
+
+def cyclic(req):
+	items = []
+	items.append(items)
+	resp = http.get("` + testServer.URL + `/path", headers={"X-Test": "x"}, params={"q": items})
+	return resp.value.body()
+
+def tuple_arg(req):
+	resp = http.get("` + testServer.URL + `/path", auth_basic=("user", param.key))
+	return resp.value.body()
+
+def nested(req):
+	resp = http.post("` + testServer.URL + `/path", headers={"X-Test": "x"}, json_body={"outer": [{"inner": param.key}]})
+	return resp.value.body()
+
+def eval_not_string(req):
+	return header(req, ace.eval(1))
+
+def eval_bad_template(req):
+	return header(req, ace.eval("{{ unclosed"))
+
+def eval_no_secret(req):
+	return header(req, ace.eval('{{ upper "abc" }}'))
+
+HEADERS = {"X-Test": ace.eval('{{ secret_from "env" "abc"}}')}
+URLS = ["` + testServer.URL + `/path", ace.eval("` + testServer.URL + `/{{ secret_from \"env\" \"abc\"}}")]
+
+def frozen_dict(req):
+	resp = http.get("` + testServer.URL + `/path", headers=HEADERS)
+	return resp.value.body() + "|" + str(HEADERS)
+
+def frozen_list(req):
+	resp = http.get(URLS[1])
+	return resp.value.body() + "|" + str(URLS[1])
+
+app = ace.app("testApp", custom_layout=True, routes = [
+	ace.api("/eval_ok", handler=eval_ok, type=ace.TEXT),
+	ace.api("/eval_denied", handler=eval_denied, type=ace.TEXT),
+	ace.api("/plain_string", handler=plain_string, type=ace.TEXT),
+	ace.api("/request_data", handler=request_data, type=ace.TEXT),
+	ace.api("/positional", handler=positional, type=ace.TEXT),
+	ace.api("/eval_param", handler=eval_param, type=ace.TEXT),
+	ace.api("/eval_twice", handler=eval_twice, type=ace.TEXT),
+	ace.api("/eval_concat", handler=eval_concat, type=ace.TEXT),
+	ace.api("/eval_param_value", handler=eval_param_value, type=ace.TEXT),
+	ace.api("/auto_param", handler=auto_param, type=ace.TEXT),
+	ace.api("/auto_param_value", handler=auto_param_value, type=ace.TEXT),
+	ace.api("/braces_param", handler=braces_param, type=ace.TEXT),
+	ace.api("/plain_param", handler=plain_param, type=ace.TEXT),
+	ace.api("/concat", handler=concat, type=ace.TEXT),
+	ace.api("/concat_request", handler=concat_request, type=ace.TEXT),
+	ace.api("/str_param", handler=str_param, type=ace.TEXT),
+	ace.api("/format_param", handler=format_param, type=ace.TEXT),
+	ace.api("/dict_param", handler=dict_param, type=ace.TEXT),
+	ace.api("/list_param", handler=list_param, type=ace.TEXT),
+	ace.api("/cyclic", handler=cyclic, type=ace.TEXT),
+	ace.api("/tuple_arg", handler=tuple_arg, type=ace.TEXT),
+	ace.api("/nested", handler=nested, type=ace.TEXT),
+	ace.api("/eval_not_string", handler=eval_not_string, type=ace.TEXT),
+	ace.api("/eval_bad_template", handler=eval_bad_template, type=ace.TEXT),
+	ace.api("/eval_no_secret", handler=eval_no_secret, type=ace.TEXT),
+	ace.api("/frozen_dict", handler=frozen_dict, type=ace.TEXT),
+	ace.api("/frozen_list", handler=frozen_list, type=ace.TEXT),
+	],
     permissions=[
 	ace.permission("http.in", "get", secrets=[["abc"]]),
+	ace.permission("http.in", "post", secrets=[["abc"]]),
 	])
 `,
 	}
 
-	a, _, err := CreateTestAppPlugin(logger, fileData,
+	a, _, err := CreateTestAppInt(logger, "/test", "", fileData, false,
 		[]string{"http.in"},
 		[]types.Permission{
 			{Plugin: "http.in", Method: "get", Secrets: [][]string{{"abc"}}},
+			{Plugin: "http.in", Method: "post", Secrets: [][]string{{"abc"}}},
 		},
-		nil)
+		nil, "app_prd_testapp", types.AppSettings{},
+		map[string]string{"other": `{{ secret_from "env" "abc"}}`}, nil, nil)
 	if err != nil {
 		t.Fatalf("Error %s", err)
 	}
@@ -241,17 +387,116 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/api1",  handler
 	_, err = a.Audit()
 	testutil.AssertNoError(t, err)
 
-	request := httptest.NewRequest("GET", "/test/api1", nil)
-	response := httptest.NewRecorder()
-	a.ServeHTTP(response, request)
-	testutil.AssertEqualsInt(t, "code", 200, response.Code)
-	testutil.AssertEqualsString(t, "body", "test contents", response.Body.String())
+	cases := []struct {
+		path string
+		code int
+		body string
+	}{
+		{"/eval_ok", 200, "/path|secret-value"},
+		{"/eval_denied", 500, "error calling secret_from: the plugin call is not allowed to access the secret: secret abc2 is not in the allowed patterns"},
+		// a plain string is passed through literally, even when it is a template referencing an allowed secret
+		{"/plain_string", 200, `/path|{{ secret_from "env" "abc"}}`},
+		{"/request_data?q=" + url.QueryEscape(`{{ secret_from "env" "abc"}}`), 200, `/path|{{ secret_from "env" "abc"}}`},
+		{"/positional", 200, "/secret-value|"},
+		// app level param values containing {{ are templates, ace.eval on them is a no-op
+		{"/eval_param", 200, "/path|secret-value"}, // params.star default
+		{"/eval_twice", 200, "/path|secret-value"}, // wrapping a template again is a no-op
+		{"/eval_concat", 200, "/path|Bearer secret-value"},
+		{"/eval_param_value", 200, "/path|secret-value"}, // app param value
+		{"/auto_param", 200, "/path|secret-value"},
+		{"/auto_param_value", 200, "/path|secret-value"},
+		// a param value with {{ which is not a secret template passes through (lenient)
+		{"/braces_param", 200, "/path|not {{ a template"},
+		{"/plain_param", 200, "/path|plain value"},
+		// string concatenation keeps the strings literal and resolves the templates
+		{"/concat", 200, "/path|Bearer secret-value/secret-value"},
+		{"/concat_request?q=" + url.QueryEscape(`{{ secret_from "env" "abc2"}}`), 200, `/path|{{ secret_from "env" "abc2"}}:secret-value`},
+		// str() and % formatting give the reference text as a plain string, not evaluated
+		{"/str_param", 200, `/path|{{ secret_from "env" "abc"}}`},
+		{"/format_param", 200, `/path|{{ secret_from "env" "abc"}}`},
+		// strings inside list and dict params are wrapped too
+		{"/dict_param", 200, "/path|secret-value:u1"},
+		{"/list_param", 200, "/path|h1:secret-value"},
+		{"/cyclic", 500, "nesting exceeds max depth"},
+		{"/tuple_arg", 200, "/path|basic user:secret-value"},
+		{"/nested", 200, `/path|x{"outer":[{"inner":"secret-value"}]}`},
+		{"/eval_not_string", 500, "eval: for parameter template: got int, want string or template"},
+		{"/eval_bad_template", 500, `function "unclosed" not defined`},
+		{"/eval_no_secret", 200, "/path|ABC"},
+		// module level (frozen) containers resolve without being modified
+		{"/frozen_dict", 200, `/path|secret-value|{"X-Test": {{ secret_from "env" "abc"}}}`},
+		{"/frozen_list", 200, `/secret-value||` + testServer.URL + `/{{ secret_from "env" "abc"}}`},
+	}
+	for _, c := range cases {
+		request := httptest.NewRequest("GET", "/test"+c.path, nil)
+		response := httptest.NewRecorder()
+		a.ServeHTTP(response, request)
+		testutil.AssertEqualsInt(t, c.path+" code", c.code, response.Code)
+		testutil.AssertStringContains(t, response.Body.String(), c.body)
+	}
+}
 
-	request = httptest.NewRequest("GET", "/test/api2", nil)
-	response = httptest.NewRecorder()
-	a.ServeHTTP(response, request)
-	testutil.AssertEqualsInt(t, "code", 500, response.Code)
-	testutil.AssertStringContains(t, response.Body.String(), "error calling secret_from: the plugin call is not allowed to access the secret: secret abc2 is not in the allowed patterns")
+// TestSecretsAccessAction checks a secret param in an action handler: the
+// app level value resolves through param.X, and through args.X when the
+// caller did not supply the param; a caller supplied args.X is a plain
+// string, passed through literally
+func TestSecretsAccessAction(t *testing.T) {
+	t.Setenv("abc", "secret-value")
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, r.Header.Get("X-Test")) //nolint:errcheck
+	}))
+	defer testServer.Close()
+
+	logger := testutil.TestLogger()
+	fileData := map[string]string{
+		"params.star": `
+param("key", default='{{ secret_from "env" "abc"}}')
+param("name", default="n1")
+`,
+		"app.star": `
+load ("http.in", "http")
+
+def handler(dry_run, args):
+	resp = http.get("` + testServer.URL + `", headers={"X-Test": param.key})
+	resp2 = http.get("` + testServer.URL + `", headers={"X-Test": args.key})
+	return ace.result(status="got " + resp.value.body() + " and " + resp2.value.body(), values=[{"key": args.key}], report=ace.TABLE)
+
+app = ace.app("testApp", actions=[ace.action("testAction", "/", handler)],
+    permissions=[ace.permission("http.in", "get", secrets=[["abc"]])])
+`,
+	}
+
+	a, _, err := CreateTestAppPlugin(logger, fileData,
+		[]string{"http.in"},
+		[]types.Permission{{Plugin: "http.in", Method: "get", Secrets: [][]string{{"abc"}}}},
+		nil)
+	if err != nil {
+		t.Fatalf("Error %s", err)
+	}
+
+	post := func(values url.Values) *httptest.ResponseRecorder {
+		request := httptest.NewRequest("POST", "/test", strings.NewReader(values.Encode()))
+		request.Header.Set("HX-Request", "true")
+		request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		response := httptest.NewRecorder()
+		a.ServeHTTP(response, request)
+		testutil.AssertEqualsInt(t, "code", 200, response.Code)
+		return response
+	}
+
+	// Caller supplied value, even the same template text, is a literal
+	response := post(url.Values{"name": {"n2"}, "key": {`{{ secret_from "env" "abc"}}`}})
+	testutil.AssertStringContains(t, response.Body.String(), `got secret-value and {{ secret_from &#34;env&#34; &#34;abc&#34;}}`)
+
+	// No value for key in the invocation: args.key is the app level
+	// template; it resolves in the plugin call and the result shows the
+	// reference text, never the secret
+	response = post(url.Values{"name": {"n2"}})
+	testutil.AssertStringContains(t, response.Body.String(), "got secret-value and secret-value")
+	testutil.AssertStringContains(t, response.Body.String(), `{{ secret_from &#34;env&#34; &#34;abc&#34;}}</td>`)
+	if strings.Contains(response.Body.String(), "secret-value</td>") {
+		t.Fatalf("resolved secret leaked into the action result: %s", response.Body.String())
+	}
 }
 
 func TestHttpPluginDeferredCleanupWithoutBodyRead(t *testing.T) {
@@ -493,7 +738,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/", type=ace.TEX
 def handler(req):
 	# The raw text matches the pattern (no "." after the host), the
 	# resolved path does not
-	return http.get('https://api.example.com/{{secret "HOSTSECRET"}}').value.body()
+	return http.get(ace.eval('https://api.example.com/{{secret "HOSTSECRET"}}')).value.body()
 `,
 	}
 	perms := []types.Permission{{Plugin: "http.in", Method: "get",
@@ -536,7 +781,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/", type=ace.TEX
     permissions=[ace.permission("http.in", "get", secrets=[["HOSTSECRET"]])])
 
 def handler(req):
-	return http.get("` + redirector.URL + `/start", {"k": '{{secret "HOSTSECRET"}}'}).value.body()
+	return http.get("` + redirector.URL + `/start", {"k": ace.eval('{{secret "HOSTSECRET"}}')}).value.body()
 `,
 	}
 	perms := []types.Permission{
@@ -576,7 +821,7 @@ app = ace.app("testApp", custom_layout=True, routes = [ace.api("/", type=ace.TEX
     permissions=[ace.permission("http.in", "get", secrets=[["TOKEN"]])])
 
 def handler(req):
-	return http.get("` + server.URL + `/{{secret \"TOKEN\"}}/start").value.body()
+	return http.get(ace.eval("` + server.URL + `/{{secret \"TOKEN\"}}/start")).value.body()
 `,
 	}
 	perms := []types.Permission{

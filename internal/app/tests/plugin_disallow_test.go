@@ -116,9 +116,9 @@ def handler(req):
 		// GHSA-qgqh-4fgp-rf5c: the raw text does not match, the resolved
 		// template does (the dead-branch secret call makes the string a
 		// template without needing a secret grant)
-		{"template-resolved argument blocks", `testdis.run('r{{if false}}{{secret "x"}}{{end}}m -rf /')`,
+		{"template-resolved argument blocks", `testdis.run(ace.eval('r{{if false}}{{secret "x"}}{{end}}m -rf /'))`,
 			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^rm.*"}}}, true},
-		{"template-resolved list element blocks", `testdis.run("ls", ['r{{if false}}{{secret "x"}}{{end}}m'])`,
+		{"template-resolved list element blocks", `testdis.run("ls", [ace.eval('r{{if false}}{{secret "x"}}{{end}}m')])`,
 			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"ls", "regex:rm"}}}, true},
 	}
 	for _, tt := range tests {
@@ -178,9 +178,9 @@ def handler(req):
 		{"plain argument rejected", `testdis.run("ls; rm")`, noSemicolon, 500, "with argument 0 having value"},
 		// The raw text has no ";" (the template writes one through a Go
 		// string escape), the resolved value does
-		{"template-resolved argument rejected", `testdis.run('ls{{if false}}{{secret "x"}}{{end}}{{"\\x3b"}} rm')`,
+		{"template-resolved argument rejected", `testdis.run(ace.eval('ls{{if false}}{{secret "x"}}{{end}}{{"\\x3b"}} rm'))`,
 			noSemicolon, 500, "template-resolved argument 0 does not match the approved pattern \"regex:^[^;]*$\""},
-		{"template-resolved argument approved", `testdis.run('ls{{if false}}{{secret "x"}}{{end}} -l')`,
+		{"template-resolved argument approved", `testdis.run(ace.eval('ls{{if false}}{{secret "x"}}{{end}} -l'))`,
 			noSemicolon, 200, "ran"},
 		{"regex method approves run", `testdis.run("ls")`,
 			[]types.Permission{{Plugin: "testdis.in", Method: "regex:.*"}}, 200, "ran"},

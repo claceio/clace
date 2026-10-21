@@ -30,6 +30,7 @@ import (
 	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/telemetry"
 	"github.com/openrundev/openrun/internal/types"
+	sdk "github.com/openrundev/openrun/pkg/plugin"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -306,6 +307,17 @@ func (a *App) addParams(builtin starlark.StringDict) (starlark.StringDict, error
 
 		if p.Type == starlark_type.STRING && p.Required && valueStr == "" && !isActionParam {
 			return nil, fmt.Errorf("param %s is a required param, value cannot be empty", p.Name)
+		}
+	}
+
+	// An app level string param value (the params.star default or the
+	// configured value, both static and trusted) containing {{ is exposed as
+	// a template value, resolved when passed to a plugin. Values a caller
+	// supplies at an action or job run overlay these as plain strings. The
+	// container env keeps the string form in paramValuesStr
+	for name, value := range paramDict {
+		if wrapped, changed := wrapParamTemplates(value, 0); changed {
+			paramDict[name] = wrapped
 		}
 	}
 
@@ -1677,4 +1689,57 @@ func (a *App) loadLibraryInfo() ([]types.JSLibrary, error) {
 	}
 
 	return libraries, nil
+}
+
+// wrapParamTemplates returns the app level param value with each string
+// containing {{ replaced by a lenient template value: the string itself, or
+// the strings inside a list or dict param (dict keys are left alone). A
+// collection holding such strings is replaced by a copy, as a params.star
+// default is frozen. It reports whether anything was wrapped
+func wrapParamTemplates(value starlark.Value, depth int) (starlark.Value, bool) {
+	if depth > sdk.MaxValueDepth {
+		return value, false
+	}
+	depth++
+	switch v := value.(type) {
+	case starlark.String:
+		if strings.Contains(string(v), "{{") {
+			return starlark_type.NewTemplate(string(v), false), true
+		}
+	case *starlark.List:
+		var elems []starlark.Value
+		for i := 0; i < v.Len(); i++ {
+			wrapped, changed := wrapParamTemplates(v.Index(i), depth)
+			if !changed {
+				continue
+			}
+			if elems == nil {
+				elems = slices.Collect(v.Elements())
+			}
+			elems[i] = wrapped
+		}
+		if elems != nil {
+			return starlark.NewList(elems), true
+		}
+	case *starlark.Dict:
+		var copied *starlark.Dict
+		items := v.Items()
+		for i, item := range items {
+			wrapped, changed := wrapParamTemplates(item[1], depth)
+			if !changed && copied == nil {
+				continue
+			}
+			if copied == nil {
+				copied = starlark.NewDict(len(items))
+				for _, orig := range items[:i] {
+					copied.SetKey(orig[0], orig[1]) //nolint:errcheck
+				}
+			}
+			copied.SetKey(item[0], wrapped) //nolint:errcheck
+		}
+		if copied != nil {
+			return copied, true
+		}
+	}
+	return value, false
 }

@@ -157,8 +157,8 @@ When [RBAC]({{< ref "/docs/configuration/rbac" >}}) API enforcement is enabled, 
 
 Secrets can be accessed using the syntax `{{secret_from "PROVIDER_NAME" "KEY_NAME"}}`. To read from the default provider, use `{{secret "KEY_NAME"}}`. The contexts in which secrets can be accessed are:
 
-- **App Params**: Param values in `params.star` or in the [app metadata definition]({{< ref "/docs/container/overview/#app-environment-params" >}}) can access the secrets.
-- **Plugin arguments**: Secrets can be passed as string arguments in calls to [plugin functions]({{< ref "plugins" >}}).
+- **App Params**: Param values in `params.star` or in the [app metadata definition]({{< ref "/docs/container/overview/#app-environment-params" >}}) can access the secrets. For containerized apps the param is resolved when it is passed to the container. In Starlark code, a param value containing `{{` is a template value, resolved when passed to a plugin, see [below](#secrets-in-plugin-arguments).
+- **Plugin arguments**: Template values are resolved when passed as arguments to a [plugin function]({{< ref "plugins" >}}): param values as above, and strings wrapped in `ace.eval(...)`. Plain strings are never evaluated.
 - **HTML templates**: An app can reveal a secret into its handler response with `openrun_admin.secret_reveal`, see [below](#revealing-secrets-to-html-templates).
 - **Config file**: Secrets are supported in `openrun.toml` config for:
   - For client key and secret in [auth config]({{< ref "/docs/configuration/authentication/#oauth-authentication" >}})
@@ -167,6 +167,37 @@ Secrets can be accessed using the syntax `{{secret_from "PROVIDER_NAME" "KEY_NAM
   - For OTLP exporter headers in [telemetry config]({{< ref "/docs/configuration/telemetry/#collector-headers-and-secrets" >}})
 
 Secrets are always resolved late. Starlark code does not get access to the plain text secrets, except through an explicitly approved `secret_reveal` permission as described below. The secret lookup happens when the call to the plugin API is done. In case of params, the lookup happens when the param is passed to the container.
+
+### Secrets in Plugin Arguments
+
+Only template values are evaluated when they reach a plugin call, at any depth inside list, tuple and dict arguments. A plain Starlark string is passed to the plugin as is, even if it contains `{{secret ...}}`, so text taken from a request (query params, form fields, action arguments, uploaded or stored data) can never resolve the app's secrets. A value is a template when:
+
+- It is an app level param value containing `{{`: the default in `params.star`, or the value set with `--param API_KEY='{{secret "API_KEY"}}'`. These are static and set by the developer or operator, so `param.API_KEY` is wrapped automatically and `headers={"X-Key": param.API_KEY}` resolves with no code change. A param value which contains `{{` without being a template referencing a secret passes through literally.
+- It was wrapped with `ace.eval("...")` in app code, for a template the app builds itself: `ace.eval('Bearer {{secret "API_TOKEN"}}')`. This is explicit, so it is the only way request data could be evaluated: never wrap request data. `ace.eval` on a value which is already a template returns it unchanged, so `ace.eval(param.API_KEY)` is always safe. A wrapped template must parse, a template error fails the plugin call. Besides `secret` and `secret_from`, the [template functions]({{< ref "/docs/app/templates" >}}) are available.
+
+A template value is not a string. It supports `+` with strings and other templates: the strings are kept literally and never evaluated, so `"Bearer " + param.API_KEY` works and user text joined to a param cannot introduce a template. `str(param.API_KEY)` and `%` formatting give the unevaluated reference text as a plain string, which is not resolved. Other string methods are type errors.
+
+In an action handler, `args.NAME` is the value the caller submitted, a plain string, or the app level template when the caller did not supply the param. Use `param.NAME` when the configured secret is always the one to resolve.
+
+```python {filename="app.star"}
+load("http.in", "http")
+
+def handler(req):
+    resp = http.get("https://api.example.com/search",
+                    headers={"Authorization": ace.eval('Bearer {{secret "API_TOKEN"}}'),
+                             "X-Tenant": param.tenant_key},
+                    params={"q": req.Query["q"][0]})  # request data, never evaluated
+    return resp.value.json()
+
+app = ace.app("search", routes=[ace.api("/", handler)],
+              permissions=[ace.permission("http.in", "get", secrets=[["API_TOKEN"], ["TENANT_KEY"]])])
+```
+
+```python {filename="params.star"}
+param("tenant_key", default='{{secret "TENANT_KEY"}}')
+```
+
+The plugin call must be approved for the secrets it resolves, see [Plugin Access to Secrets](#plugin-access-to-secrets).
 
 For OAuth configuration, an example secret reference is
 
@@ -179,7 +210,7 @@ hosted_domain = "example.com"
 
 ## Plugin Access to Secrets
 
-For secrets which are passed to plugins, through app params or plugin arguments, the plugin needs to be authorized to access the secret. The default server permission for `container.config(...)` does not allow any secrets, so containerized apps that use secrets in params, build args need an explicitly approved `container.config` permission with a `secrets=[...]` allowlist.
+For secrets which are passed to plugins, through params or `ace.eval` arguments, the plugin needs to be authorized to access the secret. The default server permission for `container.config(...)` does not allow any secrets, so containerized apps that use secrets in params, build args need an explicitly approved `container.config` permission with a `secrets=[...]` allowlist.
 
 The permissions for each plugin are defined in the app definition. For example:
 

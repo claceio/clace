@@ -10,11 +10,13 @@ import (
 	"strings"
 
 	"github.com/openrundev/openrun/internal/app/apptype"
+	"github.com/openrundev/openrun/internal/app/starlark_type"
 	"github.com/openrundev/openrun/internal/plugin"
 	"github.com/openrundev/openrun/internal/rbac"
 	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/telemetry"
 	"github.com/openrundev/openrun/internal/types"
+	sdk "github.com/openrundev/openrun/pkg/plugin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -266,7 +268,10 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 		// Pass the module full path as a thread local
 		thread.SetLocal(types.TL_CURRENT_MODULE_FULL_PATH, modulePath)
 
-		// Evaluate secrets passed as arguments and keyword arguments
+		// Resolve the template values (ace.eval, app level param values)
+		// passed as arguments and keyword arguments. Plain strings are never
+		// template evaluated, so request data an app forwards to a plugin
+		// cannot resolve the app's secrets
 		if a.secretEvalFunc != nil {
 			changed := false
 			for i, arg := range args {
@@ -364,60 +369,108 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 	return starlark.NewBuiltin(functionName, hook)
 }
 
-// evalArgSecrets resolves {{secret}} templates in a string argument, in the
-// string elements of a list and in the string values of a dict (lists and
-// dicts are updated in place). It reports whether any value changed
+// evalArgSecrets resolves the template values (ace.eval, app level param
+// values) in a plugin argument, at any depth inside lists, tuples and dicts,
+// with the secrets the plugin call is allowed. Every other value, including
+// plain strings, is returned as is. A container holding templates is
+// replaced by a resolved copy: the original may be a frozen module level
+// value, and must not end up holding the resolved secret. It reports whether
+// any value was resolved
 func (a *App) evalArgSecrets(secrets [][]string, value starlark.Value) (starlark.Value, bool, error) {
-	eval := func(input string) (string, error) {
-		return a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, input)
+	return a.evalArgSecretsDepth(secrets, value, 0)
+}
+
+// evalArgSecretsDepth is evalArgSecrets with the nesting depth, bounded by
+// the plugin value depth limit so a cyclic collection is an argument error
+// rather than unbounded recursion
+func (a *App) evalArgSecretsDepth(secrets [][]string, value starlark.Value, depth int) (starlark.Value, bool, error) {
+	if depth > sdk.MaxValueDepth {
+		return nil, false, fmt.Errorf("plugin argument nesting exceeds max depth %d (cyclic value?)", sdk.MaxValueDepth)
 	}
-	switch v := value.(type) {
-	case starlark.String:
-		evalString, err := eval(v.GoString())
+	depth++
+	if t, ok := starlark_type.TemplateValue(value); ok {
+		s, err := t.Resolve(func(text string, strict bool) (string, error) {
+			return a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, text, strict)
+		})
 		if err != nil {
 			return nil, false, err
 		}
-		return starlark.String(evalString), evalString != v.GoString(), nil
+		return starlark.String(s), true, nil
+	}
+	switch arg := value.(type) {
 	case *starlark.List:
-		changed := false
-		for i := 0; i < v.Len(); i++ {
-			sv, ok := v.Index(i).(starlark.String)
-			if !ok {
-				continue
-			}
-			evalString, err := eval(sv.GoString())
-			if err != nil {
-				return nil, false, err
-			}
-			if evalString != sv.GoString() {
-				changed = true
-				v.SetIndex(i, starlark.String(evalString)) //nolint:errcheck
-			}
+		elems, changed, err := a.evalElemSecrets(secrets, slices.Collect(arg.Elements()), depth)
+		if err != nil {
+			return nil, false, err
 		}
-		return v, changed, nil
+		if changed {
+			return starlark.NewList(elems), true, nil
+		}
+	case starlark.Tuple:
+		elems, changed, err := a.evalElemSecrets(secrets, arg, depth)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			return starlark.Tuple(elems), true, nil
+		}
 	case *starlark.Dict:
-		changed := false
-		for _, key := range v.Keys() {
-			entry, _, err := v.Get(key)
+		var resolved *starlark.Dict
+		items := arg.Items()
+		for i, item := range items {
+			entry, changed, err := a.evalArgSecretsDepth(secrets, item[1], depth)
 			if err != nil {
 				return nil, false, err
 			}
-			sv, ok := entry.(starlark.String)
-			if !ok {
+			if !changed {
+				if resolved != nil {
+					if err := resolved.SetKey(item[0], item[1]); err != nil {
+						return nil, false, err
+					}
+				}
 				continue
 			}
-			evalString, err := eval(sv.GoString())
-			if err != nil {
+			if resolved == nil {
+				resolved = starlark.NewDict(len(items))
+				for _, orig := range items[:i] {
+					if err := resolved.SetKey(orig[0], orig[1]); err != nil {
+						return nil, false, err
+					}
+				}
+			}
+			if err := resolved.SetKey(item[0], entry); err != nil {
 				return nil, false, err
 			}
-			if evalString != sv.GoString() {
-				changed = true
-				v.SetKey(key, starlark.String(evalString)) //nolint:errcheck
-			}
 		}
-		return v, changed, nil
+		if resolved != nil {
+			return resolved, true, nil
+		}
 	}
 	return value, false, nil
+}
+
+// evalElemSecrets resolves the templates in a list or tuple's elements,
+// returning the resolved elements and whether any changed
+func (a *App) evalElemSecrets(secrets [][]string, elems []starlark.Value, depth int) ([]starlark.Value, bool, error) {
+	var resolved []starlark.Value
+	for i, elem := range elems {
+		value, changed, err := a.evalArgSecretsDepth(secrets, elem, depth)
+		if err != nil {
+			return nil, false, err
+		}
+		if !changed {
+			if resolved != nil {
+				resolved[i] = elem
+			}
+			continue
+		}
+		if resolved == nil {
+			resolved = make([]starlark.Value, len(elems))
+			copy(resolved, elems[:i])
+		}
+		resolved[i] = value
+	}
+	return resolved, resolved != nil, nil
 }
 
 // methodMatches reports whether a permission entry's method covers the

@@ -39,6 +39,7 @@ const (
 	RESULT                = "result"
 	AUDIT                 = "audit"
 	OUTPUT                = "output"
+	EVAL                  = "eval"
 	CONTAINER_URL         = "<CONTAINER_URL>" // special url to use for proxying to the container
 	DEFAULT_REDIRECT_CODE = 303
 )
@@ -531,6 +532,29 @@ func createAuditBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starl
 	return starlark.None, nil
 }
 
+// createEvalBuiltin implements ace.eval: wraps a template string the app
+// wants evaluated when passed as a plugin argument ({{secret "KEY"}}
+// references, template functions) into an opaque template value. A value
+// which is already a template (an app level param value, wrapped
+// automatically) is returned as is, so ace.eval(param.X) is always safe.
+// Plain strings passed to plugins are never template evaluated: request data
+// must not be wrapped
+func createEvalBuiltin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var value starlark.Value
+	if err := starlark.UnpackArgs(EVAL, args, kwargs, "template", &value); err != nil {
+		return nil, err
+	}
+	switch v := value.(type) {
+	case starlark.String:
+		return starlark_type.NewTemplate(string(v), true), nil
+	case starlark_type.Template:
+		return v, nil
+	case *starlark_type.Template:
+		return *v, nil
+	}
+	return nil, fmt.Errorf("%s: for parameter template: got %s, want string or template", EVAL, value.Type())
+}
+
 func createOutputBuiltin(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var value starlark.Value
 	var errValue starlark.String
@@ -690,6 +714,7 @@ func CreateBuiltin(nodeConfig types.NodeConfig, allowedEnv []string) starlark.St
 					RESULT:     starlark.NewBuiltin(RESULT, createResultBuiltin),
 					AUDIT:      starlark.NewBuiltin(AUDIT, createAuditBuiltin),
 					OUTPUT:     starlark.NewBuiltin(OUTPUT, createOutputBuiltin),
+					EVAL:       starlark.NewBuiltin(EVAL, createEvalBuiltin),
 					CONFIG:     starlark.NewBuiltin(CONFIG, CreateConfigBuiltin(nodeConfig, allowedEnv)),
 					JOB:        starlark.NewBuiltin(JOB, createJobBuiltin),
 

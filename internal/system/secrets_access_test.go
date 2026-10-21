@@ -20,17 +20,17 @@ func TestAppEvalTemplateSecretAccessErrors(t *testing.T) {
 		t.Fatalf("new secret manager: %v", err)
 	}
 
-	_, err = s.AppEvalTemplate(nil, "", `{{secret "SA_TEST_SECRET"}}`)
+	_, err = s.AppEvalTemplate(nil, "", `{{secret "SA_TEST_SECRET"}}`, true)
 	if !errors.Is(err, ErrNoSecretAccess) {
 		t.Fatalf("no secret access: err = %v, want ErrNoSecretAccess", err)
 	}
 
-	_, err = s.AppEvalTemplate([][]string{{"OTHER"}}, "", `{{secret_from "env" "SA_TEST_SECRET"}}`)
+	_, err = s.AppEvalTemplate([][]string{{"OTHER"}}, "", `{{secret_from "env" "SA_TEST_SECRET"}}`, true)
 	if !errors.Is(err, ErrSecretNotAllowed) {
 		t.Fatalf("secret not in patterns: err = %v, want ErrSecretNotAllowed", err)
 	}
 
-	got, err := s.AppEvalTemplate([][]string{{"regex:^SA_.*"}}, "", `{{secret "SA_TEST_SECRET"}}`)
+	got, err := s.AppEvalTemplate([][]string{{"regex:^SA_.*"}}, "", `{{secret "SA_TEST_SECRET"}}`, true)
 	if err != nil || got != "value1" {
 		t.Fatalf("allowed secret: got %q, err %v", got, err)
 	}
