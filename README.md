@@ -303,7 +303,7 @@ The `password` command writes the initial config and prints the generated admin 
 
 ## One-Click Deploy
 
-[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/OpenRun/)
+- Deploy on [RepoCloud](https://repocloud.io/details/OpenRun/)
 
 ## Documentation
 
