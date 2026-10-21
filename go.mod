@@ -6,78 +6,6 @@ module github.com/openrundev/openrun
 go 1.27.3
 
 require (
-	github.com/BurntSushi/toml v1.6.0
-	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/andybalholm/brotli v1.2.2
-	github.com/aws/aws-sdk-go-v2 v1.43.0
-	github.com/aws/aws-sdk-go-v2/config v1.32.24
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.23
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.7
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.2
-	github.com/aws/smithy-go v1.27.3
-	github.com/beevik/etree v1.7.0
-	github.com/benbjohnson/hashfs v0.2.2
-	github.com/benbjohnson/litestream v0.5.17
-	github.com/bmatcuk/doublestar/v4 v4.7.1
-	github.com/caddyserver/certmagic v0.21.4
-	github.com/cloudflare/tableflip v1.2.3
-	github.com/coder/acp-go-sdk v0.13.5
-	github.com/docker/go-units v0.5.0
-	github.com/evanw/esbuild v0.24.0
-	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-chi/chi/v5 v5.3.1
-	github.com/go-git/go-git/v5 v5.19.2
-	github.com/go-sql-driver/mysql v1.10.0
-	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/google/go-containerregistry v0.21.6
-	github.com/gorilla/securecookie v1.1.2
-	github.com/gorilla/sessions v1.4.0
-	github.com/hashicorp/go-hclog v1.6.3
-	github.com/hashicorp/go-plugin v1.8.0
-	github.com/hashicorp/vault/api v1.15.0
-	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jackc/pgxlisten v0.0.0-20250802141604-12b92425684c
-	github.com/markbates/goth v1.82.0
-	github.com/mholt/acmez/v2 v2.0.3
-	github.com/moby/buildkit v0.31.2
-	github.com/modelcontextprotocol/go-sdk v1.7.0
-	github.com/openrundev/openrun/pkg/binding v0.20.4
-	github.com/openrundev/openrun/pkg/plugin v0.20.4
-	github.com/pkg/profile v1.7.0
-	github.com/redis/go-redis/v9 v9.21.0
-	github.com/robfig/cron/v3 v3.0.1
-	github.com/rs/zerolog v1.35.1
-	github.com/russellhaering/gosaml2 v0.12.0
-	github.com/russellhaering/goxmldsig v1.6.1
-	github.com/segmentio/ksuid v1.0.4
-	github.com/urfave/cli/v2 v2.27.5
-	github.com/zalando/go-keyring v0.2.6
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
-	go.opentelemetry.io/otel v1.46.0
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.46.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
-	go.opentelemetry.io/otel/metric v1.46.0
-	go.opentelemetry.io/otel/sdk v1.46.0
-	go.opentelemetry.io/otel/sdk/metric v1.46.0
-	go.opentelemetry.io/otel/trace v1.46.0
-	go.starlark.net v0.0.0-20260708150628-5395d018f003
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.60.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
-	google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e
-	google.golang.org/protobuf v1.36.12
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	k8s.io/api v0.36.3
-	k8s.io/apimachinery v0.36.3
-	k8s.io/client-go v0.36.3
-	modernc.org/sqlite v1.54.0
-)
-
-require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	cloud.google.com/go/compute v1.29.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -176,7 +104,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
-	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/libdns/libdns v0.2.2 // indirect
 	github.com/lmittmann/tint v1.1.3 // indirect
@@ -266,3 +194,75 @@ replace cloud.google.com/go/compute/metadata => cloud.google.com/go/compute/meta
 replace github.com/openrundev/openrun/pkg/binding => ./pkg/binding
 
 replace github.com/openrundev/openrun/pkg/plugin => ./pkg/plugin
+
+require (
+	github.com/BurntSushi/toml v1.6.0
+	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/andybalholm/brotli v1.2.2
+	github.com/aws/aws-sdk-go-v2 v1.43.0
+	github.com/aws/aws-sdk-go-v2/config v1.32.24
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.23
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.51.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.7
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.66.2
+	github.com/aws/smithy-go v1.27.3
+	github.com/beevik/etree v1.7.0
+	github.com/benbjohnson/hashfs v0.2.2
+	github.com/benbjohnson/litestream v0.5.17
+	github.com/bmatcuk/doublestar/v4 v4.7.1
+	github.com/caddyserver/certmagic v0.21.4
+	github.com/cloudflare/tableflip v1.2.3
+	github.com/coder/acp-go-sdk v0.13.5
+	github.com/docker/go-units v0.5.0
+	github.com/evanw/esbuild v0.24.0
+	github.com/fsnotify/fsnotify v1.10.1
+	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-git/go-git/v5 v5.19.2
+	github.com/go-sql-driver/mysql v1.10.0
+	github.com/go-viper/mapstructure/v2 v2.5.0
+	github.com/google/go-containerregistry v0.21.6
+	github.com/gorilla/securecookie v1.1.2
+	github.com/gorilla/sessions v1.4.0
+	github.com/hashicorp/go-hclog v1.6.3
+	github.com/hashicorp/go-plugin v1.8.0
+	github.com/hashicorp/vault/api v1.15.0
+	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgxlisten v0.0.0-20250802141604-12b92425684c
+	github.com/markbates/goth v1.82.0
+	github.com/mholt/acmez/v2 v2.0.3
+	github.com/moby/buildkit v0.31.2
+	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/openrundev/openrun/pkg/binding v0.20.4
+	github.com/openrundev/openrun/pkg/plugin v0.20.4
+	github.com/pkg/profile v1.7.0
+	github.com/redis/go-redis/v9 v9.21.0
+	github.com/robfig/cron/v3 v3.0.1
+	github.com/rs/zerolog v1.35.1
+	github.com/russellhaering/gosaml2 v0.12.0
+	github.com/russellhaering/goxmldsig v1.6.1
+	github.com/segmentio/ksuid v1.0.4
+	github.com/urfave/cli/v2 v2.27.5
+	github.com/zalando/go-keyring v0.2.6
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
+	go.opentelemetry.io/otel v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.46.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
+	go.opentelemetry.io/otel/metric v1.46.0
+	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/sdk/metric v1.46.0
+	go.opentelemetry.io/otel/trace v1.46.0
+	go.starlark.net v0.0.0-20260708150628-5395d018f003
+	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.60.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.46.0
+	google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e
+	google.golang.org/protobuf v1.36.12
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	k8s.io/api v0.36.3
+	k8s.io/apimachinery v0.36.3
+	k8s.io/client-go v0.36.3
+	modernc.org/sqlite v1.54.0
+)
