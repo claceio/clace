@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openrundev/openrun/internal/app/apptype"
+	"github.com/openrundev/openrun/internal/types"
 	sdk "github.com/openrundev/openrun/pkg/plugin"
 )
 
@@ -301,4 +303,178 @@ func TestRequestJsonParseError(t *testing.T) {
 	if _, err := module.ReadBody(context.Background(), jsonCall); err == nil {
 		t.Fatal("expected json parse error for invalid JSON body")
 	}
+}
+
+// testHost is a HostServices with fixed values
+type testHost map[string]any
+
+func (h testHost) Value(key string) any { return h[key] }
+
+func recordingModule(urls *[]string, respond func(req *http.Request) *http.Response) *httpModule {
+	return &httpModule{
+		client: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				*urls = append(*urls, req.URL.String())
+				if respond != nil {
+					return respond(req), nil
+				}
+				return okResponse(req, io.NopCloser(strings.NewReader("ok"))), nil
+			}),
+		},
+	}
+}
+
+// The <CONTAINER_URL> placeholder is checked by the permission patterns before
+// it is replaced by the container address, so the url after the replacement
+// must still point at the container (GHSA-qgqh-4fgp-rf5c)
+func TestContainerUrlStaysOnContainer(t *testing.T) {
+	host := testHost{types.TL_CONTAINER_URL: "http://127.0.0.1:9000"}
+	tests := []struct {
+		url     string
+		want    string
+		wantErr bool
+	}{
+		{apptype.CONTAINER_URL, "http://127.0.0.1:9000", false},
+		{apptype.CONTAINER_URL + "/path?x=1", "http://127.0.0.1:9000/path?x=1", false},
+		{apptype.CONTAINER_URL + "@10.0.0.5/admin", "", true},
+		{apptype.CONTAINER_URL + ":1234/", "", true},
+		{apptype.CONTAINER_URL + ".evil.example/", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			var urls []string
+			module := recordingModule(&urls, nil)
+			call := testCall(tt.url)
+			call.Host = host
+			_, err := module.request(context.Background(), call, "get")
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "invalid container url") {
+					t.Fatalf("expected invalid container url error, got %v (requests %v)", err, urls)
+				}
+				if len(urls) != 0 {
+					t.Fatalf("expected no request, got %v", urls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(urls) != 1 || urls[0] != tt.want {
+				t.Fatalf("expected request to %s, got %v", tt.want, urls)
+			}
+		})
+	}
+}
+
+func redirectThen(location string) func(req *http.Request) *http.Response {
+	return func(req *http.Request) *http.Response {
+		if strings.HasSuffix(req.URL.Path, "/start") {
+			res := okResponse(req, io.NopCloser(strings.NewReader("")))
+			res.StatusCode = http.StatusFound
+			res.Status = "302 Found"
+			res.Header.Set("Location", location)
+			return res
+		}
+		return okResponse(req, io.NopCloser(strings.NewReader("ok")))
+	}
+}
+
+// Each redirect target goes through the host's argument check before it is
+// followed; without a host check redirects are refused (GHSA-qgqh-4fgp-rf5c)
+func TestRedirectTargetChecked(t *testing.T) {
+	t.Run("permitted target followed", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, redirectThen("https://other.example/next"))
+		call := testCall("https://example.com/start")
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			checked = append(checked, function+" "+arg)
+			return nil
+		})}
+		result, err := module.request(context.Background(), call, "get")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 1 || checked[0] != "get https://other.example/next" {
+			t.Fatalf("expected the redirect target to be checked, got %v", checked)
+		}
+		if len(urls) != 2 || urls[1] != "https://other.example/next" {
+			t.Fatalf("expected the redirect to be followed, got %v", urls)
+		}
+		if got := result.(*sdk.Struct).Fields["url"]; got != "https://other.example/next" {
+			t.Fatalf("expected final url, got %v", got)
+		}
+	})
+
+	t.Run("refused target not followed", func(t *testing.T) {
+		var urls []string
+		module := recordingModule(&urls, redirectThen("http://169.254.169.254/"))
+		call := testCall("https://example.com/start")
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			return errors.New("blocked by test")
+		})}
+		_, err := module.request(context.Background(), call, "get")
+		if err == nil || !strings.Contains(err.Error(), "redirect to http://169.254.169.254 not followed: blocked by test") {
+			t.Fatalf("expected refused redirect error, got %v", err)
+		}
+		if len(urls) != 1 {
+			t.Fatalf("expected the redirect target not to be requested, got %v", urls)
+		}
+	})
+
+	t.Run("no host check refuses redirects", func(t *testing.T) {
+		var urls []string
+		module := recordingModule(&urls, redirectThen("https://other.example/next"))
+		_, err := module.request(context.Background(), testCall("https://example.com/start"), "get")
+		if err == nil || !strings.Contains(err.Error(), "redirect targets cannot be checked") {
+			t.Fatalf("expected refused redirect error, got %v", err)
+		}
+		if len(urls) != 1 {
+			t.Fatalf("expected the redirect target not to be requested, got %v", urls)
+		}
+	})
+
+	t.Run("container target checked as <CONTAINER_URL>", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, redirectThen("http://127.0.0.1:9000/next?x=1"))
+		call := testCall(apptype.CONTAINER_URL + "/start")
+		call.Host = testHost{
+			types.TL_CONTAINER_URL: "http://127.0.0.1:9000",
+			types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+				checked = append(checked, arg)
+				return nil
+			}),
+		}
+		if _, err := module.request(context.Background(), call, "get"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 1 || checked[0] != apptype.CONTAINER_URL+"/next?x=1" {
+			t.Fatalf("expected the container form to be checked, got %v", checked)
+		}
+	})
+
+	t.Run("303 after post checked as get", func(t *testing.T) {
+		var urls, checked []string
+		module := recordingModule(&urls, func(req *http.Request) *http.Response {
+			if req.Method == http.MethodPost {
+				res := okResponse(req, io.NopCloser(strings.NewReader("")))
+				res.StatusCode = http.StatusSeeOther
+				res.Status = "303 See Other"
+				res.Header.Set("Location", "https://example.com/result")
+				return res
+			}
+			return okResponse(req, io.NopCloser(strings.NewReader("ok")))
+		})
+		call := testCall("https://example.com/start")
+		call.Function = "post"
+		call.Host = testHost{types.TL_PLUGIN_ARG_CHECK: types.PluginArgCheckFunc(func(function, arg string) error {
+			checked = append(checked, function+" "+arg)
+			return nil
+		})}
+		if _, err := module.request(context.Background(), call, "post"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(checked) != 1 || checked[0] != "get https://example.com/result" {
+			t.Fatalf("expected the target to be checked as a get, got %v", checked)
+		}
+	})
 }

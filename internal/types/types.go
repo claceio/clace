@@ -109,6 +109,7 @@ const (
 	TL_CURRENT_MODULE_FULL_PATH = "TL_current_module_full_path"
 	TL_PLUGIN_API_FAILED_ERROR  = "TL_plugin_api_failed_error"
 	TL_CONTAINER_URL            = "TL_container_url"
+	TL_PLUGIN_ARG_CHECK         = "TL_plugin_arg_check"
 	TL_AUDIT_OPERATION          = "TL_audit_operation"
 	TL_AUDIT_TARGET             = "TL_audit_target"
 	TL_AUDIT_DETAIL             = "TL_audit_detail"
@@ -1704,6 +1705,15 @@ const (
 )
 
 const REGEX_PREFIX = "regex:"
+
+// PluginArgCheckFunc is set by the plugin call hook (thread local
+// TL_PLUGIN_ARG_CHECK) for the duration of a plugin call. It reports whether
+// a call of functionName (empty for the function being called) with its
+// first positional argument replaced by arg would be permitted: the server
+// disallow list and the app's approved permissions are re-run against the
+// value. The http plugin uses it to check each redirect target the way the
+// original url was checked, under the method the redirected request uses
+type PluginArgCheckFunc func(functionName, arg string) error
 
 func RegexMatch(perm, entry string) (bool, error) {
 	if len(perm) <= 6 || !strings.HasPrefix(perm, REGEX_PREFIX) {

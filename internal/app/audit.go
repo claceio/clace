@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"reflect"
+	"regexp/syntax"
 	"slices"
 	"strings"
 
@@ -339,12 +340,63 @@ func needsApprovalWithServerConfig(a *types.ApproveResult, serverPerms []types.P
 	return false
 }
 
+// patternCovers reports whether a permission pattern (the server config's or
+// an approved entry's method or argument, exact or regex:) covers a pattern
+// declared by the app. A plain declared value is covered when the pattern
+// matches it the way the runtime check matches a call. A declared regex: is
+// never matched as text, since a regex matching the text of another regex
+// says nothing about the values the two accept (regex:get|head matches the
+// text of regex:get|post although it does not permit post): it is covered
+// only by the identical pattern or by a pattern proven to accept every value
+func patternCovers(pattern, declared string) bool {
+	if pattern == declared {
+		return true
+	}
+	if strings.HasPrefix(declared, types.REGEX_PREFIX) {
+		return regexUniversal(pattern)
+	}
+	match, err := types.RegexMatch(pattern, declared)
+	return err == nil && match
+}
+
+// regexUniversal reports whether a regex: pattern accepts every value under
+// the unanchored match the runtime uses. Without empty-width assertions
+// (^, $, \b and the like) a pattern that matches the empty string matches a
+// substring of every input, and a pattern that matches every input matches
+// the empty one, so the two are the same. With assertions the shortcut does
+// not hold (^(get|head)?$ matches the empty string but not post), so such a
+// pattern is never taken as universal
+func regexUniversal(pattern string) bool {
+	if !strings.HasPrefix(pattern, types.REGEX_PREFIX) {
+		return false
+	}
+	expr := pattern[len(types.REGEX_PREFIX):]
+	re, err := syntax.Parse(expr, syntax.Perl)
+	if err != nil || hasEmptyWidthOp(re) {
+		return false
+	}
+	match, err := types.RegexMatch(pattern, "")
+	return err == nil && match
+}
+
+func hasEmptyWidthOp(re *syntax.Regexp) bool {
+	switch re.Op {
+	case syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText,
+		syntax.OpWordBoundary, syntax.OpNoWordBoundary:
+		return true
+	}
+	return slices.ContainsFunc(re.Sub, hasEmptyWidthOp)
+}
+
 // permissionCoveredByServerConfig checks if a permission declared by an app is already
 // covered by a server config permission entry. Server config permissions can use regex
 // for arguments, so this does regex-aware matching.
 func permissionCoveredByServerConfig(perm types.Permission, serverPerms []types.Permission) bool {
 	for _, sp := range serverPerms {
-		if sp.Plugin != perm.Plugin || sp.Method != perm.Method {
+		if sp.Plugin != perm.Plugin {
+			continue
+		}
+		if !patternCovers(sp.Method, perm.Method) {
 			continue
 		}
 
@@ -361,12 +413,7 @@ func permissionCoveredByServerConfig(perm types.Permission, serverPerms []types.
 
 		argMatch := true
 		for i, serverArg := range sp.Arguments {
-			appArg := perm.Arguments[i]
-			if serverArg == appArg {
-				continue
-			}
-			match, err := types.RegexMatch(serverArg, appArg)
-			if err != nil || !match {
+			if !patternCovers(serverArg, perm.Arguments[i]) {
 				argMatch = false
 				break
 			}
@@ -504,7 +551,10 @@ func allowedSecrets(plugin, method string, permLists ...[]types.Permission) [][]
 	ret := [][]string{}
 	for _, perms := range permLists {
 		for _, p := range perms {
-			if p.Plugin == plugin && p.Method == method {
+			if p.Plugin != plugin {
+				continue
+			}
+			if patternCovers(p.Method, method) {
 				ret = append(ret, p.Secrets...)
 			}
 		}

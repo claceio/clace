@@ -138,19 +138,29 @@ func (h *httpModule) request(ctx context.Context, call *sdk.Call, method string)
 		return nil, err
 	}
 
+	var containerProxyUrl *url.URL
 	if strings.HasPrefix(rawurl, apptype.CONTAINER_URL) {
 		// If the url starts with the container url, we need to replace it with
 		// the container proxy url. The proxy url is host-process state, so
 		// container calls work with the compiled-in http plugin only
-		rawurl = strings.TrimPrefix(rawurl, apptype.CONTAINER_URL)
-		var containerProxyUrl string
+		var proxyUrlStr string
 		if call.Host != nil {
-			containerProxyUrl, _ = call.Host.Value(types.TL_CONTAINER_URL).(string)
+			proxyUrlStr, _ = call.Host.Value(types.TL_CONTAINER_URL).(string)
 		}
-		if containerProxyUrl == "" {
+		if proxyUrlStr == "" {
 			return nil, fmt.Errorf("container proxy url not set")
 		}
-		rawurl = containerProxyUrl + rawurl
+		var err error
+		if containerProxyUrl, err = url.Parse(proxyUrlStr); err != nil {
+			return nil, fmt.Errorf("invalid container proxy url: %w", err)
+		}
+		rawurl = proxyUrlStr + strings.TrimPrefix(rawurl, apptype.CONTAINER_URL)
+		// The permission check saw <CONTAINER_URL>, so the url after the
+		// replacement must still point at the container: a suffix such as
+		// "@other-host/" or ":port" would move the request elsewhere
+		if !sameOrigin(rawurl, containerProxyUrl) {
+			return nil, fmt.Errorf("invalid container url: %s must be followed by a path, query or nothing", apptype.CONTAINER_URL)
+		}
 	}
 
 	if err := setQueryParams(&rawurl, params); err != nil {
@@ -193,9 +203,24 @@ func (h *httpModule) request(ctx context.Context, call *sdk.Call, method string)
 		}
 	}
 
-	res, err := h.client.Do(req)
+	// A redirect target was not seen by the permission checks on the url
+	// argument, so each one is checked through the host as if the app had
+	// called the plugin with it. Without the host check (no host services),
+	// redirects are not followed
+	client := &http.Client{
+		Transport: h.client.Transport,
+		Jar:       h.client.Jar,
+		Timeout:   h.client.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return checkRedirectTarget(call, req, containerProxyUrl)
+		},
+	}
+	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactUrlError(err)
 	}
 
 	if errorOnFail && (res.StatusCode < 200 || res.StatusCode >= 300) { // 1xx and 3xx are also failed by default
@@ -423,6 +448,67 @@ func createSLAuthHeader(req *http.Request, userId, apiKey string) (map[string]st
 	authHeader := fmt.Sprintf("SLSignature keyId=%s, headers=%s, %s", userId, strings.Join(headerKeys, ";"), hashedSig)
 	retHeaders["Authorization"] = authHeader
 	return retHeaders, nil
+}
+
+// redactUrlError reduces the request url that a *url.Error prints to its
+// scheme and host: the path, query and userinfo may carry resolved secrets
+// (a token path segment, an api key query param, or values a redirecting
+// server echoed), and the error reaches the app's response and logs
+func redactUrlError(err error) error {
+	uerr, ok := err.(*url.Error)
+	if !ok {
+		return err
+	}
+	u, perr := url.Parse(uerr.URL)
+	if perr != nil {
+		return fmt.Errorf("%s: %w", uerr.Op, uerr.Err)
+	}
+	return fmt.Errorf("%s %s: %w", uerr.Op, originOf(u), uerr.Err)
+}
+
+// originOf returns the scheme and host of u, the part of a url that cannot
+// hold a resolved secret
+func originOf(u *url.URL) string {
+	return u.Scheme + "://" + u.Host
+}
+
+// sameOrigin reports whether rawurl parses to the scheme and host (with port)
+// of origin, with no userinfo
+func sameOrigin(rawurl string, origin *url.URL) bool {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return false
+	}
+	return u.User == nil && strings.EqualFold(u.Scheme, origin.Scheme) && strings.EqualFold(u.Host, origin.Host)
+}
+
+// checkRedirectTarget runs the plugin call permission checks on a redirect
+// target through the host's argument check, under the method of the
+// redirected request (a 303, or a 301/302 after a POST, turns it into a GET,
+// so the target is checked as a get call). A target on the app's own
+// container is checked as <CONTAINER_URL>..., the form the url argument and
+// the permission patterns use
+func checkRedirectTarget(call *sdk.Call, req *http.Request, containerProxyUrl *url.URL) error {
+	target := req.URL
+	var check types.PluginArgCheckFunc
+	if call.Host != nil {
+		check, _ = call.Host.Value(types.TL_PLUGIN_ARG_CHECK).(types.PluginArgCheckFunc)
+	}
+	// The error names the target's scheme and host only: its path and query
+	// may carry request values, including resolved secrets, that the
+	// redirecting server echoed
+	shown := originOf(target)
+	if check == nil {
+		return fmt.Errorf("redirect to %s not followed: redirect targets cannot be checked against the app permissions", shown)
+	}
+	arg := target.String()
+	if containerProxyUrl != nil && sameOrigin(arg, containerProxyUrl) {
+		arg = apptype.CONTAINER_URL + strings.TrimPrefix(arg, containerProxyUrl.String())
+	}
+	if err := check(strings.ToLower(req.Method), arg); err != nil {
+		return fmt.Errorf("redirect to %s not followed: %w", shown, err)
+	}
+	return nil
 }
 
 func setHeaders(req *http.Request, headers map[string]any) error {

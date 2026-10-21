@@ -218,12 +218,8 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 		// Server config disallow list: a matching entry blocks the call for
 		// every app, even when the app's approved permissions or the server
 		// config allow list would permit it
-		disallowed, err := matchesDisallowed(a.serverConfig.Permissions.Disallow, modulePath, functionName, args)
-		if err != nil {
+		if err := a.checkDisallowed(modulePath, functionName, args, kwargs, "the call"); err != nil {
 			return nil, err
-		}
-		if disallowed {
-			return nil, fmt.Errorf("app %s is not permitted to call %s.%s: the call is disallowed by the server config (permissions.disallow)", a.Path, modulePath, functionName)
 		}
 
 		permsList := append([]types.Permission(nil), a.Metadata.Permissions...)
@@ -231,12 +227,12 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 			// Add the server config allowed permissions to the list
 			permsList = append(permsList, a.serverConfig.Permissions.Allow...)
 		}
-		lastError, secrets, approved, err := checkPermissions(GetContext(thread), a, modulePath, functionName, args, pluginInfo, permsList)
+		lastError, secrets, matched, err := checkPermissions(GetContext(thread), a, modulePath, functionName, args, pluginInfo, permsList, false)
 		if err != nil {
 			return nil, err
 		}
 
-		if !approved {
+		if matched == nil {
 			if lastError != nil {
 				return nil, lastError
 			} else {
@@ -270,84 +266,74 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 		// Pass the module full path as a thread local
 		thread.SetLocal(types.TL_CURRENT_MODULE_FULL_PATH, modulePath)
 
-		// Evaluate secrets passed as arguments
+		// Evaluate secrets passed as arguments and keyword arguments
 		if a.secretEvalFunc != nil {
+			changed := false
 			for i, arg := range args {
-				switch v := arg.(type) {
-				case starlark.String:
-					evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, v.GoString())
-					if err != nil {
-						return nil, err
-					}
-					args[i] = starlark.String(evalString)
-				case *starlark.List:
-					for i := 0; i < v.Len(); i++ {
-						switch sv := v.Index(i).(type) {
-						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
-							if err != nil {
-								return nil, err
-							}
-							v.SetIndex(i, starlark.String(evalString)) //nolint:errcheck
-						}
-					}
-				case *starlark.Dict:
-					for _, key := range v.Keys() {
-						value, _, err := v.Get(key)
-						if err != nil {
-							return nil, err
-						}
-						switch sv := value.(type) {
-						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
-							if err != nil {
-								return nil, err
-							}
-							v.SetKey(key, starlark.String(evalString)) //nolint:errcheck
-						}
-					}
+				evalValue, argChanged, err := a.evalArgSecrets(secrets, arg)
+				if err != nil {
+					return nil, err
 				}
+				args[i] = evalValue
+				changed = changed || argChanged
+			}
+			for i, kwarg := range kwargs {
+				evalValue, argChanged, err := a.evalArgSecrets(secrets, kwarg[1])
+				if err != nil {
+					return nil, err
+				}
+				kwargs[i][1] = evalValue
+				changed = changed || argChanged
 			}
 
-			// Evaluate secrets passed as keyword arguments
-			for i, kwarg := range kwargs {
-				switch v := kwarg[1].(type) {
-				case starlark.String:
-					evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, v.GoString())
-					if err != nil {
-						return nil, err
-
-					}
-					kwargs[i][1] = starlark.String(evalString)
-				case *starlark.List:
-					for i := 0; i < v.Len(); i++ {
-						switch sv := v.Index(i).(type) {
-						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
-							if err != nil {
-								return nil, err
-							}
-							v.SetIndex(i, starlark.String(evalString)) //nolint:errcheck
-						}
-					}
-				case *starlark.Dict:
-					for _, key := range v.Keys() {
-						value, _, err := v.Get(key)
-						if err != nil {
-							return nil, err
-						}
-						switch sv := value.(type) {
-						case starlark.String:
-							evalString, err := a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, sv.GoString())
-							if err != nil {
-								return nil, err
-							}
-							v.SetKey(key, starlark.String(evalString)) //nolint:errcheck
-						}
-					}
+			if changed {
+				// The checks above saw the raw argument text. A template
+				// (any string with a {{secret}} reference, including one in a
+				// branch that never runs) can resolve to a value the raw text
+				// did not show, so the disallow list and the argument
+				// patterns of the permission that approved the call are
+				// checked again on what the plugin will actually receive
+				if err := a.checkDisallowed(modulePath, functionName, args, kwargs, "the template-resolved argument value"); err != nil {
+					return nil, err
+				}
+				if err := a.checkMatchedArgs(modulePath, functionName, args, matched); err != nil {
+					return nil, err
 				}
 			}
 		}
+
+		// Plugins which derive further targets from the call (the http
+		// plugin following a redirect) check each one as if it were the
+		// first argument of a fresh call, through this thread local. The
+		// plugin names the function the derived call corresponds to (a 303
+		// turns a post into a get), empty for the current one
+		argCheck := types.PluginArgCheckFunc(func(checkFunction, arg string) error {
+			if checkFunction == "" {
+				checkFunction = functionName
+			}
+			checkArgs := starlark.Tuple{starlark.String(arg)}
+			if len(args) > 1 {
+				checkArgs = append(checkArgs, args[1:]...)
+			}
+			if err := a.checkDisallowed(modulePath, checkFunction, checkArgs, kwargs, "the target"); err != nil {
+				return err
+			}
+			// The remaining positionals are template-resolved by now and
+			// may hold secrets, so the errors leave argument values out
+			lastError, _, matched, err := checkPermissions(GetContext(thread), a, modulePath, checkFunction, checkArgs, pluginInfo, permsList, true)
+			if err != nil {
+				return err
+			}
+			if matched == nil {
+				if lastError != nil {
+					return lastError
+				}
+				return fmt.Errorf("app %s is not permitted to call %s.%s with the target. Audit the app and approve permissions", a.Path, modulePath, checkFunction)
+			}
+			return nil
+		})
+		thread.SetLocal(types.TL_PLUGIN_ARG_CHECK, argCheck)
+		defer thread.SetLocal(types.TL_PLUGIN_ARG_CHECK, nil)
 
 		// Call the builtin function
 		newBuiltin := starlark.NewBuiltin(functionName, errorHandlingWrapper)
@@ -378,76 +364,198 @@ func (a *App) pluginHook(appPath, modulePath, accountName, functionName string, 
 	return starlark.NewBuiltin(functionName, hook)
 }
 
-// matchesDisallowed reports whether the plugin call matches a server config
-// permissions.disallow entry. Matching mirrors the allow/approval options in
-// checkPermissions: the plugin name must match, an empty method matches every
-// method of the plugin, and argument patterns (exact or regex:, positional
-// prefix) narrow the block to matching calls. A call with fewer arguments than
-// the entry's patterns does not match. Permit/is_read/secrets have no meaning
-// on a deny rule and are ignored
-func matchesDisallowed(disallowList []types.Permission, modulePath, functionName string, args starlark.Tuple) (bool, error) {
-	for _, p := range disallowList {
+// evalArgSecrets resolves {{secret}} templates in a string argument, in the
+// string elements of a list and in the string values of a dict (lists and
+// dicts are updated in place). It reports whether any value changed
+func (a *App) evalArgSecrets(secrets [][]string, value starlark.Value) (starlark.Value, bool, error) {
+	eval := func(input string) (string, error) {
+		return a.secretEvalFunc(secrets, a.AppConfig.Security.DefaultSecretsProvider, input)
+	}
+	switch v := value.(type) {
+	case starlark.String:
+		evalString, err := eval(v.GoString())
+		if err != nil {
+			return nil, false, err
+		}
+		return starlark.String(evalString), evalString != v.GoString(), nil
+	case *starlark.List:
+		changed := false
+		for i := 0; i < v.Len(); i++ {
+			sv, ok := v.Index(i).(starlark.String)
+			if !ok {
+				continue
+			}
+			evalString, err := eval(sv.GoString())
+			if err != nil {
+				return nil, false, err
+			}
+			if evalString != sv.GoString() {
+				changed = true
+				v.SetIndex(i, starlark.String(evalString)) //nolint:errcheck
+			}
+		}
+		return v, changed, nil
+	case *starlark.Dict:
+		changed := false
+		for _, key := range v.Keys() {
+			entry, _, err := v.Get(key)
+			if err != nil {
+				return nil, false, err
+			}
+			sv, ok := entry.(starlark.String)
+			if !ok {
+				continue
+			}
+			evalString, err := eval(sv.GoString())
+			if err != nil {
+				return nil, false, err
+			}
+			if evalString != sv.GoString() {
+				changed = true
+				v.SetKey(key, starlark.String(evalString)) //nolint:errcheck
+			}
+		}
+		return v, changed, nil
+	}
+	return value, false, nil
+}
+
+// methodMatches reports whether a permission entry's method covers the
+// called function: the exact name, or a regex: pattern (the http.in default
+// in the server config covers every method of the plugin that way)
+func methodMatches(pattern, functionName string) (bool, error) {
+	if pattern == functionName {
+		return true, nil
+	}
+	return types.RegexMatch(pattern, functionName)
+}
+
+// matchArgPatterns matches the positional args against the patterns position
+// by position (exact or regex:). It returns the index and value of the first
+// argument that does not match, or -1 when every pattern matches. The caller
+// ensures the call has at least as many positional args as there are patterns
+func matchArgPatterns(patterns []string, args starlark.Tuple) (int, string, error) {
+	for i, pattern := range patterns {
+		funcInput := types.StripQuotes(args[i].String())
+		if funcInput == pattern {
+			continue
+		}
+		match, err := types.RegexMatch(pattern, funcInput)
+		if err != nil {
+			return i, funcInput, err
+		}
+		if !match {
+			return i, funcInput, nil
+		}
+	}
+	return -1, "", nil
+}
+
+// checkDisallowed returns an error when the plugin call matches a server
+// config permissions.disallow entry. Matching mirrors the allow/approval
+// options in checkPermissions: the plugin name must match, an empty method
+// matches every method of the plugin (a regex: method matches by pattern),
+// and argument patterns (exact or regex:, positional prefix) narrow the block
+// to matching calls. A call with fewer positional arguments than the entry
+// has patterns does not match, unless it passes keyword arguments: those may
+// carry the argument the entry restricts, and the positional patterns cannot
+// see them, so the entry blocks the call. Permit/is_read/secrets have no
+// meaning on a deny rule and are ignored. what names the value being checked
+// in the error ("the call", a resolved argument, a redirect target)
+func (a *App) checkDisallowed(modulePath, functionName string, args starlark.Tuple, kwargs []starlark.Tuple, what string) error {
+	for _, p := range a.serverConfig.Permissions.Disallow {
 		if p.Plugin != modulePath {
 			continue
 		}
-		if p.Method != "" && p.Method != functionName {
-			continue
-		}
-		if len(p.Arguments) > len(args) {
-			continue
-		}
-		argMismatch := false
-		for i, arg := range p.Arguments {
-			funcInput := types.StripQuotes(args[i].String())
-			if funcInput == arg {
-				continue
-			}
-			match, err := types.RegexMatch(arg, funcInput)
+		if p.Method != "" {
+			match, err := methodMatches(p.Method, functionName)
 			if err != nil {
-				return false, err
+				return err
 			}
 			if !match {
-				argMismatch = true
-				break
+				continue
 			}
 		}
-		if !argMismatch {
-			return true, nil
+		if len(p.Arguments) > len(args) {
+			if len(kwargs) > 0 {
+				return fmt.Errorf("app %s is not permitted to call %s.%s: %s is disallowed by the server config (permissions.disallow), keyword arguments cannot be checked against the entry's argument patterns, pass the arguments positionally", a.Path, modulePath, functionName, what)
+			}
+			continue
+		}
+		mismatch, _, err := matchArgPatterns(p.Arguments, args)
+		if err != nil {
+			return err
+		}
+		if mismatch < 0 {
+			return fmt.Errorf("app %s is not permitted to call %s.%s: %s is disallowed by the server config (permissions.disallow)", a.Path, modulePath, functionName, what)
 		}
 	}
-	return false, nil
+	return nil
 }
 
-func checkPermissions(ctx context.Context, a *App, modulePath string, functionName string, args starlark.Tuple, pluginInfo *plugin.PluginInfo, permsList []types.Permission) (error, [][]string, bool, error) {
+// checkMatchedArgs re-runs the argument patterns of the permission that
+// approved the call against the template-resolved argument values. The
+// permission's secrets were granted for calls matching its patterns, so the
+// resolved values (which may carry those secrets) must match them too. The
+// error names the argument and the pattern but not the resolved value: it
+// may hold a secret, and the error reaches the app's response and logs
+func (a *App) checkMatchedArgs(modulePath, functionName string, args starlark.Tuple, p *types.Permission) error {
+	if len(p.Arguments) == 0 {
+		return nil
+	}
+	if len(p.Arguments) > len(args) {
+		return fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required", a.Path, modulePath, functionName, len(args), len(p.Arguments))
+	}
+	mismatch, _, err := matchArgPatterns(p.Arguments, args)
+	if err != nil {
+		return err
+	}
+	if mismatch >= 0 {
+		return fmt.Errorf("app %s is not permitted to call %s.%s: template-resolved argument %d does not match the approved pattern \"%s\". Update the app or audit and approve permissions", a.Path, modulePath, functionName, mismatch, p.Arguments[mismatch])
+	}
+	return nil
+}
+
+// checkPermissions looks for a permission in permsList that approves the
+// call. It returns the matched permission (nil when none approves), the
+// secrets that permission grants, and the last reason a candidate was
+// rejected. Argument patterns match the positional args only: a call that
+// passes a restricted argument by keyword is not approved by a patterned
+// entry. With redactValues the rejection reasons name the argument and the
+// pattern but not the argument's value, for args that may hold resolved
+// secrets (the errors reach the app's response and logs)
+func checkPermissions(ctx context.Context, a *App, modulePath string, functionName string, args starlark.Tuple, pluginInfo *plugin.PluginInfo, permsList []types.Permission, redactValues bool) (error, [][]string, *types.Permission, error) {
 	var lastError error
 	secrets := [][]string{}
-	approved := false
-	for _, p := range permsList {
+	var matched *types.Permission
+	for idx := range permsList {
+		p := permsList[idx]
 		a.Trace().Msgf("Checking permission %s.%s call %s.%s", p.Plugin, p.Method, modulePath, functionName)
-		if p.Plugin == modulePath && p.Method == functionName {
+		if p.Plugin != modulePath {
+			continue
+		}
+		methodMatch, err := methodMatches(p.Method, functionName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if methodMatch {
 			if len(p.Arguments) > 0 {
 				if len(p.Arguments) > len(args) {
 					lastError = fmt.Errorf("app %s is not permitted to call %s.%s with %d arguments, %d or more positional arguments are required (permissions checks are not supported for kwargs). Audit the app and approve permissions", a.Path, modulePath, functionName, len(args), len(p.Arguments))
 					continue
 				}
-				argMismatch := false
-				for i, arg := range p.Arguments {
-					funcInput := types.StripQuotes(args[i].String())
-					if funcInput != arg {
-						match, err := types.RegexMatch(arg, funcInput)
-						if err != nil {
-							return nil, nil, false, err
-						}
-						if !match {
-							lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value \"%s\", expected \"%s\". Update the app or audit and approve permissions", a.Path, modulePath, functionName, i, funcInput, arg)
-							argMismatch = true
-							break
-						}
-					}
-					// More arguments than approved are permitted. Also, using kwargs is not allowed for args which are approved
+				// More arguments than approved are permitted
+				mismatch, value, err := matchArgPatterns(p.Arguments, args)
+				if err != nil {
+					return nil, nil, nil, err
 				}
-				if argMismatch {
+				if mismatch >= 0 {
 					// This permission is not approved, but there may be others which are
+					if redactValues {
+						lastError = fmt.Errorf("app %s is not permitted to call %s.%s: argument %d does not match the approved pattern \"%s\". Update the app or audit and approve permissions", a.Path, modulePath, functionName, mismatch, p.Arguments[mismatch])
+					} else {
+						lastError = fmt.Errorf("app %s is not permitted to call %s.%s with argument %d having value \"%s\", expected \"%s\". Update the app or audit and approve permissions", a.Path, modulePath, functionName, mismatch, value, p.Arguments[mismatch])
+					}
 					continue
 				}
 			}
@@ -465,11 +573,11 @@ func checkPermissions(ctx context.Context, a *App, modulePath string, functionNa
 				if !isRead {
 					// Write API, check if stage/preview has write access
 					if strings.HasPrefix(string(a.Id), types.ID_PREFIX_APP_STAGE) && !a.Settings.StageWriteAccess {
-						return nil, nil, false, fmt.Errorf("stage app %s is not permitted to call %s.%s args %v. Stage app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
+						return nil, nil, nil, fmt.Errorf("stage app %s is not permitted to call %s.%s args %v. Stage app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
 					}
 
 					if strings.HasPrefix(string(a.Id), types.ID_PREFIX_APP_PREVIEW) && !a.Settings.PreviewWriteAccess {
-						return nil, nil, false, fmt.Errorf("preview app %s is not permitted to call %s.%s args %v. Preview app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
+						return nil, nil, nil, fmt.Errorf("preview app %s is not permitted to call %s.%s args %v. Preview app does not have access to write operations", a.Path, modulePath, functionName, p.Arguments)
 					}
 				}
 			}
@@ -479,19 +587,19 @@ func checkPermissions(ctx context.Context, a *App, modulePath string, functionNa
 			if a.rbacApi != nil && ctx != nil && len(p.Permit) > 0 && rbac.AppRBACActive(ctx) {
 				authorized, err := a.rbacApi.AuthorizeAny(ctx, p.Permit)
 				if err != nil {
-					return nil, nil, false, err
+					return nil, nil, nil, err
 				}
 				if !authorized {
 					userId := system.GetContextUserId(ctx)
 					lastError = fmt.Errorf("app %s is not permitted to call %s.%s: user %s does not have any required permission %v", a.Path, modulePath, functionName, userId, p.Permit)
-					return lastError, secrets, false, nil
+					return lastError, secrets, nil, nil
 				}
 			}
 
 			secrets = p.Secrets // the secrets this plugin call is allowed access to
-			approved = true
+			matched = &permsList[idx]
 			break
 		}
 	}
-	return lastError, secrets, approved, nil
+	return lastError, secrets, matched, nil
 }

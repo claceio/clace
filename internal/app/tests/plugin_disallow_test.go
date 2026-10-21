@@ -103,6 +103,23 @@ def handler(req):
 			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^rm.*"}}}, false},
 		{"more argument patterns than args does not block", `testdis.other()`,
 			[]types.Permission{{Plugin: "testdis.in", Method: "other", Arguments: []string{"x"}}}, false},
+		// GHSA-qgqh-4fgp-rf5c: a restricted argument passed by keyword used to
+		// skip the entry; the patterns cannot see keyword values, so block
+		{"keyword argument in place of a patterned positional blocks", `testdis.run(cmd="ls")`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^rm.*"}}}, true},
+		{"keyword arguments beyond the patterned positionals are checked normally", `testdis.run("ls", env={"a": "b"})`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^rm.*"}}}, false},
+		{"regex method matches", `testdis.run("ls")`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "regex:^r.*"}}, true},
+		{"regex method mismatch does not block", `testdis.other()`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "regex:^r.*"}}, false},
+		// GHSA-qgqh-4fgp-rf5c: the raw text does not match, the resolved
+		// template does (the dead-branch secret call makes the string a
+		// template without needing a secret grant)
+		{"template-resolved argument blocks", `testdis.run('r{{if false}}{{secret "x"}}{{end}}m -rf /')`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^rm.*"}}}, true},
+		{"template-resolved list element blocks", `testdis.run("ls", ['r{{if false}}{{secret "x"}}{{end}}m'])`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"ls", "regex:rm"}}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,6 +134,70 @@ def handler(req):
 			} else {
 				testutil.AssertEqualsInt(t, "allowed code", 200, resp.Code)
 			}
+		})
+	}
+}
+
+// TestPluginArgRecheck verifies the approval side of GHSA-qgqh-4fgp-rf5c: the
+// argument patterns of the permission that approved a call are re-checked on
+// the template-resolved values, and a regex: method approves by pattern
+func TestPluginArgRecheck(t *testing.T) {
+	logger := testutil.TestLogger()
+	appFile := func(call string) map[string]string {
+		return map[string]string{
+			"app.star": fmt.Sprintf(`
+load ("testdis.in", "testdis")
+app = ace.app("testApp", routes = [ace.api("/", type=ace.TEXT)],
+    permissions=[
+	ace.permission("testdis.in", "run", arguments=["regex:^[^;]*$"]),
+	ace.permission("testdis.in", "other"),
+	])
+
+def handler(req):
+	return %s.value
+`, call),
+		}
+	}
+	plugins := []string{"testdis.in"}
+	serve := func(a *app.App) *httptest.ResponseRecorder {
+		request := httptest.NewRequest("GET", "/test", nil)
+		response := httptest.NewRecorder()
+		a.ServeHTTP(response, request)
+		return response
+	}
+
+	noSemicolon := []types.Permission{{Plugin: "testdis.in", Method: "run", Arguments: []string{"regex:^[^;]*$"}}}
+	tests := []struct {
+		name     string
+		call     string
+		perms    []types.Permission
+		code     int
+		contains string
+	}{
+		{"plain argument approved", `testdis.run("ls")`, noSemicolon, 200, "ran"},
+		{"plain argument rejected", `testdis.run("ls; rm")`, noSemicolon, 500, "with argument 0 having value"},
+		// The raw text has no ";" (the template writes one through a Go
+		// string escape), the resolved value does
+		{"template-resolved argument rejected", `testdis.run('ls{{if false}}{{secret "x"}}{{end}}{{"\\x3b"}} rm')`,
+			noSemicolon, 500, "template-resolved argument 0 does not match the approved pattern \"regex:^[^;]*$\""},
+		{"template-resolved argument approved", `testdis.run('ls{{if false}}{{secret "x"}}{{end}} -l')`,
+			noSemicolon, 200, "ran"},
+		{"regex method approves run", `testdis.run("ls")`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "regex:.*"}}, 200, "ran"},
+		{"regex method approves other", `testdis.other()`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "regex:.*"}}, 200, "other"},
+		{"regex method mismatch not approved", `testdis.other()`,
+			[]types.Permission{{Plugin: "testdis.in", Method: "regex:^r.*"}}, 500, "is not permitted to call testdis.in.other"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, _, err := CreateTestAppPluginServerConfig(logger, appFile(tt.call), plugins, tt.perms, &types.ServerConfig{})
+			if err != nil {
+				t.Fatalf("Error %s", err)
+			}
+			resp := serve(a)
+			testutil.AssertEqualsInt(t, "code", tt.code, resp.Code)
+			testutil.AssertStringContains(t, resp.Body.String(), tt.contains)
 		})
 	}
 }

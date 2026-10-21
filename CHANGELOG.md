@@ -7,6 +7,12 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Plugin permission checks could be bypassed by an approved app (GHSA-qgqh-4fgp-rf5c). `permissions.disallow` argument patterns were matched against positional arguments only, so a call passing the restricted argument by keyword (`http.get(url = ...)`) skipped every deny rule with argument patterns; an entry with argument patterns now blocks a call that passes keyword arguments in place of the positional arguments it covers. Argument patterns were also matched against the raw argument text, and `{{secret ...}}` templates were resolved afterwards, so a template (a `secret` call in a branch that never runs is enough to make a string a template, and needs no secret grant) could assemble a value the checks never saw, for example a cloud metadata address a deny rule blocks. The disallow list and the argument patterns of the permission that approved the call are now checked again on the resolved values.
+- The `http.in` plugin followed redirects without re-checking the target, so a permitted host could redirect the request, with the app's custom headers, to a host the disallow list or the approved patterns exclude. Each redirect target is now checked as if the app had called the plugin with it, under the method of the redirected request (a 303 after a post is checked as a get), and a redirect is refused when the check fails.
+- The `method` of a `permissions.allow` or `permissions.disallow` entry accepts a `regex:` pattern. The default `http.in` entry, which auto-allows calls to the app's own container, used `method = "regex:.*"` but methods were compared as plain strings, so the entry never matched and the documented behavior did not exist. The `http.in` `<CONTAINER_URL>` placeholder is also validated after it is replaced by the container address: the url must stay on the container's scheme and host, so a suffix such as `<CONTAINER_URL>@other-host/` can no longer redirect an auto-allowed container call to another host.
+
 ### Fixed
 
 - The console now lists apps under a replacement sync as soon as its first run claims them ([#115](https://github.com/openrundev/openrun/issues/115)). The claim added for #111 wrote the new sync id to the database only, so the in-memory app list used by the console (and the sync detail page's app list) kept the deleted entry's id until a server reload, and the apps showed as unmanaged. Claimed apps are now cleared from the caches on commit like reloaded apps, on every server of a cluster.

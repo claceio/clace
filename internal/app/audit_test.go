@@ -183,3 +183,59 @@ func TestMainAppPathUsesLinkedPath(t *testing.T) {
 		t.Fatalf("prod mainAppPath() = %q, want its own path", got)
 	}
 }
+
+// TestPatternCoversRegexDeclaration verifies that a regex pattern in the
+// server config covers an app's own regex: declaration only when it
+// authorizes everything the declaration does, not when it happens to match
+// the declaration's text (regex:get|head matches the text "regex:get|post")
+func TestPatternCoversRegexDeclaration(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		pattern, declared string
+		want              bool
+	}{
+		{"get", "get", true},
+		{"regex:get|head", "get", true},
+		{"regex:get|head", "post", false},
+		{"regex:get|head", "regex:get|post", false},
+		{"regex:get|head", "regex:get|head", true},
+		{"regex:.*", "regex:get|post", true},
+		{"regex:^get$", "regex:get", false},
+		{"get", "regex:get", false},
+		{"regex:^https://example\\.com", "regex:^https://evil\\.com|https://example\\.com", false},
+		{"regex:example", "regex:evil|example", false},
+		{"regex:^(get|head)?$", "regex:post", false},
+		{"regex:^$", "regex:.*", false},
+		{"regex:\\bget", "regex:get", false},
+		{"regex:(?m)^", "regex:get", false},
+		{"regex:(get)?", "regex:post", true},
+		{"regex:[\\s\\S]*", "regex:^https://", true},
+		{"regex:(", "regex:get", false},
+	}
+	for _, c := range cases {
+		if got := patternCovers(c.pattern, c.declared); got != c.want {
+			t.Errorf("patternCovers(%q, %q) = %v, want %v", c.pattern, c.declared, got, c.want)
+		}
+	}
+
+	result := &types.ApproveResult{
+		NewPermissions: []types.Permission{
+			{Plugin: "http.in", Method: "regex:get|post", Secrets: [][]string{{"TOKEN"}}},
+		},
+	}
+	serverPerms := []types.Permission{{Plugin: "http.in", Method: "regex:get|head", Secrets: [][]string{{"TOKEN"}}}}
+	if !needsApprovalWithServerConfig(result, serverPerms) {
+		t.Fatal("expected approval: server regex:get|head does not cover the app's regex:get|post")
+	}
+	if got := ungrantedSecrets(result.NewPermissions, nil, serverPerms); len(got) != 1 {
+		t.Fatalf("expected the secret on regex:get|post to stay ungranted, got %v", got)
+	}
+	serverPerms[0].Method = "regex:.*"
+	if needsApprovalWithServerConfig(result, serverPerms) {
+		t.Fatal("did not expect approval: server regex:.* covers every method")
+	}
+	if got := ungrantedSecrets(result.NewPermissions, nil, serverPerms); len(got) != 0 {
+		t.Fatalf("expected the secret to be granted by regex:.*, got %v", got)
+	}
+}
