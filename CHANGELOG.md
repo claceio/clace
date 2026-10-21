@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [v0.20.5] - 2026-10-21
+
 ### Security
 
 - The webhook tokens of an app (`settings.webhook_tokens`, the credentials of the reload and promote webhook endpoints, which run without further authorization) were returned by the app get and list APIs to every caller with `app:read_detail`, while the token list API requires `app:token_read`; the built-in `openrun-monitor` role and the default read-only MCP scope have the former without the latter. The tokens are now returned only to a caller holding `app:token_read` on the app.
