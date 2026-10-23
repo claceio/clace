@@ -111,9 +111,8 @@ tests:
       ../openrun server update-config --force todo_rbac.json
     exit-code: 0
 
-  todoflow0045: # create the builtin todo-dev user (admin, trusted CLI). Added
-    # after the RBAC config publish: update-config --force replaces the whole
-    # dynamic config, which would wipe a dynamically added user entry
+  todoflow0045: # create the builtin todo-dev user (admin, trusted CLI). Users
+    # are accounts in their own table, independent of the dynamic config
     command: ../openrun user add tododev --value todopass1 --groups todo-team
     stdout: "User added: tododev"
 
@@ -228,14 +227,22 @@ tests:
       ../openrun server update-config --force todo_rbac.json
     exit-code: 0
 
-  todoflow0230: # the config replacement wiped the dynamically added tododev
-    # user entry, so --as rejects it again
+  todoflow0230: # users are not part of the dynamic config, so the config
+    # replacement keeps tododev; the default grant lets them list apps
+    command: ../openrun --as builtin:tododev app list
+    exit-code: 0
+
+  todoflow0240: # deleting the user (admin) removes the account
+    command: ../openrun user delete tododev
+    stdout: "User deleted: tododev"
+    exit-code: 0
+
+  todoflow0250: # a deleted user can no longer be impersonated
     command: ../openrun --as builtin:tododev app list
     stderr: "is not configured"
     exit-code: 1
 
-  todoflow9999: # cleanup (admin). The tododev user was already wiped by the
-    # disable-RBAC update-config replacing the dynamic config
+  todoflow9999: # cleanup (admin)
     command: |
       (../openrun app delete /admin_only
       ../openrun binding delete /bind/todo
