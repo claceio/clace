@@ -48,7 +48,7 @@ Using the HTTPS port is recommended even for the local environment. HTTP/2 works
 
 In the default configuration, where service_email and acme_ca_url are empty, certmagic integration is disabled. The certificate handling behavior is:
 
-- `$OPENRUN_HOME/config/certificates` is looked up for a crt and key file in the PEM format matching the domain name as passed to the server. If a matching certificate is found, that is used.
+- `$OPENRUN_HOME/config/certificates` is looked up for a crt and key file in the PEM format matching the domain name as passed to the server. If a matching certificate is found, that is used. The lookup is done only for domains the server is configured to serve: the default domain, the domains used by apps, the auth callback domain and the hosts in `security.callback_url`, `api.external_url` and `system.root_serve_list_apps`. Other domain names sent by clients get the default certificate.
 - If no domain specific certificate is found, then the default certificate `default.crt` and `default.key` are looked up. If found, that is used.
 - If default certificate is not found, then a self-signed default certificate is auto created in the certificates folder.
 
@@ -69,11 +69,19 @@ App requests to the HTTP port receive a 308 redirect to HTTPS. Management and we
 
 ## Dev Env Certificates
 
-For local dev environment, using the auto generated certs will result in browser warnings when connecting to the HTTPS port. To avoid this, if [mkcert](https://github.com/FiloSottile/mkcert) is installed and configured, OpenRun automatically creates a mkcert cert for any new local domain. Ensure that the mkcert installation has been done once.
+For local dev environment, using the auto generated certs will result in browser warnings when connecting to the HTTPS port. To avoid this, if [mkcert](https://github.com/FiloSottile/mkcert) is installed and configured, OpenRun automatically creates a mkcert cert for any new local domain served by the server. The domains mkcert is used for are set by `https.mkcert_domains`; other domains need the cert files to be placed in the certificates folder. Ensure that the mkcert installation has been done once.
 
 ```sh
 mkcert -install
 ```
+
+```toml {filename="openrun.toml"}
+[https]
+mkcert_path = "" # mkcert binary path, looked up in PATH if empty. Set to "disable" to disable mkcert
+mkcert_domains = ["localhost", "*.localhost", "*.test", "*.local", "*.internal", "*.home.arpa"]
+```
+
+A `mkcert_domains` entry matches the domain exactly, `*.<domain>` matches all subdomains of the domain and `*` matches all domains. mkcert certs are trusted only on machines where the mkcert CA is installed, so the default is local dev domains only. In all cases, certs are created only for domains served by the server: the default domain, app domains, and the hosts in `security.callback_url`, `api.external_url` and `system.root_serve_list_apps`.
 
 ## Enable Automatic Signed Certificate
 

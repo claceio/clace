@@ -69,6 +69,8 @@ host = "0.0.0.0"                               # bind to all interfaces (if port
 port = 25223                                   # port for HTTPS
 enable_cert_lookup = true                      # enable looking for certificate files on disk before using Let's Encrypt
 mkcert_path = ""                               # mkcert binary path, set to disable to disable mkcert
+mkcert_domains = ["localhost", "*.localhost", "*.test", "*.local", "*.internal", "*.home.arpa"] # domains mkcert certs are created for,
+                                               # "*.x" matches subdomains of x, "*" matches all. Only domains served by the server are used
 service_email = ""                             # email address for registering with the ACME CA. Set a value to enable automatic certs
 use_staging = true                             # use Let's Encrypt staging server (ignored when acme_ca_url is set)
 acme_ca_url = ""                               # custom ACME CA directory URL, overrides Let's Encrypt. Set a value to enable automatic certs

@@ -17,8 +17,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"reflect"
 	"strconv"
@@ -1511,6 +1511,53 @@ func (s *Server) Ready() error {
 	return s.upgrader.Ready()
 }
 
+// certDomainAllowed returns true if a TLS certificate can be issued or looked up
+// for the domain: a host the server is configured to serve or an app domain
+func (s *Server) certDomainAllowed(name string) (bool, error) {
+	if name == "" {
+		return false, nil
+	}
+	config := s.Config()
+	configuredHosts := []string{
+		config.System.DefaultDomain, "localhost", "127.0.0.1",
+		urlHostname(config.Security.CallbackUrl), // OAuth/SAML callbacks and webhooks
+		urlHostname(config.Api.ExternalUrl),      // remote APIs and the OAuth issuer
+	}
+	if listApps := config.System.RootServeListApps; listApps != "" && listApps != "auto" && listApps != "disable" {
+		configuredHosts = append(configuredHosts, listApps)
+	}
+	for _, host := range configuredHosts {
+		if host != "" && strings.EqualFold(name, host) {
+			return true, nil
+		}
+	}
+	// The auth callback domain serves the login page but never has
+	// apps, so it needs its own certificate authorization
+	if s.formLogin != nil {
+		if authDomain, ok := s.formLogin.authLoginDomain(); ok && strings.EqualFold(name, authDomain) {
+			return true, nil
+		}
+	}
+
+	allDomains, err := s.apps.GetAllDomains()
+	if err != nil {
+		return false, err
+	}
+	return allDomains[name], nil
+}
+
+// urlHostname returns the hostname of the url, empty if it is not set or invalid
+func urlHostname(rawUrl string) string {
+	if rawUrl == "" {
+		return ""
+	}
+	parsed, err := url.Parse(rawUrl)
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
+}
+
 func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	var tlsConfig *tls.Config
 	var mkcertPath string
@@ -1525,7 +1572,6 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 	if mkcertPath != "" {
 		s.Info().Msgf("mkcert path %s", mkcertPath)
 	}
-	var mkcertsLock sync.Mutex
 	if err := os.MkdirAll(os.ExpandEnv(s.Config().Https.CertLocation), 0700); err != nil {
 		return nil, fmt.Errorf("error creating cert directory %s : %s",
 			os.ExpandEnv(s.Config().Https.CertLocation), err)
@@ -1546,25 +1592,14 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 		}
 		magicConfig.OnDemand = &certmagic.OnDemandConfig{
 			DecisionFunc: func(ctx context.Context, name string) error {
-				if name == s.Config().System.DefaultDomain || name == "localhost" || name == "127.0.0.1" {
-					return nil
-				}
-				// The auth callback domain serves the login page but never has
-				// apps, so it needs its own certificate authorization
-				if s.formLogin != nil {
-					if authDomain, ok := s.formLogin.authLoginDomain(); ok && strings.EqualFold(name, authDomain) {
-						return nil
-					}
-				}
-
-				allDomains, err := s.apps.GetAllDomains()
+				allowed, err := s.certDomainAllowed(name)
 				if err != nil {
 					return err
 				}
-				if allDomains[name] {
-					return nil
+				if !allowed {
+					return fmt.Errorf("unknown domain %s", name)
 				}
-				return fmt.Errorf("unknown domain %s", name)
+				return nil
 			},
 		}
 		tlsConfig = magicConfig.TLSConfig()
@@ -1573,63 +1608,15 @@ func (s *Server) setupHTTPSServer() (*http.Server, error) {
 		tlsConfig.MinVersion = tls.VersionTLS12
 	} else {
 		// Certmagic is disabled, use certs from disk or create self signed ones
+		certProvider, err := newDiskCertProvider(s.Logger, func() *types.HttpsConfig { return &s.Config().Https },
+			mkcertPath, s.certDomainAllowed)
+		if err != nil {
+			return nil, err
+		}
 		tlsConfig = &tls.Config{
-			NextProtos: []string{"h2", "http/1.1"},
-			MinVersion: tls.VersionTLS12,
-			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				domain := hello.ServerName
-
-				if domain != "" && s.Config().Https.EnableCertLookup {
-					certFilePath := path.Join(os.ExpandEnv(s.Config().Https.CertLocation), domain+".crt")
-					certKeyPath := path.Join(os.ExpandEnv(s.Config().Https.CertLocation), domain+".key")
-					// Check if certificate and key files exist on disk for the domain
-					_, certErr := os.Stat(certFilePath)
-					_, keyErr := os.Stat(certKeyPath)
-
-					if mkcertPath != "" && (certErr != nil || keyErr != nil) {
-						// If mkcerts is enabled and certificate or key files do not exist, generate them
-						// Locking is global, not per domain
-						mkcertsLock.Lock()
-						defer mkcertsLock.Unlock()
-						_, certErr = os.Stat(certFilePath)
-						_, keyErr = os.Stat(certKeyPath)
-						if certErr != nil || keyErr != nil {
-							s.Info().Msgf("Generating mkcert certificate for domain %s", domain)
-							// Bounded, mkcertsLock is held
-							mkcertCtx, mkcertCancel := context.WithTimeout(context.Background(), 30*time.Second)
-							defer mkcertCancel()
-							cmd := exec.CommandContext(mkcertCtx, mkcertPath, "-cert-file", certFilePath, "-key-file", certKeyPath, domain)
-							if err := cmd.Run(); err != nil {
-								return nil, fmt.Errorf("error generating certificate using mkcert: %w", err)
-							}
-							_, certErr = os.Stat(certFilePath)
-							_, keyErr = os.Stat(certKeyPath)
-						}
-					}
-
-					// If certificate and key files exist, load them
-					if certErr == nil && keyErr == nil {
-						cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
-						return &cert, err
-					}
-				}
-
-				certFilePath := path.Join(os.ExpandEnv(s.Config().Https.CertLocation), DEFAULT_CERT_FILE)
-				certKeyPath := path.Join(os.ExpandEnv(s.Config().Https.CertLocation), DEFAULT_KEY_FILE)
-
-				_, certErr := os.Stat(certFilePath)
-				_, keyErr := os.Stat(certKeyPath)
-				if certErr != nil || keyErr != nil {
-					s.Info().Msgf("Generating default self signed certificate")
-					err := GenerateSelfSignedCertificate(certFilePath, certKeyPath, 365*24*time.Hour)
-					if err != nil {
-						return nil, fmt.Errorf("error generating self signed certificate: %w", err)
-					}
-				}
-
-				cert, err := tls.LoadX509KeyPair(certFilePath, certKeyPath)
-				return &cert, err
-			},
+			NextProtos:     []string{"h2", "http/1.1"},
+			MinVersion:     tls.VersionTLS12,
+			GetCertificate: certProvider.GetCertificate,
 		}
 	}
 

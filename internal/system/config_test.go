@@ -4,6 +4,7 @@
 package system
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openrundev/openrun/internal/testutil"
@@ -50,6 +51,7 @@ func TestServerConfig(t *testing.T) {
 	testutil.AssertEqualsString(t, "https host", "0.0.0.0", c.Https.Host)
 	testutil.AssertEqualsInt(t, "https port", 25223, c.Https.Port)
 	testutil.AssertEqualsBool(t, "https cert lookup", true, c.Https.EnableCertLookup)
+	testutil.AssertEqualsString(t, "https mkcert domains", "localhost,*.localhost,*.test,*.local,*.internal,*.home.arpa", strings.Join(c.Https.MkcertDomains, ","))
 	testutil.AssertEqualsString(t, "email", "", c.Https.ServiceEmail)
 	testutil.AssertEqualsBool(t, "https staging", true, c.Https.UseStaging)
 	testutil.AssertEqualsString(t, "acme ca url", "", c.Https.ACMECAUrl)

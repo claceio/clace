@@ -53,3 +53,42 @@ tests:
     command: ../openrun app update auth --promote  cert_invalid /certs_test1
     exit-code: 1
     stderr: invalid authentication type cert_invalid
+  certs200: ## app on a local dev domain, gets a mkcert cert
+    command: ../openrun app create --auth none ./testapp certsapp.localhost:/
+  certs210: ## app on a domain not in https.mkcert_domains, mkcert is not used
+    command: ../openrun app create --auth none ./testapp certsapp.example.com:/
+  certs215: ## app on a non local domain listed in https.mkcert_domains
+    command: ../openrun app create --auth none ./testapp mkcert.example.com:/
+  certs220: ## configured local domain is served the mkcert cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername certsapp.localhost </dev/null 2>/dev/null | openssl x509 -noout -text
+    stdout: DNS:certsapp.localhost
+  certs225: ## domain listed in https.mkcert_domains is served the mkcert cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername mkcert.example.com </dev/null 2>/dev/null | openssl x509 -noout -text
+    stdout: DNS:mkcert.example.com
+  certs230: ## domain not in https.mkcert_domains, without cert files, gets the default cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername certsapp.example.com </dev/null 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253
+    stdout: O=OpenRun Server
+  certs240: ## unconfigured domain gets the default cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername unknown.localhost </dev/null 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253
+    stdout: O=OpenRun Server
+  certs250: ## path traversal in the server name gets the default cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername 'https://x/../../../sni_escape' </dev/null 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253
+    stdout: O=OpenRun Server
+  certs260: ## mkcert flag in the server name gets the default cert
+    command: openssl s_client -connect localhost:${MAIN_HTTPS_PORT} -servername -install </dev/null 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253
+    stdout: O=OpenRun Server
+  certs270: ## traversal did not write files outside the cert location
+    command: test ! -e config/sni_escape.crt && test ! -e config/sni_escape.key
+  certs280: ## mkcert ran only for served domains matching https.mkcert_domains
+    command: cat config/certificates/mkcert_calls.log
+    stdout:
+      contains:
+        - certsapp.localhost
+        - mkcert.example.com
+      not-contains:
+        - certsapp.example.com
+        - unknown.localhost
+        - sni_escape
+        - install
+  certs290: ## cleanup
+    command: ../openrun app delete certsapp.localhost:/ && ../openrun app delete certsapp.example.com:/ && ../openrun app delete mkcert.example.com:/

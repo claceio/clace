@@ -1009,6 +1009,9 @@ EOF
 [https]
 port = $MAIN_HTTPS_PORT
 disable_client_certs = false
+# test_certs.yaml checks which TLS server names get certs, the mkcert wrapper logs its calls
+mkcert_path = "$PWD/certs/fake_mkcert.sh"
+mkcert_domains = ["localhost", "*.localhost", "mkcert.example.com"]
 
 [secret.env]
 keys_printf = "%s%s_%s"
@@ -1062,6 +1065,9 @@ EOF
 
   export TESTENV=abc
   export c1c2_c3=xyz
+  # test_certs.yaml expects these to be created by its own run
+  rm -f config/certificates/mkcert_calls.log config/certificates/certsapp.* config/certificates/mkcert.example.com.* \
+    config/sni_escape.crt config/sni_escape.key
   wait_port_free "$SERVER_HTTP_PORT" && wait_port_free "$SERVER_HTTPS_PORT"
   GOCOVERDIR=$GOCOVERDIR ../openrun server start &
   SERVER_PID=$!
