@@ -175,7 +175,42 @@ type oauthAuthzRequest struct {
 	ResponseType string    `json:"response_type"`
 	Mechanism    string    `json:"mechanism"` // the provider or saml_<name> chosen
 	Nonce        string    `json:"nonce"`     // consent form token, bound to this record
+	Binding      string    `json:"binding"`   // browser binding token, held in a cookie on the login origin
+	Principal    string    `json:"principal"` // the identity the consent page was shown to, set by continue
 	Expires      time.Time `json:"expires"`
+}
+
+// oauthAuthzCookieName names the cookie binding a pending authorize request
+// to the browser that started it. The record id is in the URL and the
+// consent nonce in the page, both visible to whoever started the flow; the
+// cookie is what a victim sent a continue link, or a cross-site consent
+// post, does not have
+func oauthAuthzCookieName(id string) string {
+	return "oauth_authz_" + id
+}
+
+// setOAuthAuthzCookie binds the browser to the pending request (see
+// oauthAuthzCookieName). Scoped to the authorize paths on the login origin
+func (s *Server) setOAuthAuthzCookie(w http.ResponseWriter, r *http.Request, id, binding string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthAuthzCookieName(id),
+		Value:    binding,
+		Path:     types.INTERNAL_URL_PREFIX + "/oauth/authorize",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   system.GetRequestScheme(r, s.Config().Security.TrustedProxies) == "https",
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// oauthAuthzBound reports whether the request carries the binding cookie of
+// the pending request
+func oauthAuthzBound(r *http.Request, id string, authz *oauthAuthzRequest) bool {
+	cookie, err := r.Cookie(oauthAuthzCookieName(id))
+	if err != nil || authz.Binding == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(authz.Binding)) == 1
 }
 
 func randomHex(n int) (string, error) {
@@ -193,6 +228,18 @@ func (s *Server) storeOAuthAuthz(ctx context.Context, id string, req *oauthAuthz
 	}
 	expires := req.Expires.UTC()
 	return s.db.StoreKVBlob(ctx, oauthAuthzKVPrefix+id, blob, &expires)
+}
+
+// updateOAuthAuthz rewrites a pending request in place. It fails when the
+// record is gone: a delayed write after a concurrent consent consumed the
+// record must not recreate it (with its nonce and binding, that would make
+// the single-use record usable twice)
+func (s *Server) updateOAuthAuthz(ctx context.Context, id string, req *oauthAuthzRequest) error {
+	blob, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	return s.db.UpdateKVBlob(ctx, oauthAuthzKVPrefix+id, blob)
 }
 
 // fetchOAuthAuthz returns the pending request, nil when unknown or expired
@@ -322,15 +369,21 @@ func (h *Handler) startFederatedLogin(w http.ResponseWriter, r *http.Request, ge
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", err.Error())
 		return
 	}
+	binding, err := randomHex(16)
+	if err != nil {
+		writeOAuthError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	if err := s.storeOAuthAuthz(r.Context(), id, &oauthAuthzRequest{
 		ClientId: get("client_id"), RedirectUri: get("redirect_uri"), State: get("state"),
 		Challenge: get("code_challenge"), Method: get("code_challenge_method"), Resource: get("resource"),
 		Scope: get("scope"), ResponseType: get("response_type"), Mechanism: mechanism, Nonce: nonce,
-		Expires: time.Now().Add(oauthAuthzTTL),
+		Binding: binding, Expires: time.Now().Add(oauthAuthzTTL),
 	}); err != nil {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "error storing authorization request")
 		return
 	}
+	s.setOAuthAuthzCookie(w, r, id, binding, int(oauthAuthzTTL/time.Second))
 	// The login flow returns to the login origin; the provider session
 	// cookie is then set on that host and read by the continue handler
 	returnUrl := oauthContinueUrl(origin, id)
@@ -373,8 +426,9 @@ func (h *Handler) federatedIdentity(w http.ResponseWriter, r *http.Request, mech
 	return info.UserId, info.Groups, info.UserId == ""
 }
 
-// loadOAuthAuthz fetches and re-validates a pending request by id; a nil
-// result means an error response was written
+// loadOAuthAuthz fetches and re-validates a pending request by id, and
+// checks the browser binding cookie (oauthAuthzCookieName); a nil result
+// means an error response was written
 func (h *Handler) loadOAuthAuthz(w http.ResponseWriter, r *http.Request, id string) (*oauthAuthzRequest, *oauthResource) {
 	authz, err := h.server.fetchOAuthAuthz(r.Context(), id)
 	if err != nil {
@@ -383,6 +437,10 @@ func (h *Handler) loadOAuthAuthz(w http.ResponseWriter, r *http.Request, id stri
 	}
 	if authz == nil {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "unknown or expired authorization request, start the login again")
+		return nil, nil
+	}
+	if !oauthAuthzBound(r, id, authz) {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "authorization request was started by another browser, start the login again")
 		return nil, nil
 	}
 	get := func(name string) string {
@@ -426,6 +484,18 @@ func (h *Handler) oauthAuthorizeContinue(w http.ResponseWriter, r *http.Request)
 	principal, groups, done := h.federatedIdentity(w, r, authz.Mechanism, oauthContinueUrl(origin, id))
 	if done {
 		return
+	}
+	// Record who the consent page is shown to: consent accepts only that
+	// identity, so a session that changes between the page and its submit
+	// cannot approve a request another user saw
+	if authz.Principal != principal {
+		authz.Principal = principal
+		if err := h.server.updateOAuthAuthz(r.Context(), id, authz); err != nil {
+			// Consumed or expired meanwhile: the record is gone, say so
+			// rather than render a consent form for it
+			writeOAuthError(w, http.StatusBadRequest, "invalid_request", "unknown or expired authorization request, start the login again")
+			return
+		}
 	}
 	h.renderOAuthConsent(w, r, id, authz, res, principal, groups, "")
 }
@@ -478,6 +548,10 @@ func (h *Handler) oauthAuthorizeConsent(w http.ResponseWriter, r *http.Request) 
 	if done {
 		return
 	}
+	if authz.Principal == "" || authz.Principal != principal {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "consent page was not shown to this user, start the login again")
+		return
+	}
 	// Recoverable problems (a bad scope, no app access) are shown on the
 	// form with the record intact, so the user can correct and resubmit;
 	// only a valid consent consumes the single-use record
@@ -499,5 +573,6 @@ func (h *Handler) oauthAuthorizeConsent(w http.ResponseWriter, r *http.Request) 
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "authorization request already used")
 		return
 	}
+	h.server.setOAuthAuthzCookie(w, r, id, "", -1)
 	h.issueOAuthCode(w, r, res, principal, scopes, authz.ClientId, authz.RedirectUri, authz.Challenge, authz.State)
 }

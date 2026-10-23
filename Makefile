@@ -14,9 +14,10 @@ INPUT2 := $(word 3,$(MAKECMDGOALS))
 # (used for pkg/binding development) does not change what gets built/linted.
 # In workspace mode `go list -m` returns every workspace module and
 # `go list ./...` crosses into the nested pkg/binding module.
-GO_PACKAGES = $$(GOWORK=off go list ./... | grep -v '/ui/')
-GO_COVER_PACKAGES = $$(GOWORK=off go list ./... | grep -v '/ui/' | paste -sd, -)
-GO_LINT_PACKAGES = $$(module=$$(GOWORK=off go list -m); GOWORK=off go list ./... | grep -v '/ui/' | awk -v module="$$module" '{ sub("^" module, "."); print }')
+# tests/ui holds the browser-driven suites, run by testui rather than unit (they are linted)
+GO_PACKAGES = $$(GOWORK=off go list ./... | grep -v 'openrun/ui/' | grep -v '/tests/ui/')
+GO_COVER_PACKAGES = $$(GOWORK=off go list ./... | grep -v 'openrun/ui/' | grep -v '/tests/ui/' | paste -sd, -)
+GO_LINT_PACKAGES = $$(module=$$(GOWORK=off go list -m); GOWORK=off go list ./... | grep -v 'openrun/ui/' | awk -v module="$$module" '{ sub("^" module, "."); print }')
 GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT = GOWORK=off go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
@@ -66,12 +67,12 @@ ifeq ($(origin .RECIPEPREFIX), undefined)
 endif
 .RECIPEPREFIX = >
 
-.PHONY: help test unit int testui covtest covtest-parallel covbuild covunit covint release-sdk release fullrelease update-dep update-go int_single lint verify build-linux image tags docs-screenshots
+.PHONY: help test unit int testui testconsole covtest covtest-parallel covbuild covunit covint covui release-sdk release fullrelease update-dep update-go int_single lint verify build-linux image tags docs-screenshots
 
 help: ## Display this help section
 > @awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-38s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-test: unit int ## Run all tests
+test: unit int testui ## Run all tests
 verify: lint test ## Run lint and all tests
 
 build-linux: ## Build linux binary into dist/
@@ -89,9 +90,9 @@ covtest-parallel: covbuild ## Run unit and integration coverage concurrently (CI
 covbuild: ## Build the coverage-enabled CLI without running integration tests
 > ./tests/run_cli_tests.sh --home $(OPENRUN_HOME) --coverdir $(OPENRUN_HOME)/coverage/int --build-only
 
-covtest: covunit covint ## Run all tests with coverage
-> go tool covdata percent -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int
-> go tool covdata textfmt -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int -o $(OPENRUN_HOME)/coverage.txt
+covtest: covunit covint covui ## Run all tests with coverage
+> go tool covdata percent -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int,$(OPENRUN_HOME)/coverage/ui
+> go tool covdata textfmt -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int,$(OPENRUN_HOME)/coverage/ui -o $(OPENRUN_HOME)/coverage.txt
 > go tool cover -func coverage.txt | grep '^total:'
 
 unit: ## Run unit tests
@@ -113,7 +114,21 @@ covunit: ## Run unit tests with coverage and the race detector
 int: ## Run integration tests
 > ./tests/run_cli_tests.sh $(RUN_CLI_TESTS_FLAGS)
 
-testui: ## Run the console app integration tests (ui/console_tests, own module)
+# The tests/ui suites drive a real server and the CLI through a headless
+# Chromium (go-rod); they skip when no Chromium-based browser is found
+# (OPENRUN_TEST_BROWSER names one). They are excluded from unit (GO_PACKAGES)
+testui: ## Run the browser-driven integration tests (tests/ui: federated login flows)
+> GOWORK=off go vet ./tests/ui/...
+> GOWORK=off go test -count=1 ./tests/ui/...
+
+# The server binary is built coverage-instrumented by the suite, or reused
+# from covbuild (tests/openrun) when SKIP_BUILD is set, like covint. Server
+# data goes to coverage/ui, CLI data to coverage/client
+covui: ## Run the browser-driven integration tests with coverage
+> rm -rf $(OPENRUN_HOME)/coverage/ui && mkdir -p $(OPENRUN_HOME)/coverage/ui $(OPENRUN_HOME)/coverage/client
+> GOWORK=off GOCOVERDIR=$(OPENRUN_HOME)/coverage/ui $(if $(SKIP_BUILD),OPENRUN_TEST_BIN=$(OPENRUN_HOME)/tests/openrun) go test -count=1 ./tests/ui/...
+
+testconsole: ## Run the console app integration tests (ui/console_tests, own module)
 > cd ui/console_tests && go test -count=1 ./...
 
 docs-screenshots: ## Copy the console walkthrough screenshots (light/dark pairs) and walkthrough.html pages into the public docs; generate first with: cd ui/console_tests && make todoflow rbacflow

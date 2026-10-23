@@ -22,10 +22,15 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The default builtin users `test1`/`test1` and `test2`/`test2`, which v0.20.0 to v0.20.5 created on every install, are no longer created. On upgrade they are removed unless their password or groups were changed; a changed `test1` or `test2` is kept as an ordinary user. Create the users you need with `openrun user add`.
 
+### Fixed
+
+- SAML: a configured `sp_key_file`/`sp_cert_file` now also serves as the decryption key (an `EncryptedAssertion` from the IdP failed with "no decryption certs available") and signs the response to an IdP-initiated logout. A signed `AuthnRequest` over the HTTP-Redirect binding signs the query string (`SigAlg`/`Signature`) instead of embedding an XML signature the binding does not allow. Logout to an IdP single logout endpoint no longer panics without an SP keypair (the request is sent unsigned). The SP metadata endpoint works without an SP keypair, lists the single logout endpoint, and is valid for seven days rather than 24 nanoseconds.
+
 ### Security
 
 - The browser pages of the OAuth authorization server (the login/chooser page, the federated login return and the consent page used by the remote CLI and MCP clients) are served only on the auth callback domain (`security.auth_callback_domain`, default `auth.<system.default_domain>`), where no app is ever served, and the AS metadata names that endpoint.
 - The return URL of a federated OAuth login is built from the configuration, no longer from the request `Host` header, and the OAuth callback, the SAML ACS and the login form submit send their single-use completion token only to a host the server serves.
+- A pending federated OAuth authorize request is bound to the browser that started it (a cookie on the auth callback domain) and, once the consent page is shown, to the identity it was shown to. A continue link or a consent post from another browser or user is refused; the record id and consent nonce alone mint nothing.
 - Builtin user password hashes are no longer stored in the dynamic config document and its history snapshots. On upgrade the users move to the `builtin_users` table (DB version 33) and the `builtin_auth` entries are scrubbed from the stored config history. Replacing the dynamic config (`openrun server update-config --force`) or restoring an old version can no longer delete or resurrect users.
 
 ## [v0.20.5] - 2026-10-21

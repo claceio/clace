@@ -562,6 +562,130 @@ func TestOAuthFederatedPlaintextIssuerNeedsLocalAuthDomain(t *testing.T) {
 	}
 }
 
+// The pending authorize request is bound to the browser that started it
+// (a cookie on the login origin) and, once the consent page is shown, to
+// the identity it was shown to: the record id and nonce alone, known to
+// whoever started the flow, mint nothing from another browser or user
+func TestOAuthFederatedAuthzBoundToBrowserAndUser(t *testing.T) {
+	server, ts, client := newFederatedTestServer(t, goth.User{UserID: "sub-6", Email: "fay@example.com"})
+	upstream := newUpstreamRecorder(t)
+	createMCPTestApp(t, server, "/apps/orders", upstream.server.URL, "github", `{"scopes":["orders:read"],"default_scope":"orders:read"}`)
+	if err := server.rbacManager.UpdateRBACConfig(&types.RBACConfig{Grants: []types.RBACGrant{
+		{Users: []string{"github:fay@example.com"}, Roles: []string{"openrun-user"}, Targets: []string{"/apps/**"}},
+	}}); err != nil {
+		t.Fatalf("rbac: %v", err)
+	}
+	tsURL, _ := url.Parse(ts.URL)
+	login := loginOriginOf(t, ts)
+	form := url.Values{
+		"response_type": {"code"}, "client_id": {"openrun-cli"},
+		"redirect_uri": {"http://127.0.0.1:39999/callback"}, "code_challenge": {strings.Repeat("a", 43)},
+		"code_challenge_method": {"S256"}, "resource": {"https://localhost:" + tsURL.Port() + "/apps/orders"}}
+
+	// Starting the flow sets the binding cookie on the login origin only
+	resp, location := getRedirect(t, client, login+"/_openrun/oauth/authorize?"+form.Encode())
+	var binding *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if strings.HasPrefix(cookie.Name, "oauth_authz_") {
+			binding = cookie
+		}
+	}
+	if binding == nil || !binding.HttpOnly || !binding.Secure || binding.SameSite != http.SameSiteLaxMode ||
+		binding.Path != "/_openrun/oauth/authorize" {
+		t.Fatalf("expected an HttpOnly Secure Lax binding cookie on the authorize path, got %v", resp.Cookies())
+	}
+	loginURL, _ := url.Parse(location)
+	_, location = getRedirect(t, client, ts.URL+"/_openrun/auth/github/callback?state="+url.QueryEscape(loginURL.Query().Get("state")))
+	_, continueURL := getRedirect(t, client, location)
+	authzID := strings.TrimPrefix(continueURL, login+"/_openrun/oauth/authorize/continue?authz=")
+
+	// Another browser (no binding cookie) given the continue link is refused
+	// before any login redirect, and so is one that consents with the right nonce
+	other := *client
+	other.Jar, _ = cookiejar.New(nil)
+	resp, err := other.Get(continueURL)
+	if err != nil {
+		t.Fatalf("continue: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(body, "another browser") || resp.Header.Get("Location") != "" {
+		t.Fatalf("unbound continue must be refused, got %d %s %s", resp.StatusCode, resp.Header.Get("Location"), body)
+	}
+
+	// The owning browser sees the consent page
+	resp, err = client.Get(continueURL)
+	if err != nil {
+		t.Fatalf("continue: %v", err)
+	}
+	page := readBody(t, resp)
+	testutil.AssertEqualsInt(t, "consent", http.StatusOK, resp.StatusCode)
+	nonce := regexp.MustCompile(`name="nonce" value="([^"]+)"`).FindStringSubmatch(page)
+	if nonce == nil {
+		t.Fatalf("consent page: %s", page)
+	}
+	consent := url.Values{"authz": {authzID}, "nonce": {nonce[1]}, "or_scope": {"orders:read"}}
+	resp, err = other.PostForm(login+"/_openrun/oauth/authorize/consent", consent)
+	if err != nil {
+		t.Fatalf("consent: %v", err)
+	}
+	readBody(t, resp)
+	testutil.AssertEqualsInt(t, "unbound consent", http.StatusBadRequest, resp.StatusCode)
+
+	// The record carries the identity the page was shown to; a consent by a
+	// different identity is refused, the record survives
+	stored, err := server.fetchOAuthAuthz(t.Context(), authzID)
+	if err != nil || stored == nil || stored.Principal != "github:fay@example.com" {
+		t.Fatalf("record must hold the consenting principal: %+v %v", stored, err)
+	}
+	stored.Principal = "github:someone-else@example.com"
+	if err := server.updateOAuthAuthz(t.Context(), authzID, stored); err != nil {
+		t.Fatal(err)
+	}
+	resp, err = client.PostForm(login+"/_openrun/oauth/authorize/consent", consent)
+	if err != nil {
+		t.Fatalf("consent: %v", err)
+	}
+	body = readBody(t, resp)
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(body, "not shown to this user") {
+		t.Fatalf("consent by another identity must be refused, got %d %s", resp.StatusCode, body)
+	}
+	// Re-showing the page re-records the identity and consent succeeds
+	resp, err = client.Get(continueURL)
+	if err != nil {
+		t.Fatalf("continue: %v", err)
+	}
+	readBody(t, resp)
+	testutil.AssertEqualsInt(t, "consent again", http.StatusOK, resp.StatusCode)
+	resp, err = client.PostForm(login+"/_openrun/oauth/authorize/consent", consent)
+	if err != nil {
+		t.Fatalf("consent: %v", err)
+	}
+	readBody(t, resp)
+	testutil.AssertEqualsInt(t, "consent redirect", http.StatusFound, resp.StatusCode)
+	if !strings.Contains(resp.Header.Get("Location"), "code=") {
+		t.Fatalf("expected a code, got %s", resp.Header.Get("Location"))
+	}
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "oauth_authz_"+authzID && cookie.MaxAge >= 0 {
+			t.Fatalf("binding cookie must be cleared with the record: %v", cookie)
+		}
+	}
+	// A continue that loaded the record before the consent consumed it
+	// writes the identity after: the write fails, the record stays gone
+	if err := server.updateOAuthAuthz(t.Context(), authzID, stored); err == nil {
+		t.Fatal("principal write after consumption must fail")
+	}
+	if again, err := server.fetchOAuthAuthz(t.Context(), authzID); err != nil || again != nil {
+		t.Fatalf("consumed record must not be recreated: %+v %v", again, err)
+	}
+	resp, err = client.PostForm(login+"/_openrun/oauth/authorize/consent", consent)
+	if err != nil {
+		t.Fatalf("consent: %v", err)
+	}
+	readBody(t, resp)
+	testutil.AssertEqualsInt(t, "second consent", http.StatusBadRequest, resp.StatusCode)
+}
+
 // The OAuth callback sends the completion token only to a host this server
 // serves: the redirect is recorded from a request URL when the login
 // starts, so a Host header the initiator chose must not become where the

@@ -4,6 +4,8 @@
 package server
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto"
 	"crypto/subtle"
@@ -309,33 +311,38 @@ func (s *SAMLManager) buildSAMLProvider(ctx context.Context, providerName string
 		ForceAuthn:                  config.ForceAuthn,
 	}
 
-	// Optional SP signing/encryption
+	// Optional SP signing/encryption. The keypair is installed twice:
+	// SetSPKeyStore feeds the signing context (any crypto.Signer), while the
+	// SPKeyStore field is what gosaml2 reads to decrypt an EncryptedAssertion
+	// and what the logout paths here check to decide whether to sign. With
+	// only the setter, encrypted assertions fail with "no decryption certs
+	// available" although the metadata advertises the encryption key
 	if config.SPKeyFile == "random" {
 		sp.SPKeyStore = dsig.RandomKeyStoreForTest()
 		sp.SignAuthnRequests = true
 	} else if config.SPKeyFile != "" && config.SPCertFile != "" {
-		var err error
-		ks, err := s.loadSPKeyStore(config.SPCertFile, config.SPKeyFile)
+		ks, kp, err := s.loadSPKeyStore(config.SPCertFile, config.SPKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("SP keypair error: %w", err)
 		}
 		if err := sp.SetSPKeyStore(ks); err != nil {
 			return nil, fmt.Errorf("error setting SP key store: %w", err)
 		}
+		sp.SPKeyStore = dsig.TLSCertKeyStore(kp)
 		sp.SignAuthnRequests = true
 	}
 
 	return sp, nil
 }
 
-func (s *SAMLManager) loadSPKeyStore(certPath, keyPath string) (*saml2.KeyStore, error) {
+func (s *SAMLManager) loadSPKeyStore(certPath, keyPath string) (*saml2.KeyStore, tls.Certificate, error) {
 	kp, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("load sp keypair: %w", err)
+		return nil, tls.Certificate{}, fmt.Errorf("load sp keypair: %w", err)
 	}
 	signer, ok := kp.PrivateKey.(crypto.Signer)
 	if !ok {
-		return nil, fmt.Errorf("SP private key does not implement crypto.Signer")
+		return nil, tls.Certificate{}, fmt.Errorf("SP private key does not implement crypto.Signer")
 	}
 	var leafDER []byte
 	if len(kp.Certificate) > 0 {
@@ -345,7 +352,7 @@ func (s *SAMLManager) loadSPKeyStore(certPath, keyPath string) (*saml2.KeyStore,
 		Signer: signer,
 		Cert:   leafDER,
 	}
-	return ks, nil
+	return ks, kp, nil
 }
 
 type idpConfig struct {
@@ -469,6 +476,44 @@ func (s *SAMLManager) RegisterRoutes(mux *chi.Mux) {
 	})
 }
 
+// spMetadata builds the SP entity descriptor. gosaml2's builders both
+// require an SP keypair (Metadata fails on the missing encryption
+// certificate, MetadataWithSLO on the signing one, and the latter takes
+// its validity in nanoseconds), so without keys the descriptor is built
+// here. The SLO endpoint is listed either way: the slo handler reads the
+// POST binding (SAMLRequest/SAMLResponse form fields)
+func spMetadata(sp *saml2.SAMLServiceProvider) (*saml_types.EntityDescriptor, error) {
+	var ed *saml_types.EntityDescriptor
+	if sp.SPKeyStore != nil {
+		var err error
+		if ed, err = sp.Metadata(); err != nil {
+			return nil, err
+		}
+	} else {
+		ed = &saml_types.EntityDescriptor{
+			ValidUntil: time.Now().UTC().Add(7 * 24 * time.Hour),
+			EntityID:   sp.ServiceProviderIssuer,
+			SPSSODescriptor: &saml_types.SPSSODescriptor{
+				AuthnRequestsSigned:        sp.SignAuthnRequests,
+				WantAssertionsSigned:       !sp.SkipSignatureValidation,
+				ProtocolSupportEnumeration: saml2.SAMLProtocolNamespace,
+				AssertionConsumerServices: []saml_types.IndexedEndpoint{{
+					Binding:  saml2.BindingHttpPost,
+					Location: sp.AssertionConsumerServiceURL,
+					Index:    1,
+				}},
+			},
+		}
+	}
+	if sp.ServiceProviderSLOURL != "" {
+		ed.SPSSODescriptor.SingleLogoutServices = []saml_types.Endpoint{{
+			Binding:  saml2.BindingHttpPost,
+			Location: sp.ServiceProviderSLOURL,
+		}}
+	}
+	return ed, nil
+}
+
 func (s *SAMLManager) metadata(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 	sp := s.getProvider(providerName)
@@ -476,14 +521,7 @@ func (s *SAMLManager) metadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("provider %s not found", providerName), http.StatusNotFound)
 		return
 	}
-	var ed *saml_types.EntityDescriptor
-	var err error
-
-	if sp.ServiceProviderSLOURL != "" {
-		ed, err = sp.MetadataWithSLO(24)
-	} else {
-		ed, err = sp.Metadata()
-	}
+	ed, err := spMetadata(sp)
 	if err != nil {
 		http.Error(w, "metadata error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -514,9 +552,12 @@ func (s *SAMLManager) login(w http.ResponseWriter, r *http.Request, providerName
 	// Build the AuthnRequest up front so its ID can be persisted in the state
 	// map and later enforced against the assertion's InResponseTo (anti-replay,
 	// rejects unsolicited/IdP-injected assertions).
+	// A signed request carries an enveloped XML signature only with the
+	// POST binding; the Redirect binding signs the query string instead
+	// (SAML bindings 3.4.4.1), done by BuildAuthURLRedirect below
 	usePost := sp.IdentityProviderSSOBinding == saml2.BindingHttpPost
 	var authDoc *etree.Document
-	if sp.SignAuthnRequests {
+	if sp.SignAuthnRequests && usePost {
 		authDoc, err = sp.BuildAuthRequestDocument()
 	} else {
 		authDoc, err = sp.BuildAuthRequestDocumentNoSig()
@@ -584,7 +625,7 @@ func (s *SAMLManager) login(w http.ResponseWriter, r *http.Request, providerName
 		}
 		return
 	}
-	url, err := sp.BuildAuthURLFromDocument(relayState, authDoc)
+	url, err := sp.BuildAuthURLRedirect(relayState, authDoc)
 	if err != nil {
 		http.Error(w, "auth url err: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -985,10 +1026,26 @@ func (s *SAMLManager) logout(w http.ResponseWriter, r *http.Request) {
 
 	// optional IdP SLO (front-channel)
 	if sp.IdentityProviderSLOURL != "" && nameID != "" && sessionIndex != "" {
-		doc, err := sp.BuildLogoutRequestDocument(nameID, sessionIndex)
+		// Sign only with an SP keypair: the signing path dereferences the
+		// key store and panics without one
+		var doc *etree.Document
+		var err error
+		signed := sp.SPKeyStore != nil
+		if signed {
+			doc, err = sp.BuildLogoutRequestDocument(nameID, sessionIndex)
+		} else {
+			doc, err = sp.BuildLogoutRequestDocumentNoSig(nameID, sessionIndex)
+		}
 		if err == nil {
 			if sp.IdentityProviderSLOBinding == saml2.BindingHttpRedirect {
-				if url, err := sp.BuildLogoutURLRedirect("", doc); err == nil && url != "" {
+				var url string
+				if signed {
+					// Signs the query string, which needs the SP keypair
+					url, err = sp.BuildLogoutURLRedirect("", doc)
+				} else {
+					url, err = samlRedirectURL(sp.IdentityProviderSLOURL, doc)
+				}
+				if err == nil && url != "" {
 					http.Redirect(w, r, url, http.StatusFound)
 					return
 				}
@@ -1001,6 +1058,36 @@ func (s *SAMLManager) logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// samlRedirectURL encodes a SAML message for the unsigned HTTP-Redirect
+// binding (deflate, base64, SAMLRequest query parameter) on the given
+// endpoint. gosaml2's redirect builders always sign the query, which
+// needs an SP keypair
+func samlRedirectURL(endpoint string, doc *etree.Document) (string, error) {
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	message, err := doc.WriteToString()
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	fw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return "", err
+	}
+	if _, err := fw.Write([]byte(message)); err != nil {
+		return "", err
+	}
+	if err := fw.Close(); err != nil {
+		return "", err
+	}
+	query := parsed.Query()
+	query.Set("SAMLRequest", base64.StdEncoding.EncodeToString(buf.Bytes()))
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
 
 // handleIdpLogoutRequest validates an IdP-initiated LogoutRequest and answers
