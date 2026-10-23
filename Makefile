@@ -67,7 +67,7 @@ ifeq ($(origin .RECIPEPREFIX), undefined)
 endif
 .RECIPEPREFIX = >
 
-.PHONY: help test unit int testui testconsole covtest covtest-parallel covbuild covunit covint covui release-sdk release fullrelease update-dep update-go int_single lint verify build-linux image tags docs-screenshots
+.PHONY: help test unit int testui testconsole covtest covtest-parallel covbuild covunit covint covui covclient covreport release-sdk release fullrelease update-dep update-go int_single lint verify build-linux image tags docs-screenshots
 
 help: ## Display this help section
 > @awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-38s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -84,13 +84,26 @@ image: build-linux ## Build docker image
 
 # The CLI build temporarily stages test appspecs in the source tree. Finish
 # it before starting unit tests, which embed/read the original appspecs.
-covtest-parallel: covbuild ## Run unit and integration coverage concurrently (CI)
-> $(MAKE) --jobs=2 covtest SKIP_BUILD=1
+# covui runs first on its own: make --jobs never kills in-flight jobs, it only
+# stops launching new ones, so a failure in the short browser suite would
+# otherwise wait on the long covint run before the target fails.
+covtest-parallel: covbuild covclient ## Run unit and integration coverage concurrently (CI)
+> $(MAKE) covui SKIP_BUILD=1
+> $(MAKE) --jobs=2 covunit covint SKIP_BUILD=1
+> $(MAKE) covreport
 
 covbuild: ## Build the coverage-enabled CLI without running integration tests
 > ./tests/run_cli_tests.sh --home $(OPENRUN_HOME) --coverdir $(OPENRUN_HOME)/coverage/int --build-only
 
-covtest: covunit covint covui ## Run all tests with coverage
+# covint and covui both write CLI coverage data to coverage/client, so it is
+# reset once per run here rather than by either of them
+covclient:
+> rm -rf $(OPENRUN_HOME)/coverage/client && mkdir -p $(OPENRUN_HOME)/coverage/client
+
+covtest: covclient covunit covint covui ## Run all tests with coverage
+> $(MAKE) covreport
+
+covreport: ## Merge and print the coverage collected by covunit, covint and covui
 > go tool covdata percent -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int,$(OPENRUN_HOME)/coverage/ui
 > go tool covdata textfmt -i=$(OPENRUN_HOME)/coverage/client,$(OPENRUN_HOME)/coverage/unit,$(OPENRUN_HOME)/coverage/int,$(OPENRUN_HOME)/coverage/ui -o $(OPENRUN_HOME)/coverage.txt
 > go tool cover -func coverage.txt | grep '^total:'
@@ -122,11 +135,12 @@ testui: ## Run the browser-driven integration tests (tests/ui: federated login f
 > GOWORK=off go test -count=1 ./tests/ui/...
 
 # The server binary is built coverage-instrumented by the suite, or reused
-# from covbuild (tests/openrun) when SKIP_BUILD is set, like covint. Server
-# data goes to coverage/ui, CLI data to coverage/client
+# from covbuild (./openrun in the repo root, where run_cli_tests.sh builds it)
+# when SKIP_BUILD is set, like covint. Server data goes to coverage/ui, CLI
+# data to coverage/client
 covui: ## Run the browser-driven integration tests with coverage
 > rm -rf $(OPENRUN_HOME)/coverage/ui && mkdir -p $(OPENRUN_HOME)/coverage/ui $(OPENRUN_HOME)/coverage/client
-> GOWORK=off GOCOVERDIR=$(OPENRUN_HOME)/coverage/ui $(if $(SKIP_BUILD),OPENRUN_TEST_BIN=$(OPENRUN_HOME)/tests/openrun) go test -count=1 ./tests/ui/...
+> GOWORK=off GOCOVERDIR=$(OPENRUN_HOME)/coverage/ui $(if $(SKIP_BUILD),OPENRUN_TEST_BIN=$(OPENRUN_HOME)/openrun) go test -count=1 ./tests/ui/...
 
 testconsole: ## Run the console app integration tests (ui/console_tests, own module)
 > cd ui/console_tests && go test -count=1 ./...
@@ -151,8 +165,7 @@ int_single: ## Run one integration test; args: <test-file.yaml>
 > ./tests/run_cli_tests.sh $(RUN_CLI_TESTS_FLAGS) ${INPUT}
 
 covint: ## Run integration tests with coverage
-> rm -rf $(OPENRUN_HOME)/coverage/int && mkdir -p $(OPENRUN_HOME)/coverage/int
-> rm -rf $(OPENRUN_HOME)/coverage/client && mkdir -p $(OPENRUN_HOME)/coverage/client
+> rm -rf $(OPENRUN_HOME)/coverage/int && mkdir -p $(OPENRUN_HOME)/coverage/int $(OPENRUN_HOME)/coverage/client
 > ./tests/run_cli_tests.sh $(RUN_CLI_TESTS_FLAGS) --coverdir $(OPENRUN_HOME)/coverage/int
 
 tags: ## Show current release version tags
