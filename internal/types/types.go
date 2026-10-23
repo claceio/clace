@@ -811,11 +811,16 @@ type SecurityConfig struct {
 	DisableLoginForm bool `toml:"disable_login_form"`
 
 	// AuthCallbackDomain is the domain that serves the system/builtin login
-	// page. No apps can be created on it, so app JavaScript is never
-	// same-origin with the credential form. A value ending in "." is a
-	// prefix combined with system.default_domain (default "auth." ->
-	// auth.<default_domain>); a value without a trailing "." is used as a
-	// full domain. Ignored when DisableLoginForm is set
+	// page and the login/consent pages of the OAuth authorization server
+	// (remote CLI and MCP clients). No apps can be created on it, so app
+	// JavaScript is never same-origin with the credential form or the
+	// consent step. A value ending in "." is a prefix combined with
+	// system.default_domain (default "auth." -> auth.<default_domain>); a
+	// value without a trailing "." is used as a full domain.
+	// DisableLoginForm turns off only the system/builtin page; the
+	// federated (OAuth/OIDC, SAML) logins of the remote API are refused
+	// when no auth callback domain resolves (or, with a plain http
+	// api.external_url, when the domain is not a *.localhost name)
 	AuthCallbackDomain       string            `toml:"auth_callback_domain"`
 	TrustedProxies           []string          `toml:"trusted_proxies" dynamic:"-"`
 	CallbackUrl              string            `toml:"callback_url"`

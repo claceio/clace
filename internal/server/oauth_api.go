@@ -361,9 +361,15 @@ func (h *Handler) serveOAuthASMetadata(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// The authorize page lives on the login origin when one resolves (RFC
+	// 8414 lets the endpoints sit on hosts other than the issuer)
+	authorizeOrigin := external
+	if origin, ok := h.server.oauthLoginOrigin(); ok {
+		authorizeOrigin = origin
+	}
 	writeOAuthJSON(w, http.StatusOK, map[string]any{
 		"issuer":                                external,
-		"authorization_endpoint":                external + types.INTERNAL_URL_PREFIX + "/oauth/authorize",
+		"authorization_endpoint":                authorizeOrigin + types.INTERNAL_URL_PREFIX + "/oauth/authorize",
 		"token_endpoint":                        external + types.INTERNAL_URL_PREFIX + "/oauth/token",
 		"registration_endpoint":                 external + types.INTERNAL_URL_PREFIX + "/oauth/register",
 		"revocation_endpoint":                   external + types.INTERNAL_URL_PREFIX + "/oauth/revoke",
@@ -419,13 +425,25 @@ func (h *Handler) serveOAuth() http.Handler {
 	mux := http.NewServeMux()
 	prefix := types.INTERNAL_URL_PREFIX + "/oauth"
 	mux.HandleFunc("POST "+prefix+"/register", h.oauthRegister)
-	mux.HandleFunc("GET "+prefix+"/authorize", h.oauthAuthorizeForm)
+	// The browser pages are served on the login origin (the auth callback
+	// domain, where no app runs; see oauth_federated.go). The password
+	// POST carries its credential in the body and reads no cookie, so it is
+	// accepted on any host (clients that post to the issuer path directly)
+	mux.HandleFunc("GET "+prefix+"/authorize", h.oauthLoginHostRedirect(h.oauthAuthorizeForm))
 	mux.HandleFunc("POST "+prefix+"/authorize", h.oauthAuthorizeSubmit)
 	// Federated login (oauth_federated.go): chooser -> provider/SAML login
-	// -> continue (identity from the session cookie) -> consent -> code
-	mux.HandleFunc("POST "+prefix+"/authorize/federated", h.oauthAuthorizeFederated)
-	mux.HandleFunc("GET "+prefix+"/authorize/continue", h.oauthAuthorizeContinue)
-	mux.HandleFunc("POST "+prefix+"/authorize/consent", h.oauthAuthorizeConsent)
+	// -> continue (identity from the session cookie) -> consent -> code.
+	// The chooser POST starts a cookie-based flow, so it runs on the login
+	// origin only (and is refused inside when no login origin resolves)
+	mux.HandleFunc("POST "+prefix+"/authorize/federated", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := h.server.oauthLoginOrigin(); ok && !h.isOAuthLoginHost(r) {
+			http.NotFound(w, r)
+			return
+		}
+		h.oauthAuthorizeFederated(w, r)
+	})
+	mux.HandleFunc("GET "+prefix+"/authorize/continue", h.oauthLoginHostOnly(h.oauthAuthorizeContinue))
+	mux.HandleFunc("POST "+prefix+"/authorize/consent", h.oauthLoginHostOnly(h.oauthAuthorizeConsent))
 	mux.HandleFunc("POST "+prefix+"/token", h.oauthToken)
 	mux.HandleFunc("POST "+prefix+"/revoke", h.oauthRevoke)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -669,6 +687,20 @@ func (h *Handler) renderOAuthLogin(w http.ResponseWriter, r *http.Request, get f
 	}
 	passwordLogin := h.server.hasPasswordMechanism(res)
 	federated := h.server.federatedMechanisms(res)
+	if len(federated) > 0 {
+		if msg := h.server.federatedLoginUnavailable(); msg != "" {
+			// No login origin: say why instead of offering logins that fail
+			if errMsg == "" {
+				errMsg = msg
+			}
+			federated = nil
+		} else if !h.isOAuthLoginHost(r) {
+			// The chooser posts to the login origin only; a page rendered
+			// elsewhere (a password POST to the issuer path) keeps the
+			// password form alone
+			federated = nil
+		}
+	}
 	if errMsg == "" && !passwordLogin && len(federated) == 1 && r.Method == http.MethodGet {
 		// One federated mechanism and nothing to choose: go straight to it
 		h.startFederatedLogin(w, r, get, federated[0])

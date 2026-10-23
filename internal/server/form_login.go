@@ -174,6 +174,10 @@ type FormLoginManager struct {
 	fontsEtag   string
 	fontEtags   map[string]string
 
+	// redirectHostAllowed gates the host of the post-login redirect at the
+	// form submit, see completionRedirectAllowed. Wired by NewServer
+	redirectHostAllowed func(host string) bool
+
 	// sessionHttpsOnly mirrors the cookie store's Secure attribute, which is
 	// fixed at startup (oauth.Setup) and shared with OAuth/SAML. canStartFlow
 	// reads this startup value, not the dynamic config, so its decision matches
@@ -773,7 +777,7 @@ func (s *FormLoginManager) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirectParsed, err := url.Parse(redirectUrl)
-	if err != nil || (redirectParsed.Scheme != "http" && redirectParsed.Scheme != "https") {
+	if err != nil || !completionRedirectAllowed(redirectParsed, s.redirectHostAllowed) {
 		http.Error(w, "error matching session state", http.StatusBadRequest)
 		return
 	}

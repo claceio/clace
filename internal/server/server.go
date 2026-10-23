@@ -441,6 +441,13 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 		return nil, err
 	}
 	server.warnIfAuthDomainOccupied()
+	server.warnIfFederatedLoginUnavailable()
+	// The completion redirect of every login flow (the OAuth callback, the
+	// SAML ACS, the login form submit) carries a single-use token that
+	// mints the session: it goes only to hosts this server serves
+	server.oAuthManager.redirectHostAllowed = server.servedHost
+	server.samlManager.redirectHostAllowed = server.servedHost
+	server.formLogin.redirectHostAllowed = server.servedHost
 
 	if err = server.initAuditDB(config.Metadata.AuditDBConnection); err != nil {
 		return nil, fmt.Errorf("error initializing audit db: %w", err)
@@ -851,6 +858,11 @@ func (s *Server) prepareDynamicConfig(ctx context.Context, config *types.Dynamic
 		// in callApp). Warn so the operator knows; the reservation still holds
 		if previous.Security.AuthCallbackDomain != effective.Security.AuthCallbackDomain {
 			s.warnIfAuthDomainOccupied()
+		}
+		if previous.Security.AuthCallbackDomain != effective.Security.AuthCallbackDomain ||
+			previous.Security.CallbackUrl != effective.Security.CallbackUrl ||
+			!reflect.DeepEqual(previous.Api, effective.Api) {
+			s.warnIfFederatedLoginUnavailable()
 		}
 
 		if publishOAuth != nil {
@@ -1541,10 +1553,12 @@ func (s *Server) certDomainAllowed(name string) (bool, error) {
 			return true, nil
 		}
 	}
-	// The auth callback domain serves the login page but never has
-	// apps, so it needs its own certificate authorization
+	// The auth callback domain serves the login page and the OAuth AS
+	// login/consent pages but never has apps, so it needs its own
+	// certificate authorization (reserved even with the login form off:
+	// the AS pages are served there regardless)
 	if s.formLogin != nil {
-		if authDomain, ok := s.formLogin.authLoginDomain(); ok && strings.EqualFold(name, authDomain) {
+		if authDomain, ok := s.formLogin.reservedAuthDomain(); ok && strings.EqualFold(name, authDomain) {
 			return true, nil
 		}
 	}
@@ -1554,6 +1568,29 @@ func (s *Server) certDomainAllowed(name string) (bool, error) {
 		return false, err
 	}
 	return allDomains[name], nil
+}
+
+// servedHost reports whether a hostname is one this server serves: the
+// configured hosts, the auth callback domain and the app domains (the set
+// certDomainAllowed uses). A login's completion redirect goes only to such
+// a host. With fallback_unknown_domains and no default domain, apps are
+// served on any host and the login is not redirected to a canonical one,
+// so any host is accepted there
+func (s *Server) servedHost(hostname string) bool {
+	hostname = strings.ToLower(hostname)
+	if hostname == "::1" {
+		return true
+	}
+	config := s.Config()
+	if config.System.FallbackUnknownDomains && config.System.DefaultDomain == "" {
+		return true
+	}
+	allowed, err := s.certDomainAllowed(hostname)
+	if err != nil {
+		s.Error().Err(err).Str("host", hostname).Msg("error loading served domains")
+		return false
+	}
+	return allowed
 }
 
 // urlHostname returns the hostname of the url, empty if it is not set or invalid

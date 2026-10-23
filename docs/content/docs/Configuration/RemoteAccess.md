@@ -34,6 +34,7 @@ The server refuses to start with a surface enabled unless the transport prerequi
 
 - An HTTPS listener (on by default, port 25223) or `security.trusted_proxies` for a TLS-terminating proxy.
 - A canonical https origin in `api.external_url`, defaulting to `security.callback_url` when that is set, and otherwise to the HTTPS listener on the default app domain (`https://<system.default_domain>:<https.port>`, logged at startup). This value backs the OAuth metadata and token bindings — treat it as stable; changing it invalidates outstanding tokens. Set it explicitly whenever clients reach the server by a name other than the default domain.
+- The browser login and consent pages of the OAuth flow are served on the [auth callback domain]({{< ref "authentication/#login-page" >}}) (`security.auth_callback_domain`, default `auth.<system.default_domain>`, on the issuer's port), never on a domain that serves apps, so no app's JavaScript is ever same-origin with the consent step. The metadata names that endpoint and clients follow it; the domain must resolve to the server and gets a certificate like the app domains. With no auth callback domain (`auth_callback_domain = ""`, or the `auth.` prefix with no `default_domain`) the `admin` and `builtin` logins still work on the issuer host, but the `[auth.*]` and `[saml.*]` logins are refused.
 
 
 ```toml {filename="openrun.toml"}

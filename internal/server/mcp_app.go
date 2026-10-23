@@ -282,8 +282,9 @@ func (s *Server) mcpTransportAllowed(r *http.Request) bool {
 	// The exception needs a loopback connection, not just a loopback Host
 	// header: the Host is client-controlled, and an HTTP listener bound to
 	// a routable address must not hand out login pages or tokens in
-	// plaintext to a remote caller that says Host: localhost
-	return isLoopbackHost(system.GetHostname(r.Host)) && isLoopbackRemote(r.RemoteAddr)
+	// plaintext to a remote caller that says Host: localhost. *.localhost
+	// (the auth.localhost login origin of a local issuer) is loopback too
+	return isLocalhostHost(system.GetHostname(r.Host)) && isLoopbackRemote(r.RemoteAddr)
 }
 
 // isLoopbackRemote reports whether the connection's peer address is a

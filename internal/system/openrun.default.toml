@@ -138,9 +138,12 @@ session_absolute_max_age = 604800 # max total session lifetime in seconds from l
 session_https_only = true        # session cookie is HTTPS only (restart-only: applied to the shared cookie store at startup)
 disable_login_form = false       # if true, system/builtin auth uses the HTTP Basic challenge for browsers too
                                  # (no HTML login page). Off by default.
-auth_callback_domain = "auth."   # domain serving the system/builtin login page; no apps can be created on it.
+auth_callback_domain = "auth."   # domain serving the system/builtin login page and the OAuth login/consent pages
+                                 # of the remote API (CLI/MCP clients); no apps can be created on it.
                                  # A trailing "." is a prefix combined with default_domain (auth.<default_domain>);
-                                 # without a trailing "." it is used as a full domain. Ignored if disable_login_form is set.
+                                 # without a trailing "." it is used as a full domain. disable_login_form turns off
+                                 # only the system/builtin page; OAuth/OIDC and SAML logins of the remote API
+                                 # are refused without this domain.
 trusted_proxies = []             # CIDR ranges or IPs allowed to supply forwarded client IP headers
 app_default_auth_type = "none" # default auth type for apps, "system" or "none" or custom auth
 auth_required = false          # require authentication for all apps. This is verified during app access, not during metadata updates

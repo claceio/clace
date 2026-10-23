@@ -42,19 +42,19 @@ import (
 //  This db entry is used in the redirect api to create the cookies, and then db entry is deleted.
 
 // The flow is
-// 1. At service startup, SAMLServiceProvider is initialized
-// 2. For apps using SAML, CheckSAMLAuth is called to check if the user is authenticated
-// 3. CheckSAMLAuth verifies the session cookie to see if the user is authenticated. If yes, done
-// 4. If the user is not authenticated, login function is called (API is currently on the app domain)
-// 5. Login creates a sessionid and nonce. Saves entry in DB with sessionid as key and state map as value
-// 6. Login creates a cookie with the nonce and redirect url. Redirects to the SAML provider's login page, with sessionid in RelayState
-// 7. SAML provider's login page redirects to the ACS api on the callback domain, with sessionid in RelayState
-// 8. ACS api validates the sessionid, deletes that DB entry and stores the state map with the user id and groups
-//    info under a new short-lived sessionid (the pre-login sessionid is known to whoever started the flow)
-// 9. ACS api redirects to the redirect API on the app domain, passing the new sessionid in the relay parameter
-// 10. redirect API validates the passed sessionid, nonce from DB statemap against nonce from cookie,
-// 11. redirect stores the authenticated session, with the user id and groups info and deletes the DB entry
-// 12. Redirects back to original app url, which will again call CheckSAMLAuth and find the authenticated cookie
+//  1. At service startup, SAMLServiceProvider is initialized
+//  2. For apps using SAML, CheckSAMLAuth is called to check if the user is authenticated
+//  3. CheckSAMLAuth verifies the session cookie to see if the user is authenticated. If yes, done
+//  4. If the user is not authenticated, login function is called (API is currently on the app domain)
+//  5. Login creates a sessionid and nonce. Saves entry in DB with sessionid as key and state map as value
+//  6. Login creates a cookie with the nonce and redirect url. Redirects to the SAML provider's login page, with sessionid in RelayState
+//  7. SAML provider's login page redirects to the ACS api on the callback domain, with sessionid in RelayState
+//  8. ACS api validates the sessionid, deletes that DB entry and stores the state map with the user id and groups
+//     info under a new short-lived sessionid (the pre-login sessionid is known to whoever started the flow)
+//  9. ACS api redirects to the redirect API on the app domain, passing the new sessionid in the relay parameter
+//  10. redirect API validates the passed sessionid, nonce from DB statemap against nonce from cookie,
+//  11. redirect stores the authenticated session, with the user id and groups info and deletes the DB entry
+//  12. Redirects back to original app url, which will again call CheckSAMLAuth and find the authenticated cookie
 const SAML_AUTH_PREFIX = "saml_"
 
 // Bound XML complexity before round-trip validation and signature processing.
@@ -67,6 +67,10 @@ type SAMLManager struct {
 	config      *types.ServerConfig
 	cookieStore sessions.Store
 	db          KVStore
+
+	// redirectHostAllowed gates the host of the post-login redirect at the
+	// ACS, see completionRedirectAllowed. Wired by NewServer
+	redirectHostAllowed func(host string) bool
 
 	// providerMu guards the provider maps, which are replaced when dynamic
 	// config entries add/change/remove saml providers at runtime
@@ -163,9 +167,17 @@ func (s *SAMLManager) ValidateSAMLProvider(authType string) bool {
 	return s.getProvider(providerName) != nil
 }
 
+// CheckSAMLAuth checks the SAML session for an app request; without a
+// valid session the login flow is started, returning to the request URL
 func (s *SAMLManager) CheckSAMLAuth(w http.ResponseWriter, r *http.Request, appProvider string) (string, []string, error) {
+	return s.checkSAMLAuth(w, r, appProvider, system.GetRequestUrl(r, s.config.Security.TrustedProxies))
+}
+
+// checkSAMLAuth is CheckSAMLAuth with an explicit post-login URL: the OAuth
+// AS passes its config-built continue URL (oauth_federated.go), app
+// requests pass the request URL (their host is validated by MatchApp)
+func (s *SAMLManager) checkSAMLAuth(w http.ResponseWriter, r *http.Request, appProvider, requestUrl string) (string, []string, error) {
 	cookieName := genSAMLCookieName(appProvider)
-	requestUrl := system.GetRequestUrl(r, s.config.Security.TrustedProxies)
 
 	session, err := s.cookieStore.Get(r, cookieName)
 	if err != nil {
@@ -725,6 +737,11 @@ func (s *SAMLManager) acs(w http.ResponseWriter, r *http.Request) {
 	redirectParsed, err := url.Parse(redirectUrl)
 	if err != nil {
 		http.Error(w, "error parsing relay: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !completionRedirectAllowed(redirectParsed, s.redirectHostAllowed) {
+		s.Warn().Str("redirect", redirectUrl).Msg("login redirect names a host this server does not serve")
+		http.Error(w, "error matching session state, redirect host not served", http.StatusBadRequest)
 		return
 	}
 

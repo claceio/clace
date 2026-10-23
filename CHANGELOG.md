@@ -24,6 +24,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- The browser pages of the OAuth authorization server (the login/chooser page, the federated login return and the consent page used by the remote CLI and MCP clients) are served only on the auth callback domain (`security.auth_callback_domain`, default `auth.<system.default_domain>`), where no app is ever served, and the AS metadata names that endpoint.
+- The return URL of a federated OAuth login is built from the configuration, no longer from the request `Host` header, and the OAuth callback, the SAML ACS and the login form submit send their single-use completion token only to a host the server serves.
 - Builtin user password hashes are no longer stored in the dynamic config document and its history snapshots. On upgrade the users move to the `builtin_users` table (DB version 33) and the `builtin_auth` entries are scrubbed from the stored config history. Replacing the dynamic config (`openrun server update-config --force`) or restoring an old version can no longer delete or resurrect users.
 
 ## [v0.20.5] - 2026-10-21

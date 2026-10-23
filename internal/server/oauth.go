@@ -97,6 +97,10 @@ type OAuthManager struct {
 	cookieStore sessions.Store
 	db          KVStore
 
+	// redirectHostAllowed gates the host of the post-login redirect at the
+	// callback, see completionRedirectAllowed. Wired by NewServer
+	redirectHostAllowed func(host string) bool
+
 	// providerMu guards providerConfigs, which is replaced when dynamic
 	// config entries add/change/remove auth providers at runtime
 	providerMu      sync.RWMutex
@@ -314,9 +318,17 @@ func (s *OAuthManager) CheckAuth(w http.ResponseWriter, r *http.Request, appProv
 	return authInfo.UserId, authInfo.Groups, err
 }
 
+// CheckAuthInfo checks the provider session for an app request; without a
+// valid session the login flow is started, returning to the request URL
 func (s *OAuthManager) CheckAuthInfo(w http.ResponseWriter, r *http.Request, appProvider string) (OAuthAuthInfo, error) {
+	return s.checkAuthInfo(w, r, appProvider, system.GetRequestUrl(r, s.config.Security.TrustedProxies))
+}
+
+// checkAuthInfo is CheckAuthInfo with an explicit post-login URL: the
+// OAuth AS passes its config-built continue URL (oauth_federated.go), app
+// requests pass the request URL (their host is validated by MatchApp)
+func (s *OAuthManager) checkAuthInfo(w http.ResponseWriter, r *http.Request, appProvider, requestUrl string) (OAuthAuthInfo, error) {
 	cookieName := genCookieName(appProvider)
-	requestUrl := system.GetRequestUrl(r, s.config.Security.TrustedProxies)
 
 	session, err := s.cookieStore.Get(r, cookieName)
 	if err != nil {
@@ -563,6 +575,11 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error parsing relay: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if !completionRedirectAllowed(redirectParsed, s.redirectHostAllowed) {
+		s.Warn().Str("redirect", redirectUrl).Msg("login redirect names a host this server does not serve")
+		http.Error(w, "error matching session state, redirect host not served", http.StatusBadRequest)
+		return
+	}
 
 	// Mark the state authenticated under a NEW key. The pre-login state token
 	// is visible to whoever initiated the flow (it is in the login URL that
@@ -590,6 +607,20 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 	// Redirect to the auth/redirect url on the original app domain, so that the required cookie can be set on the app domain
 	redirectAppDomain := redirectParsed.Scheme + "://" + redirectParsed.Host + types.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/redirect?state=" + state
 	http.Redirect(w, r, redirectAppDomain, http.StatusFound)
+}
+
+// completionRedirectAllowed reports whether a stored post-login redirect may
+// be the destination of the completion token: an http(s) URL on a host this
+// server serves. The redirect is recorded from a request URL when the login
+// starts, so a Host header the initiator chose must not become the place
+// the token (and with it the victim's session) is sent to. hostAllowed is
+// the server's served-host check; nil (a manager built without a server, in
+// tests) accepts any host
+func completionRedirectAllowed(redirectParsed *url.URL, hostAllowed func(string) bool) bool {
+	if (redirectParsed.Scheme != "http" && redirectParsed.Scheme != "https") || redirectParsed.Host == "" {
+		return false
+	}
+	return hostAllowed == nil || hostAllowed(redirectParsed.Hostname())
 }
 
 // rotateLoginState atomically consumes the pre-login state entry and stores the
