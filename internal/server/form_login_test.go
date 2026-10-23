@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/openrundev/openrun/internal/types"
 	"golang.org/x/crypto/bcrypt"
+	"time"
 )
 
 func TestIsBrowserNavigation(t *testing.T) {
@@ -306,14 +307,11 @@ func TestSessionAuthPasswordChangeRevokes(t *testing.T) {
 	cfg.Security.AdminPasswordBcrypt = "$2a$10$adminhash1"
 	cfg.Security.AuthCallbackDomain = "auth."
 	cfg.System.DefaultDomain = "localhost"
-	cfg.BuiltinAuth = map[string]types.BuiltinAuthEntry{
-		"alice": {Password: "$2a$10$alicehash1", Groups: []string{"dev"}},
-		"bob":   {Password: "$2a$10$bobhash1"},
-	}
+	users, userStore := newTestUserManager(t, testUser(t, "alice", "", "dev"), testUser(t, "bob", ""))
 
 	logger := types.NewLogger(&types.LogConfig{Level: "WARN"})
 	manager, err := NewFormLoginManager(logger, func() *types.ServerConfig { return cfg },
-		store, db, nil, nil, false)
+		store, db, nil, users, false)
 	if err != nil {
 		t.Fatalf("NewFormLoginManager failed: %v", err)
 	}
@@ -329,7 +327,7 @@ func TestSessionAuthPasswordChangeRevokes(t *testing.T) {
 		session.Values[PROVIDER_NAME_KEY] = authType
 		session.Values[USER_KEY] = user
 		if withFp {
-			fp, ok := credentialFingerprint(cfg, nil, authType, user)
+			fp, ok := credentialFingerprint(cfg, nil, users, authType, user)
 			if !ok {
 				t.Fatalf("no credential fingerprint for %s/%s", authType, user)
 			}
@@ -366,17 +364,45 @@ func TestSessionAuthPasswordChangeRevokes(t *testing.T) {
 	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), sysReq, "system"); ok {
 		t.Error("system session must be revoked after an admin password change")
 	}
-	cfg.BuiltinAuth["alice"] = types.BuiltinAuthEntry{Password: "$2a$10$alicehash2", Groups: []string{"dev"}}
+	// (a password set bumps the credential version; a rehash of the same
+	// password on login does not and keeps the session)
+	alice, _ := userStore.GetBuiltinUser(context.Background(), "alice")
+	alice.PasswordHash = "$2a$10$alicehash2"
+	if err := userStore.UpdateBuiltinUser(context.Background(), alice); err != nil {
+		t.Fatal(err)
+	}
+	users.invalidate("alice")
+	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), aliceReq, "builtin"); !ok {
+		t.Error("a rehash without a version change must keep the session")
+	}
+	alice.CredentialVersion++
+	_ = userStore.UpdateBuiltinUser(context.Background(), alice)
+	users.invalidate("alice")
 	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), aliceReq, "builtin"); ok {
 		t.Error("builtin session must be revoked after a password change")
 	}
 
-	// user delete revokes as well
+	// user disable and delete revoke as well
 	bobReq := makeSession("builtin", "bob", true)
 	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), bobReq, "builtin"); !ok {
 		t.Fatal("bob's session should authenticate before the delete")
 	}
-	delete(cfg.BuiltinAuth, "bob")
+	bob, _ := userStore.GetBuiltinUser(context.Background(), "bob")
+	now := time.Now()
+	bob.DisabledAt = &now
+	_ = userStore.UpdateBuiltinUser(context.Background(), bob)
+	users.invalidate("bob")
+	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), bobReq, "builtin"); ok {
+		t.Error("session for a disabled user must not authenticate")
+	}
+	bob.DisabledAt = nil
+	_ = userStore.UpdateBuiltinUser(context.Background(), bob)
+	users.invalidate("bob")
+	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), bobReq, "builtin"); !ok {
+		t.Fatal("re-enabled with the same version: the session is back")
+	}
+	_ = userStore.DeleteBuiltinUser(context.Background(), "bob")
+	users.invalidate("bob")
 	if _, _, ok := manager.sessionAuth(httptest.NewRecorder(), bobReq, "builtin"); ok {
 		t.Error("session for a deleted user must not authenticate")
 	}

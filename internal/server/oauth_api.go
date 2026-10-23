@@ -37,7 +37,7 @@ import (
 // refresh tokens land in the same credentials table as PATs, so one verifier
 // covers everything and revocation is immediate.
 //
-// Login mechanisms: "builtin" (builtin_auth users) and "admin" on the password
+// Login mechanisms: "builtin" (builtin users) and "admin" on the password
 // form, and the [auth.*]/[saml.*] providers through the federated login step
 // (oauth_federated.go).
 
@@ -879,7 +879,7 @@ func (s *Server) oauthAuthenticateUser(res *oauthResource, username, password st
 	for _, mechanism := range mechanisms {
 		switch mechanism {
 		case "builtin":
-			if principal, groups, ok := s.builtinAuth.authenticate(basicHeader); ok {
+			if principal, groups, ok := s.users.authenticate(basicHeader); ok {
 				return principal, groups, nil
 			}
 		case "admin":

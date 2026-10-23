@@ -1078,8 +1078,8 @@ func (s *Server) authenticateAndServeApp(w http.ResponseWriter, r *http.Request,
 					authOk = true
 				}
 			} else {
-				// basic auth against the [builtin_auth.*] entries
-				userId, groups, authOk = s.builtinAuth.authenticate(authHeader)
+				// basic auth against the builtin users table
+				userId, groups, authOk = s.users.authenticate(authHeader)
 			}
 		} else if userId, groups, authOk = s.formLogin.sessionAuth(w, r, strippedAuthStr); !authOk &&
 			isBrowserNavigation(r) && s.formLogin.enabled() && s.formLogin.canStartFlow(r) {

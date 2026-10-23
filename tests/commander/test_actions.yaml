@@ -98,9 +98,9 @@ tests:
       ]}}
       EOF
       ../openrun server update-config --force act_rbac.json > /dev/null
-      ../openrun user add alice --value alicepw > /dev/null
-      ../openrun user add bob --value bobpw > /dev/null
-      ../openrun user add carol --value carolpw > /dev/null
+      ../openrun user add alice --value alicepass1 > /dev/null
+      ../openrun user add bob --value bobpass1 > /dev/null
+      ../openrun user add carol --value carolpass1 > /dev/null
       ../openrun app create --approve --auth builtin --mcp=actions ./act_src /actapps/ops
       ../openrun app create --approve --auth system ./act_src /actapps/sysops > /dev/null
     stdout: "App: /actapps/ops"

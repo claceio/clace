@@ -640,10 +640,10 @@ func (s *Server) cronJobContext(parent context.Context, entry *types.AppEntry) (
 		ctx.userId = ""
 		return ctx, nil
 	}
-	// Builtin groups come from live config even without an API identity row.
+	// Builtin groups come from the live user row even without an API identity row.
 	// Deleted builtin users lose authority; this is not a storage failure.
 	if username, builtin := strings.CutPrefix(ctx.userId, string(types.AppAuthnBuiltin)+":"); builtin {
-		groups, exists := builtinGroups(s.Config(), username)
+		groups, exists := s.users.groups(username)
 		if !exists {
 			ctx.userId = ""
 		} else {

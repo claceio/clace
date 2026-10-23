@@ -114,7 +114,7 @@ tests:
   todoflow0045: # create the builtin todo-dev user (admin, trusted CLI). Added
     # after the RBAC config publish: update-config --force replaces the whole
     # dynamic config, which would wipe a dynamically added user entry
-    command: ../openrun user add tododev --value todopw --groups todo-team
+    command: ../openrun user add tododev --value todopass1 --groups todo-team
     stdout: "User added: tododev"
 
   todoflow0050: # an unknown builtin user cannot be impersonated

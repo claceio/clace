@@ -81,9 +81,9 @@ tests:
       ]}}
       EOF
       ../openrun server update-config --force async_rbac.json > /dev/null
-      ../openrun user add alice --value alicepw > /dev/null
-      ../openrun user add bob --value bobpw > /dev/null
-      ../openrun user add carol --value carolpw > /dev/null
+      ../openrun user add alice --value alicepass1 > /dev/null
+      ../openrun user add bob --value bobpass1 > /dev/null
+      ../openrun user add carol --value carolpass1 > /dev/null
       ../openrun app create --approve --auth builtin --mcp=actions ./async_src /asyncapps/site
     stdout: "App: /asyncapps/site"
     exit-code: 0
@@ -398,7 +398,7 @@ tests:
   async0210: # the app's own REST API: 202 with the run id, the run document (waited for), the
     # output paging, the list and cancel, as the logged in app user (basic auth)
     command: |
-      api() { curl -sk -u alice:alicepw "$@"; }
+      api() { curl -sk -u alice:alicepass1 "$@"; }
       api -X POST -H 'Content-Type: application/json' -d '{"count": 2}' https://localhost:${MAIN_HTTPS_PORT}/asyncapps/site/api/actions/rows -o async_api.json -w 'submit=%{http_code}\n'
       id=$(jq -r '.run_id' async_api.json)
       jq -r '[.status, (.url | startswith("/asyncapps/site/rows/runs/"))] | join(" ")' async_api.json
@@ -426,7 +426,7 @@ tests:
     # plain post), the run page shows the result, the Run History page has an args column,
     # the filter and the drill-down links, and result.json is the stored document
     command: |
-      ui() { curl -sk -u alice:alicepw "$@"; }
+      ui() { curl -sk -u alice:alicepass1 "$@"; }
       ui -X POST -H 'HX-Request: true' -d 'count=3&status=closed' https://localhost:${MAIN_HTTPS_PORT}/asyncapps/site/rows -D - -o /dev/null | grep -i "^hx-redirect" | tr -d '\r' | sed 's#/runs/.*#/runs/<id>#'
       loc=$(ui -X POST -d 'count=4&status=closed' https://localhost:${MAIN_HTTPS_PORT}/asyncapps/site/rows -D - -o /dev/null -w '%{http_code}\n' | tr -d '\r' | grep -i "^location\|^303" | tr '\n' ' ')
       echo "$loc" | sed 's#/runs/[a-z0-9]*#/runs/<id>#'

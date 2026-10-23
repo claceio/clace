@@ -40,6 +40,7 @@ var predefinedRoles = map[string][]types.RBACPermission{
 		types.PermissionProviderManage,
 		types.PermissionContainerManage,
 		types.PermissionConfigRead, types.PermissionConfigUpdate,
+		types.PermissionUserManage,
 		types.PermissionSecretCreate, types.PermissionSecretRead, types.PermissionSecretDelete,
 		types.PermissionAuditRead, types.PermissionServerStop,
 		types.PermissionBuilderList, types.PermissionBuilderCreate, types.PermissionBuilderPublish,
@@ -86,7 +87,7 @@ var predefinedRoles = map[string][]types.RBACPermission{
 		types.PermissionAuditRead, types.PermissionContainerRead,
 		types.PermissionSyncRead, types.PermissionServiceRead, types.PermissionBindingRead,
 		types.PermissionProviderRead,
-		types.PermissionConfigRead, types.PermissionSecretRead,
+		types.PermissionConfigRead, types.PermissionSecretRead, types.PermissionUserRead,
 	},
 }
 
@@ -217,6 +218,11 @@ var globalPermissions = map[types.RBACPermission]bool{
 	types.PermissionSecretRead:       true,
 	types.PermissionSecretDelete:     true,
 	types.PermissionSecretReveal:     true,
+	types.PermissionUserRead:         true,
+	types.PermissionUserCreate:       true,
+	types.PermissionUserUpdate:       true,
+	types.PermissionUserDelete:       true,
+	types.PermissionUserManage:       true,
 	types.PermissionApiKeyManageSelf: true,
 	types.PermissionAdmin:            true,
 }
@@ -303,6 +309,8 @@ var permissionImplications = map[types.RBACPermission][]types.RBACPermission{
 	types.PermissionContainerManage: {types.PermissionContainerRead},
 	types.PermissionProviderManage:  {types.PermissionProviderRead},
 	types.PermissionConfigRead:      {types.PermissionConfigBasicRead},
+	types.PermissionUserManage: {types.PermissionUserRead, types.PermissionUserCreate,
+		types.PermissionUserUpdate, types.PermissionUserDelete},
 }
 
 // defaultOwnerPermissions are the permissions the creator of an asset gets on that

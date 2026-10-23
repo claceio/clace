@@ -43,6 +43,7 @@ const (
 	ID_PREFIX_SERVICE       = "srv_"
 	ID_PREFIX_BINDING       = "bnd_"
 	ID_PREFIX_SERVER        = "srv_id_"
+	ID_PREFIX_USER          = "usr_"
 	ID_PREFIX_BUILDER_SES   = "bld_ses_"
 	ID_PREFIX_BUILDER_ACT   = "bld_act_"
 	INTERNAL_URL_PREFIX     = "/_openrun"
@@ -1190,12 +1191,13 @@ type AuthConfig struct {
 	Scopes       []string `toml:"scopes"`        // oauth scopes
 }
 
-// BuiltinAuthEntry is one user for the builtin app auth type. The
-// [builtin_auth.<username>] entry name is the username; requests authenticate
-// with HTTP Basic auth against the bcrypt password hash. The groups are
-// passed to RBAC the same way SSO provider groups are
+// BuiltinAuthEntry is one [builtin_auth.<username>] entry of openrun.toml.
+// DEPRECATED: builtin users are rows of the builtin_users table, managed with
+// `openrun user`. Static entries are imported into the table at startup when
+// no user of that name exists (never updating an existing user) and are
+// otherwise ignored; the section will be removed in a later release
 type BuiltinAuthEntry struct {
-	Password string   `toml:"password" json:"password"` // bcrypt hash of the user's password
+	Password string   `toml:"password" json:"password"` // password hash (bcrypt or argon2id) of the user's password
 	Groups   []string `toml:"groups" json:"groups"`     // groups the user belongs to, matched by RBAC group: references
 }
 
@@ -1820,6 +1822,7 @@ var CurrentServerId ServerId // initialized in server.go init()
 const MessageTypeAppUpdate = "app_update"
 const MessageTypeConfigUpdate = "config_update"
 const MessageTypeProviderUpdate = "provider_update"
+const MessageTypeUserUpdate = "user_update"
 
 type AppUpdatePayload struct {
 	AppPathDomains []AppPathDomain `json:"app_path_domains"`
@@ -1855,6 +1858,19 @@ type ProviderUpdatePayload struct {
 type ProviderUpdateMessage struct {
 	MessageType string                `json:"message_type"`
 	Payload     ProviderUpdatePayload `json:"payload"`
+}
+
+// UserUpdatePayload notifies replicas that builtin user rows changed (create,
+// update, delete, login bookkeeping); each replica drops the named users from
+// its cache and reloads them from the database on next use
+type UserUpdatePayload struct {
+	Usernames []string `json:"usernames"`
+	ServerId  ServerId `json:"server_id"`
+}
+
+type UserUpdateMessage struct {
+	MessageType string            `json:"message_type"`
+	Payload     UserUpdatePayload `json:"payload"`
 }
 
 type LibraryType string
@@ -2023,6 +2039,16 @@ const (
 	PermissionBuilderCreate  RBACPermission = "builder:create"  // create sessions, message/stop/resume/delete one's own sessions
 	PermissionBuilderPublish RBACPermission = "builder:publish" // publish/unpublish (also needs app:create on the path)
 
+	// user:* permissions are global: builtin user accounts are server-wide
+	// entities, not per-app resources. The write permissions are never
+	// matched by permission globs (a user can be created in any group, so
+	// user:create is a route to every other permission)
+	PermissionUserRead   RBACPermission = "user:read"   // list users, get a user (never the password hash)
+	PermissionUserCreate RBACPermission = "user:create" // create users
+	PermissionUserUpdate RBACPermission = "user:update" // set password/groups, disable/enable/unlock
+	PermissionUserDelete RBACPermission = "user:delete"
+	PermissionUserManage RBACPermission = "user:manage" // all user permissions
+
 	// PermissionApiKeyManageSelf allows creating/listing/deleting one's OWN
 	// API keys (openrun apikey). Managing another user's keys requires the
 	// admin permission, not a broader apikey permission
@@ -2077,6 +2103,8 @@ var RBACPermissionGroups = []RBACPermissionGroup{
 	{Resource: "builder", Permissions: []RBACPermission{
 		PermissionBuilderList, PermissionBuilderCreate,
 		PermissionBuilderPublish}},
+	{Resource: "user", Permissions: []RBACPermission{
+		PermissionUserRead, PermissionUserCreate, PermissionUserUpdate, PermissionUserDelete, PermissionUserManage}},
 	{Resource: "apikey", Permissions: []RBACPermission{PermissionApiKeyManageSelf}},
 	{Resource: "server", Permissions: []RBACPermission{PermissionServerStop}},
 	{Resource: "audit", Permissions: []RBACPermission{PermissionAuditRead}},

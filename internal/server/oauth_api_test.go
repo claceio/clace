@@ -20,7 +20,6 @@ import (
 	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/testutil"
 	"github.com/openrundev/openrun/internal/types"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // End-to-end OAuth 2.1 flow against the real TLS router: DCR registration,
@@ -30,12 +29,15 @@ import (
 func newOAuthTestServer(t *testing.T) (*Server, *httptest.Server, *http.Client) {
 	t.Helper()
 	server, ts, _ := newRemoteApiTestServer(t)
-	aliceHash, err := bcrypt.GenerateFromPassword([]byte("alicepw"), bcrypt.MinCost)
+	alice, err := server.db.GetBuiltinUser(context.Background(), "alice")
 	if err != nil {
-		t.Fatalf("bcrypt: %v", err)
+		t.Fatal(err)
 	}
-	server.staticConfig.BuiltinAuth["alice"] = types.BuiltinAuthEntry{
-		Password: string(aliceHash), Groups: []string{"dev"}}
+	alice.PasswordHash = hashPassword(t, "alicepw")
+	if err := server.db.UpdateBuiltinUser(context.Background(), alice); err != nil {
+		t.Fatal(err)
+	}
+	server.users.invalidate("alice")
 	server.staticConfig.Api.Rest.Auth = []string{"builtin", "admin"}
 	server.staticConfig.Api.MCP.Auth = []string{"builtin", "admin"}
 	server.staticConfig.Api.ExternalUrl = ts.URL

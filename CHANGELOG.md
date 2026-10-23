@@ -7,6 +7,25 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Builtin users are now accounts in their own `builtin_users` table instead of `[builtin_auth.*]` config entries. `openrun user update` gains `--disable`/`--enable` (a disabled user cannot log in, and its sessions, API keys and scheduled job authority stop) and `--unlock`; `openrun user show <name>` and the `user_get` API/MCP tool report a user's groups, state, creation and last login. After ten consecutive wrong passwords an account is locked for 15 minutes. A password change, disable or delete signs the user out of existing browser sessions immediately, and deleting a user revokes their API keys and OAuth tokens.
+- New RBAC permissions `user:read`, `user:create`, `user:update`, `user:delete` and `user:manage` govern builtin user management (previously `config:update`/`config:read`). `openrun-operator` includes `user:manage`, `openrun-monitor` includes `user:read`. The write permissions are never matched by API key scope globs, like `config:update`.
+
+### Changed
+
+- Passwords of builtin users are hashed on the server with argon2id (bcrypt hashes from earlier versions are verified and upgraded in place on the next login); the `openrun user` commands send the password as entered, the `/_openrun/user` API field `password` and the MCP `user_add` tool field `password` (was `password_hash`) take the plaintext. The server enforces a password policy (8 to 128 characters, not equal to the username) and a username syntax (letters, digits and `. _ @ + -`; `admin`, `anonymous` and the `openrun-` prefix are reserved).
+- Grants that managed users through `config:update` need `user:manage` (or the individual `user:*` permissions) now.
+- The `[builtin_auth.*]` section of `openrun.toml` is deprecated: its entries are imported as users at startup when no user of that name exists, an existing user is never changed from the file, and the section will be removed in a later release. A dynamic config document (`openrun server update-config`) carrying `entries.builtin_auth` is rejected. `openrun user list` no longer reports a static/dynamic source.
+
+### Removed
+
+- The default builtin users `test1`/`test1` and `test2`/`test2`, which v0.20.0 to v0.20.5 created on every install, are no longer created. On upgrade they are removed unless their password or groups were changed; a changed `test1` or `test2` is kept as an ordinary user. Create the users you need with `openrun user add`.
+
+### Security
+
+- Builtin user password hashes are no longer stored in the dynamic config document and its history snapshots. On upgrade the users move to the `builtin_users` table (DB version 33) and the `builtin_auth` entries are scrubbed from the stored config history. Replacing the dynamic config (`openrun server update-config --force`) or restoring an old version can no longer delete or resurrect users.
+
 ## [v0.20.5] - 2026-10-21
 
 ### Security

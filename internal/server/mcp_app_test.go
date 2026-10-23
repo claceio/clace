@@ -17,10 +17,10 @@ import (
 	"sync"
 	"testing"
 
+	"context"
 	"github.com/openrundev/openrun/internal/system"
 	"github.com/openrundev/openrun/internal/testutil"
 	"github.com/openrundev/openrun/internal/types"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // upstreamRecorder is the stand-in MCP server: an httptest upstream the app
@@ -364,11 +364,15 @@ func TestMCPAppOAuthFlow(t *testing.T) {
 	}
 
 	// bob (no app:access) cannot obtain a token; the page reports it
-	bobHash, err := bcrypt.GenerateFromPassword([]byte("bobpw"), bcrypt.MinCost)
+	bob, err := server.db.GetBuiltinUser(context.Background(), "bob")
 	if err != nil {
-		t.Fatalf("bcrypt: %v", err)
+		t.Fatal(err)
 	}
-	server.staticConfig.BuiltinAuth["bob"] = types.BuiltinAuthEntry{Password: string(bobHash)}
+	bob.PasswordHash = hashPassword(t, "bobpw")
+	if err := server.db.UpdateBuiltinUser(context.Background(), bob); err != nil {
+		t.Fatal(err)
+	}
+	server.users.invalidate("bob")
 	form.Set("or_username", "bob")
 	form.Set("or_password", "bobpw")
 	resp, err = client.PostForm(ts.URL+"/_openrun/oauth/authorize", form)

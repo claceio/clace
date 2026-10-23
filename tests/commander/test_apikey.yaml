@@ -51,8 +51,8 @@ tests:
       }
       EOF
       ../openrun server update-config --force apikey_rbac.json
-      ../openrun user add alice --value alicepw --groups devs
-      ../openrun user add bob --value bobpw
+      ../openrun user add alice --value alicepass1 --groups devs
+      ../openrun user add bob --value bobpass1
     exit-code: 0
   apikey0040: # create a test app (unix socket stays trusted under RBAC)
     command: ../openrun app create ./rbac_child_app /apps/apikey_app
@@ -169,7 +169,7 @@ tests:
         -d response_type=code -d client_id=openrun-cli -d "redirect_uri=http://127.0.0.1:9/callback" \
         -d state=xyz -d "code_challenge=$CHALLENGE" -d code_challenge_method=S256 \
         --data-urlencode "resource=https://localhost:${MAIN_HTTPS_PORT}/_openrun/rest" --data-urlencode "scope=*" \
-        -d or_username=alice -d or_password=alicepw --data-urlencode "or_scope=*")
+        -d or_username=alice -d or_password=alicepass1 --data-urlencode "or_scope=*")
       CODE=$(printf %s "$LOCATION" | sed -n 's/.*code=\([^&]*\).*/\1/p')
       test -n "$CODE"
       curl -sk -X POST https://localhost:${MAIN_HTTPS_PORT}/_openrun/oauth/token \
@@ -211,7 +211,7 @@ tests:
       test -n "$AUTH_URL"
       QUERY=${AUTH_URL#*\?}
       curl -sk -L -X POST "https://localhost:${MAIN_HTTPS_PORT}/_openrun/oauth/authorize" \
-        -d "$QUERY" -d or_username=alice -d or_password=alicepw --data-urlencode "or_scope=*" > /dev/null
+        -d "$QUERY" -d or_username=alice -d or_password=alicepass1 --data-urlencode "or_scope=*" > /dev/null
       wait $LOGIN_PID
       cat login_out.txt
     stdout: "as builtin:alice"

@@ -244,6 +244,8 @@ func newApplyTestServer(t *testing.T) (*Server, *metadata.Metadata, context.Cont
 	}
 	server.secretsManager.Store(secretsManager)
 	server.apps = NewAppStore(logger, server)
+	server.users = NewUserManager(logger, db)
+	server.users.failDelay = 0
 	rbacManager, err := rbac.NewRBACHandler(logger, &types.RBACConfig{}, config)
 	if err != nil {
 		t.Fatalf("new rbac manager: %v", err)

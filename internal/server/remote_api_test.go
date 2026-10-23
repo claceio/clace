@@ -42,11 +42,9 @@ func newRemoteApiTestServer(t *testing.T) (*Server, *httptest.Server, func(t *te
 		t.Fatalf("getwd: %v", wdErr)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
-	server.staticConfig.BuiltinAuth = map[string]types.BuiltinAuthEntry{
-		"alice": {Password: "unused", Groups: []string{"dev"}},
-		"bob":   {Password: "unused"},
-		"carol": {Password: "unused"},
-	}
+	addDBTestUser(t, server, "alice", "", "dev")
+	addDBTestUser(t, server, "bob", "")
+	addDBTestUser(t, server, "carol", "")
 	server.staticConfig.Api.Rest = types.ApiSurfaceConfig{Enable: true, Auth: []string{"admin"}}
 	server.staticConfig.Api.MCP = types.ApiSurfaceConfig{Enable: true, Auth: []string{"admin"}}
 	server.staticConfig.System.DefaultDomain = "127.0.0.1"
@@ -60,11 +58,10 @@ func newRemoteApiTestServer(t *testing.T) (*Server, *httptest.Server, func(t *te
 	})
 	server.csrfMiddleware = http.NewCrossOriginProtection()
 	server.authHandler = NewAdminBasicAuth(server.Logger, server.staticConfig)
-	server.builtinAuth = NewBuiltinAuth(server.Logger, server.Config)
 	server.oAuthManager = &OAuthManager{Logger: server.Logger, config: server.staticConfig}
 	server.samlManager = &SAMLManager{Logger: server.Logger, config: server.staticConfig}
 	formLogin, err := NewFormLoginManager(server.Logger, server.Config, nil, nil,
-		server.authHandler, server.builtinAuth, false)
+		server.authHandler, server.users, false)
 	if err != nil {
 		t.Fatalf("form login: %v", err)
 	}

@@ -26,21 +26,18 @@ func newAsUserTestServer(t *testing.T, rbacConfig *types.RBACConfig) *Server {
 func newAsUserTestServerDisabled(t *testing.T, rbacConfig *types.RBACConfig, disableRBAC bool) *Server {
 	t.Helper()
 	logger := testutil.TestLogger()
-	config := &types.ServerConfig{
-		BuiltinAuth: map[string]types.BuiltinAuthEntry{
-			"alice": {Password: "unused", Groups: []string{"dev", "qa"}},
-			"bob":   {Password: "unused"},
-		},
-	}
+	config := &types.ServerConfig{}
 	config.Security.UnsafeDisableRBAC = disableRBAC
 	rbacManager, err := rbac.NewRBACHandler(logger, rbacConfig, config)
 	if err != nil {
 		t.Fatalf("new rbac manager: %v", err)
 	}
+	users, _ := newTestUserManager(t, testUser(t, "alice", "", "dev", "qa"), testUser(t, "bob", ""))
 	return &Server{
 		Logger:       logger,
 		staticConfig: config,
 		rbacManager:  rbacManager,
+		users:        users,
 	}
 }
 

@@ -60,22 +60,22 @@ tests:
     stdout: "child ok"
     exit-code: 0
   builtin0080: # add a dynamic user in the devs group, no server restart needed
-    command: ../openrun user add testuser1 --value pw1 --groups devs,qa
+    command: ../openrun user add testuser1 --value password1 --groups devs,qa
     stdout: "User added: testuser1"
     exit-code: 0
   builtin0090: # testuser1 allowed through the group:devs grant
-    command: curl -s -u testuser1:pw1 localhost:${MAIN_HTTP_PORT}/builtin_app/
+    command: curl -s -u testuser1:password1 localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "child ok"
     exit-code: 0
   builtin0100: # adding an existing user fails
-    command: ../openrun user add testuser1 --value pw1
+    command: ../openrun user add testuser1 --value password1
     stderr: "already exists"
     exit-code: 1
   builtin0110: # updating a missing user fails
-    command: ../openrun user update nosuchuser --value pw1
+    command: ../openrun user update nosuchuser --value password1
     stderr: "does not exist"
     exit-code: 1
-  builtin0120: # list shows the static and dynamic users with groups
+  builtin0120: # list shows the imported static user and the new user with groups
     command: ../openrun user list
     stdout:
       contains:
@@ -83,17 +83,34 @@ tests:
         - "static-group"
         - "testuser1"
         - "devs,qa"
+        - "active"
     exit-code: 0
+  builtin0122: # show one user
+    command: ../openrun user show testuser1 --format json
+    stdout:
+      contains:
+        - '"username": "testuser1"'
+        - '"disabled": false'
+        - '"created_by": "admin"'
+    exit-code: 0
+  builtin0124: # the password policy is enforced by the server
+    command: ../openrun user add shortpw --value abc
+    stderr: "at least 8 characters"
+    exit-code: 1
+  builtin0126: # reserved usernames are refused
+    command: ../openrun user add admin --value password1
+    stderr: "reserved"
+    exit-code: 1
   builtin0130: # change the password, groups are kept
-    command: ../openrun user update testuser1 --value pw2
+    command: ../openrun user update testuser1 --value password2
     stdout: "User updated: testuser1"
     exit-code: 0
   builtin0140: # the old password stops working immediately
-    command: curl -s -u testuser1:pw1 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    command: curl -s -u testuser1:password1 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "401"
     exit-code: 0
   builtin0150: # the new password works, groups were kept (group:devs grant)
-    command: curl -s -u testuser1:pw2 localhost:${MAIN_HTTP_PORT}/builtin_app/
+    command: curl -s -u testuser1:password2 localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "child ok"
     exit-code: 0
   builtin0160: # update the groups only, password is kept
@@ -101,21 +118,58 @@ tests:
     stdout: "User updated: testuser1"
     exit-code: 0
   builtin0170: # no longer in devs - authenticated but not authorized (403)
-    command: curl -s -u testuser1:pw2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    command: curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "403"
+    exit-code: 0
+  builtin0172: # disable the user: authentication is refused (401)
+    command: ../openrun user update testuser1 --disable
+    stdout: "User updated: testuser1"
+    exit-code: 0
+  builtin0174: # a disabled user cannot log in even with the right password
+    command: curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    stdout: "401"
+    exit-code: 0
+  builtin0176: # the state shows in the listing
+    command: ../openrun user list
+    stdout:
+      contains:
+        - "disabled"
+    exit-code: 0
+  builtin0178: # enable again, and the user is back (403: authenticated, not in devs)
+    command: |
+      ../openrun user update testuser1 --enable > /dev/null
+      curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    stdout: "403"
+    exit-code: 0
+  builtin0179: # ten wrong passwords lock the account; the right password is then refused until unlocked
+    command: |
+      for i in $(seq 1 10); do curl -s -u testuser1:wrongpass -o /dev/null localhost:${MAIN_HTTP_PORT}/builtin_app/; done
+      curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}\n" localhost:${MAIN_HTTP_PORT}/builtin_app/
+      ../openrun user show testuser1 | grep -c locked
+      ../openrun user update testuser1 --unlock > /dev/null
+      curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}\n" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    stdout:
+      exactly: |
+        401
+        1
+        403
     exit-code: 0
   builtin0180: # delete the dynamic user
     command: ../openrun user delete testuser1
     stdout: "User deleted: testuser1"
     exit-code: 0
   builtin0190: # the deleted user can no longer authenticate (401)
-    command: curl -s -u testuser1:pw2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    command: curl -s -u testuser1:password2 -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "401"
     exit-code: 0
-  builtin0200: # static openrun.toml entries cannot be deleted through the API
+  builtin0200: # the user imported from the static openrun.toml entry is an ordinary user: it can be deleted
     command: ../openrun user delete statictester
-    stderr: "static entries cannot be deleted"
-    exit-code: 1
+    stdout: "User deleted: statictester"
+    exit-code: 0
+  builtin0205: # and is gone until the next server start re-imports it
+    command: curl -s -u statictester:abcd -o /dev/null -w "%{http_code}" localhost:${MAIN_HTTP_PORT}/builtin_app/
+    stdout: "401"
+    exit-code: 0
   builtin0210: # restore the default RBAC config (RBAC is always on; the
     # default grant gives every authenticated principal app access)
     command: |
@@ -138,12 +192,28 @@ tests:
       EOF
       ../openrun server update-config --force builtin_rbac.json
     exit-code: 0
-  builtin0220: # with the default grant, any builtin user can access the app again
-    command: curl -s -u statictester:abcd localhost:${MAIN_HTTP_PORT}/builtin_app/
+  builtin0215: # users live in their own table: replacing the dynamic config does not touch them
+    command: |
+      ../openrun user add testuser2 --value password2 > /dev/null
+      ../openrun user list | grep -c testuser2
+    stdout: "1"
+    exit-code: 0
+  builtin0220: # with the default grant, any builtin user can access the app
+    command: curl -s -u testuser2:password2 localhost:${MAIN_HTTP_PORT}/builtin_app/
     stdout: "child ok"
     exit-code: 0
-  builtin0230: # cleanup app and config file
+  builtin0225: # a dynamic config document carrying a builtin_auth section is rejected
     command: |
+      cat > builtin_bad.json <<EOF
+      {"version_id": "force", "rbac": {"groups": {}, "roles": {}, "grants": [{"users": ["*"], "roles": ["openrun-user"], "targets": ["all"]}]},
+       "entries": {"builtin_auth": {"sneaky": {"password": "x", "groups": []}}}}
+      EOF
+      ../openrun server update-config --force builtin_bad.json
+    stderr: "builtin_auth"
+    exit-code: 1
+  builtin0230: # cleanup app, user and config files
+    command: |
+      ../openrun user delete testuser2
       ../openrun app delete /builtin_app
-      rm -f builtin_rbac.json
+      rm -f builtin_rbac.json builtin_bad.json
     exit-code: 0

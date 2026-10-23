@@ -65,10 +65,10 @@ func configSectionField(section string) (reflect.Type, bool) {
 
 // configSectionType returns the map type for a dynamically settable entry
 // section. Entries merge at whole-entry granularity, so only named-entry map
-// sections qualify
+// sections qualify, and not the static-only ones
 func configSectionType(section string) (reflect.Type, bool) {
 	fieldType, ok := configSectionField(section)
-	if !ok || !isEntrySectionType(fieldType) {
+	if !ok || staticOnlySections[section] || !isEntrySectionType(fieldType) {
 		return nil, false
 	}
 	return fieldType, true
@@ -81,7 +81,7 @@ func listConfigSections() []string {
 	for i := range t.NumField() {
 		field := t.Field(i)
 		tag := strings.Split(field.Tag.Get("toml"), ",")[0]
-		if field.Anonymous || tag == "" || tag == "-" {
+		if field.Anonymous || tag == "" || tag == "-" || staticOnlySections[tag] {
 			continue
 		}
 		if isEntrySectionType(field.Type) {
@@ -92,11 +92,14 @@ func listConfigSections() []string {
 	return sections
 }
 
-// staticOnlySections are struct sections which cannot be set dynamically:
-// logging and telemetry are read on hot paths by components which cache the
-// config at startup, so a dynamic value would be misleading (and applying it
-// at runtime would put synchronization on those paths)
-var staticOnlySections = map[string]bool{"logging": true, "telemetry": true}
+// staticOnlySections are sections which cannot be set dynamically: logging
+// and telemetry are read on hot paths by components which cache the config
+// at startup, so a dynamic value would be misleading (and applying it at
+// runtime would put synchronization on those paths); builtin_auth is the
+// deprecated static import source of builtin users, which live in their own
+// table (older dynamic configs carrying builtin_auth entries were migrated
+// at DB version 33)
+var staticOnlySections = map[string]bool{"logging": true, "telemetry": true, "builtin_auth": true}
 
 // isConfigSettingsSection reports whether a section holds settings which can
 // be set dynamically field by field: a struct section of ServerConfig, or a
@@ -694,6 +697,10 @@ func mergeDynamicConfig(logger *types.Logger, static *types.ServerConfig,
 				continue
 			}
 			if len(entries[tag]) == 0 {
+				continue
+			}
+			if staticOnlySections[tag] {
+				logger.Warn().Msgf("dynamic config entries for section %s are not supported, ignored", tag)
 				continue
 			}
 

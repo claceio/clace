@@ -38,9 +38,9 @@ tests:
       ]}}
       EOF
       ../openrun server update-config --force mcp_rbac.json
-      ../openrun user add alice --value alicepw --groups devs
-      ../openrun user add bob --value bobpw
-      ../openrun user add carol --value carolpw
+      ../openrun user add alice --value alicepass1 --groups devs
+      ../openrun user add bob --value bobpass1
+      ../openrun user add carol --value carolpass1
     exit-code: 0
   mcpapp0030: # two MCP apps in front of the echo upstream: the whole app as the
     # endpoint rewritten to /mcp, and a mixed app with a region, scopes and a tool map
@@ -183,10 +183,10 @@ tests:
     # with basic auth get the Bearer challenge; the UI outside the region keeps basic auth
     command: |
       for p in "/apps/mcp_shop/ui/../mcp" "/apps/mcp_shop//mcp" "/apps/mcp_shop/./mcp"; do
-        curl -sk --path-as-is -o /dev/null -w "%{http_code} " -X POST -u alice:alicepw -d '{}' "https://localhost:${MAIN_HTTPS_PORT}$p"
-        curl -sk --path-as-is -o /dev/null -D - -X POST -u alice:alicepw -d '{}' "https://localhost:${MAIN_HTTPS_PORT}$p" | grep -i www-authenticate | grep -o "Bearer"
+        curl -sk --path-as-is -o /dev/null -w "%{http_code} " -X POST -u alice:alicepass1 -d '{}' "https://localhost:${MAIN_HTTPS_PORT}$p"
+        curl -sk --path-as-is -o /dev/null -D - -X POST -u alice:alicepass1 -d '{}' "https://localhost:${MAIN_HTTPS_PORT}$p" | grep -i www-authenticate | grep -o "Bearer"
       done
-      curl -sk -u alice:alicepw https://localhost:${MAIN_HTTPS_PORT}/apps/mcp_shop/ui | jq -r '.result.path'
+      curl -sk -u alice:alicepass1 https://localhost:${MAIN_HTTPS_PORT}/apps/mcp_shop/ui | jq -r '.result.path'
     stdout:
       contains:
         - "401 Bearer"
@@ -203,7 +203,7 @@ tests:
         -d response_type=code -d client_id=openrun-cli -d "redirect_uri=http://127.0.0.1:9/callback" \
         -d state=xyz -d "code_challenge=$CHALLENGE" -d code_challenge_method=S256 \
         --data-urlencode "resource=$RES" --data-urlencode "scope=orders:read orders:write bogus" \
-        -d or_username=alice -d or_password=alicepw --data-urlencode "or_scope=orders:read")
+        -d or_username=alice -d or_password=alicepass1 --data-urlencode "or_scope=orders:read")
       CODE=$(printf %s "$LOCATION" | sed -n 's/.*code=\([^&]*\).*/\1/p')
       test -n "$CODE"
       curl -sk -X POST https://localhost:${MAIN_HTTPS_PORT}/_openrun/oauth/token \
@@ -216,7 +216,7 @@ tests:
       curl -sk -X POST https://localhost:${MAIN_HTTPS_PORT}/_openrun/oauth/authorize \
         -d response_type=code -d client_id=openrun-cli -d "redirect_uri=http://127.0.0.1:9/callback" \
         -d "code_challenge=$CHALLENGE" -d code_challenge_method=S256 --data-urlencode "resource=$RES" \
-        -d or_username=bob -d or_password=bobpw | grep -o "does not have access"
+        -d or_username=bob -d or_password=bobpass1 | grep -o "does not have access"
     stdout:
       contains:
         - "orders:read"

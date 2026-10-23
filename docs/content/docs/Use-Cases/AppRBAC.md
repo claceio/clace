@@ -152,7 +152,7 @@ openrun app update --auth builtin /engg/reports
 curl -u alice:password https://localhost:25223/engg/reports/api/reports
 ```
 
-The user id in grants is `builtin:alice`, and the groups on the user entry are matched by `group:` references like SSO groups. To test management API grants, run CLI commands as another user with `openrun --as builtin:alice app list`. See [Testing RBAC with Builtin Users]({{< ref "docs/configuration/rbac/#testing-rbac-with-builtin-users" >}}) for details.
+The user id in grants is `builtin:alice`, and the groups of the user are matched by `group:` references like SSO groups. To test management API grants, run CLI commands as another user with `openrun --as builtin:alice app list`. See [Testing RBAC with Builtin Users]({{< ref "docs/configuration/rbac/#testing-rbac-with-builtin-users" >}}) for details.
 
 ## Frequently Asked Questions
 

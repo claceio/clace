@@ -1956,11 +1956,23 @@ func (h *Handler) userUpdate(r *http.Request) (any, error) {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 
-	updated, err := h.server.CreateUpdateUser(r.Context(), username, updateRequest.Password, updateRequest.Groups, update)
+	updated, err := h.server.CreateUpdateUser(r.Context(), username, updateRequest, update)
 	if err != nil {
 		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
 	}
 	return types.UserUpdateResponse{Username: username, Updated: updated}, nil
+}
+
+func (h *Handler) userGet(r *http.Request) (any, error) {
+	username := r.URL.Query().Get("username")
+	updateTargetInContext(r, username, false)
+	updateOperationInContext(r, "user_get")
+
+	user, err := h.server.GetUser(r.Context(), username)
+	if err != nil {
+		return nil, types.CreateRequestError(err.Error(), http.StatusBadRequest)
+	}
+	return user, nil
 }
 
 func (h *Handler) userDelete(r *http.Request) (any, error) {

@@ -227,7 +227,7 @@ app = ace.app("job authorization", jobs=[ace.job("inspect", run=inspect), ace.jo
 	}
 	// Deleted builtin users must lose even direct principal grants when
 	// the next scheduled job context is created.
-	server.staticConfig.BuiltinAuth = map[string]types.BuiltinAuthEntry{"runner": {Groups: []string{"runners"}}}
+	addDBTestUser(t, server, "runner", "", "runners")
 	entry.UserID = "builtin:runner"
 	cronCtx, err = server.cronJobContext(context.Background(), entry)
 	if err != nil {
@@ -236,7 +236,10 @@ app = ace.app("job authorization", jobs=[ace.job("inspect", run=inspect), ace.jo
 	if got := system.GetContextGroups(cronCtx); len(got) != 1 || got[0] != "runners" {
 		t.Fatalf("cron must resolve current builtin groups: %v", got)
 	}
-	delete(server.staticConfig.BuiltinAuth, "runner")
+	if err := server.db.DeleteBuiltinUser(context.Background(), "runner"); err != nil {
+		t.Fatal(err)
+	}
+	server.users.invalidate("runner")
 	cronCtx, err = server.cronJobContext(context.Background(), entry)
 	if err != nil {
 		t.Fatal(err)

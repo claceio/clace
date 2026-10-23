@@ -69,9 +69,9 @@ tests:
       ]}}
       EOF
       ../openrun server update-config --force agg_rbac.json > /dev/null
-      ../openrun user add alice --value alicepw > /dev/null
-      ../openrun user add bob --value bobpw > /dev/null
-      ../openrun user add carol --value carolpw > /dev/null
+      ../openrun user add alice --value alicepass1 > /dev/null
+      ../openrun user add bob --value bobpass1 > /dev/null
+      ../openrun user add carol --value carolpass1 > /dev/null
       ../openrun app create --approve --auth builtin ./agg_src /aggapps/orders > /dev/null
       ../openrun app create --approve --auth builtin ./agg_src /aggapps/under_score > /dev/null
       ../openrun app create --approve --auth builtin --mcp=disable ./agg_src /aggapps/off > /dev/null
@@ -288,7 +288,7 @@ tests:
       authorize "$RES&apps=/aggapps/**" admin qwerty | grep -ci "^location:" | sed 's/^/admin_redirects=/'
       grep -o "invalid username or password" agg_page.html | head -1
       grep -o "wants access to <b>[^<]*</b>" agg_page.html | head -1
-      CODE=$(authorize "$RES&apps=/aggapps/**" alice alicepw | grep -i "^location:" | sed 's/.*code=\([0-9a-f]*\).*/\1/')
+      CODE=$(authorize "$RES&apps=/aggapps/**" alice alicepass1 | grep -i "^location:" | sed 's/.*code=\([0-9a-f]*\).*/\1/')
       curl -sk -d grant_type=authorization_code -d "code=$CODE" -d client_id=openrun-cli --data-urlencode "redirect_uri=http://127.0.0.1:39999/callback" \
         -d "code_verifier=$VERIFIER" --data-urlencode "resource=$RES" "$BASE/_openrun/oauth/token" > agg_token.json
       jq -r '"scope=" + .scope' agg_token.json
@@ -297,7 +297,7 @@ tests:
         -H 'Accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' "$2"; }
       tools token_at_agg "$RES"
       tools token_at_mgmt "$BASE/_openrun/mcp"
-      authorize "$BASE/_openrun/app_mcp" alice alicepw | grep -ci "^location:" | sed 's/^/none_redirects=/'
+      authorize "$BASE/_openrun/app_mcp" alice alicepass1 | grep -ci "^location:" | sed 's/^/none_redirects=/'
       grep -o "served without a token" agg_page.html | head -1
     stdout:
       contains:
@@ -329,7 +329,7 @@ tests:
         --data-urlencode "or_password=$3" "$BASE/_openrun/oauth/authorize" | tr -d '\r'; }
       authorize "$BASE/_openrun/mcp?auth=builtin" admin qwerty | grep -ci "^location:" | sed 's/^/admin_via_builtin=/'
       authorize "$BASE/_openrun/mcp" admin qwerty | grep -ci "^location:" | sed 's/^/admin_plain=/'
-      CODE=$(authorize "$BASE/_openrun/mcp?auth=builtin" alice alicepw | grep -i "^location:" | sed 's/.*code=\([0-9a-f]*\).*/\1/')
+      CODE=$(authorize "$BASE/_openrun/mcp?auth=builtin" alice alicepass1 | grep -i "^location:" | sed 's/.*code=\([0-9a-f]*\).*/\1/')
       TOKEN=$(curl -sk -d grant_type=authorization_code -d "code=$CODE" -d client_id=openrun-cli --data-urlencode "redirect_uri=http://127.0.0.1:39999/callback" \
         -d "code_verifier=$VERIFIER" --data-urlencode "resource=$BASE/_openrun/mcp?auth=builtin" "$BASE/_openrun/oauth/token" | jq -r .access_token)
       for url in "$BASE/_openrun/mcp?auth=builtin" "$BASE/_openrun/mcp"; do

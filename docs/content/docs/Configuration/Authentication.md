@@ -28,31 +28,26 @@ Set `security.disable_login_form = true` to turn the login page off and use the 
 
 ## Builtin Users
 
-The `builtin` auth type provides simple username/password authentication, without requiring an OAuth/OIDC/SAML provider. Each user is a `builtin_auth` config entry with a bcrypt password hash and an optional groups list; the entry name is the username:
-
-```toml {filename="openrun.toml"}
-[builtin_auth.alice]
-password = "$2a$10$xxxxxxxxx" # bcrypt hash, generate with "openrun password --prompt"
-groups = ["dev", "qa"]
-```
-
-Apps use this auth type with `--auth builtin`. Requests authenticate with HTTP Basic auth, so `curl -u alice:mypassword https://example.com:25223/myapp` works. For [RBAC]({{< ref "RBAC" >}}), the user id is `builtin:alice` and the groups list is matched by `group:` references in grants, the same way SSO provider groups are.
-
-Users can also be managed dynamically through the CLI, without a server restart. Dynamic entries take effect immediately and shadow a static entry with the same username:
+The `builtin` auth type provides simple username/password authentication, without requiring an OAuth/OIDC/SAML provider. Builtin users are accounts managed by the server (stored in the metadata database) with the `openrun user` commands; changes take effect immediately, without a server restart:
 
 ```sh
 openrun user add alice --groups dev,qa    # a random password is generated and printed
 openrun user add bob --prompt             # prompt for the password
+openrun user add carol --value mypassword # password on the command line
 openrun user update alice --value newpass # change the password, keep the groups
 openrun user update alice --groups dev    # change the groups, keep the password
+openrun user update alice --disable       # refuse logins; --enable turns the user back on
+openrun user update alice --unlock        # clear a lockout after repeated failed logins
+openrun user show alice
 openrun user list
-openrun user delete alice
+openrun user delete alice                 # also revokes the user's API keys
 ```
 
-The password is bcrypt hashed on the client; only the hash is sent to the server and stored in the config. Builtin users are intended for small deployments and for testing RBAC policies with multiple users and groups; prefer OAuth/OIDC/SAML for production single sign-on.
+Apps use this auth type with `--auth builtin`. Browsers get a login page; other clients authenticate with HTTP Basic auth, so `curl -u alice:mypassword https://example.com:25223/myapp` works. For [RBAC]({{< ref "RBAC" >}}), the user id is `builtin:alice` and the user's groups are matched by `group:` references in grants, the same way SSO provider groups are. Managing users requires the `user:manage` permission (or the individual `user:read`, `user:create`, `user:update` and `user:delete` permissions); the `openrun-operator` role includes it. Creating or changing a user is a route to every permission its groups carry, so the write permissions must be named literally in API key scopes.
 
-Every installation starts with two builtin users for trying things out, `test1` with password `test1` and `test2` with password `test2` (no groups). They are ordinary dynamic entries, not added when a static `[builtin_auth.test1]` or `[builtin_auth.test2]` entry already exists in `openrun.toml`: an app created with `--auth builtin` accepts them right away
-, including the login page of an [MCP app]({{< ref "docs/applications/mcp" >}}), and `openrun user delete test1` removes them. Delete both before exposing a server to untrusted networks if you are using builtin auth.
+Passwords are sent to the server as entered and hashed there with argon2id (bcrypt hashes from earlier versions are accepted and upgraded on the user's next login). A password must be 8 to 128 characters and may not equal the username. Usernames are 1 to 64 characters, start with a letter or digit, continue with letters, digits and `. _ @ + -`, are case sensitive, and may not be `admin`, `anonymous` or start with `openrun-`. After ten consecutive wrong passwords the account is locked for 15 minutes (`openrun user update <name> --unlock` clears it); a password change, disable or delete signs the user out of existing browser sessions immediately. Builtin users are intended for small deployments and for testing RBAC policies with multiple users and groups; prefer OAuth/OIDC/SAML for production single sign-on.
+
+A `[builtin_auth.<username>]` section in `openrun.toml` (a `password` hash plus `groups`) is deprecated. Its entries are imported as users when the server starts and no user of that name exists; an existing user is never changed from the config file, and the section will be removed in a later release. Move such users to `openrun user` and delete the section.
 
 ## Default Authentication Type
 

@@ -56,11 +56,11 @@ func TestSetupAdminAccountGeneratedPasswordUsable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("mergeDynamicConfig: %v", err)
 		}
-		fp, ok := credentialFingerprint(effective, auth.passwordHash, string(types.AppAuthnSystem), "admin")
+		fp, ok := credentialFingerprint(effective, auth.passwordHash, nil, string(types.AppAuthnSystem), "admin")
 		if !ok || fp == "" {
 			t.Fatal("credential fingerprint not resolvable from the effective config")
 		}
-		if _, ok := credentialFingerprint(effective, nil, string(types.AppAuthnSystem), "admin"); ok {
+		if _, ok := credentialFingerprint(effective, nil, nil, string(types.AppAuthnSystem), "admin"); ok {
 			t.Fatal("credential fingerprint must not resolve without the generated hash")
 		}
 	}

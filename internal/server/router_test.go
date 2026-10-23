@@ -37,13 +37,13 @@ func newRouterTestServer(apiEnabled, redirectToHTTPS bool) (*types.ServerConfig,
 		Logger:         logger,
 		staticConfig:   config,
 		authHandler:    NewAdminBasicAuth(logger, config),
-		builtinAuth:    NewBuiltinAuth(logger, func() *types.ServerConfig { return config }),
+		users:          NewUserManager(logger, newMemoryUserStore()),
 		oAuthManager:   &OAuthManager{Logger: logger, config: config},
 		samlManager:    &SAMLManager{Logger: logger, config: config},
 		csrfMiddleware: http.NewCrossOriginProtection(),
 	}
 	formLogin, err := NewFormLoginManager(logger, func() *types.ServerConfig { return config },
-		nil, nil, server.authHandler, server.builtinAuth, config.Security.SessionHttpsOnly)
+		nil, nil, server.authHandler, server.users, config.Security.SessionHttpsOnly)
 	if err != nil {
 		panic(err)
 	}

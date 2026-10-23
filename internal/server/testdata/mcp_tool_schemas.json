@@ -1385,8 +1385,15 @@
   "user_add": {
     "additionalProperties": false,
     "properties": {
+      "disabled": {
+        "description": "disable (true) or enable (false) the user; omit to leave unchanged",
+        "type": [
+          "null",
+          "boolean"
+        ]
+      },
       "groups": {
-        "description": "RBAC groups for the user",
+        "description": "RBAC groups for the user; omit on an update to keep the current groups",
         "items": {
           "type": "string"
         },
@@ -1395,22 +1402,25 @@
           "array"
         ]
       },
-      "password_hash": {
-        "description": "bcrypt hash of the user's password",
+      "password": {
+        "description": "the user's password (hashed by the server); required to create, empty on an update keeps the current password",
         "type": "string"
+      },
+      "unlock": {
+        "description": "clear a login lockout caused by repeated failed logins",
+        "type": "boolean"
       },
       "update": {
         "description": "update an existing user instead of creating",
         "type": "boolean"
       },
       "username": {
-        "description": "the builtin auth username",
+        "description": "the builtin username",
         "type": "string"
       }
     },
     "required": [
-      "username",
-      "password_hash"
+      "username"
     ],
     "type": "object"
   },
@@ -1418,7 +1428,20 @@
     "additionalProperties": false,
     "properties": {
       "username": {
-        "description": "the builtin auth username",
+        "description": "the builtin username",
+        "type": "string"
+      }
+    },
+    "required": [
+      "username"
+    ],
+    "type": "object"
+  },
+  "user_get": {
+    "additionalProperties": false,
+    "properties": {
+      "username": {
+        "description": "the builtin username",
         "type": "string"
       }
     },

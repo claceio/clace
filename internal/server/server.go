@@ -145,7 +145,7 @@ type Server struct {
 	handler      *Handler
 	apps         *AppStore
 	authHandler  *AdminBasicAuth
-	builtinAuth  *BuiltinAuth
+	users        *UserManager
 	oAuthManager *OAuthManager
 	samlManager  *SAMLManager
 	formLogin    *FormLoginManager
@@ -387,10 +387,17 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	db.AppNotifyFunc = server.appNotifyHandler
 	db.ConfigNotifyFunc = server.configNotifyHandler
 	db.ProviderNotifyFunc = server.providerNotifyHandler
+	db.UserNotifyFunc = server.userNotifyHandler
 	server.generatedAdminPassword = generatedAdminPassword
 	server.authHandler = NewAdminBasicAuth(l, config)
 	server.authHandler.generated = adminHash
-	server.builtinAuth = NewBuiltinAuth(l, server.Config)
+	server.users = NewUserManager(l, db)
+	server.users.notify = func(usernames []string) {
+		if err := db.NotifyUserUpdate(usernames); err != nil {
+			l.Warn().Err(err).Msg("error notifying other instances about a builtin user change")
+		}
+	}
+	server.importStaticBuiltinUsers(context.Background())
 	server.notifyClose = make(chan types.AppPathDomain)
 
 	csrfMiddleware := http.NewCrossOriginProtection()
@@ -429,7 +436,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	// with OAuth/SAML), so form login is given the same startup value to keep
 	// its canStartFlow decision consistent with the actual cookie behavior
 	server.formLogin, err = NewFormLoginManager(l, server.Config, server.oAuthManager.cookieStore,
-		db, server.authHandler, server.builtinAuth, config.Security.SessionHttpsOnly)
+		db, server.authHandler, server.users, config.Security.SessionHttpsOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -472,8 +479,8 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 
 	if server.dynamicConfig == nil || server.dynamicConfig.VersionId == "" {
 		// Fallback only: the DB migration (version 31) seeds the initial
-		// row (default RBAC config plus the default builtin users) on a
-		// fresh install. A store that somehow has no row starts with the
+		// row (the default RBAC config) on a fresh install. A store that
+		// somehow has no row starts with the
 		// default RBAC config: enforcement is always on, and the default
 		// grant reproduces authenticated => app access
 		if server.dynamicConfig == nil {
@@ -852,10 +859,6 @@ func (s *Server) prepareDynamicConfig(ctx context.Context, config *types.Dynamic
 		if publishSAML != nil {
 			publishSAML()
 		}
-		if !reflect.DeepEqual(previous.BuiltinAuth, effective.BuiltinAuth) {
-			// A password change or user delete must take effect immediately
-			s.builtinAuth.ResetCache()
-		}
 
 		if !reflect.DeepEqual(previous.System, effective.System) ||
 			previous.Security.AppDefaultAuthType != effective.Security.AppDefaultAuthType ||
@@ -938,6 +941,13 @@ func (s *Server) UpdateDynamicConfig(ctx context.Context, newConfig *types.Dynam
 
 	if err := s.validateRBACGrants(&newConfig.RBAC); err != nil {
 		return nil, err
+	}
+	for section := range newConfig.Entries {
+		if _, ok := configSectionType(section); !ok {
+			return nil, fmt.Errorf("unknown config entries section %q, valid sections are: %s "+
+				"(builtin users are managed with \"openrun user\", not as config entries)",
+				section, strings.Join(listConfigSections(), ", "))
+		}
 	}
 
 	// Copy before replacing redaction markers or assigning a version so

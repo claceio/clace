@@ -93,6 +93,7 @@ const (
 	API_USER_ADD             API_NAME = "user_add"
 	API_USER_DELETE          API_NAME = "user_delete"
 	API_USER_LIST            API_NAME = "user_list"
+	API_USER_GET             API_NAME = "user_get"
 	API_CONFIG_GET           API_NAME = "config_get"
 	API_CONFIG_UPDATE        API_NAME = "config_update"
 	API_CREATE_APIKEY        API_NAME = "create_apikey"
@@ -405,16 +406,20 @@ func init() {
 			Scope: types.PermissionSecretCreate, MCPDisabled: true,
 			Method: http.MethodPost, Path: "/secret/rekey", ApiFunc: (*Handler).rekeySecrets},
 
-		// Builtin auth user management: MCP default-disabled
-		API_USER_ADD: {Description: "Create or update a builtin auth user (disabled for MCP by default)",
-			Scope: types.PermissionConfigUpdate, MCPDisabled: true,
+		// Builtin user management: the write operations are MCP
+		// default-disabled (a user can be created in any group)
+		API_USER_ADD: {Description: "Create or update a builtin user: password, groups, disable/enable/unlock (disabled for MCP by default)",
+			Scope: types.PermissionUserUpdate, MCPDisabled: true,
 			Method: http.MethodPost, Path: "/user", ApiFunc: (*Handler).userUpdate},
-		API_USER_DELETE: {Description: "Delete a builtin auth user (disabled for MCP by default)",
-			Scope: types.PermissionConfigUpdate, Destructive: true, MCPDisabled: true,
+		API_USER_DELETE: {Description: "Delete a builtin user and revoke their API keys (disabled for MCP by default)",
+			Scope: types.PermissionUserDelete, Destructive: true, MCPDisabled: true,
 			Method: http.MethodDelete, Path: "/user", ApiFunc: (*Handler).userDelete},
-		API_USER_LIST: {Description: "List the builtin auth users (no passwords)",
-			Scope: types.PermissionConfigRead, ReadOnly: true,
+		API_USER_LIST: {Description: "List the builtin users (no passwords)",
+			Scope: types.PermissionUserRead, ReadOnly: true,
 			Method: http.MethodGet, Path: "/users", ApiFunc: (*Handler).userList},
+		API_USER_GET: {Description: "Get one builtin user: groups, disabled/locked state, last login (no password)",
+			Scope: types.PermissionUserRead, ReadOnly: true,
+			Method: http.MethodGet, Path: "/user", ApiFunc: (*Handler).userGet},
 
 		// Config: config_update can grant everything else, MCP default-disabled
 		API_CONFIG_GET: {Description: "Get the dynamic server configuration (RBAC, config entries)",

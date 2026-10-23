@@ -135,7 +135,7 @@ func (s *Server) normalizeApiPrincipal(principal string) (provider string, subje
 			http.StatusBadRequest)
 	}
 	if provider == string(types.AppAuthnBuiltin) {
-		if _, exists := s.Config().BuiltinAuth[subject]; !exists {
+		if _, exists := s.users.activeUser(subject); !exists {
 			return "", "", types.CreateRequestError(
 				fmt.Sprintf("builtin user %s is not configured", subject), http.StatusBadRequest)
 		}
@@ -580,7 +580,7 @@ func (s *Server) apiIdentityGroups(ctx context.Context, identity *types.Identity
 	case types.ADMIN_USER:
 		return []string{}, nil
 	case string(types.AppAuthnBuiltin):
-		groups, exists := builtinGroups(s.Config(), identity.StableSubject)
+		groups, exists := s.users.groups(identity.StableSubject)
 		if !exists {
 			return nil, fmt.Errorf("builtin user %s is no longer configured", identity.StableSubject)
 		}

@@ -454,17 +454,16 @@ func TestMetadata_ConfigAndKV(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	// The migration (version 31) seeds the initial config: default RBAC
-	// config plus the default builtin users
+	// The migration (version 31) seeds the initial config: the default RBAC
+	// config, and no config entries (the default builtin users of earlier
+	// versions are gone)
 	seeded, err := m.GetConfig()
 	testutil.AssertNoError(t, err)
 	if seeded.VersionId == "" || len(seeded.RBAC.Grants) == 0 {
 		t.Fatalf("migration must seed the initial config, got %+v", seeded)
 	}
-	for _, name := range []string{"test1", "test2"} {
-		if entry := seeded.Entries["builtin_auth"][name]; entry == nil || entry["password"] != DefaultBuiltinUsers[name].Password {
-			t.Fatalf("seeded config must carry builtin user %s: %+v", name, seeded.Entries)
-		}
+	if len(seeded.Entries) != 0 {
+		t.Fatalf("seeded config must carry no entries: %+v", seeded.Entries)
 	}
 
 	configV1 := &types.DynamicConfig{

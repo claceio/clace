@@ -505,14 +505,16 @@ type SecretDeleteResponse struct {
 	Name string `json:"name"`
 }
 
-// UserUpdateRequest is the request to create or update one builtin auth user
-// as a dynamic config entry. Password carries the bcrypt hash of the password
-// (hashed on the client side); an empty Password on an update keeps the
-// stored hash. Groups nil on an update keeps the stored groups; an empty
-// (non-nil) list clears them
+// UserUpdateRequest is the request to create or update one builtin user.
+// Password is the plaintext password, hashed by the server; empty on an
+// update keeps the stored hash. Groups nil on an update keeps the stored
+// groups; an empty (non-nil) list clears them. Disabled nil leaves the
+// disabled state unchanged. Unlock clears a login lockout
 type UserUpdateRequest struct {
-	Password string   `json:"password"` // bcrypt hash of the password
+	Password string   `json:"password"`
 	Groups   []string `json:"groups"`
+	Disabled *bool    `json:"disabled,omitzero"`
+	Unlock   bool     `json:"unlock,omitzero"`
 }
 
 // MarshalJSONTo preserves the distinction between nil groups (keep the
@@ -527,12 +529,17 @@ type UserUpdateResponse struct {
 	Updated  bool   `json:"updated"` // true if an existing user entry was updated
 }
 
-// BuiltinUserInfo is the non-sensitive info about one builtin auth user
+// BuiltinUserInfo is the non-sensitive info about one builtin user (never
+// the password hash)
 type BuiltinUserInfo struct {
-	Username   string   `json:"username"`
-	Groups     []string `json:"groups"`
-	Source     string   `json:"source"`     // "static" (openrun.toml) or "dynamic"
-	Overridden bool     `json:"overridden"` // static entry shadowed by a dynamic entry of the same name
+	Username          string     `json:"username"`
+	Groups            []string   `json:"groups"`
+	Disabled          bool       `json:"disabled"`
+	LockedUntil       *time.Time `json:"locked_until,omitempty"` // set while login is locked after repeated failures
+	CreatedBy         string     `json:"created_by"`
+	CreateTime        time.Time  `json:"create_time"`
+	PasswordUpdatedAt time.Time  `json:"password_updated_at"`
+	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
 }
 
 type UserListResponse struct {

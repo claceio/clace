@@ -258,8 +258,8 @@ tests:
     exit-code: 0
   rbac0189a: # app:read vs app:read_detail: two builtin users, one holding
     # app:read only (basic app info) and one openrun-monitor (app:read_detail).
-    # The config is written first: update-config --force replaces the whole
-    # dynamic config, which would wipe dynamically added user entries
+    # Users are rows of their own table, so the order of update-config --force
+    # and user add does not matter
     command: |
       cat > rbac_config4.json <<EOF
       {
@@ -343,7 +343,9 @@ tests:
       }
       EOF
       ../openrun server update-config --force rbac_config4.json
-      ../openrun user add rdviewer --value rdviewerpw
+      # rdviewer (added in rbac0189a) is a user row, untouched by the config replacement
+      ../openrun user list | grep -c rdviewer
+    stdout: "1"
     exit-code: 0
   rbac0189g2: # openrun-consumer holds no app:read: the listing is empty
     command: ../openrun --as builtin:rdviewer app list all
@@ -393,9 +395,11 @@ tests:
         - "/protected"
         - "/rbacapp"
     exit-code: 0
-  rbac0210: # cleanup apps and config file
+  rbac0210: # cleanup apps, users and config file
     command: |
       ../openrun app delete /rbacapp
       ../openrun app delete /protected
+      ../openrun user delete rdviewer
+      ../openrun user delete rdmonitor
       rm -f rbac_config1.json rbac_config2.json rbac_config4.json
     exit-code: 0

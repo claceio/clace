@@ -555,13 +555,15 @@ type (
 		Provider string `json:"provider,omitzero" jsonschema:"secret provider name, empty for the default"`
 	}
 	mcpUserAddIn struct {
-		Username     string   `json:"username" jsonschema:"the builtin auth username"`
-		PasswordHash string   `json:"password_hash" jsonschema:"bcrypt hash of the user's password"`
-		Groups       []string `json:"groups,omitzero" jsonschema:"RBAC groups for the user"`
-		Update       bool     `json:"update,omitzero" jsonschema:"update an existing user instead of creating"`
+		Username string   `json:"username" jsonschema:"the builtin username"`
+		Password string   `json:"password,omitzero" jsonschema:"the user's password (hashed by the server); required to create, empty on an update keeps the current password"`
+		Groups   []string `json:"groups,omitzero" jsonschema:"RBAC groups for the user; omit on an update to keep the current groups"`
+		Update   bool     `json:"update,omitzero" jsonschema:"update an existing user instead of creating"`
+		Disabled *bool    `json:"disabled,omitzero" jsonschema:"disable (true) or enable (false) the user; omit to leave unchanged"`
+		Unlock   bool     `json:"unlock,omitzero" jsonschema:"clear a login lockout caused by repeated failed logins"`
 	}
 	mcpUsernameIn struct {
-		Username string `json:"username" jsonschema:"the builtin auth username"`
+		Username string `json:"username" jsonschema:"the builtin username"`
 	}
 	mcpConfigUpdateIn struct {
 		ConfigJson string `json:"config_json" jsonschema:"the full dynamic config document as JSON (same shape as config_get returns)"`
@@ -1086,7 +1088,8 @@ func (s *Server) registerMCPTools(srv *mcp.Server) {
 
 	addMCPTool(s, srv, API_USER_ADD,
 		func(ctx context.Context, in mcpUserAddIn) (any, error) {
-			updated, err := s.CreateUpdateUser(ctx, in.Username, in.PasswordHash, in.Groups, in.Update)
+			updated, err := s.CreateUpdateUser(ctx, in.Username, types.UserUpdateRequest{
+				Password: in.Password, Groups: in.Groups, Disabled: in.Disabled, Unlock: in.Unlock}, in.Update)
 			if err != nil {
 				return nil, err
 			}
@@ -1103,8 +1106,12 @@ func (s *Server) registerMCPTools(srv *mcp.Server) {
 
 	addMCPTool(s, srv, API_USER_LIST,
 		func(ctx context.Context, _ mcpListIn) (any, error) {
-			// ListUsers enforces config:read internally (via GetConfigEntries)
 			return s.ListUsers(ctx)
+		})
+
+	addMCPTool(s, srv, API_USER_GET,
+		func(ctx context.Context, in mcpUsernameIn) (any, error) {
+			return s.GetUser(ctx, in.Username)
 		})
 
 	addMCPTool(s, srv, API_CONFIG_UPDATE,

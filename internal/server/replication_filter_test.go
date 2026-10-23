@@ -19,12 +19,7 @@ import (
 // Without RBAC enforcement everything passes through unchanged.
 func TestFilterReplicationEntries(t *testing.T) {
 	logger := testutil.TestLogger()
-	config := &types.ServerConfig{
-		BuiltinAuth: map[string]types.BuiltinAuthEntry{
-			"alice": {Password: "unused"},
-			"bob":   {Password: "unused"},
-		},
-	}
+	config := &types.ServerConfig{}
 	rbacConfig := &types.RBACConfig{
 		Groups: map[string][]string{},
 		Roles: map[string][]types.RBACPermission{
@@ -40,9 +35,11 @@ func TestFilterReplicationEntries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new rbac manager: %v", err)
 	}
+	users, _ := newTestUserManager(t, testUser(t, "alice", ""), testUser(t, "bob", ""))
 	server := &Server{
 		Logger:       logger,
 		staticConfig: config,
+		users:        users,
 		rbacManager:  rbacManager,
 	}
 	server.apps = &AppStore{

@@ -32,10 +32,8 @@ func newMCPTestServer(t *testing.T) (*Server, func(t *testing.T, principal strin
 	t.Cleanup(func() { db.Close() })
 	home := t.TempDir()
 	t.Setenv("OPENRUN_HOME", home)
-	server.staticConfig.BuiltinAuth = map[string]types.BuiltinAuthEntry{
-		"alice": {Password: "unused", Groups: []string{"dev"}},
-		"bob":   {Password: "unused"},
-	}
+	addDBTestUser(t, server, "alice", "", "dev")
+	addDBTestUser(t, server, "bob", "")
 	if err := server.initAuditDB("sqlite:" + filepath.Join(t.TempDir(), "audit.db")); err != nil {
 		t.Fatalf("init audit db: %v", err)
 	}

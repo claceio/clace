@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 // Form-based login for the system and builtin app auth types. Browser
 // navigations to a protected app get an HTML login page (styled like the
 // console); non-browser/API clients keep the HTTP Basic auth challenge.
-// Credentials are verified through the same AdminBasicAuth/BuiltinAuth bcrypt
+// Credentials are verified through the same AdminBasicAuth/UserManager
 // paths as basic auth, and the authenticated identity is stored in a KV-backed
 // session cookie on the app's own domain (the store the SSO/SAML cookies use,
 // cookie names system_openrun_session / builtin_openrun_session).
@@ -162,7 +163,7 @@ type FormLoginManager struct {
 	cookieStore sessions.Store
 	db          KVStore
 	adminAuth   *AdminBasicAuth
-	builtinAuth *BuiltinAuth
+	users       *UserManager
 	tmpl        *template.Template
 	styleHref   string
 	extraHref   string
@@ -188,7 +189,7 @@ type FormLoginManager struct {
 }
 
 func NewFormLoginManager(logger *types.Logger, getConfig func() *types.ServerConfig, cookieStore sessions.Store,
-	db KVStore, adminAuth *AdminBasicAuth, builtinAuth *BuiltinAuth, sessionHttpsOnly bool) (*FormLoginManager, error) {
+	db KVStore, adminAuth *AdminBasicAuth, users *UserManager, sessionHttpsOnly bool) (*FormLoginManager, error) {
 	tmpl, err := template.ParseFS(loginTemplateFS, "login_html/*.go.html")
 	if err != nil {
 		return nil, err
@@ -207,7 +208,7 @@ func NewFormLoginManager(logger *types.Logger, getConfig func() *types.ServerCon
 		cookieStore:      cookieStore,
 		db:               db,
 		adminAuth:        adminAuth,
-		builtinAuth:      builtinAuth,
+		users:            users,
 		tmpl:             tmpl,
 		styleHref:        formStylePath + "?v=" + styleHash,
 		extraHref:        formExtraPath + "?v=" + extraHash,
@@ -293,31 +294,38 @@ func buildLoginFontsCSS() ([]byte, map[string]string, error) {
 	return []byte(css.String()), etags, nil
 }
 
-// credentialFingerprint returns a fingerprint of the current stored bcrypt
-// hash for the user, or false when the user has no usable credential. The
+// credentialFingerprint returns a fingerprint of the user's current
+// credential, or false when the user has no usable credential. The
 // fingerprint is recorded in the session at login and re-checked on every
 // request, so a password change (like a user delete or admin rename)
-// invalidates existing form-login sessions immediately. adminHash resolves
-// the hash of the admin password generated at startup when the config has
-// none (nil: the config hash only), so system sessions do not survive a
-// restart that regenerates the password
-func credentialFingerprint(config *types.ServerConfig, adminHash func() string, authType, username string) (string, bool) {
-	var bcryptHash string
+// invalidates existing form-login sessions immediately. For the admin
+// account it is derived from the bcrypt hash; adminHash resolves the hash of
+// the admin password generated at startup when the config has none (nil:
+// the config hash only), so system sessions do not survive a restart that
+// regenerates the password. For builtin users it is derived from the row id
+// and credential version, which changes on a password set, disable, enable
+// or unlock but not when the same password is rehashed on login
+func credentialFingerprint(config *types.ServerConfig, adminHash func() string, users *UserManager, authType, username string) (string, bool) {
+	var material string
 	if authType == string(types.AppAuthnSystem) {
 		if username != config.AdminUser {
 			return "", false
 		}
-		bcryptHash = config.Security.AdminPasswordBcrypt
-		if bcryptHash == "" && adminHash != nil {
-			bcryptHash = adminHash()
+		material = config.Security.AdminPasswordBcrypt
+		if material == "" && adminHash != nil {
+			material = adminHash()
 		}
 	} else {
-		bcryptHash = config.BuiltinAuth[username].Password
+		user, ok := users.activeUser(username)
+		if !ok {
+			return "", false
+		}
+		material = user.Id + ":" + strconv.Itoa(user.CredentialVersion)
 	}
-	if bcryptHash == "" {
+	if material == "" {
 		return "", false
 	}
-	sum := sha256.Sum256([]byte(bcryptHash))
+	sum := sha256.Sum256([]byte(material))
 	return hex.EncodeToString(sum[:16]), true
 }
 
@@ -752,7 +760,7 @@ func (s *FormLoginManager) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	if authType == string(types.AppAuthnSystem) {
 		authOk = s.adminAuth.authenticate(authHeader)
 	} else {
-		_, _, authOk = s.builtinAuth.authenticate(authHeader)
+		_, _, authOk = s.users.authenticate(authHeader)
 	}
 	if !authOk {
 		s.render(w, authType, state, "Invalid username or password", "")
@@ -802,7 +810,7 @@ func (s *FormLoginManager) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	// complete step (which holds the nonce cookie) turns this into a session.
 	// The completion redirect is followed immediately, so the entry is
 	// short-lived
-	credFp, ok := credentialFingerprint(s.getConfig(), s.adminPasswordHash(), authType, username)
+	credFp, ok := credentialFingerprint(s.getConfig(), s.adminPasswordHash(), s.users, authType, username)
 	if !ok {
 		// defensive: the credential was verified just above, so it must resolve
 		http.Error(w, "error resolving credentials", http.StatusInternalServerError)
@@ -939,13 +947,13 @@ func (s *FormLoginManager) sessionAuth(w http.ResponseWriter, r *http.Request, a
 	}
 
 	// credentialFingerprint also verifies the user still exists (admin
-	// username match / builtin entry present)
+	// username match / builtin user present and not disabled)
 	config := s.getConfig()
 	sessionFp, ok := sessionValueString(session, CRED_FP_KEY)
 	if !ok {
 		return "", nil, false
 	}
-	currentFp, ok := credentialFingerprint(config, s.adminPasswordHash(), authType, user)
+	currentFp, ok := credentialFingerprint(config, s.adminPasswordHash(), s.users, authType, user)
 	if !ok || subtle.ConstantTimeCompare([]byte(sessionFp), []byte(currentFp)) != 1 {
 		return "", nil, false
 	}
@@ -958,8 +966,8 @@ func (s *FormLoginManager) sessionAuth(w http.ResponseWriter, r *http.Request, a
 	if authType == string(types.AppAuthnSystem) {
 		return types.ADMIN_USER, []string{}, true
 	}
-	groups := config.BuiltinAuth[user].Groups
-	if groups == nil { // static entries can omit the groups field
+	groups, _ := s.users.groups(user)
+	if groups == nil {
 		groups = []string{}
 	}
 	return string(types.AppAuthnBuiltin) + ":" + user, groups, true

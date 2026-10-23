@@ -65,7 +65,7 @@ func (s *Server) asUserRequestContext(ctx context.Context, asUser string) (conte
 	groups := []string{}
 	if provider == string(types.AppAuthnBuiltin) {
 		var exists bool
-		groups, exists = builtinGroups(s.Config(), username)
+		groups, exists = s.users.groups(username)
 		if !exists {
 			return nil, types.CreateRequestError(
 				fmt.Sprintf("as user %q: builtin user %s is not configured", asUser, username),
