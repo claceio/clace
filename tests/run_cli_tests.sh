@@ -356,8 +356,24 @@ wait_for_socket() {
   return 1
 }
 
+# The servers log to logs/openrun.json under their home (console logging is
+# off), and cleanup removes that directory. Print the error lines first so a
+# failing CLI call, whose stderr commander does not show, can be diagnosed from
+# the CI output.
+dump_server_errors() {
+  local home log
+  for home in "${TEST_SERVER_HOMES[@]}"; do
+    log="$home/logs/openrun.json"
+    [[ -f "$log" ]] || continue
+    echo "---- server errors from $log (last 40) ----"
+    grep -E '"level":"(error|fatal|panic)"' "$log" | tail -n 40 || true
+    echo "---- end server errors ----"
+  done
+}
+
 error_handler () {
     echo "Error occurred, running cleanup"
+    dump_server_errors
     cleanup
     echo "Test failed"
     exit 1
