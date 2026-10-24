@@ -33,7 +33,6 @@ import (
 	"github.com/markbates/goth/providers/google"
 	"github.com/markbates/goth/providers/microsoftonline"
 	"github.com/markbates/goth/providers/okta"
-	"github.com/markbates/goth/providers/openidConnect"
 )
 
 // OAuth and OIDC support using goth library. Standard OAuth flow, using
@@ -210,7 +209,7 @@ func (s *OAuthManager) buildProvider(providerName string, auth types.AuthConfig,
 		if auth.DiscoveryUrl == "" {
 			return nil, fmt.Errorf("discovery_url is required for OIDC provider")
 		}
-		op, err := openidConnect.New(key, secret, callbackUrl, auth.DiscoveryUrl, scopes...)
+		op, err := newOIDCProvider(key, secret, callbackUrl, auth.DiscoveryUrl, scopes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OIDC provider: %w", err)
 		}
@@ -563,11 +562,23 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 
 	stateMap[USER_ID_KEY] = user.UserID
 	stateMap[USER_NICKNAME_KEY] = user.NickName
-	// Only trust the email as an identity when the IdP has not explicitly marked
-	// it unverified. Otherwise a user on a permissive IdP could assert an
-	// arbitrary address (e.g. someone else's) and match RBAC grants for it.
+	// Only trust the email as an identity when the IdP vouches for it:
+	// otherwise a user on a permissive IdP could assert an arbitrary address
+	// (e.g. someone else's) and match RBAC grants for it. The OIDC adapter
+	// (oidc.go) decides this itself and leaves Email empty for an address
+	// that is not marked verified; the goth providers are gated on the
+	// claim here. An address that was dropped is logged: the user is then
+	// identified by subject, which an operator with email-keyed grants
+	// would otherwise only see as access denied
+	email := ""
 	if emailVerifiedClaim(user.RawData) {
-		stateMap[USER_EMAIL_KEY] = user.Email
+		email = user.Email
+	}
+	if email != "" {
+		stateMap[USER_EMAIL_KEY] = email
+	} else if rawEmail, _ := user.RawData["email"].(string); rawEmail != "" {
+		s.Warn().Str("provider", providerName).Str("subject", user.UserID).Msg(
+			"the identity provider's email claim is not marked verified: the user is identified by subject, grants keyed by the email will not match")
 	}
 
 	lookupKeys := []string{USER_EMAIL_KEY, USER_ID_KEY, USER_NICKNAME_KEY}
@@ -701,6 +712,8 @@ func (s *OAuthManager) rotateLoginState(r *http.Request, sessionId string, state
 // identity. The claim is absent for providers that do not emit it (e.g. GitHub,
 // whose API emails are already verified), in which case we keep the prior
 // behavior of trusting the email; it is only dropped when explicitly false.
+// The OIDC adapter is stricter (oidcEmailVerified: absent is unverified) and
+// applies its policy before the user reaches here, by leaving Email empty
 func emailVerifiedClaim(raw map[string]any) bool {
 	// OIDC userinfo/id_token: email_verified; Google's v2 userinfo
 	// endpoint (the goth google provider): verified_email

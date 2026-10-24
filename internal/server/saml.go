@@ -415,6 +415,12 @@ func (s *SAMLManager) fetchAndParseIDPMetadata(ctx context.Context, url string) 
 	if ed.IDPSSODescriptor == nil {
 		return nil, errors.New("metadata has no IDPSSODescriptor")
 	}
+	// gosaml2 treats an empty IdentityProviderIssuer as opting out of issuer
+	// validation. Never let malformed metadata silently disable that check.
+	ed.EntityID = strings.TrimSpace(ed.EntityID) // gosaml2 compares the issuer exactly
+	if ed.EntityID == "" {
+		return nil, errors.New("metadata has no entityID")
+	}
 
 	// Collect IdP certs
 	cstore := &dsig.MemoryX509CertificateStore{Roots: []*x509.Certificate{}}

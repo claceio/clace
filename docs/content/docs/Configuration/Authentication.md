@@ -227,6 +227,8 @@ scopes = ["openid", "profile", "email", "groups"]
 
 The IdP has to be configured to return the group information in the user profile under the `groups` key. For example, see [Okta forum](https://devforum.okta.com/t/userinfo-not-returning-groups/31907/1) about configuring Okta.
 
+OIDC logins validate ID token signatures using the provider's `jwks_uri`, bind each login to a nonce, and send an S256 PKCE challenge. The provider must return the login nonce in the ID token. The `discovery_url` must be the issuer's `/.well-known/openid-configuration` document, and the issuer it declares must match. An email address is used as the OpenRun identity only when its `email_verified` claim is `true` (a boolean, or the string `"true"` some providers send); otherwise the ID token's `sub` identifies the user, and the dropped email is logged at login. Providers that omit email verification therefore need RBAC grants for the subject or IdP groups instead of email-based grants. An email supplied by UserInfo must have its own verification claim if it differs from the ID token's email.
+
 ## SAML
 
 To configure a SAML based provider, add in config
@@ -245,7 +247,7 @@ Here, the provider name is `saml_testokta`. All SAML providers have the prefix `
 - `sp_key_file`(string): The service provider key file, if required by the IdP
 - `sp_cert_file`(string): The service provider certificate file, if required by the IdP
 
-The `metadata_url` is required, all other options are optional.
+The `metadata_url` is required, all other options are optional. The metadata must include a nonempty `entityID`, which OpenRun uses to validate the issuer of SAML responses and assertions.
 
 On the IdP, configure the application with the following details. If the `callback_url` is set to
 

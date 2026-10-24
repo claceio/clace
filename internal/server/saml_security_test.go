@@ -444,3 +444,31 @@ func TestSAMLManager_RejectsEmptyEncryptedAssertion(t *testing.T) {
 		})
 	}
 }
+
+func TestSAMLMetadataRequiresIssuer(t *testing.T) {
+	for _, entityID := range []string{"", "   "} {
+		t.Run(fmt.Sprintf("entityID=%q", entityID), func(t *testing.T) {
+			raw := strings.Replace(TestMetadataXML, `entityID="http://www.okta.com/exkvzxe13p1NAy06x697"`, `entityID="`+entityID+`"`, 1)
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(raw)) }))
+			defer ts.Close()
+			manager := NewSAMLManager(testutil.TestLogger(), &types.ServerConfig{}, nil, nil)
+			if _, err := manager.buildSAMLProvider(context.Background(), "saml_company", types.SAMLConfig{MetadataURL: ts.URL}, "https://sp.example"); err == nil || !strings.Contains(err.Error(), "entityID") {
+				t.Fatalf("metadata disabled issuer validation: %v", err)
+			}
+		})
+	}
+	// Padding around the entityID is dropped, so the exact issuer comparison
+	// made on every response matches what the IdP sends
+	const entityID = "http://www.okta.com/exkvzxe13p1NAy06x697"
+	raw := strings.Replace(TestMetadataXML, `entityID="`+entityID+`"`, `entityID="  `+entityID+`  "`, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(raw)) }))
+	defer ts.Close()
+	manager := NewSAMLManager(testutil.TestLogger(), &types.ServerConfig{}, nil, nil)
+	sp, err := manager.buildSAMLProvider(context.Background(), "saml_company", types.SAMLConfig{MetadataURL: ts.URL}, "https://sp.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp.IdentityProviderIssuer != entityID {
+		t.Fatalf("issuer %q not normalized", sp.IdentityProviderIssuer)
+	}
+}
