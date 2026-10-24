@@ -66,7 +66,8 @@ const maxSAMLXMLTokens = 10000
 // SAMLManager manages the SAML providers and their configurations
 type SAMLManager struct {
 	*types.Logger
-	config      *types.ServerConfig
+	config      *types.ServerConfig        // startup config: initial providers
+	getConfig   func() *types.ServerConfig // current (dynamic) config for per-request settings
 	cookieStore sessions.Store
 	db          KVStore
 
@@ -85,6 +86,7 @@ func NewSAMLManager(logger *types.Logger, config *types.ServerConfig, cookieStor
 	return &SAMLManager{
 		Logger:      logger,
 		config:      config,
+		getConfig:   func() *types.ServerConfig { return config },
 		cookieStore: cookieStore,
 		db:          db,
 	}
@@ -95,12 +97,12 @@ func genSAMLCookieName(provider string) string {
 }
 
 func (s *SAMLManager) Setup(ctx context.Context) error {
-	return s.registerProviders(ctx, s.config.SAML)
+	return s.registerProviders(ctx, s.config.SAML, s.config.Security.CallbackUrl)
 }
 
 // registerProviders retains startup tolerance for unavailable IdP metadata.
-func (s *SAMLManager) registerProviders(ctx context.Context, configs map[string]types.SAMLConfig) error {
-	publish, err := s.prepareProviders(ctx, configs, false)
+func (s *SAMLManager) registerProviders(ctx context.Context, configs map[string]types.SAMLConfig, callbackUrl string) error {
+	publish, err := s.prepareProviders(ctx, configs, callbackUrl, false)
 	if err != nil {
 		return err
 	}
@@ -110,10 +112,12 @@ func (s *SAMLManager) registerProviders(ctx context.Context, configs map[string]
 
 // prepareProviders builds the provider set without modifying live auth. Dynamic
 // updates reject invalid providers; startup can disable unavailable providers.
-func (s *SAMLManager) prepareProviders(ctx context.Context, samlConfigs map[string]types.SAMLConfig, strict bool) (func(), error) {
+// callbackUrl is the security.callback_url the SP endpoints live on (passed
+// in: on a dynamic config change the new value is not yet the current config)
+func (s *SAMLManager) prepareProviders(ctx context.Context, samlConfigs map[string]types.SAMLConfig, callbackUrl string, strict bool) (func(), error) {
 	providerConfigs := make(map[string]*types.SAMLConfig)
 	providers := make(map[string]*saml2.SAMLServiceProvider)
-	if len(samlConfigs) > 0 && s.config.Security.CallbackUrl == "" {
+	if len(samlConfigs) > 0 && callbackUrl == "" {
 		return nil, fmt.Errorf("security.callback_url must be set for enabling SAML")
 	}
 	var wg sync.WaitGroup
@@ -123,7 +127,7 @@ func (s *SAMLManager) prepareProviders(ctx context.Context, samlConfigs map[stri
 		name = SAML_AUTH_PREFIX + name
 		providerConfigs[name] = &config
 		wg.Go(func() {
-			provider, err := s.buildSAMLProvider(ctx, name, config)
+			provider, err := s.buildSAMLProvider(ctx, name, config, callbackUrl)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -172,7 +176,7 @@ func (s *SAMLManager) ValidateSAMLProvider(authType string) bool {
 // CheckSAMLAuth checks the SAML session for an app request; without a
 // valid session the login flow is started, returning to the request URL
 func (s *SAMLManager) CheckSAMLAuth(w http.ResponseWriter, r *http.Request, appProvider string) (string, []string, error) {
-	return s.checkSAMLAuth(w, r, appProvider, system.GetRequestUrl(r, s.config.Security.TrustedProxies))
+	return s.checkSAMLAuth(w, r, appProvider, system.GetRequestUrl(r, s.getConfig().Security.TrustedProxies))
 }
 
 // checkSAMLAuth is CheckSAMLAuth with an explicit post-login URL: the OAuth
@@ -211,7 +215,7 @@ func (s *SAMLManager) checkSAMLAuth(w http.ResponseWriter, r *http.Request, appP
 		redirectCaller = true
 	}
 
-	if !redirectCaller && !sessionWithinAbsoluteLifetime(session, s.config.Security.SessionAbsoluteMaxAge, time.Now()) {
+	if !redirectCaller && !sessionWithinAbsoluteLifetime(session, s.getConfig().Security.SessionAbsoluteMaxAge, time.Now()) {
 		s.Debug().Msg("saml session past its absolute lifetime, redirecting to login")
 		redirectCaller = true
 	}
@@ -241,7 +245,7 @@ func (s *SAMLManager) checkSAMLAuth(w http.ResponseWriter, r *http.Request, appP
 		}
 	}
 
-	renewSession(s.Logger, w, r, session, s.config.Security.SessionAbsoluteMaxAge) // sliding expiry
+	renewSession(s.Logger, w, r, session, s.getConfig().Security.SessionAbsoluteMaxAge) // sliding expiry
 
 	return appProvider + ":" + userId, groups, nil
 }
@@ -251,13 +255,12 @@ func buildSAMLUrl(baseUrl, providerName, endpoint string) string {
 	return baseUrl + path.Join(types.INTERNAL_URL_PREFIX, "sso", providerName, endpoint)
 }
 
-func (s *SAMLManager) buildSAMLProvider(ctx context.Context, providerName string, config types.SAMLConfig) (*saml2.SAMLServiceProvider, error) {
+func (s *SAMLManager) buildSAMLProvider(ctx context.Context, providerName string, config types.SAMLConfig, baseURL string) (*saml2.SAMLServiceProvider, error) {
 	idp, err := s.fetchAndParseIDPMetadata(ctx, config.MetadataURL)
 	if err != nil {
 		return nil, fmt.Errorf("IdP metadata error: %w", err)
 	}
 
-	baseURL := s.config.Security.CallbackUrl
 	if baseURL == "" {
 		return nil, fmt.Errorf("callback url is not set, required for SAML")
 	}
@@ -364,6 +367,20 @@ type idpConfig struct {
 	CertStore    *dsig.MemoryX509CertificateStore
 }
 
+// maxIdPMetadataBytes bounds an IdP metadata document (a few certificates
+// and endpoints; real documents are tens of kilobytes)
+const maxIdPMetadataBytes = 4 << 20
+
+// validateIdPEndpoint accepts an http(s) location for an IdP endpoint the
+// browser is sent to
+func validateIdPEndpoint(location string) error {
+	parsed, err := url.Parse(location)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return fmt.Errorf("endpoint %q is not an http(s) url", location)
+	}
+	return nil
+}
+
 func (s *SAMLManager) fetchAndParseIDPMetadata(ctx context.Context, url string) (*idpConfig, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -382,9 +399,12 @@ func (s *SAMLManager) fetchAndParseIDPMetadata(ctx context.Context, url string) 
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 		return nil, fmt.Errorf("GET metadata: status %d: %s", resp.StatusCode, string(b))
 	}
-	raw, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxIdPMetadataBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: %w", err)
+	}
+	if len(raw) > maxIdPMetadataBytes {
+		return nil, fmt.Errorf("metadata document larger than %d bytes", maxIdPMetadataBytes)
 	}
 
 	var ed saml_types.EntityDescriptor
@@ -424,9 +444,13 @@ func (s *SAMLManager) fetchAndParseIDPMetadata(ctx context.Context, url string) 
 		return nil, errors.New("no IdP certificates found in metadata")
 	}
 
-	// Find SSO/SLO endpoints by binding
+	// Find SSO/SLO endpoints by binding. The browser is redirected or
+	// posted to these locations, so only web urls are accepted
 	var ssoRedirect, ssoPOST, sloRedirect, sloPOST string
 	for _, s := range ed.IDPSSODescriptor.SingleSignOnServices {
+		if err := validateIdPEndpoint(s.Location); err != nil {
+			return nil, fmt.Errorf("SingleSignOnService: %w", err)
+		}
 		switch s.Binding {
 		case saml2.BindingHttpRedirect:
 			if ssoRedirect == "" {
@@ -439,6 +463,9 @@ func (s *SAMLManager) fetchAndParseIDPMetadata(ctx context.Context, url string) 
 		}
 	}
 	for _, s := range ed.IDPSSODescriptor.SingleLogoutServices {
+		if err := validateIdPEndpoint(s.Location); err != nil {
+			return nil, fmt.Errorf("SingleLogoutService: %w", err)
+		}
 		switch s.Binding {
 		case saml2.BindingHttpRedirect:
 			if sloRedirect == "" {
@@ -637,6 +664,21 @@ func (s *SAMLManager) login(w http.ResponseWriter, r *http.Request, providerName
 	}
 }
 
+// samlGroups selects the group values of an assertion. A configured
+// groups_attr is authoritative: a user without values in it has no groups,
+// rather than whatever another attribute happens to hold. Without one the
+// common attribute names are tried in order
+func samlGroups(groupsAttr string, values saml2.Values) []string {
+	if groupsAttr != "" {
+		return values.GetAll(groupsAttr)
+	}
+	return firstNonEmpty(values.GetAll("groups"),
+		values.GetAll("memberOf"),
+		values.GetAll("roles"),
+		values.GetAll("http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"),
+	)
+}
+
 func (s *SAMLManager) acs(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 	sp := s.getProvider(providerName)
@@ -704,12 +746,7 @@ func (s *SAMLManager) acs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups := firstNonEmpty(ai.Values.GetAll(config.GroupsAttr),
-		ai.Values.GetAll("groups"),
-		ai.Values.GetAll("memberOf"),
-		ai.Values.GetAll("roles"),
-		ai.Values.GetAll("http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"),
-	)
+	groups := samlGroups(config.GroupsAttr, ai.Values)
 
 	if r.PostFormValue("RelayState") == "" {
 		http.Error(w, "relay is required", http.StatusBadRequest)
@@ -843,14 +880,10 @@ func (s *SAMLManager) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success := false
-	defer func() {
-		if !success {
-			session.Options.MaxAge = -1 // delete the session if there is an error
-			_ = session.Save(r, w)
-		}
-	}()
-
+	// A failed check leaves the session alone: this is a GET any site can
+	// navigate to (the Lax cookie comes along), so deleting the session on
+	// error would let a cross-site link log the user out; a stale pre-auth
+	// cookie expires on its own
 	nonceFromCookie, ok := sessionValueString(session, NONCE_KEY)
 	if !ok {
 		http.Error(w, "error matching session, nonce not found", http.StatusBadRequest)
@@ -862,6 +895,10 @@ func (s *SAMLManager) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionId := string(sessionIdBytes)
+	if !strings.HasPrefix(sessionId, types.SAML_SESSION_KV_PREFIX) {
+		http.Error(w, "error matching session state", http.StatusBadRequest)
+		return
+	}
 
 	// Get the state map, delete the entry from database, validate state, set the session values
 	// in the cookie and then redirect to original url
@@ -915,8 +952,13 @@ func (s *SAMLManager) redirect(w http.ResponseWriter, r *http.Request) {
 	// Consume the single-use state entry only after the caller has proven (via the
 	// nonce cookie) that it owns this login, so a leaked relay token alone cannot
 	// delete another user's in-flight login state.
-	if err = s.db.DeleteKV(r.Context(), sessionId); err != nil {
+	consumed, err := s.db.DeleteKVIfPresent(r.Context(), sessionId)
+	if err != nil {
 		http.Error(w, "error deleting state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !consumed {
+		http.Error(w, "error matching session state, login already completed", http.StatusBadRequest)
 		return
 	}
 
@@ -944,12 +986,12 @@ func (s *SAMLManager) redirect(w http.ResponseWriter, r *http.Request) {
 	session.Values[GROUPS_KEY] = groups
 	session.Values[SESSION_INDEX_KEY] = sessionIndex
 	delete(session.Values, REDIRECT_URL)
-	markSessionLogin(session, s.config.Security.SessionAbsoluteMaxAge)
+	delete(session.Values, NONCE_KEY)
+	markSessionLogin(session, s.getConfig().Security.SessionAbsoluteMaxAge)
 	if err = session.Save(r, w); err != nil {
 		http.Error(w, "error saving session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	success = true
 
 	http.Redirect(w, r, redirectUrl, http.StatusFound)
 }
@@ -1028,16 +1070,19 @@ func (s *SAMLManager) logout(w http.ResponseWriter, r *http.Request) {
 	if sp.IdentityProviderSLOURL != "" && nameID != "" && sessionIndex != "" {
 		// Sign only with an SP keypair: the signing path dereferences the
 		// key store and panics without one
+		// Like the AuthnRequest (login): an enveloped XML signature only
+		// over the POST binding, the Redirect binding signs the query string
 		var doc *etree.Document
 		var err error
 		signed := sp.SPKeyStore != nil
-		if signed {
+		redirectBinding := sp.IdentityProviderSLOBinding == saml2.BindingHttpRedirect
+		if signed && !redirectBinding {
 			doc, err = sp.BuildLogoutRequestDocument(nameID, sessionIndex)
 		} else {
 			doc, err = sp.BuildLogoutRequestDocumentNoSig(nameID, sessionIndex)
 		}
 		if err == nil {
-			if sp.IdentityProviderSLOBinding == saml2.BindingHttpRedirect {
+			if redirectBinding {
 				var url string
 				if signed {
 					// Signs the query string, which needs the SP keypair
@@ -1098,9 +1143,22 @@ func (s *SAMLManager) handleIdpLogoutRequest(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "logout request invalid: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	// The library checks the signature, issuer and destination, not the
+	// age: a captured request stays valid forever otherwise
+	if skew := time.Since(req.IssueInstant); req.IssueInstant.IsZero() || skew > idpLogoutRequestMaxAge || skew < -idpLogoutRequestMaxAge {
+		http.Error(w, "logout request invalid: IssueInstant outside the accepted window", http.StatusBadRequest)
+		return
+	}
 
-	// Clear the local session (best effort; requires the browser cookie).
-	s.clearSAMLSession(w, r, providerName)
+	// Clear the local session (best effort; requires the browser cookie),
+	// only when it belongs to the user the request names: a signed request
+	// captured once could otherwise be replayed cross-site to log out
+	// another user of the provider
+	nameID := ""
+	if req.NameID != nil {
+		nameID = req.NameID.Value
+	}
+	s.clearSAMLSessionFor(w, r, providerName, nameID)
 
 	var doc *etree.Document
 	if sp.SPKeyStore != nil {
@@ -1121,6 +1179,25 @@ func (s *SAMLManager) handleIdpLogoutRequest(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// idpLogoutRequestMaxAge bounds the age (and future skew) of an
+// IdP-initiated LogoutRequest's IssueInstant
+const idpLogoutRequestMaxAge = 10 * time.Minute
+
+// clearSAMLSessionFor clears the local session when it is the one an IdP
+// LogoutRequest names (same NameID); any other session is left alone
+func (s *SAMLManager) clearSAMLSessionFor(w http.ResponseWriter, r *http.Request, providerName, nameID string) {
+	session, err := s.cookieStore.Get(r, genSAMLCookieName(providerName))
+	if err != nil || session.IsNew {
+		return
+	}
+	user, _ := session.Values[USER_KEY].(string)
+	if nameID == "" || user != nameID {
+		s.Warn().Str("provider", providerName).Msg("IdP logout request names another user, local session kept")
+		return
+	}
+	s.clearSAMLSession(w, r, providerName)
 }
 
 // clearSAMLSession removes the local SAML session cookie and its server-side row.

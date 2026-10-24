@@ -23,13 +23,15 @@ import (
 // which significantly improves performance.
 type AdminBasicAuth struct {
 	*types.Logger
-	config *types.ServerConfig
+	config    *types.ServerConfig
+	getConfig func() *types.ServerConfig // current (dynamic) config; the admin hash can change at runtime
 	// generated is the hash of the admin password generated at startup, set
 	// when the config has no admin_password_bcrypt
 	generated *adminPasswordHash
 
-	mu            sync.RWMutex
-	authShaCached string
+	mu                sync.RWMutex
+	authShaCached     string // sha of the last accepted header
+	authShaCachedHash string // the password hash it was accepted against
 }
 
 // adminPasswordHash is the bcrypt hash of the admin password generated at
@@ -67,7 +69,7 @@ func (h *adminPasswordHash) get() string {
 // or the one generated at startup (waiting for it on the first use). Empty
 // when the admin account has no usable credential
 func (a *AdminBasicAuth) passwordHash() string {
-	if hash := a.config.Security.AdminPasswordBcrypt; hash != "" {
+	if hash := a.getConfig().Security.AdminPasswordBcrypt; hash != "" {
 		return hash
 	}
 	if a.generated != nil {
@@ -78,14 +80,21 @@ func (a *AdminBasicAuth) passwordHash() string {
 
 func NewAdminBasicAuth(logger *types.Logger, config *types.ServerConfig) *AdminBasicAuth {
 	return &AdminBasicAuth{
-		Logger: logger,
-		config: config,
+		Logger:    logger,
+		config:    config,
+		getConfig: func() *types.ServerConfig { return config },
 	}
 }
 
 func (a *AdminBasicAuth) authenticate(authHeader string) bool {
+	// security.admin_password_bcrypt is dynamic config: a header cached
+	// against a previous hash must not keep authenticating after a change
+	passwordHash := a.passwordHash()
 	a.mu.RLock()
 	authShaCopy := a.authShaCached
+	if a.authShaCachedHash != passwordHash {
+		authShaCopy = ""
+	}
 	a.mu.RUnlock()
 
 	if authShaCopy != "" {
@@ -107,33 +116,35 @@ func (a *AdminBasicAuth) authenticate(authHeader string) bool {
 		return false
 	}
 
-	if a.config.AdminUser == "" {
+	adminUser := a.getConfig().AdminUser
+	if adminUser == "" {
 		a.Warn().Msg("No admin username specified, basic auth not available")
 		return false
 	}
 
-	if subtle.ConstantTimeCompare([]byte(a.config.AdminUser), []byte(user)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(adminUser), []byte(user)) != 1 {
+		// Same delay as a wrong password, so the response time does not
+		// tell a wrong username from a wrong password
 		a.Warn().Msg("Admin username does not match")
+		time.Sleep(100 * time.Millisecond)
 		return false
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(a.passwordHash()), []byte(pass))
+	err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(pass))
 	if err != nil {
 		a.Warn().Err(err).Msg("Password match failed")
 		time.Sleep(100 * time.Millisecond) // slow down brute force attacks
 		return false
 	}
 
-	a.mu.RLock()
-	authShaCopy = a.authShaCached
-	a.mu.RUnlock()
-	if authShaCopy == "" {
-		// Successful request, so we can cache the auth header
-		a.mu.Lock()
+	// Successful request, so we can cache the auth header (for this hash)
+	a.mu.Lock()
+	if a.authShaCached == "" || a.authShaCachedHash != passwordHash {
 		inputSha := sha512.Sum512([]byte(authHeader))
 		a.authShaCached = string(inputSha[:])
-		a.mu.Unlock()
+		a.authShaCachedHash = passwordHash
 	}
+	a.mu.Unlock()
 	return true
 }
 

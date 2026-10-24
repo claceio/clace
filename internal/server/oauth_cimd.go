@@ -124,8 +124,16 @@ func isPrivateOrLocalIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	if ip4 := ip.To4(); ip4 != nil && ip4[0] == 100 && ip4[1]&0xc0 == 64 {
-		return true // 100.64.0.0/10
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 100 && ip4[1]&0xc0 == 64 {
+			return true // 100.64.0.0/10
+		}
+		if ip4[0] == 0 {
+			return true // 0.0.0.0/8 ("this network", routed to local on some stacks)
+		}
+	} else if nat64 := net.ParseIP("64:ff9b::"); nat64 != nil && ip.Mask(net.CIDRMask(96, 128)).Equal(nat64) {
+		// 64:ff9b::/96 (NAT64) embeds an IPv4 address, which may be private
+		return isPrivateOrLocalIP(net.IPv4(ip[12], ip[13], ip[14], ip[15]))
 	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
 		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()

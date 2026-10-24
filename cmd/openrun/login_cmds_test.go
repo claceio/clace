@@ -83,3 +83,23 @@ func TestLoginCallbackPageStyledLikeLogin(t *testing.T) {
 	}
 	<-codes
 }
+
+func TestValidateOAuthEndpoint(t *testing.T) {
+	for endpoint, ok := range map[string]bool{
+		"https://openrun.example.com/_openrun/oauth/authorize": true,
+		"http://localhost:25222/_openrun/oauth/authorize":      true,
+		"http://auth.localhost:25222/_openrun/oauth/authorize": true,
+		"http://127.0.0.1:25222/_openrun/oauth/token":          true,
+		"http://[::1]:25222/_openrun/oauth/token":              true,
+		"http://openrun.example.com/_openrun/oauth/authorize":  false, // plaintext off loopback
+		"file:///etc/passwd":                                   false,
+		"smb://attacker.example/share":                         false,
+		"-flag":                                                false,
+		"https://user:pw@openrun.example.com/authorize":        false,
+		"": false,
+	} {
+		if err := validateOAuthEndpoint(endpoint); (err == nil) != ok {
+			t.Errorf("%q: ok=%v err=%v", endpoint, ok, err)
+		}
+	}
+}

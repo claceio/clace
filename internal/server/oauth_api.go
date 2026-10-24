@@ -915,7 +915,9 @@ func (s *Server) oauthAuthenticateUser(res *oauthResource, username, password st
 				return principal, groups, nil
 			}
 		case "admin":
-			if username == s.Config().AdminUser && s.authHandler.authenticate(basicHeader) {
+			// No username pre-check: authenticate takes the same time for a
+			// wrong username and a wrong password
+			if s.authHandler.authenticate(basicHeader) {
 				return types.ADMIN_USER, []string{}, nil
 			}
 		default:
@@ -1151,6 +1153,12 @@ func (h *Handler) oauthTokenRefresh(w http.ResponseWriter, r *http.Request) {
 		// The identity kill-switch invalidates refresh too, not just the
 		// resource-endpoint verifier
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "identity is disabled")
+		return
+	}
+	// Same liveness check as the resource endpoints: a builtin user that
+	// was disabled or deleted cannot keep refreshing
+	if _, err := h.server.apiIdentityGroups(r.Context(), identity); err != nil {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", err.Error())
 		return
 	}
 

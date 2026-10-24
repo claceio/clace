@@ -369,7 +369,7 @@ func TestSAMLManager_XMLComplexityLimit(t *testing.T) {
 	config := &types.ServerConfig{}
 	config.Security.CallbackUrl = "https://sp.example"
 	manager := NewSAMLManager(testutil.TestLogger(), config, nil, nil)
-	sp, err := manager.buildSAMLProvider(context.Background(), "saml_audit", types.SAMLConfig{MetadataURL: metadata.URL, UsePost: true})
+	sp, err := manager.buildSAMLProvider(context.Background(), "saml_audit", types.SAMLConfig{MetadataURL: metadata.URL, UsePost: true}, "https://sp.example")
 	if err != nil {
 		t.Fatal(err)
 	}

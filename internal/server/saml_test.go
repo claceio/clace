@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -388,7 +389,7 @@ func TestSAMLManager_Routes_RedirectSuccess(t *testing.T) {
 	manager.RegisterRoutes(mux)
 
 	// Store state in database
-	sessionId := "saml_session_test123"
+	sessionId := types.SAML_SESSION_KV_PREFIX + "test123"
 	stateMap := map[string]any{
 		AUTH_KEY:          true,
 		PROVIDER_NAME_KEY: "saml_okta",
@@ -402,7 +403,7 @@ func TestSAMLManager_Routes_RedirectSuccess(t *testing.T) {
 	testutil.AssertNoError(t, err)
 
 	// Create request with session cookie
-	relayEncoded := "c2FtbF9zZXNzaW9uX3Rlc3QxMjM=" // base64 of "saml_session_test123"
+	relayEncoded := base64.URLEncoding.EncodeToString([]byte(sessionId))
 	req := httptest.NewRequest(http.MethodGet, "/_openrun/sso/saml_okta/redirect?relay="+relayEncoded, nil)
 	w := httptest.NewRecorder()
 
@@ -454,7 +455,7 @@ func TestSAMLManager_Routes_RedirectNonceMismatch(t *testing.T) {
 	manager.RegisterRoutes(mux)
 
 	// Store state in database with one nonce
-	sessionId := "saml_session_test456"
+	sessionId := types.SAML_SESSION_KV_PREFIX + "test456"
 	stateMap := map[string]any{
 		AUTH_KEY:          true,
 		PROVIDER_NAME_KEY: "saml_okta",
@@ -468,7 +469,7 @@ func TestSAMLManager_Routes_RedirectNonceMismatch(t *testing.T) {
 	testutil.AssertNoError(t, err)
 
 	// Create request with session cookie with different nonce
-	relayEncoded := "c2FtbF9zZXNzaW9uX3Rlc3Q0NTY=" // base64 of "saml_session_test456"
+	relayEncoded := base64.URLEncoding.EncodeToString([]byte(sessionId))
 	req := httptest.NewRequest(http.MethodGet, "/_openrun/sso/saml_okta/redirect?relay="+relayEncoded, nil)
 	w := httptest.NewRecorder()
 

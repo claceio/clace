@@ -445,11 +445,21 @@ func (m *Metadata) ObserveFederatedIdentity(ctx context.Context, identity *types
 	if err != nil {
 		return fmt.Errorf("error marshalling identity groups: %w", err)
 	}
+	// A row pre-provisioned before any login (an API key minted for the
+	// principal) carries a placeholder subject and no groups observation;
+	// the first verified login replaces the placeholder with the IdP
+	// subject. Once a login has been observed the subject is fixed: a later
+	// login with the same principal but a different subject refreshes
+	// groups only, so bearer credentials keep reporting the subject they
+	// were issued against. The placeholder is detected by the missing
+	// observation rather than by its value, which can legitimately equal a
+	// real subject (SAML NameIDs, providers whose sub is the email)
 	_, err = m.db.ExecContext(ctx, system.RebindQuery(m.dbType,
 		`insert into identities (id, provider, stable_subject, principal_name, groups, groups_observed_at, disabled_at, create_time, email)`+
 			` values (?, ?, ?, ?, ?, ?, NULL, `+system.FuncNow(m.dbType)+`, ?)`+
 			` on conflict (principal_name) do update set groups = excluded.groups, groups_observed_at = excluded.groups_observed_at,`+
-			` email = coalesce(nullif(excluded.email, ''), identities.email)`),
+			` email = coalesce(nullif(excluded.email, ''), identities.email),`+
+			` stable_subject = case when identities.groups_observed_at is null then excluded.stable_subject else identities.stable_subject end`),
 		identity.Id, identity.Provider, identity.StableSubject, identity.PrincipalName, string(groupsJSON), nullTime(identity.GroupsObservedAt),
 		identity.Email)
 	if err != nil {

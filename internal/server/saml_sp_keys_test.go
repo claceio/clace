@@ -171,9 +171,9 @@ func TestSAMLManager_SignedAuthnRequestPerBinding(t *testing.T) {
 	}
 }
 
-// Logout to an IdP SLO endpoint builds an unsigned LogoutRequest without an
-// SP keypair (signing would dereference the missing key store) and a
-// signed one with it
+// Logout to an IdP SLO endpoint over the Redirect binding sends an unsigned
+// LogoutRequest document; with an SP keypair the query string is signed,
+// without one it is not (signing would dereference the missing key store)
 func TestSAMLManager_LogoutRequestSigningFollowsSPKeys(t *testing.T) {
 	t.Parallel()
 	for _, keyFile := range []string{"", "random"} {
@@ -211,9 +211,13 @@ func TestSAMLManager_LogoutRequestSigningFollowsSPKeys(t *testing.T) {
 		if err != nil || location.Host != "idp.example" || location.Query().Get("SAMLRequest") == "" {
 			t.Fatalf("key %q: expected IdP logout redirect, got %s", keyFile, w.Header().Get("Location"))
 		}
+		// The Redirect binding signs the query string, never the XML
 		request := inflateSAMLRequest(t, location.Query().Get("SAMLRequest"))
-		if signed := strings.Contains(request, "SignatureValue"); signed != (keyFile != "") {
-			t.Fatalf("key %q: signed=%v: %s", keyFile, signed, request)
+		if strings.Contains(request, "SignatureValue") {
+			t.Fatalf("key %q: redirect binding must not embed an XML signature: %s", keyFile, request)
+		}
+		if querySigned := location.Query().Get("Signature") != ""; querySigned != (keyFile != "") {
+			t.Fatalf("key %q: query signed=%v: %s", keyFile, querySigned, location)
 		}
 	}
 }

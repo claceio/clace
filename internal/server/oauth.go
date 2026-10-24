@@ -93,7 +93,8 @@ const preAuthStateMaxAge = preAuthSessionMaxAge * time.Second
 // OAuthManager manages the OAuth providers and their configurations (also OIDC)
 type OAuthManager struct {
 	*types.Logger
-	config      *types.ServerConfig
+	config      *types.ServerConfig        // startup config: cookie store settings, initial providers
+	getConfig   func() *types.ServerConfig // current (dynamic) config for per-request settings
 	cookieStore sessions.Store
 	db          KVStore
 
@@ -116,9 +117,10 @@ type OAuthAuthInfo struct {
 
 func NewOAuthManager(logger *types.Logger, config *types.ServerConfig, db KVStore) *OAuthManager {
 	return &OAuthManager{
-		Logger: logger,
-		config: config,
-		db:     db,
+		Logger:    logger,
+		config:    config,
+		getConfig: func() *types.ServerConfig { return config },
+		db:        db,
 	}
 }
 
@@ -147,11 +149,12 @@ func (s *OAuthManager) Setup(sessionKey []byte, sessionBlockKey []byte) error {
 	gothic.GetProviderName = getProviderName
 
 	// Static config errors fail server startup
-	return s.registerProviders(s.config.Auth, true)
+	return s.registerProviders(s.config.Auth, s.config.Security.CallbackUrl, true)
 }
 
-// buildProvider creates the goth provider for one auth config entry
-func (s *OAuthManager) buildProvider(providerName string, auth types.AuthConfig) (goth.Provider, error) {
+// buildProvider creates the goth provider for one auth config entry, with
+// its callback on the given security.callback_url
+func (s *OAuthManager) buildProvider(providerName string, auth types.AuthConfig, callbackBase string) (goth.Provider, error) {
 	key := auth.Key
 	secret := auth.Secret
 	scopes := auth.Scopes
@@ -160,7 +163,7 @@ func (s *OAuthManager) buildProvider(providerName string, auth types.AuthConfig)
 		return nil, fmt.Errorf("provider, key, and secret must be set for each auth provider")
 	}
 
-	callbackUrl := s.config.Security.CallbackUrl + types.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/callback"
+	callbackUrl := callbackBase + types.INTERNAL_URL_PREFIX + "/auth/" + providerName + "/callback"
 	providerSplit := strings.SplitN(providerName, PROVIDER_NAME_DELIMITER, 2)
 	providerType := providerSplit[0]
 
@@ -211,8 +214,8 @@ func (s *OAuthManager) buildProvider(providerName string, auth types.AuthConfig)
 // swaps them in as the full provider set. With failFast any bad entry is
 // an error; otherwise a bad entry is logged and skipped. Persisted dynamic
 // config loaded at startup can tolerate an unavailable provider.
-func (s *OAuthManager) registerProviders(auth map[string]types.AuthConfig, failFast bool) error {
-	publish, err := s.prepareProviders(auth, failFast)
+func (s *OAuthManager) registerProviders(auth map[string]types.AuthConfig, callbackUrl string, failFast bool) error {
+	publish, err := s.prepareProviders(auth, callbackUrl, failFast)
 	if err != nil {
 		return err
 	}
@@ -220,12 +223,15 @@ func (s *OAuthManager) registerProviders(auth map[string]types.AuthConfig, failF
 	return nil
 }
 
-// prepareProviders builds the provider set without changing registered auth.
-func (s *OAuthManager) prepareProviders(auth map[string]types.AuthConfig, failFast bool) (func(), error) {
+// prepareProviders builds the provider set without changing registered
+// auth. callbackUrl is the security.callback_url the providers call back
+// to (passed in: on a dynamic config change the new value is not yet the
+// current config when the providers are rebuilt)
+func (s *OAuthManager) prepareProviders(auth map[string]types.AuthConfig, callbackUrl string, failFast bool) (func(), error) {
 	providerConfigs := make(map[string]*types.AuthConfig, len(auth))
 	providers := make([]goth.Provider, 0, len(auth))
 	for providerName, authConfig := range auth {
-		provider, err := s.buildProvider(providerName, authConfig)
+		provider, err := s.buildProvider(providerName, authConfig, callbackUrl)
 		if err != nil {
 			if failFast {
 				return nil, err
@@ -237,7 +243,7 @@ func (s *OAuthManager) prepareProviders(auth map[string]types.AuthConfig, failFa
 		providerConfigs[providerName] = &authConfig
 	}
 
-	if len(providers) != 0 && s.config.Security.CallbackUrl == "" {
+	if len(providers) != 0 && callbackUrl == "" {
 		return nil, fmt.Errorf("security.callback_url must be set for enabling OAuth")
 	}
 
@@ -261,7 +267,13 @@ func (s *OAuthManager) getProviderConfig(provider string) *types.AuthConfig {
 
 func (s *OAuthManager) RegisterRoutes(csrfMiddleware *http.CrossOriginProtection, mux *chi.Mux) {
 	mux.Get(types.INTERNAL_URL_PREFIX+"/auth/{provider}/login", func(w http.ResponseWriter, r *http.Request) {
-		// Start login process
+		// Start the provider login only for a pending login state created by
+		// beginLogin: gothic stores a session row per start, which an
+		// unauthenticated caller must not be able to allocate at will
+		if !s.pendingLoginState(r) {
+			http.Error(w, "error matching session state, start the login again", http.StatusBadRequest)
+			return
+		}
 		gothic.BeginAuthHandler(w, r)
 	})
 
@@ -306,7 +318,7 @@ func (s *OAuthManager) ValidateAuthType(authType string) bool {
 		return true
 	default:
 		if authType == "cert" || strings.HasPrefix(authType, "cert_") {
-			_, ok := s.config.ClientAuth[authType]
+			_, ok := s.getConfig().ClientAuth[authType]
 			return ok
 		}
 		return s.ValidateProviderName(authType)
@@ -321,7 +333,7 @@ func (s *OAuthManager) CheckAuth(w http.ResponseWriter, r *http.Request, appProv
 // CheckAuthInfo checks the provider session for an app request; without a
 // valid session the login flow is started, returning to the request URL
 func (s *OAuthManager) CheckAuthInfo(w http.ResponseWriter, r *http.Request, appProvider string) (OAuthAuthInfo, error) {
-	return s.checkAuthInfo(w, r, appProvider, system.GetRequestUrl(r, s.config.Security.TrustedProxies))
+	return s.checkAuthInfo(w, r, appProvider, system.GetRequestUrl(r, s.getConfig().Security.TrustedProxies))
 }
 
 // checkAuthInfo is CheckAuthInfo with an explicit post-login URL: the
@@ -359,7 +371,7 @@ func (s *OAuthManager) checkAuthInfo(w http.ResponseWriter, r *http.Request, app
 		redirectCaller = true
 	}
 
-	if !redirectCaller && !sessionWithinAbsoluteLifetime(session, s.config.Security.SessionAbsoluteMaxAge, time.Now()) {
+	if !redirectCaller && !sessionWithinAbsoluteLifetime(session, s.getConfig().Security.SessionAbsoluteMaxAge, time.Now()) {
 		s.Debug().Msg("session past its absolute lifetime, redirecting to login")
 		redirectCaller = true
 	}
@@ -392,7 +404,7 @@ func (s *OAuthManager) checkAuthInfo(w http.ResponseWriter, r *http.Request, app
 	userSubject, _ := sessionValueString(session, USER_ID_KEY)
 	userEmail, _ := sessionValueString(session, USER_EMAIL_KEY)
 
-	renewSession(s.Logger, w, r, session, s.config.Security.SessionAbsoluteMaxAge) // sliding expiry
+	renewSession(s.Logger, w, r, session, s.getConfig().Security.SessionAbsoluteMaxAge) // sliding expiry
 
 	return OAuthAuthInfo{
 		UserId:      appProvider + ":" + userId,
@@ -447,13 +459,29 @@ func (s *OAuthManager) beginLogin(w http.ResponseWriter, r *http.Request, provid
 
 	// The state is the session id, encoded in base64
 	state := base64.URLEncoding.EncodeToString([]byte(sessionId))
-	authUrl := fmt.Sprintf("%s%s/auth/%s/login?state=%s", s.config.Security.CallbackUrl, types.INTERNAL_URL_PREFIX, providerName, state)
+	authUrl := fmt.Sprintf("%s%s/auth/%s/login?state=%s", s.getConfig().Security.CallbackUrl, types.INTERNAL_URL_PREFIX, providerName, state)
 
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", authUrl)
 	} else {
 		http.Redirect(w, r, authUrl, http.StatusFound)
 	}
+}
+
+// pendingLoginState reports whether the request's state names a pre-login
+// entry of this provider (stored by beginLogin, not yet authenticated)
+func (s *OAuthManager) pendingLoginState(r *http.Request) bool {
+	sessionId, err := base64.URLEncoding.DecodeString(r.URL.Query().Get("state"))
+	if err != nil || !strings.HasPrefix(string(sessionId), types.OAUTH_SESSION_KV_PREFIX) {
+		return false
+	}
+	stateMap, err := s.db.FetchKV(r.Context(), string(sessionId))
+	if err != nil {
+		return false
+	}
+	auth, ok := stateValueBool(stateMap, AUTH_KEY)
+	provider, _ := stateValueString(stateMap, PROVIDER_NAME_KEY)
+	return ok && !auth && provider == chi.URLParam(r, "provider")
 }
 
 func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
@@ -655,7 +683,12 @@ func (s *OAuthManager) rotateLoginState(r *http.Request, sessionId string, state
 // whose API emails are already verified), in which case we keep the prior
 // behavior of trusting the email; it is only dropped when explicitly false.
 func emailVerifiedClaim(raw map[string]any) bool {
+	// OIDC userinfo/id_token: email_verified; Google's v2 userinfo
+	// endpoint (the goth google provider): verified_email
 	v, ok := raw["email_verified"]
+	if !ok {
+		v, ok = raw["verified_email"]
+	}
 	if !ok {
 		return true
 	}
@@ -683,14 +716,10 @@ func (s *OAuthManager) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success := false
-	defer func() {
-		if !success {
-			session.Options.MaxAge = -1 // delete the session if there is an error
-			_ = session.Save(r, w)
-		}
-	}()
-
+	// A failed check leaves the session alone: this is a GET any site can
+	// navigate to (the Lax cookie comes along), so deleting the session on
+	// error would let a cross-site link log the user out; a stale pre-auth
+	// cookie expires on its own
 	nonceFromCookie, ok := sessionValueString(session, NONCE_KEY)
 	if !ok {
 		http.Error(w, "error matching session, nonce not found", http.StatusBadRequest)
@@ -702,6 +731,10 @@ func (s *OAuthManager) redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionId := string(sessionIdBytes)
+	if !strings.HasPrefix(sessionId, types.OAUTH_SESSION_KV_PREFIX) {
+		http.Error(w, "error matching session state", http.StatusBadRequest)
+		return
+	}
 
 	// Get the state map, delete the entry from database, validate state, set the session values
 	// in the cookie and then redirect to original url
@@ -755,8 +788,13 @@ func (s *OAuthManager) redirect(w http.ResponseWriter, r *http.Request) {
 	// Consume the single-use state entry only after the caller has proven (via the
 	// nonce cookie) that it owns this login, so a leaked state token alone cannot
 	// delete another user's in-flight login state.
-	if err = s.db.DeleteKV(r.Context(), sessionId); err != nil {
+	consumed, err := s.db.DeleteKVIfPresent(r.Context(), sessionId)
+	if err != nil {
 		http.Error(w, "error deleting state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !consumed {
+		http.Error(w, "error matching session state, login already completed", http.StatusBadRequest)
 		return
 	}
 
@@ -789,12 +827,12 @@ func (s *OAuthManager) redirect(w http.ResponseWriter, r *http.Request) {
 		delete(session.Values, USER_EMAIL_KEY)
 	}
 	delete(session.Values, REDIRECT_URL)
-	markSessionLogin(session, s.config.Security.SessionAbsoluteMaxAge)
+	delete(session.Values, NONCE_KEY)
+	markSessionLogin(session, s.getConfig().Security.SessionAbsoluteMaxAge)
 	if err = session.Save(r, w); err != nil {
 		http.Error(w, "error saving session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	success = true
 
 	http.Redirect(w, r, redirectUrl, http.StatusFound)
 }

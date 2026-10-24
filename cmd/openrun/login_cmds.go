@@ -127,6 +127,14 @@ func runLoginFlow(cCtx *cli.Context, clientConfig *types.ClientConfig, serverUrl
 	if err := fetchJSON(httpClient, serverUrl+"/.well-known/oauth-authorization-server", &metadata); err != nil {
 		return fmt.Errorf("error fetching authorization server metadata: %w", err)
 	}
+	// The authorize url is handed to the OS url opener and the token url
+	// receives the code: both must be web urls (a server must not be able
+	// to name a file: or custom-scheme handler, or an opener flag)
+	for name, endpoint := range map[string]string{"authorization_endpoint": metadata.AuthorizationEndpoint, "token_endpoint": metadata.TokenEndpoint} {
+		if err := validateOAuthEndpoint(endpoint); err != nil {
+			return fmt.Errorf("authorization server metadata %s: %w", name, err)
+		}
+	}
 
 	// PKCE pair and state
 	verifierBytes := make([]byte, 32)
@@ -259,6 +267,26 @@ func loginCallbackHandler(serverUrl, state string, codeCh chan<- string, errCh c
 
 // openBrowser tries to open the url in the default browser, returning false
 // when no opener is available (headless environments)
+// validateOAuthEndpoint accepts an https url, or a plain http url on a
+// loopback host (local development servers)
+func validateOAuthEndpoint(endpoint string) error {
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return fmt.Errorf("%q is not a valid url", endpoint)
+	}
+	switch parsed.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := parsed.Hostname()
+		if host == "localhost" || strings.HasSuffix(host, ".localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback() {
+			return nil
+		}
+		return fmt.Errorf("%q is plain http on a non-loopback host", endpoint)
+	}
+	return fmt.Errorf("%q is not an http(s) url", endpoint)
+}
+
 func openBrowser(openUrl string) bool {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

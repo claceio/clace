@@ -391,6 +391,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 	server.generatedAdminPassword = generatedAdminPassword
 	server.authHandler = NewAdminBasicAuth(l, config)
 	server.authHandler.generated = adminHash
+	server.authHandler.getConfig = server.Config // security.admin_password_bcrypt is dynamic
 	server.users = NewUserManager(l, db)
 	server.users.notify = func(usernames []string) {
 		if err := db.NotifyUserUpdate(usernames); err != nil {
@@ -408,6 +409,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 
 	// Setup OAuth auth
 	server.oAuthManager = NewOAuthManager(l, config, db)
+	server.oAuthManager.getConfig = server.Config
 	var newSessionSecret, newSessionBlockKey []byte
 	if newSessionSecret, err = passwd.GenerateRandomKey(32); err != nil {
 		return nil, err
@@ -427,6 +429,7 @@ func NewServer(config *types.ServerConfig) (*Server, error) {
 
 	// Setup SAML auth
 	server.samlManager = NewSAMLManager(l, config, server.oAuthManager.cookieStore, db)
+	server.samlManager.getConfig = server.Config
 	if err = server.samlManager.Setup(context.Background()); err != nil {
 		return nil, err
 	}
@@ -816,27 +819,30 @@ func (s *Server) prepareDynamicConfig(ctx context.Context, config *types.Dynamic
 		}
 	}
 
+	// The providers embed security.callback_url (their callback and SP
+	// endpoints), so a change to it rebuilds them like a provider change
+	callbackChanged := previous.Security.CallbackUrl != effective.Security.CallbackUrl
 	var publishOAuth func()
-	if !reflect.DeepEqual(previous.Auth, effective.Auth) {
-		publishOAuth, err = s.oAuthManager.prepareProviders(effective.Auth, failOnBindError)
+	if callbackChanged || !reflect.DeepEqual(previous.Auth, effective.Auth) {
+		publishOAuth, err = s.oAuthManager.prepareProviders(effective.Auth, effective.Security.CallbackUrl, failOnBindError)
 		if err != nil {
 			if failOnBindError {
 				return nil, fmt.Errorf("error updating oauth providers: %w", err)
 			}
 			s.Error().Err(err).Msg("committed config loaded with OAuth providers disabled")
-			publishOAuth, _ = s.oAuthManager.prepareProviders(nil, false)
+			publishOAuth, _ = s.oAuthManager.prepareProviders(nil, "", false)
 		}
 	}
 
 	var publishSAML func()
-	if !reflect.DeepEqual(previous.SAML, effective.SAML) {
-		publishSAML, err = s.samlManager.prepareProviders(ctx, effective.SAML, failOnBindError)
+	if callbackChanged || !reflect.DeepEqual(previous.SAML, effective.SAML) {
+		publishSAML, err = s.samlManager.prepareProviders(ctx, effective.SAML, effective.Security.CallbackUrl, failOnBindError)
 		if err != nil {
 			if failOnBindError {
 				return nil, fmt.Errorf("error updating SAML providers: %w", err)
 			}
 			s.Error().Err(err).Msg("committed config loaded with SAML providers disabled")
-			publishSAML, _ = s.samlManager.prepareProviders(ctx, nil, false)
+			publishSAML, _ = s.samlManager.prepareProviders(ctx, nil, "", false)
 		}
 	}
 
