@@ -758,6 +758,12 @@ func (s *SAMLManager) acs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionId := string(sessionIdBytes)
+	// The relay state is a keystore key: only a pre-login row of this flow
+	// may be read and consumed through it, never a row of another namespace
+	if !strings.HasPrefix(sessionId, types.SAML_SESSION_KV_PREFIX) {
+		http.Error(w, "error matching session state", http.StatusBadRequest)
+		return
+	}
 	stateMap, err := s.db.FetchKV(r.Context(), sessionId)
 	if err != nil {
 		http.Error(w, "error fetching KV state: "+err.Error(), http.StatusInternalServerError)
@@ -1214,14 +1220,18 @@ func (s *SAMLManager) clearSAMLSession(w http.ResponseWriter, r *http.Request, p
 }
 
 // isSameOriginRequest reports whether a state-changing request originated from
-// the same site, using Sec-Fetch-Site when present and falling back to an
+// the same origin, using Sec-Fetch-Site when present and falling back to an
 // Origin/Host comparison. Requests with no cross-origin signal are allowed,
 // matching net/http's CrossOriginProtection default for non-browser clients.
+// Like CrossOriginProtection, "same-site" counts as cross-origin: apps on
+// sibling subdomains are separate origins (and separate trust domains), and
+// a page on one must not be able to log the user out of another, which for
+// SAML also starts the IdP single logout
 func isSameOriginRequest(r *http.Request) bool {
 	switch r.Header.Get("Sec-Fetch-Site") {
-	case "same-origin", "same-site", "none":
+	case "same-origin", "none":
 		return true
-	case "cross-site":
+	case "cross-site", "same-site":
 		return false
 	}
 	origin := r.Header.Get("Origin")

@@ -145,7 +145,20 @@ func (s *OAuthManager) Setup(sessionKey []byte, sessionBlockKey []byte) error {
 	cookieStore.Options.SameSite = http.SameSiteLaxMode
 	s.cookieStore = cookieStore
 
-	gothic.Store = s.cookieStore // Set the store for gothic
+	// gothic keeps its own session (the provider auth URL with the state)
+	// between the login start and the callback. That handshake row is
+	// created by the unauthenticated login endpoint, so it gets the
+	// pre-auth lifetime like the other login-state rows, not the
+	// session_max_age of an authenticated session: a pending state can be
+	// used to start the provider login repeatedly (without the gothic
+	// cookie each start is a new row), which must not pile up day-long rows
+	gothicStore := NewKVSessionStore(s.db, sessionKey, sessionBlockKey)
+	gothicStore.MaxAge(preAuthSessionMaxAge)
+	gothicStore.Options.Path = "/"
+	gothicStore.Options.HttpOnly = true
+	gothicStore.Options.Secure = s.config.Security.SessionHttpsOnly
+	gothicStore.Options.SameSite = http.SameSiteLaxMode
+	gothic.Store = gothicStore
 	gothic.GetProviderName = getProviderName
 
 	// Static config errors fail server startup
@@ -493,6 +506,12 @@ func (s *OAuthManager) authCallback(w http.ResponseWriter, r *http.Request) {
 	sessionId, err := base64.URLEncoding.DecodeString(state)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// The state is a keystore key: only a pre-login row of this flow may be
+	// read and consumed through it, never a row of another namespace
+	if !strings.HasPrefix(string(sessionId), types.OAUTH_SESSION_KV_PREFIX) {
+		http.Error(w, "error matching session state", http.StatusBadRequest)
 		return
 	}
 

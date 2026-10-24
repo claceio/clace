@@ -230,6 +230,15 @@ func TestOAuthDCRAndScopedGrant(t *testing.T) {
 	resp.Body.Close() //nolint:errcheck
 	testutil.AssertEqualsInt(t, "bad redirect status", http.StatusBadRequest, resp.StatusCode)
 
+	// A fragment is never allowed on a redirect uri (RFC 6749 §3.1.2)
+	resp, err = client.Post(ts.URL+"/_openrun/oauth/register", "application/json",
+		strings.NewReader(`{"redirect_uris": ["https://client.example.com/cb#frag"]}`))
+	if err != nil {
+		t.Fatalf("register fragment: %v", err)
+	}
+	resp.Body.Close() //nolint:errcheck
+	testutil.AssertEqualsInt(t, "fragment redirect status", http.StatusBadRequest, resp.StatusCode)
+
 	verifier := "another-test-verifier-0123456789-0123456789"
 	challengeSum := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(challengeSum[:])

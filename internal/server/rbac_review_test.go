@@ -648,14 +648,17 @@ func TestBrowserLoginRefreshesCronGroups(t *testing.T) {
 	gothic.CompleteUserAuth = func(http.ResponseWriter, *http.Request) (goth.User, error) {
 		return goth.User{UserID: "subject-1", Email: "owner@example.com", RawData: map[string]any{"groups": loginGroups}}, nil
 	}
+	// The callback reads the state as a keystore key of the OAuth flow, so
+	// the fixture row carries the prefix beginLogin gives it
+	const loginState = types.OAUTH_SESSION_KV_PREFIX + "login-state"
 	login := func() {
 		t.Helper()
-		if err := db.StoreKV(ctx, "login-state", map[string]any{
+		if err := db.StoreKV(ctx, loginState, map[string]any{
 			AUTH_KEY: false, PROVIDER_NAME_KEY: "github", REDIRECT_URL: "https://apps.example.com/",
 		}, nil); err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state="+base64.URLEncoding.EncodeToString([]byte("login-state")), nil)
+		req := httptest.NewRequest(http.MethodGet, "/auth/github/callback?state="+base64.URLEncoding.EncodeToString([]byte(loginState)), nil)
 		route := chi.NewRouteContext()
 		route.URLParams.Add("provider", "github")
 		req = req.WithContext(context.WithValue(ctx, chi.RouteCtxKey, route))
@@ -664,7 +667,7 @@ func TestBrowserLoginRefreshesCronGroups(t *testing.T) {
 		if recorder.Code != http.StatusFound {
 			t.Fatalf("callback failed: %d %s", recorder.Code, recorder.Body.String())
 		}
-		if err := db.DeleteKV(ctx, "login-state"); err != nil {
+		if err := db.DeleteKV(ctx, loginState); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -76,6 +76,27 @@ func TestSAMLManager_SignedAssertionReplayAndLogoutValidation(t *testing.T) {
 		}
 		return raw
 	}
+	// The relay state is a keystore key: a row of another namespace with the
+	// same shape must not be read or consumed through the ACS, even with a
+	// valid assertion
+	foreign := types.FORM_LOGIN_KV_PREFIX + "_original_request"
+	if err := db.StoreKV(context.Background(), foreign, map[string]any{AUTH_KEY: false, PROVIDER_NAME_KEY: provider,
+		REQUEST_ID_KEY: "_original_request", REDIRECT_URL: "https://sp.example/app", NONCE_KEY: "n"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	foreignForm := url.Values{"SAMLResponse": {base64.StdEncoding.EncodeToString([]byte(wrap("_original_request")))},
+		"RelayState": {base64.URLEncoding.EncodeToString([]byte(foreign))}}
+	foreignReq := httptest.NewRequest("POST", acs, strings.NewReader(foreignForm.Encode()))
+	foreignReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	foreignW := httptest.NewRecorder()
+	mux.ServeHTTP(foreignW, foreignReq)
+	if foreignW.Code != http.StatusBadRequest || !strings.Contains(foreignW.Body.String(), "error matching session state") {
+		t.Fatalf("relay naming another namespace accepted: %d %s", foreignW.Code, foreignW.Body.String())
+	}
+	if _, ok := db.store[foreign]; !ok {
+		t.Fatal("relay naming another namespace consumed its row")
+	}
+
 	var authenticatedCookies []*http.Cookie
 	for _, requestID := range []string{"_original_request", "_different_request"} {
 		stateID := types.SAML_SESSION_KV_PREFIX + requestID

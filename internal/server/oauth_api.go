@@ -511,11 +511,11 @@ func (h *Handler) oauthRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, uri := range req.RedirectUris {
 		parsed, err := url.Parse(uri)
-		valid := err == nil && (parsed.Scheme == "https" ||
+		valid := err == nil && parsed.Fragment == "" && (parsed.Scheme == "https" ||
 			(parsed.Scheme == "http" && isLoopbackHost(parsed.Hostname())))
 		if !valid {
 			writeOAuthError(w, http.StatusBadRequest, "invalid_redirect_uri",
-				fmt.Sprintf("redirect uri %q must be https or a loopback http url", uri))
+				fmt.Sprintf("redirect uri %q must be https or a loopback http url without a fragment", uri))
 			return
 		}
 	}
